@@ -86,12 +86,18 @@ export function HomeLayout() {
                     setPermissions(result.permissions);
                     setError(null);
                     setMessageIndex(Math.floor(Math.random() * greetings.length));
+
+                    // prevent Google from prompting again after successful login
+                    window.google.accounts.id.disableAutoSelect();
+                    window.google.accounts.id.cancel();
                 } else {
                     setError(result.error ?? "Login failed");
                     setName(null);
                     setPermissions(null);
                 }
             },
+            auto_select: false, // prevents automatic re-prompts on reload
+            cancel_on_tap_outside: true,
         });
 
         // Determine Google button theme
@@ -111,9 +117,14 @@ export function HomeLayout() {
             }
         );
 
-        window.google.accounts.id.prompt();
+        // Only show prompt if not logged in
+        if (!name && !permissions) {
+            window.google.accounts.id.prompt();
+        } else {
+            window.google.accounts.id.cancel();
+        }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []); // runs once only
+    }, [theme, name, permissions]);
 
 
     const handleNavigate = (path: string | null) => {

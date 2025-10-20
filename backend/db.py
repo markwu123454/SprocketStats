@@ -386,17 +386,30 @@ async def get_match_scouting(
         await release_db_connection(DB_NAME, conn)
 
 
-async def get_processed_data() -> Optional[str]:
-    """Retrieve the processed data text blob (first row only)."""
+async def get_processed_data(event_key: Optional[str] = None) -> Optional[dict]:
+    """
+    Retrieve the most recent processed_data JSONB entry.
+    If event_key is not provided, uses current_event from metadata directly in SQL.
+    """
     conn = await get_db_connection(DB_NAME)
     try:
-        row = await conn.fetchrow("SELECT data FROM processed_data LIMIT 1")
+        row = await conn.fetchrow("""
+            SELECT data
+            FROM processed_data
+            WHERE event_key = COALESCE($1, (SELECT current_event FROM metadata LIMIT 1))
+            ORDER BY time_added DESC
+            LIMIT 1
+        """, event_key)
+
         return row["data"] if row else None
+
     except PostgresError as e:
         logger.error("Failed to fetch processed data: %s", e)
         raise HTTPException(status_code=500, detail=f"Failed to fetch processed data: {e}")
     finally:
         await release_db_connection(DB_NAME, conn)
+
+
 
 
 # =================== Pit Scouting ===================

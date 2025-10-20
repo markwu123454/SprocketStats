@@ -551,6 +551,31 @@ export function useAPI() {
         }
     };
 
+    // --- Endpoint: GET /data/processed ---
+    const getProcessedData = async (
+        event_key?: string
+    ): Promise<Record<string, any> | null> => {
+        try {
+            const url = new URL(`${BASE_URL}/data/processed`);
+            if (event_key) url.searchParams.set("event_key", event_key);
+
+            const res = await fetch(url.toString(), {
+                headers: getAuthHeaders(),
+            });
+
+            if (!res.ok) {
+                console.warn(`getProcessedData failed: ${res.status} ${res.statusText}`);
+                return null;
+            }
+
+            const json = await res.json();
+            return json.data ?? null;
+        } catch (err) {
+            console.error("getProcessedData failed:", err);
+            return null;
+        }
+    };
+
 
     return {
         login,
@@ -570,5 +595,6 @@ export function useAPI() {
         submitPitData,
         getTeamBasicInfo,
         getFilteredMatches,
+        getProcessedData,
     };
 }

@@ -1,4 +1,5 @@
 import {createContext, useContext, useEffect, useState, type ReactNode} from "react"
+import {useAPI} from "@/hooks/useAPI"   // <-- use your existing API hook
 
 export type ScoutingData = {
     team_data: {
@@ -98,31 +99,14 @@ type ScoringActions = {
     l1: number
     barge: number
     processor: number
-    move?: number           // optional in teleop
+    move?: number
     coral_cycle: number
     algae_cycle: number
-    total?: number           // optional in teleop
+    total?: number
 }
 
 
 const LargeDataContext = createContext<ScoutingData | null>(null)
-
-const UUID_COOKIE = "scouting_uuid"
-
-function getCookie(name: string): string | null {
-    const match = document.cookie.match(new RegExp('(^| )' + name + '=([^;]+)'))
-    return match ? match[2] : null
-}
-
-export function getAuthHeaders(): HeadersInit {
-    const uuid = getCookie(UUID_COOKIE)
-    const headers: HeadersInit = {
-        'Content-Type': 'application/json',
-    }
-    if (uuid) headers['x-uuid'] = uuid
-    return headers
-}
-
 
 export function useLargeData(): ScoutingData {
     const data = useContext(LargeDataContext)
@@ -136,40 +120,25 @@ interface LargeDataWrapperProps {
 
 export function LargeDataWrapper({children}: LargeDataWrapperProps) {
     const [data, setData] = useState<ScoutingData | null>(null)
+    const {getProcessedData} = useAPI() // use centralized API
 
     useEffect(() => {
         let cancelled = false
 
-        async function fetchData() {
-            try {
-                const res = await fetch(`${import.meta.env.VITE_API_URL}/data/processed`, {
-                    method: 'GET',
-                    headers: {
-                        ...getAuthHeaders(),
-                        'Content-Type': 'application/json'
-                    },
-                })
-
-                if (!res.ok) console.error("Large data fetch failed", await res.json())
-
-                const json = await res.json()
-
-                // Attempt to parse json.data if it's a string
-                const parsed = typeof json.data === "string" ? JSON.parse(json.data) : json
-
-                if (!cancelled) setData(parsed)
-            } catch (err) {
-                console.error("Large data fetch failed", err)
+        async function loadData() {
+            const processed = await getProcessedData()
+            if (!cancelled && processed) {
+                // Parse JSONB data field if it’s stored as string in backend
+                const parsed = typeof processed === "string" ? JSON.parse(processed) : processed
+                setData(parsed as ScoutingData)
             }
         }
 
-        void fetchData()
-
+        void loadData()
         return () => {
             cancelled = true
         }
-    }, [])
-
+    }, [getProcessedData])
 
     if (!data) return <div className="p-4 text-center">Loading data...</div>
 
