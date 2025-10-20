@@ -17,43 +17,53 @@ from .calculators.Random_Forest_Regressor import predict_all_playable_matches
 def build_settings_ui(parent, settings_vars: dict, log_fn):
     log_fn("Building settings panel...")
 
-    tb.Label(parent, text="Computation Speed (ms per step):").pack(anchor="w")
-    speed_var = tk.IntVar(value=30)
-    tb.Scale(
-        parent,
-        from_=10,
-        to=200,
-        orient="horizontal",
-        variable=speed_var,
-        bootstyle="info"
-    ).pack(fill="x", pady=5)
-    settings_vars["speed"] = speed_var
-
+    # ---- Verbose Logging ----
     tb.Label(parent, text="Verbose Logging:").pack(anchor="w")
     verbose_var = tk.BooleanVar(value=True)
     tb.Checkbutton(
         parent,
-        text="Enable detailed logs",
+        text="Enable detailed step logs",
         variable=verbose_var,
         bootstyle="round-toggle"
-    ).pack(anchor="w", pady=5)
+    ).pack(anchor="w", pady=3)
     settings_vars["verbose"] = verbose_var
 
-    tb.Label(parent, text="Simulation Mode:").pack(anchor="w")
+    # ---- Feature Toggles ----
+    tb.Label(parent, text="Enabled Features:").pack(anchor="w", pady=(10, 0))
+
+    def add_toggle(name, key, default=True):
+        var = tk.BooleanVar(value=default)
+        tb.Checkbutton(
+            parent,
+            text=name,
+            variable=var,
+            bootstyle="round-toggle"
+        ).pack(anchor="w", pady=2)
+        settings_vars[key] = var
+
+    add_toggle("Step 4 – Heuristic Scoring", "run_step4", True)
+    add_toggle("Step 8 – Habits Analysis", "run_step8", True)
+    add_toggle("Step 4.5 – Filter Incomplete Matches", "run_step45", True)
+    add_toggle("Step 5 – Featured ELO", "run_step5", True)
+    add_toggle("Step 6 – AI Clustering", "run_step6", True)
+    add_toggle("Step 7 – Random Forest Predictions", "run_step7", True)
+
+    # ---- Simulation Mode ----
+    tb.Label(parent, text="Simulation Mode:").pack(anchor="w", pady=(10, 0))
     sim_var = tk.BooleanVar(value=False)
     tb.Checkbutton(
         parent,
-        text="Use simulation mode",
+        text="Enable simulation mode (no heavy compute)",
         variable=sim_var,
         bootstyle="round-toggle"
-    ).pack(anchor="w", pady=5)
+    ).pack(anchor="w", pady=3)
     settings_vars["simulation"] = sim_var
+
 
 
 # =========================
 # Core Calculation Routine
 # =========================
-# ================== Step 4: Heuristic Scoring ==================
 # ================== Step 4: Heuristic Scoring ==================
 def predict_team_scores(data: dict) -> dict:
     """Estimate per-team scores for auto, teleop, and endgame phases."""
@@ -392,11 +402,6 @@ async def step7_random_forest(per_match_data, log, verbose):
 
 
 async def _calculate_async(data, progress, log, get_settings):
-    """
-    Async internal routine to run the full analysis pipeline.
-    Expects all step functions defined in this file (no imports).
-    """
-
     if not data:
         log("[ERROR] No input data provided to calculator.")
         return {"status": 1, "result": {"error": "no data"}}
@@ -405,50 +410,107 @@ async def _calculate_async(data, progress, log, get_settings):
         settings = get_settings()
         verbose = settings.get("verbose", True)
         simulation = settings.get("simulation", False)
+
+        # Step control flags
+        run4 = settings.get("run_step4", True)
+        run8 = settings.get("run_step8", True)
+        run45 = settings.get("run_step45", True)
+        run5 = settings.get("run_step5", True)
+        run6 = settings.get("run_step6", True)
+        run7 = settings.get("run_step7", True)
+
         log(f"Running calculation | verbose={verbose} simulation={simulation}")
         progress(0)
 
-        # STEP 4: heuristic scoring
-        log("STEP 4: Heuristic scoring predictions...")
-        await step4_predict_scores(data, log, verbose)
-        progress(25)
+        habits = {}
+        per_team_data = {}
+        per_match_data = {}
+        ai_result = {}
 
-        # STEP 8: habits
-        log("STEP 8: Analyzing team habits (branch placement)...")
-        habits = step8_habits(data, log, verbose)
-        progress(35)
+        # STEP 4
+        if run4:
+            log("STEP 4: Heuristic scoring predictions...")
+            await step4_predict_scores(data, log, verbose)
+            progress(20)
+        else:
+            log("STEP 4: Skipped.")
 
-        # STEP 4.5: filter incomplete matches
-        log("STEP 4.5: Filtering incomplete matches...")
-        submitted_rows = filter_incomplete_matches(data, log, verbose)
-        progress(45)
+        # STEP 8
+        if run8:
+            log("STEP 8: Analyzing team habits (branch placement)...")
+            habits = step8_habits(data, log, verbose)
+            progress(35)
+        else:
+            log("STEP 8: Skipped.")
 
-        # STEP 5: featured Elo
-        log("STEP 5: Computing featured ELOs...")
-        per_team_data, per_match_data = await step5_featured_elo(submitted_rows, log, verbose)
-        progress(65)
+        # STEP 4.5
+        if run45:
+            log("STEP 4.5: Filtering incomplete matches...")
+            submitted_rows = filter_incomplete_matches(data, log, verbose)
+            progress(45)
+        else:
+            log("STEP 4.5: Skipped.")
+            submitted_rows = data
 
-        # STEP 6: AI clustering
-        log("STEP 6: Computing AI groupings...")
-        ai_result = await step6_ai_ratings(per_match_data, log, verbose)
-        progress(80)
+        # STEP 5
+        if run5:
+            log("STEP 5: Computing featured ELOs...")
+            per_team_data, per_match_data = await step5_featured_elo(submitted_rows, log, verbose)
+            progress(65)
+        else:
+            log("STEP 5: Skipped.")
 
-        # STEP 7: Random Forest predictions
-        log("STEP 7: Predicting match outcomes with Random Forest...")
-        per_match_data = await step7_random_forest(per_match_data, log, verbose)
-        progress(100)
+        # STEP 6
+        if run6:
+            log("STEP 6: Computing AI groupings...")
+            ai_result = await step6_ai_ratings(per_match_data or {}, log, verbose)
+            progress(80)
+        else:
+            log("STEP 6: Skipped.")
 
+        # STEP 7
+        if run7:
+            log("STEP 7: Predicting match outcomes with Random Forest...")
+            per_match_data = await step7_random_forest(per_match_data or {}, log, verbose)
+            progress(100)
+        else:
+            log("STEP 7: Skipped.")
+            progress(100)
 
-        log("All analysis steps complete.")
-        return {
-            "status": 0,
-            "result": {
-                "teams": len(per_team_data),
-                "matches": len(per_match_data),
-                "clusters": len(ai_result.get("cluster_summary", {})),
-                "habits": len(habits),
+        log("All selected analysis steps complete.")
+
+        # --- Convert DataFrames to JSON-compatible dicts ---
+        def safe_convert(obj):
+            if isinstance(obj, pd.DataFrame):
+                return obj.to_dict(orient="records")
+            if isinstance(obj, dict):
+                return {k: safe_convert(v) for k, v in obj.items()}
+            if isinstance(obj, list):
+                return [safe_convert(x) for x in obj]
+            return obj
+
+        result_obj = {
+            "summary": {
+                "teams": len(per_team_data or {}),
+                "matches": len(per_match_data or {}),
+                "clusters": len(ai_result.get("cluster_summary", {})) if ai_result else 0,
+                "habits": len(habits or {}),
+                "steps_enabled": {
+                    "step4": run4,
+                    "step8": run8,
+                    "step45": run45,
+                    "step5": run5,
+                    "step6": run6,
+                    "step7": run7,
+                },
             },
+            "per_team_data": safe_convert(per_team_data),
+            "per_match_data": safe_convert(per_match_data),
+            "ai_result": safe_convert(ai_result),
+            "habits": safe_convert(habits),
         }
+
+        return {"status": 0, "result": result_obj}
 
     except Exception as e:
         log(f"[ERROR in calculate_metrics] {e}")
