@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <link rel="shortcut icon" href="/favicon.ico" />
+  <link rel="manifest" href="/manifest.webmanifest" />
+  <meta name="theme-color" content="#000000" />
+
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+
+  <title>Sprocket Scouting</title>
+
+  <style>
+    :root {
+      --bg1: #140a2a;
+      --bg2: #1f0b46;
+      --accent: #8b5cf6;
+    }
+
+    /* Reset only, not layout control */
+    html, body {
+      margin: 0;
+      height: 100%;
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background-color: #000;
+    }
+
+    /* Splash-specific styles */
+    #initial-loader {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: radial-gradient(80% 110% at 10% 10%, #4c2c7a, var(--bg2)),
+                  linear-gradient(135deg, var(--bg1), var(--bg2));
+      background-attachment: fixed;
+      color: white;
+      z-index: 9999;
+    }
+
+    .logo {
+      position: relative;
+      width: 180px;
+      height: 180px;
+    }
+
+    .logo img {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      user-select: none;
+      -webkit-user-drag: none;
+    }
+
+    .ring {
+      animation: spin 14s linear infinite;
+    }
+    .gear {
+      animation: spin-rev 10s linear infinite;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+    @keyframes spin-rev { to { transform: rotate(-360deg); } }
+
+    .loading {
+      margin-top: 24px;
+      font-size: 1.3rem;
+      animation: fade 2s ease-in-out infinite;
+    }
+
+    @keyframes fade {
+      0%, 100% { opacity: 0.4; }
+      50% { opacity: 1; }
+    }
+
+    /* Smooth hide animation */
+    #initial-loader.fade-out {
+      opacity: 0;
+      transition: opacity 0.4s ease-out;
+      pointer-events: none;
+    }
+  </style>
+</head>
+
+<body>
+  <div id="root">
+    <div id="initial-loader">
+      <div class="logo">
+        <img class="ring" src="/static/sprocket_logo_ring.png" alt="">
+        <img class="gear" src="/static/sprocket_logo_gear.png" alt="">
+      </div>
+      <div class="loading">Loading...</div>
+    </div>
+  </div>
+
+  <script type="module" src="src/main.tsx"></script>
+</body>
+</html>

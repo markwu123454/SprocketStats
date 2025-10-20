@@ -1,0 +1,30 @@
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.venv/
+env/
+venv/
+*.log
+
+# --- FastAPI backend ---
+backend/.env
+backend/.env.*
+
+# --- Node/React frontend ---
+node_modules/
+frontend/node_modules/
+frontend/dist/
+frontend/dev-dist/
+frontend/.env
+frontend/.env.*
+
+# --- IDEs and OS ---
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# --- Lock files (optional) ---
+frontend/package-lock.json
