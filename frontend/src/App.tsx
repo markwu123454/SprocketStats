@@ -6,7 +6,6 @@ import AuthGate from "@/components/AuthGate.tsx"
 
 import { HomeLayout } from "./pages/Home"
 import { MatchScoutingLayout } from "./pages/MatchScouting"
-import { DataLayout } from "./pages/Data" // optional if still used
 import MatchMonitoringLayout from "./pages/MatchMonitoring"
 import AdminHomeLayout from "@/pages/AdminHome.tsx"
 import NotFoundPage from "@/pages/NotFoundPage.tsx"
