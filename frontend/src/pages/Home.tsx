@@ -74,41 +74,47 @@ export function HomeLayout() {
         void load()
     }, [])
 
-    // --- Initialize Google OAuth button ---
     useEffect(() => {
-        if (!window.google || !import.meta.env.VITE_GOOGLE_CLIENT_ID) return
+        if (!window.google || !import.meta.env.VITE_GOOGLE_CLIENT_ID) return;
 
         window.google.accounts.id.initialize({
             client_id: import.meta.env.VITE_GOOGLE_CLIENT_ID,
             callback: async (response: any) => {
-                const result = await login(response.credential)
+                const result = await login(response.credential);
                 if (result.success && result.name && result.permissions) {
-                    setName(result.name)
-                    setPermissions(result.permissions)
-                    setError(null)
-                    setMessageIndex(Math.floor(Math.random() * greetings.length))
+                    setName(result.name);
+                    setPermissions(result.permissions);
+                    setError(null);
+                    setMessageIndex(Math.floor(Math.random() * greetings.length));
                 } else {
-                    setError(result.error ?? "Login failed")
-                    setName(null)
-                    setPermissions(null)
+                    setError(result.error ?? "Login failed");
+                    setName(null);
+                    setPermissions(null);
                 }
             },
-        })
+        });
+
+        // Determine Google button theme
+        let buttonTheme: "outline" | "filled_blue" | "filled_black" = "outline";
+        if (theme === "dark") buttonTheme = "filled_black";
+        else if (theme === "2025") buttonTheme = "filled_blue";
+        else if (theme === "light" || theme === "2026") buttonTheme = "outline";
 
         window.google.accounts.id.renderButton(
             document.getElementById("googleSignInDiv"),
             {
-                theme: theme === "2026" ? "outline" : "filled_blue",
+                theme: buttonTheme,
                 size: "large",
                 shape: "pill",
                 text: "continue_with",
                 width: 300,
             }
-        )
+        );
 
-        // Optionally show the One Tap prompt
-        window.google.accounts.id.prompt()
-    }, [theme, login])
+        window.google.accounts.id.prompt();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []); // runs once only
+
 
     const handleNavigate = (path: string | null) => {
         if (path) navigate(path)
@@ -245,7 +251,7 @@ export function HomeLayout() {
                                 tooltipKey = `${key}_offline`
                                 enabled = false
                             } else {
-                                const hasPermission = permissions?.[key as keyof typeof permissions] ?? false
+                                const hasPermission: boolean = Boolean(permissions?.[key as keyof typeof permissions])
                                 tooltipKey = `${key}_${hasPermission ? "allow" : "forbid"}`
                                 enabled = hasPermission
                             }
@@ -259,25 +265,25 @@ export function HomeLayout() {
                                     onClick={() => handleNavigate(path)}
                                     className={`
                                         ${theme === "dark"
-                                            ? enabled
-                                                ? "bg-zinc-700 hover:bg-zinc-600 text-white"
-                                                : "bg-zinc-800 text-zinc-500 cursor-not-allowed"
-                                            : ""}
+                                        ? enabled
+                                            ? "bg-zinc-700 hover:bg-zinc-600 text-white"
+                                            : "bg-zinc-800 text-zinc-500 cursor-not-allowed"
+                                        : ""}
                                         ${theme === "light"
-                                            ? enabled
-                                                ? "bg-zinc-100 hover:bg-zinc-200 text-zinc-900"
-                                                : "bg-zinc-50 text-zinc-400 cursor-not-allowed"
-                                            : ""}
+                                        ? enabled
+                                            ? "bg-zinc-100 hover:bg-zinc-200 text-zinc-900"
+                                            : "bg-zinc-50 text-zinc-400 cursor-not-allowed"
+                                        : ""}
                                         ${theme === "2025"
-                                            ? enabled
-                                                ? "bg-[#102b6a]/80 hover:bg-[#1d3d7d] text-white"
-                                                : "bg-[#0b234f]/70 text-zinc-400 cursor-not-allowed"
-                                            : ""}
+                                        ? enabled
+                                            ? "bg-[#102b6a]/80 hover:bg-[#1d3d7d] text-white"
+                                            : "bg-[#0b234f]/70 text-zinc-400 cursor-not-allowed"
+                                        : ""}
                                         ${theme === "2026"
-                                            ? enabled
-                                                ? "bg-[#fff8e5] hover:bg-[#f7edcc] text-[#3b2d00]"
-                                                : "bg-[#fef7dc]/80 text-[#a19258] cursor-not-allowed"
-                                            : ""}
+                                        ? enabled
+                                            ? "bg-[#fff8e5] hover:bg-[#f7edcc] text-[#3b2d00]"
+                                            : "bg-[#fef7dc]/80 text-[#a19258] cursor-not-allowed"
+                                        : ""}
                                     `}
                                     overrideClass
                                 />

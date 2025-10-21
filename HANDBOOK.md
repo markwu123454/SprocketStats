@@ -162,7 +162,7 @@ Unlike the frontend and backend, it is **not deployed automatically** — releas
 
 ```bash
 cd analysis
-pyinstaller --onefile main.py --name scouting-analysis
+pyinstaller --onefile main.py --name scouting-analysis --add-data "seasons;seasons" --hidden-import pandas --hidden-import numpy --hidden-import asyncpg --hidden-import ttkbootstrap --hidden-import certifi --hidden-import sklearn --hidden-import sklearn.ensemble._forest --hidden-import sklearn.tree._classes --hidden-import sklearn.utils._joblib --hidden-import joblib
 ```
 
 **Output:**
@@ -189,12 +189,12 @@ Before building:
 ### Publishing a Release (Manual)
 
 1. Go to **GitHub → Releases → “Draft a new release.”**
-2. Under **Tag version**, create or select a tag matching the version (`analysis-v25.0.0`).
+2. Under **Tag version**, create or select tag `analysis-build`.
 3. Set **Target branch** to `main`.
 4. Add a **title** and **description**, e.g.:
 
    ```
-   Scouting Analysis v25.0.0
+   Analysis build v25.0.1
    - Initial 2025 season model
    - Includes new ELO normalization and clustering improvements
    ```
