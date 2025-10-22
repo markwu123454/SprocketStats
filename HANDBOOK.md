@@ -17,6 +17,7 @@ This document serves as a concise guide for developers working on the FRC Scouti
 ## Development Setup
 
 **Installation**
+Using Node.js v22 and Python v3.11
 ```bash
 npm install
 pip install -r backend/requirements.txt
@@ -68,9 +69,9 @@ run.py → Unified runner for managing frontend + backend dev/prod modes
 
 **Notes:**
 
-* All API endpoints belong under `backend/endpints.py`.
+* All API endpoints belong under `backend/endpoints.py`.
 * All Neon DB calls belong under `backend/db.py`.
-* All DexieDB calls belong under `frontend\src\db`.
+* All DexieDB calls belong under `frontend/src/db`.
 * Each endpoint in `endpoints.py` must have a corresponding fetch function in `frontend/src/hooks/useAPI.ts`.
 
 ---
@@ -136,16 +137,16 @@ All work must be done on separate branches — no direct commits to `main`.
 
 **Examples:**
 
-* `feature/frontend/scouting-ui`
-* `feature/backend/match-endpoints`
-* `feature/analysis/elo-ranker`
-* `bugfix/frontend/theme-flicker`
+* `feature/frontend/improvint-scouting-ui`
+* `feature/backend/add-sync-match-endpoints`
+* `feature/analysis/add-elo-ranker`
+* `bugfix/frontend/fix-theme-flicker`
 
 **Workflow:**
 
 1. Push your branch
 2. Open a Pull Request into `main`
-3. Request review and wait for approval
+3. Request review and wait for approval by Mark or Andrew.
 4. **Squash merge** after review
 
 **Additional Rules:**
@@ -166,7 +167,7 @@ Unlike the frontend and backend, it is **not deployed automatically** — releas
 cd analysis
 pyinstaller --onefile main.py --name scouting-analysis --add-data "seasons;seasons" --hidden-import pandas --hidden-import numpy --hidden-import asyncpg --hidden-import ttkbootstrap --hidden-import certifi --hidden-import sklearn --hidden-import sklearn.ensemble._forest --hidden-import sklearn.tree._classes --hidden-import sklearn.utils._joblib --hidden-import joblib
 ```
-
+> If you add new dependencies (e.g. `matplotlib`, `scipy`), update both `requirements.txt` and the above PyInstaller command.
 **Output:**
 
 ```
