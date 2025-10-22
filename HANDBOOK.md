@@ -47,7 +47,7 @@ backend/ → FastAPI server and API logic
 │ ├── enums.py → Shared enums for data consistency
 │ ├── main.py → FastAPI app entry point
 │ ├── requirements.txt → Python dependencies
-│ ├── .env → Backend-specific environment variables
+│ ├── .env → Backend-specific environment
 
 frontend/ → React + Vite web client
 │ ├── src/ → Main source directory
@@ -68,10 +68,10 @@ run.py → Unified runner for managing frontend + backend dev/prod modes
 
 **Notes:**
 
-* All new API endpoints belong under `backend/routes/`.
-* Frontend components go in `frontend/src/components/`.
-* Analysis scripts and computation logic live in `analysis/`.
-* Keep test or experimental scripts in a local `sandbox/` folder — do not commit.
+* All API endpoints belong under `backend/endpints.py`.
+* All Neon DB calls belong under `backend/db.py`.
+* All DexieDB calls belong under `frontend\src\db`.
+* Each endpoint in `endpoints.py` must have a corresponding fetch function in `frontend/src/hooks/useAPI.ts`.
 
 ---
 
@@ -82,28 +82,30 @@ Sync with `.env.example` when new variables are added.
 
 | Variable                | Description                            | Used By            |
 |-------------------------|----------------------------------------|--------------------|
-| `DATABASE_URL`          | Neon PostgreSQL connection URL         | Backend            |
-| `VITE_GOOGLE_CLIENT_ID` | Google OAuth client ID                 | Frontend           |
-| `CORS_ORIGINS`          | Allowed CORS origins (comma-separated) | Backend            |
 | `TBA_KEY`               | The Blue Alliance API key              | Backend / Analysis |
+| `DATABASE_URL`          | Neon PostgreSQL connection URL         | Backend            |
+| `CORS_ORIGINS`          | Allowed CORS origins (comma-separated) | Backend            |
+| `VITE_GOOGLE_CLIENT_ID` | Google OAuth client ID                 | Frontend / Backend |
 | `VITE_BACKEND_URL`      | Backend URL                            | Frontend           |
 
 **Rules:**
 
 * Never commit `.env` or actual secret values.
-* `.env.example` should mirror structure but use placeholder values.
+* Never hard code secrets, always check with Mark or Cindy before adding to `.env`.
+* `.env.example` should mirror structure but without values.
 * Each new required variable must be added to `.env.example` and documented here.
+* Each new folder in `analysis/seasons/` needs an empty `__init__.py` to build properly.
 
 ---
 
 ## Infrastructure
 
-| Service                                                           | Purpose                        | Development                                      | Production                                                                               |
-|-------------------------------------------------------------------|--------------------------------|--------------------------------------------------|------------------------------------------------------------------------------------------|
-| **[Neon](https://neon.com/)**                                     | PostgreSQL serverless database | —                                                | —                                                                                        |
-| **[Vercel](https://vercel.com/)**                                 | Frontend deployment (Vite)     | [http://localhost:5173/](http://localhost:5173/) | [https://sprocket-scouting-demo.vercel.app/](https://sprocket-scouting-demo.vercel.app/) |
-| **[Render](https://render.com/)**                                 | Backend deployment (FastAPI)   | [http://localhost:8000/](http://localhost:8000/) | [https://sprocketscoutingdemo.onrender.com/](https://sprocketscoutingdemo.onrender.com/) |
-| **[Google OAuth](https://console.cloud.google.com/auth/clients)** | User login & identity          | —                                                | —                                                                                        |
+| Service                                                           | Purpose                        | Development                                     | Production                                                                              |
+|-------------------------------------------------------------------|--------------------------------|-------------------------------------------------|-----------------------------------------------------------------------------------------|
+| **[Neon](https://neon.com/)**                                     | PostgreSQL serverless database | —                                               | —                                                                                       |
+| **[Vercel](https://vercel.com/)**                                 | Frontend deployment (Vite)     | [http://localhost:5173](http://localhost:5173/) | [https://sprocket-scouting-demo.vercel.app](https://sprocket-scouting-demo.vercel.app/) |
+| **[Render](https://render.com/)**                                 | Backend deployment (FastAPI)   | [http://localhost:8000](http://localhost:8000/) | [https://sprocketscoutingdemo.onrender.com](https://sprocketscoutingdemo.onrender.com/) |
+| **[Google OAuth](https://console.cloud.google.com/auth/clients)** | User login & identity          | —                                               | —                                                                                       |
 
 ---
 
@@ -168,7 +170,7 @@ pyinstaller --onefile main.py --name scouting-analysis --add-data "seasons;seaso
 **Output:**
 
 ```
-dist/scouting-analysis
+./analysis/dist/scouting-analysis.exe
 ```
 
 Before building:
@@ -180,16 +182,16 @@ Before building:
 
 ### Versioning Scheme
 
-| Field     | Meaning                                | Example                 |
-|-----------|----------------------------------------|-------------------------|
-| `<year>`  | FRC season year                        | 25 = 2025 season        |
-| `<major>` | Major feature update within the season | 25.1 = second release   |
-| `<minor>` | Minor patch within the season          | 25.1.1 = second release |
+| Field     | Meaning                                | Example                      |
+|-----------|----------------------------------------|------------------------------|
+| `<year>`  | FRC season year                        | 25 = 2025 season             |
+| `<major>` | Major feature update within the season | 25.1 = second major release  |
+| `<minor>` | Minor patch within the season          | 25.1.2 = third minor release |
 
 ### Publishing a Release (Manual)
 
 1. Go to **GitHub → Releases → “Draft a new release.”**
-2. Under **Tag version**, create or select tag `analysis-build`.
+2. Under **Tag version**, create a new tag for the version.
 3. Set **Target branch** to `main`.
 4. Add a **title** and **description**, e.g.:
 
