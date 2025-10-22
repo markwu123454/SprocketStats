@@ -48,16 +48,6 @@ def build_settings_ui(parent, settings_vars: dict, log_fn):
     add_toggle("Step 6 – AI Clustering", "run_step6", True)
     add_toggle("Step 7 – Random Forest Predictions", "run_step7", True)
 
-    # ---- Simulation Mode ----
-    tb.Label(parent, text="Simulation Mode:").pack(anchor="w", pady=(10, 0))
-    sim_var = tk.BooleanVar(value=False)
-    tb.Checkbutton(
-        parent,
-        text="Enable simulation mode (no heavy compute)",
-        variable=sim_var,
-        bootstyle="round-toggle"
-    ).pack(anchor="w", pady=3)
-    settings_vars["simulation"] = sim_var
 
 
 
@@ -403,13 +393,12 @@ async def step7_random_forest(per_match_data, log, verbose):
 
 async def _calculate_async(data, progress, log, get_settings):
     if not data:
-        log("[ERROR] No input data provided to calculator.")
+        log("[red][ERROR] No input data provided to calculator.[/]")
         return {"status": 1, "result": {"error": "no data"}}
 
     try:
         settings = get_settings()
         verbose = settings.get("verbose", True)
-        simulation = settings.get("simulation", False)
 
         # Step control flags
         run4 = settings.get("run_step4", True)
@@ -419,62 +408,73 @@ async def _calculate_async(data, progress, log, get_settings):
         run6 = settings.get("run_step6", True)
         run7 = settings.get("run_step7", True)
 
-        log(f"Running calculation | verbose={verbose} simulation={simulation}")
+        log(f"Running calculation | verbose={verbose}")
         progress(0)
 
-        habits = {}
-        per_team_data = {}
-        per_match_data = {}
-        ai_result = {}
+        result = {}
 
         # STEP 4
         if run4:
             log("STEP 4: Heuristic scoring predictions...")
-            await step4_predict_scores(data, log, verbose)
+            step4_out = await step4_predict_scores(data, log, verbose)
+            result["step4"] = step4_out
             progress(20)
         else:
             log("STEP 4: Skipped.")
+            result["step4"] = {"status": "skipped"}
 
         # STEP 8
         if run8:
             log("STEP 8: Analyzing team habits (branch placement)...")
-            habits = step8_habits(data, log, verbose)
+            step8_out = step8_habits(data, log, verbose)
+            result["step8"] = step8_out
             progress(35)
         else:
             log("STEP 8: Skipped.")
+            result["step8"] = {"status": "skipped"}
 
         # STEP 4.5
         if run45:
             log("STEP 4.5: Filtering incomplete matches...")
             submitted_rows = filter_incomplete_matches(data, log, verbose)
+            result["step45"] = submitted_rows
             progress(45)
         else:
             log("STEP 4.5: Skipped.")
+            result["step45"] = {"status": "skipped"}
             submitted_rows = data
 
         # STEP 5
         if run5:
             log("STEP 5: Computing featured ELOs...")
             per_team_data, per_match_data = await step5_featured_elo(submitted_rows, log, verbose)
+            result["step5"] = {"per_team_data": per_team_data, "per_match_data": per_match_data}
             progress(65)
         else:
             log("STEP 5: Skipped.")
+            result["step5"] = {"status": "skipped"}
+            per_team_data, per_match_data = {}, {}
 
         # STEP 6
         if run6:
             log("STEP 6: Computing AI groupings...")
             ai_result = await step6_ai_ratings(per_match_data or {}, log, verbose)
+            result["step6"] = ai_result
             progress(80)
         else:
             log("STEP 6: Skipped.")
+            result["step6"] = {"status": "skipped"}
+            ai_result = {}
 
         # STEP 7
         if run7:
             log("STEP 7: Predicting match outcomes with Random Forest...")
-            per_match_data = await step7_random_forest(per_match_data or {}, log, verbose)
+            rf_out = await step7_random_forest(per_match_data or {}, log, verbose)
+            result["step7"] = rf_out
             progress(100)
         else:
             log("STEP 7: Skipped.")
+            result["step7"] = {"status": "skipped"}
             progress(100)
 
         log("All selected analysis steps complete.")
@@ -489,32 +489,15 @@ async def _calculate_async(data, progress, log, get_settings):
                 return [safe_convert(x) for x in obj]
             return obj
 
-        result_obj = {
-            "summary": {
-                "teams": len(per_team_data or {}),
-                "matches": len(per_match_data or {}),
-                "clusters": len(ai_result.get("cluster_summary", {})) if ai_result else 0,
-                "habits": len(habits or {}),
-                "steps_enabled": {
-                    "step4": run4,
-                    "step8": run8,
-                    "step45": run45,
-                    "step5": run5,
-                    "step6": run6,
-                    "step7": run7,
-                },
-            },
-            "per_team_data": safe_convert(per_team_data),
-            "per_match_data": safe_convert(per_match_data),
-            "ai_result": safe_convert(ai_result),
-            "habits": safe_convert(habits),
-        }
+        # Recursively convert everything in result
+        result = safe_convert(result)
 
-        return {"status": 0, "result": result_obj}
+        return {"status": 0, "result": result}
 
     except Exception as e:
         log(f"[ERROR in calculate_metrics] {e}")
         return {"status": 1, "result": {"error": str(e)}}
+
 
 
 # =========================
