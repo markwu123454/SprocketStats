@@ -1,8 +1,8 @@
-__version__ = "v25.0.1"
+__version__ = "v25.0.2"
 
 import importlib, threading, asyncio, dotenv, ttkbootstrap as tb
 from ttkbootstrap.constants import *
-import asyncpg, ssl, json, certifi, os
+import asyncpg, ssl, json, certifi, os, re
 
 # ================== Database Config ==================
 dotenv.load_dotenv()
@@ -76,18 +76,93 @@ for b in (btn_download, btn_run, btn_upload, btn_exit):
     b.pack(fill="x", pady=3)
 
 downloaded_data = None
-calc_result = None  # <-- new global result
+calc_result = None
+
+
+# ================== Terminal Log Class ==================
+class TerminalLog:
+    COLOR_MAP = {
+        "red": "#ff4d4d",
+        "green": "#00ff6f",
+        "yellow": "#ffff66",
+        "blue": "#66b3ff",
+        "cyan": "#00ffff",
+        "magenta": "#ff66ff",
+        "white": "#ffffff",
+        "gray": "#aaaaaa",
+    }
+
+    def __init__(self, text_widget, root):
+        self.text = text_widget
+        self.root = root
+        for name, color in self.COLOR_MAP.items():
+            self.text.tag_config(name, foreground=color)
+
+    def write(self, msg: str):
+        """Supports [color]...[/], [clear], [del n]."""
+
+        def _write(local_msg=msg):
+            self.text.configure(state="normal")
+
+            # --- clear all ---
+            if "[clear]" in local_msg:
+                self.text.delete("1.0", "end")
+                self.text.configure(state="disabled")
+                return
+
+            # --- delete last n lines ---
+            m = re.search(r"\[del\s+(\d+)\]", local_msg)
+            if m:
+                n = int(m.group(1))
+                for _ in range(n):
+                    self.text.delete("end-2l linestart", "end-1l lineend")
+                local_msg = re.sub(r"\[del\s+\d+\]", "", local_msg)
+
+            # --- color parsing ---
+            # Handles [red], [green], [/] etc.
+            pattern = re.compile(r"(\[[a-zA-Z]+\]|\[/\])")
+            segments = pattern.split(local_msg)
+
+            current_tag = None
+            for seg in segments:
+                seg = seg.strip()
+                if not seg:
+                    continue
+
+                # Opening tag
+                if seg.startswith("[") and seg.endswith("]") and seg != "[/]":
+                    color_name = seg.strip("[]").lower()
+                    if color_name in self.COLOR_MAP:
+                        current_tag = color_name
+                    continue  # skip inserting tag
+
+                # Closing tag
+                if seg == "[/]":
+                    current_tag = None
+                    continue  # skip inserting tag
+
+                # Normal text
+                if current_tag:
+                    self.text.insert("end", seg, current_tag)
+                else:
+                    self.text.insert("end", seg)
+
+            self.text.insert("end", "\n")
+            self.text.see("end")
+            self.text.configure(state="disabled")
+
+        self.root.after(0, _write)
+
+    def clear(self):
+        self.root.after(0, lambda: self.text.delete("1.0", "end"))
+
+
+# --- initialize log object ---
+log = TerminalLog(log_text, root)
+append_log = log.write  # backward compatibility
 
 
 # ================== Helper functions ==================
-def append_log(msg: str):
-    def _append():
-        log_text.configure(state="normal")
-        log_text.insert("end", msg + "\n")
-        log_text.see("end")
-        log_text.configure(state="disabled")
-    root.after(0, _append)
-
 def update_progress(pct: float):
     root.after(0, lambda: progress_bar.config(value=pct))
 
@@ -138,9 +213,9 @@ def load_settings():
 
     try:
         calc.build_settings_ui(settings_frame, settings_vars, append_log)
-        append_log("Settings loaded.")
+        append_log("[green]Settings loaded.[/]")
     except Exception as e:
-        append_log(f"[ERROR loading settings] {e}")
+        append_log(f"[red][ERROR loading settings][/] {e}")
 
 
 # ================== Worker Wrappers ==================
@@ -158,21 +233,21 @@ async def download_task():
     global downloaded_data
     try:
         update_progress(0)
-        append_log("Connecting to database...")
+        append_log("[green]Connecting to database...[/]")
         await asyncio.sleep(0.2)
         update_progress(5)
 
         conn = await get_connection()
         update_progress(10)
-        append_log("Database connected successfully.")
+        append_log("[green]Database connected successfully.[/]")
 
         event_filter = get_settings_snapshot().get("event_key", "")
-        append_log(f"Fetching submitted match data (filter='{event_filter or 'ALL'}')...")
+        append_log(f"[green]Fetching submitted match data (filter='{event_filter or 'ALL'}')...[/]")
         rows = await fetch_submitted(conn, event_filter)
         downloaded_data = rows
         total = len(rows)
         update_progress(20)
-        append_log(f"Fetched {total} rows.")
+        append_log(f"[green]Fetched {total} rows.[/]")
 
         for i, _ in enumerate(rows):
             pct = 20 + (i + 1) / max(total, 1) * 80
@@ -181,13 +256,13 @@ async def download_task():
 
         await conn.close()
         update_progress(100)
-        append_log("Download complete.")
+        append_log("[green]Download complete.[/]")
     except Exception as e:
-        append_log(f"[ERROR] {e}")
+        append_log(f"[red][ERROR][/] {e}")
         update_progress(0)
 
 def run_download():
-    append_log("Starting download...")
+    append_log("[green]Starting download...[/]")
     lock_ui()
     run_async_task(download_task())
 
@@ -196,10 +271,10 @@ def run_download():
 def run_calculator():
     global downloaded_data, calc_result
     if not downloaded_data:
-        append_log("[ERROR] No downloaded data found. Run Download first.")
+        append_log("[red][ERROR][/] No downloaded data found. Run Download first.")
         return
 
-    append_log("Starting calculator...")
+    append_log("[yellow]Starting calculator...[/]")
     lock_ui()
 
     def task():
@@ -208,18 +283,18 @@ def run_calculator():
             result = calc.calculate_metrics(
                 data=downloaded_data,
                 progress=update_progress,
-                log=append_log,
+                log=append_log,  # terminal-aware log
                 settings=get_settings_snapshot,
                 lock_ui=lock_ui,
                 unlock_ui=unlock_ui,
             )
             if not isinstance(result, dict) or "status" not in result:
-                append_log("[ERROR] Calculator returned unexpected format.")
+                append_log("[red][ERROR][/] Calculator returned unexpected format.")
             else:
                 calc_result = result
-                append_log(f"Calculator finished: {result['status']}")
+                append_log(f"[green]Calculator finished: {result['status']}[/]")
         except Exception as e:
-            append_log(f"[ERROR running calculator] {e}")
+            append_log(f"[red][ERROR running calculator][/] {e}")
         finally:
             root.after(0, unlock_ui)
 
@@ -231,20 +306,20 @@ async def upload_task():
     global calc_result
     try:
         if not calc_result or "result" not in calc_result:
-            append_log("[ERROR] No calculator output found. Run Calculator first.")
+            append_log("[red][ERROR][/] No calculator output found. Run Calculator first.")
             return
 
         event_key = get_settings_snapshot().get("event_key", "").strip()
         if not event_key:
-            append_log("[ERROR] Event key filter is required for upload.")
+            append_log("[red][ERROR][/] Event key filter is required for upload.")
             return
 
         update_progress(0)
-        append_log(f"Connecting to database for upload (event_key='{event_key}')...")
+        append_log(f"[cyan]Connecting to database for upload (event_key='{event_key}')...[/]")
         conn = await get_connection()
         update_progress(10)
 
-        append_log("Uploading new processed data version...")
+        append_log("[yellow]Uploading new processed data version...[/]")
         payload = calc_result["result"]
 
         await conn.execute("""
@@ -254,15 +329,14 @@ async def upload_task():
 
         await conn.close()
         update_progress(100)
-        append_log("Upload complete. New version recorded.")
+        append_log("[green]Upload complete. New version recorded.[/]")
     except Exception as e:
-        append_log(f"[ERROR during upload] {e}")
+        append_log(f"[red][ERROR during upload][/] {e}")
         update_progress(0)
 
 
-
 def run_upload():
-    append_log("Starting upload...")
+    append_log("[yellow]Starting upload...[/]")
     lock_ui()
     run_async_task(upload_task())
 
