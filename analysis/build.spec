@@ -7,7 +7,7 @@ a = Analysis(
     binaries=[],
     datas=[
     ('seasons', 'seasons'),
-    ('.env.example', '.env'),
+    ('.env.example', '.env'),Y
     ],
     hiddenimports=['pandas', 'numpy', 'asyncpg', 'ttkbootstrap', 'certifi', 'sklearn', 'sklearn.ensemble._forest', 'sklearn.tree._classes', 'sklearn.utils._joblib', 'joblib'],
     hookspath=[],

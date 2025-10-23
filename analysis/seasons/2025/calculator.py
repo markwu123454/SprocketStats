@@ -307,17 +307,34 @@ async def step6_ai_ratings(per_match_data, log, verbose):
 
 
 # ================== Step 7: Random Forest ==================
-async def step7_random_forest(per_match_data, log, verbose):
+async def step7_random_forest(per_match_data, all_matches, log, verbose):
     match_order = {"qm": 0, "sf": 1, "f": 2}
-    unified_matches = {}
+
+    # Flatten existing scouting data for quick lookup
+    all_scouted = []
     for mtype, matches in per_match_data.items():
         for mnum, data in matches.items():
-            unified_matches[match_order.get(mtype, 99) * 1000 + int(mnum)] = data
+            all_scouted.append((mtype, mnum, data))
 
-    combined_data = {"qm": unified_matches}
-    total_matches = len(unified_matches)
-    log(f"Collected {total_matches} total matches for Random Forest training.")
+    # Sort the schedule properly
+    sorted_all_matches = sorted(
+        all_matches,
+        key=lambda m: (match_order.get(m["match_type"], 99), m["match_number"])
+    )
+    total_matches = len(sorted_all_matches)
+    log(f"Collected {total_matches} total matches (scouted + unscouted).")
 
+    # Helper to check if a team has any prior scouting record
+    def team_seen_before(team_id, current_type, current_num):
+        team_id = str(team_id)
+        for mtype, mnum, data in all_scouted:
+            if (match_order[mtype], mnum) < (match_order[current_type], current_num):
+                for alliance in ["red", "blue"]:
+                    if team_id in data.get(alliance, {}):
+                        return True
+        return False
+
+    # Aspect extractors
     aspect_extractors = {
         "coral": lambda d: d["score_breakdown"]["teleop"].get("coral", 0),
         "algae": lambda d: d["score_breakdown"]["teleop"].get("algae", 0),
@@ -325,23 +342,24 @@ async def step7_random_forest(per_match_data, log, verbose):
         "auto": lambda d: d["score_breakdown"]["auto"].get("total", 0),
     }
 
-    def team_features_fn(team_id: str, match_type: str, match_num: int):
-        alliance_data = combined_data["qm"].get(match_num, {})
-        for alliance in ["red", "blue"]:
-            if team_id in alliance_data.get(alliance, {}):
-                team_data = alliance_data[alliance][team_id]
-                break
-        else:
-            raise KeyError(f"Team {team_id} not found in match {match_num}")
+    def team_features_fn(team_id, match_type, match_num):
+        # Lookup most recent data for this team before current match
+        best = None
+        for mtype, mnum, data in all_scouted:
+            if (match_order[mtype], mnum) < (match_order[match_type], match_num):
+                for alliance in ["red", "blue"]:
+                    if team_id in data.get(alliance, {}):
+                        best = data[alliance][team_id]
+        if not best:
+            return [0, 0, 0, 0, 0]
 
-        sa = team_data["score_actions"]
-        tsl = team_data.get("teleop_scoring_location", {})
+        sa = best.get("score_actions", {})
+        tsl = best.get("teleop_scoring_location", {})
         auto, tele = sa.get("auto", {}), sa.get("teleop", {})
 
         total_coral_cycles = auto.get("coral_cycle", 0) + tele.get("coral_cycle", 0)
         total_algae_cycles = auto.get("algae_cycle", 0) + tele.get("algae_cycle", 0)
         move_flag = auto.get("move", 0)
-
         total_attempts = sum(
             tsl.get(loc, {}).get("total_attempt", 0)
             for loc in ["l1", "l2", "l3", "l4", "barge"]
@@ -353,40 +371,93 @@ async def step7_random_forest(per_match_data, log, verbose):
                 if tsl.get(loc, {}).get("total_attempt", 0) > 0
             ]) if total_attempts > 0 else 0.0
         )
-
         return [total_coral_cycles, total_algae_cycles, move_flag, total_attempts, avg_accuracy]
 
-    results = predict_all_playable_matches(
-        raw_match_data=combined_data,
-        team_features_fn=team_features_fn,
-        aspect_extractors=aspect_extractors,
-        match_type="qm"
-    )
-
     predicted_count = 0
-    for i, match in enumerate(results, start=1):
-        match_num = match["match_num"]
-        predicted = match.get("predicted", {})
-        for alliance in ["red", "blue"]:
-            for team, pred in predicted.get(alliance, {}).items():
-                injected = False
-                for mtype, matches in per_match_data.items():
-                    if match_num in matches:
-                        matches[match_num][alliance][team]["ai_prediction"] = pred
-                        injected = True
-                        break
-                if not injected:
-                    per_match_data["qm"].setdefault(match_num, {"red": {}, "blue": {}})
-                    per_match_data["qm"][match_num][alliance][team] = {
-                        "score_breakdown": {},
-                        "ai_prediction": pred,
-                    }
-        if verbose:
-            log(f"Cycle {i}/{len(results)} → match {match_num} predicted")
+    skipped_count = 0
+
+    log(f"First scouted match: {min((match_order[mtype] * 1000 + mnum) for mtype, mnum, _ in all_scouted)}")
+    log(f"First scheduled match: {min((match_order[m['match_type']] * 1000 + m['match_number']) for m in all_matches)}")
+
+    for i, match in enumerate(sorted_all_matches, start=1):
+        mtype = match["match_type"]
+        mnum = match["match_number"]
+        key = match["key"]
+
+        red_teams = [match.get("red1"), match.get("red2"), match.get("red3")]
+        blue_teams = [match.get("blue1"), match.get("blue2"), match.get("blue3")]
+        all_teams = red_teams + blue_teams
+
+        # Skip unassigned matches
+        if not all(all_teams):
+            skipped_count += 1
+            if verbose:
+                log(f"[yellow]Cycle {i}/{total_matches} — {key} skipped: Missing team(s).[/]")
+            continue
+
+        # Check if every team has prior data
+        missing = [t for t in all_teams if not team_seen_before(t, mtype, mnum)]
+        if missing:
+            skipped_count += 1
+            if verbose:
+                log(f"[yellow]Cycle {i}/{total_matches} — {key} skipped: No prior data for {missing}.[/]")
+            continue
+
+        # Collect prior matches
+        prior_matches = {
+            "qm": {mn: d for mn, d in per_match_data["qm"].items()
+                   if mn < mnum}
+        }
+        prior_count = sum(len(v) for v in prior_matches.values())
+        if prior_count == 0:
+            skipped_count += 1
+            if verbose:
+                log(f"[yellow]Cycle {i}/{total_matches} — {key} skipped: No prior matches to train on.[/]")
+            continue
+
+        # Train and predict
+        try:
+            results = predict_all_playable_matches(
+                raw_match_data=prior_matches,
+                team_features_fn=team_features_fn,
+                aspect_extractors=aspect_extractors,
+                match_type=mtype
+            )
+        except Exception as e:
+            skipped_count += 1
+            if verbose:
+                log(f"[red]Cycle {i}/{total_matches} — {key} skipped: Prediction error ({e}).[/]")
+            continue
+
+        if not results:
+            skipped_count += 1
+            if verbose:
+                log(f"[yellow]Cycle {i}/{total_matches} — {key} skipped: Empty RF output.[/]")
+            continue
+
+        prediction = results[-1].get("predicted", {})
+        per_match_data.setdefault(mtype, {})
+        per_match_data[mtype].setdefault(mnum, {"red": {}, "blue": {}})
+
+        for alliance, team_list in zip(["red", "blue"], [red_teams, blue_teams]):
+            for team in team_list:
+                per_match_data[mtype][mnum][alliance].setdefault(team, {})
+                per_match_data[mtype][mnum][alliance][team]["ai_prediction"] = prediction.get(alliance, {}).get(team, {})
+
+        all_scouted.append((mtype, mnum, per_match_data[mtype][mnum]))
         predicted_count += 1
 
-    skipped = total_matches - predicted_count
-    log(f"Random Forest predicted {predicted_count} matches; skipped {skipped}.")
+        if verbose:
+            red_pred = prediction.get("red", {})
+            blue_pred = prediction.get("blue", {})
+            red_avg = np.mean([np.mean(list(v.values())) if isinstance(v, dict) else 0 for v in red_pred.values()]) if red_pred else 0
+            blue_avg = np.mean([np.mean(list(v.values())) if isinstance(v, dict) else 0 for v in blue_pred.values()]) if blue_pred else 0
+            winner = "RED" if red_avg > blue_avg else "BLUE" if blue_avg > red_avg else "TIE"
+            log(f"[green]Cycle {i}/{total_matches} — {key} predicted "
+                f"(trained on {prior_count} prior matches) → "
+                f"RED={red_avg:.1f}, BLUE={blue_avg:.1f}, WINNER={winner}[/]")
+
+    log(f"Random Forest predicted {predicted_count} matches; skipped {skipped_count}.")
     return per_match_data
 
 
@@ -413,36 +484,43 @@ async def _calculate_async(data, progress, log, get_settings):
 
         result = {}
 
+        # --- Extract datasets ---
+        match_data = data.get("match_scouting", [])
+        all_matches = data.get("all_matches", [])
+        if not match_data:
+            log("[yellow][WARN] No match_scouting data found — skipping main analysis pipeline.[/]")
+            return {"status": 1, "result": {"error": "no match_scouting"}}
+
         # STEP 4
         if run4:
             log("STEP 4: Heuristic scoring predictions...")
-            step4_out = await step4_predict_scores(data, log, verbose)
+            step4_out = await step4_predict_scores(match_data, log, verbose)
             result["step4"] = step4_out
             progress(20)
         else:
-            log("STEP 4: Skipped.")
+            log("[yellow]STEP 4: Skipped.")
             result["step4"] = {"status": "skipped"}
 
         # STEP 8
         if run8:
             log("STEP 8: Analyzing team habits (branch placement)...")
-            step8_out = step8_habits(data, log, verbose)
+            step8_out = step8_habits(match_data, log, verbose)
             result["step8"] = step8_out
             progress(35)
         else:
-            log("STEP 8: Skipped.")
+            log("[yellow]STEP 8: Skipped.")
             result["step8"] = {"status": "skipped"}
 
         # STEP 4.5
         if run45:
             log("STEP 4.5: Filtering incomplete matches...")
-            submitted_rows = filter_incomplete_matches(data, log, verbose)
+            submitted_rows = filter_incomplete_matches(match_data, log, verbose)
             result["step45"] = submitted_rows
             progress(45)
         else:
-            log("STEP 4.5: Skipped.")
+            log("[yellow]STEP 4.5: Skipped.")
             result["step45"] = {"status": "skipped"}
-            submitted_rows = data
+            submitted_rows = match_data
 
         # STEP 5
         if run5:
@@ -451,7 +529,7 @@ async def _calculate_async(data, progress, log, get_settings):
             result["step5"] = {"per_team_data": per_team_data, "per_match_data": per_match_data}
             progress(65)
         else:
-            log("STEP 5: Skipped.")
+            log("[yellow]STEP 5: Skipped.")
             result["step5"] = {"status": "skipped"}
             per_team_data, per_match_data = {}, {}
 
@@ -462,42 +540,45 @@ async def _calculate_async(data, progress, log, get_settings):
             result["step6"] = ai_result
             progress(80)
         else:
-            log("STEP 6: Skipped.")
+            log("[yellow]STEP 6: Skipped.")
             result["step6"] = {"status": "skipped"}
             ai_result = {}
 
         # STEP 7
         if run7:
             log("STEP 7: Predicting match outcomes with Random Forest...")
-            rf_out = await step7_random_forest(per_match_data or {}, log, verbose)
+            if not all_matches:
+                log("[yellow][WARN] No all_matches data available — skipping Random Forest predictions.[/]")
+                rf_out = {"status": "skipped_no_all_matches"}
+            else:
+                rf_out = await step7_random_forest(per_match_data or {}, all_matches, log, verbose)
             result["step7"] = rf_out
             progress(100)
         else:
-            log("STEP 7: Skipped.")
+            log("[yellow]STEP 7: Skipped.")
             result["step7"] = {"status": "skipped"}
             progress(100)
 
         log("All selected analysis steps complete.")
 
-        # --- Convert DataFrames to JSON-compatible dicts ---
+        # --- Convert everything to JSON-safe format ---
         def safe_convert(obj):
             if isinstance(obj, pd.DataFrame):
                 return obj.to_dict(orient="records")
+            if isinstance(obj, (np.ndarray, np.generic)):
+                return obj.tolist()
             if isinstance(obj, dict):
                 return {k: safe_convert(v) for k, v in obj.items()}
             if isinstance(obj, list):
                 return [safe_convert(x) for x in obj]
             return obj
 
-        # Recursively convert everything in result
         result = safe_convert(result)
-
         return {"status": 0, "result": result}
 
     except Exception as e:
-        log(f"[ERROR in calculate_metrics] {e}")
+        log(f"[red][ERROR in calculate_metrics] {e}")
         return {"status": 1, "result": {"error": str(e)}}
-
 
 
 # =========================
@@ -519,7 +600,7 @@ def calculate_metrics(data=None, **kw):
     try:
         result = asyncio.run(_calculate_async(data, progress, log, get_settings))
     except Exception as e:
-        log(f"[FATAL ERROR] {e}")
+        log(f"[red][FATAL ERROR] {e}")
         result = {"status": 1, "result": {"error": str(e)}}
     finally:
         unlock()

@@ -19,7 +19,7 @@ async def get_connection():
     return conn
 
 
-async def fetch_submitted(conn, event_key_filter: str):
+async def fetch_submitted_match(conn, event_key_filter: str):
     if event_key_filter:
         rows = await conn.fetch("""
                                 SELECT event_key, match, match_type, team, alliance, scouter, data
@@ -34,6 +34,44 @@ async def fetch_submitted(conn, event_key_filter: str):
                                 FROM match_scouting
                                 WHERE status = 'submitted'
                                 ORDER BY match_type, match, alliance, team
+                                """)
+    return rows
+
+async def fetch_submitted_pit(conn, event_key_filter: str):
+    if event_key_filter:
+        rows = await conn.fetch("""
+                                SELECT event_key, team, scouter, data
+                                FROM pit_scouting
+                                WHERE status = 'submitted'
+                                  AND event_key ILIKE $1
+                                ORDER BY team, scouter
+                                """, f"%{event_key_filter}%")
+    else:
+        rows = await conn.fetch("""
+                                SELECT event_key, team, scouter, data
+                                FROM pit_scouting
+                                WHERE status = 'submitted'
+                                ORDER BY team, scouter
+                                """)
+    return rows
+
+async def fetch_all_match(conn, event_key_filter: str):
+    if event_key_filter:
+        rows = await conn.fetch("""
+                                SELECT key, event_key, match_type, match_number, set_number,
+                                       scheduled_time, actual_time,
+                                       red1, red2, red3, blue1, blue2, blue3
+                                FROM matches
+                                WHERE event_key ILIKE $1
+                                ORDER BY match_type, match_number
+                                """, f"%{event_key_filter}%")
+    else:
+        rows = await conn.fetch("""
+                                SELECT key, event_key, match_type, match_number, set_number,
+                                       scheduled_time, actual_time,
+                                       red1, red2, red3, blue1, blue2, blue3
+                                FROM matches
+                                ORDER BY event_key, match_type, match_number
                                 """)
     return rows
 
@@ -246,29 +284,57 @@ async def download_task():
         update_progress(10)
         append_log("[green]Database connected successfully.[/]")
 
-        event_filter = get_settings_snapshot().get("event_key", "")
-        append_log(f"[green]Fetching submitted match data (filter='{event_filter or 'ALL'}')...[/]")
-        rows = await fetch_submitted(conn, event_filter)
-        downloaded_data = rows
-        total = len(rows)
-        update_progress(20)
-        append_log(f"[green]Fetched {total} rows.[/]")
+        event_filter = get_settings_snapshot().get("event_key", "") or ""
+        append_log(f"[green]Fetching data for event filter='{event_filter or 'ALL'}'...[/]")
 
-        for i, _ in enumerate(rows):
-            pct = 20 + (i + 1) / max(total, 1) * 80
-            update_progress(pct)
-            await asyncio.sleep(0.005)
+        # -----------------------------
+        # Fetch Submitted Match Data
+        # -----------------------------
+        append_log("[green]Fetching submitted match data...[/]")
+        match_rows = await fetch_submitted_match(conn, event_filter)
+        match_rows = [dict(r) for r in match_rows]
+        append_log(f"[green]Fetched {len(match_rows)} match entries.[/]")
+        update_progress(30)
+
+        # -----------------------------
+        # Fetch Submitted Pit Data
+        # -----------------------------
+        append_log("[green]Fetching submitted pit data...[/]")
+        pit_rows = await fetch_submitted_pit(conn, event_filter)
+        pit_rows = [dict(r) for r in pit_rows]
+        append_log(f"[green]Fetched {len(pit_rows)} pit entries.[/]")
+        update_progress(60)
+
+        # -----------------------------
+        # Fetch All Matches
+        # -----------------------------
+        append_log("[green]Fetching all matches data...[/]")
+        all_match_rows = await fetch_all_match(conn, event_filter)
+        all_match_rows = [dict(r) for r in all_match_rows]
+        append_log(f"[green]Fetched {len(all_match_rows)} full match records, {len(all_match_rows)*6} entries.[/]")
+        update_progress(90)
+
+        # -----------------------------
+        # Combine and Finish
+        # -----------------------------
+        downloaded_data = {
+            "match_scouting": match_rows,
+            "pit_scouting": pit_rows,
+            "all_matches": all_match_rows,
+        }
 
         await conn.close()
         update_progress(100)
         append_log("[green]Download complete.[/]")
+        append_log(f"[green]Total: {len(match_rows)} match, {len(pit_rows)} pit, {len(all_match_rows)} matches records.[/]")
     except Exception as e:
         append_log(f"[red][ERROR][/] {e}")
         update_progress(0)
 
 
+
 def run_download():
-    append_log("[green]Starting download...[/]")
+    append_log("\n[green]Starting download...[/]")
     lock_ui()
     run_async_task(download_task())
 
@@ -277,10 +343,10 @@ def run_download():
 def run_calculator():
     global downloaded_data, calc_result
     if not downloaded_data:
-        append_log("[red][ERROR][/] No downloaded data found. Run Download first.")
+        append_log("\n[red][ERROR][/] No downloaded data found. Run Download first.")
         return
 
-    append_log("[yellow]Starting calculator...[/]")
+    append_log("\n[yellow]Starting calculator...[/]")
     lock_ui()
 
     def task():
@@ -342,7 +408,7 @@ async def upload_task():
 
 
 def run_upload():
-    append_log("[yellow]Starting upload...[/]")
+    append_log("\n[yellow]Starting upload...[/]")
     lock_ui()
     run_async_task(upload_task())
 
