@@ -1,11 +1,12 @@
 import {useState, useMemo} from "react"
 import {
-  DndContext,
-  type DragEndEvent,
-  useDraggable,
-  useDroppable,
+    DndContext,
+    type DragEndEvent, DragOverlay, type DragStartEvent,
+    useDraggable,
+    useDroppable,
 } from "@dnd-kit/core";
-import { CSS } from "@dnd-kit/utilities"
+import {CSS} from "@dnd-kit/utilities"
+import {Link} from "react-router-dom";
 
 // ===== Shared Types =====
 type Match = {
@@ -32,7 +33,9 @@ type Alliance = {
 
 // ===== Main Page =====
 export default function AllianceSimData() {
+
     const [step, setStep] = useState<1 | 2 | 3>(1)
+    const [recentMatch, setRecentMatch] = useState<string>("qm2")
     const [matches, setMatches] = useState<Match[]>([
         {
             matchKey: "qm1",
@@ -141,6 +144,7 @@ export default function AllianceSimData() {
                     matches={matches}
                     setMatches={setMatches}
                     rankings={rankings}
+                    recentMatch={recentMatch}
                 />
             )}
             {step === 2 && (
@@ -161,47 +165,45 @@ export default function AllianceSimData() {
     )
 }
 
-// ===== Step 1 — Qualification Simulation =====
 function Step1_QualSim({
                            matches,
                            setMatches,
                            rankings,
+                           recentMatch,
                        }: {
     matches: Match[]
     setMatches: React.Dispatch<React.SetStateAction<Match[]>>
     rankings: TeamStats[]
-})
-{
+    recentMatch: string
+}) {
     const toggleWinner = (i: number, winner: "red" | "blue") => {
         setMatches((prev) =>
             prev.map((m, j) =>
-                j === i
-                    ? {...m, winner: m.winner === winner ? null : winner}
-                    : m
+                j === i ? {...m, winner: m.winner === winner ? null : winner} : m
             )
         )
     }
 
-    const toggleRP = (
-        i: number,
-        alliance: "red" | "blue",
-        index: number
-    ) => {
+    const toggleRP = (i: number, alliance: "red" | "blue", index: number) => {
         setMatches((prev) =>
             prev.map((m, j) =>
                 j === i
                     ? {
                         ...m,
-                        [alliance + "RP"]: (m as any)[
-                        alliance + "RP"
-                            ].map((r: boolean, k: number) =>
-                            k === index ? !r : r
+                        [alliance + "RP"]: (m as any)[alliance + "RP"].map(
+                            (r: boolean, k: number) => (k === index ? !r : r)
                         ),
                     }
                     : m
             )
         )
     }
+
+    // Match comparison for strings like "qm3", "qm15"
+    const matchToNumber = (key: string) =>
+        parseInt(key.replace(/\D+/g, ""), 10) || 0
+    const isLocked = (matchKey: string) =>
+        matchToNumber(matchKey) <= matchToNumber(recentMatch)
 
     return (
         <div className="flex flex-1 gap-4 overflow-hidden">
@@ -223,73 +225,138 @@ function Step1_QualSim({
                     </tr>
                     </thead>
                     <tbody>
-                    {matches.map((m, i) => (
-                        <tr key={m.matchKey} className="border-t">
-                            <td className="border p-1">{m.matchKey}</td>
-                            <td className="border p-1 text-red-600">{m.red.join(", ")}</td>
-                            <td className="border p-1 text-blue-600">{m.blue.join(", ")}</td>
-
-                            <td className="border p-1 item text-center align-middle">
-                                <div className="flex justify-center">
-                                    <div className="flex w-20 h-8 rounded overflow-hidden border">
-                                        <button
-                                            className={`flex-1 ${
-                                                m.winner === "red"
-                                                    ? "bg-red-500 text-white"
-                                                    : "bg-red-100 hover:bg-red-200"
-                                            }`}
-                                            onClick={() => toggleWinner(i, "red")}
+                    {matches.map((m, i) => {
+                        const locked = isLocked(m.matchKey)
+                        const isDividerAfter = m.matchKey === recentMatch
+                        return (
+                            <>
+                                <tr
+                                    key={m.matchKey}
+                                    className={`border-t ${
+                                        locked ? "bg-gray-50 text-gray-600" : "bg-white"
+                                    }`}
+                                >
+                                    <td className="border p-1">
+                                        <Link
+                                            to={`/matches/${m.matchKey}`}
+                                            className="text-blue-600 hover:underline"
                                         >
-                                            R
-                                        </button>
-                                        <button
-                                            className={`flex-1 ${
-                                                m.winner === "blue"
-                                                    ? "bg-blue-500 text-white"
-                                                    : "bg-blue-100 hover:bg-blue-200"
-                                            }`}
-                                            onClick={() => toggleWinner(i, "blue")}
-                                        >
-                                            B
-                                        </button>
-                                    </div>
-                                </div>
-                            </td>
+                                            {m.matchKey}
+                                        </Link>
+                                    </td>
+                                    <td className="border p-1 text-red-600">
+                                        {m.red.map((t) => (
+                                            <Link
+                                                key={t}
+                                                to={`/teams/${t}`}
+                                                className="hover:underline mr-1"
+                                            >
+                                                {t}
+                                            </Link>
+                                        ))}
+                                    </td>
+                                    <td className="border p-1 text-blue-600">
+                                        {m.blue.map((t) => (
+                                            <Link
+                                                key={t}
+                                                to={`/teams/${t}`}
+                                                className="hover:underline mr-1"
+                                            >
+                                                {t}
+                                            </Link>
+                                        ))}
+                                    </td>
 
-                            {/* Red RPs */}
-                            {m.redRP.map((rp, k) => (
-                                <td key={`r${k}`} className="border p-1">
-                                    <button
-                                        onClick={() => toggleRP(i, "red", k)}
-                                        className={`w-6 h-6 rounded border ${
-                                            rp
-                                                ? "bg-red-500 border-red-700"
-                                                : "bg-gray-100 hover:bg-gray-200"
-                                        }`}
-                                    />
-                                </td>
-                            ))}
+                                    {/* Winner toggle */}
+                                    <td className="border p-1 text-center align-middle">
+                                        <div className="flex justify-center">
+                                            <div className="flex w-20 h-8 rounded overflow-hidden border">
+                                                <button
+                                                    disabled={locked}
+                                                    className={`flex-1 ${
+                                                        m.winner === "red"
+                                                            ? "bg-red-500 text-white"
+                                                            : "bg-red-100 hover:bg-red-200"
+                                                    } ${
+                                                        locked ? "opacity-60 cursor-default" : ""
+                                                    }`}
+                                                    onClick={() => !locked && toggleWinner(i, "red")}
+                                                >
+                                                    R
+                                                </button>
+                                                <button
+                                                    disabled={locked}
+                                                    className={`flex-1 ${
+                                                        m.winner === "blue"
+                                                            ? "bg-blue-500 text-white"
+                                                            : "bg-blue-100 hover:bg-blue-200"
+                                                    } ${
+                                                        locked ? "opacity-60 cursor-default" : ""
+                                                    }`}
+                                                    onClick={() => !locked && toggleWinner(i, "blue")}
+                                                >
+                                                    B
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </td>
 
-                            {/* Blue RPs */}
-                            {m.blueRP.map((rp, k) => (
-                                <td key={`b${k}`} className="border p-1">
-                                    <button
-                                        onClick={() => toggleRP(i, "blue", k)}
-                                        className={`w-6 h-6 rounded border ${
-                                            rp
-                                                ? "bg-blue-500 border-blue-700"
-                                                : "bg-gray-100 hover:bg-gray-200"
-                                        }`}
-                                    />
-                                </td>
-                            ))}
-                        </tr>
-                    ))}
+                                    {/* Red RPs */}
+                                    {m.redRP.map((rp, k) => (
+                                        <td key={`r${k}`} className="border p-1">
+                                            <button
+                                                disabled={locked}
+                                                onClick={() =>
+                                                    !locked && toggleRP(i, "red", k)
+                                                }
+                                                className={`w-6 h-6 rounded border ${
+                                                    rp
+                                                        ? "bg-red-500 border-red-700"
+                                                        : "bg-gray-100 hover:bg-gray-200"
+                                                } ${
+                                                    locked ? "opacity-60 cursor-default" : ""
+                                                }`}
+                                            />
+                                        </td>
+                                    ))}
+
+                                    {/* Blue RPs */}
+                                    {m.blueRP.map((rp, k) => (
+                                        <td key={`b${k}`} className="border p-1">
+                                            <button
+                                                disabled={locked}
+                                                onClick={() =>
+                                                    !locked && toggleRP(i, "blue", k)
+                                                }
+                                                className={`w-6 h-6 rounded border ${
+                                                    rp
+                                                        ? "bg-blue-500 border-blue-700"
+                                                        : "bg-gray-100 hover:bg-gray-200"
+                                                } ${
+                                                    locked ? "opacity-60 cursor-default" : ""
+                                                }`}
+                                            />
+                                        </td>
+                                    ))}
+                                </tr>
+
+                                {/* add a visible divider after the last played match */}
+                                {isDividerAfter && (
+                                    <tr>
+                                        <td colSpan={10}>
+                                            <div className="border-t-4 border-black my-1"></div>
+                                        </td>
+                                    </tr>
+                                )}
+                            </>
+                        )
+                    })}
                     </tbody>
                 </table>
             </div>
 
-            {/* RIGHT: Live Ranking */}
+            {/* RIGHT: Live Ranking */
+            }
             <div className="w-64 border-l-2 border-black pl-3 overflow-auto">
                 <h2 className="font-semibold mb-2">Rankings</h2>
                 <table className="w-full text-center border-collapse">
@@ -304,7 +371,14 @@ function Step1_QualSim({
                     {rankings.map((r, i) => (
                         <tr key={r.team}>
                             <td className="border p-1">{i + 1}</td>
-                            <td className="border p-1">{r.team}</td>
+                            <td className="border p-1">
+                                <Link
+                                    to={`/admin/data/team/${r.team}`}
+                                    className="text-blue-600 hover:underline"
+                                >
+                                    {r.team}
+                                </Link>
+                            </td>
                             <td className="border p-1">{r.rp}</td>
                         </tr>
                     ))}
@@ -316,19 +390,21 @@ function Step1_QualSim({
 }
 
 
-export function Step2_AllianceSelect({
-    rankings,
-    alliances,
-    setAlliances,
-}: {
+function Step2_AllianceSelect({
+                                  rankings,
+                                  alliances,
+                                  setAlliances,
+                              }: {
     rankings: TeamStats[]
     alliances: Alliance[]
     setAlliances: React.Dispatch<React.SetStateAction<Alliance[]>>
 }) {
+    const [activeTeam, setActiveTeam] = useState<number | null>(null)
+
 
     // --- handle drop ---
     const handleDragEnd = (event: DragEndEvent) => {
-        const { over, active } = event
+        const {over, active} = event
         if (!over) return
 
         const draggedId = active.id as string
@@ -361,6 +437,12 @@ export function Step2_AllianceSelect({
         })
     }
 
+    const handleDragStart = (event: DragStartEvent) => {
+        const id = event.active.id as string
+        const team = parseInt(id.replace("team-", ""))
+        if (!isNaN(team)) setActiveTeam(team)
+    }
+
     // Calculate which teams are unassigned
     const assignedTeams = new Set(
         alliances.flatMap((a) => [a.captain, a.pick1, a.pick2]).filter(Boolean)
@@ -371,47 +453,46 @@ export function Step2_AllianceSelect({
 
     return (
         <div className="flex gap-6 h-full overflow-hidden">
-            <DndContext onDragEnd={handleDragEnd}>
+            <DndContext onDragEnd={handleDragEnd} onDragStart={handleDragStart}>
                 {/* === Left: Draggable Teams (Pool) === */}
                 <div className="w-52 border rounded p-2 overflow-hidden">
                     <h3 className="font-semibold mb-2 text-center">Team Pool</h3>
                     <DroppablePool id="team-pool">
                         {unassigned.map((t) => (
-                            <DraggableTeam key={t} team={t} />
+                            <DraggableTeam key={t} team={t}/>
                         ))}
                     </DroppablePool>
                 </div>
 
                 {/* === Right: Alliance Table === */}
-                <div className="flex-1 overflow-auto border rounded p-2">
-                    <h2 className="text-xl font-semibold mb-2">
-                        Step 2 — Alliance Selection
-                    </h2>
-                    <table className="w-full border text-center">
-                        <thead className="bg-gray-100 ">
-                            <tr>
-                                <th>Alliance</th>
-                                <th>Captain</th>
-                                <th>Pick 1</th>
-                                <th>Pick 2</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {alliances.map((a, i) => (
-                                <tr key={i}>
-                                    <td className="font-semibold border p-1">{i + 1}</td>
-                                    {(["captain", "pick1", "pick2"] as const).map((slot) => (
-                                        <AllianceSlot
-                                            key={slot}
-                                            id={`${i}:${slot}`}
-                                            current={(a as any)[slot]}
-                                        />
-                                    ))}
-                                </tr>
+                <table className="w-full table-fixed border text-center h-fit">
+                    <thead className="bg-gray-100">
+                    <tr>
+                        <th className="w-20">Alliance</th>
+                        <th className="w-32">Captain</th>
+                        <th className="w-32">Pick 1</th>
+                        <th className="w-32">Pick 2</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    {alliances.map((a, i) => (
+                        <tr key={i}>
+                            <td className="font-semibold border p-1">{i + 1}</td>
+                            {(["captain", "pick1", "pick2"] as const).map((slot) => (
+                                <AllianceSlot
+                                    key={slot}
+                                    id={`${i}:${slot}`}
+                                    current={(a as any)[slot]}
+                                />
                             ))}
-                        </tbody>
-                    </table>
-                </div>
+                        </tr>
+                    ))}
+                    </tbody>
+                </table>
+
+                <DragOverlay>
+                    {activeTeam ? <DraggableTeam team={activeTeam}/> : null}
+                </DragOverlay>
             </DndContext>
         </div>
     )
@@ -419,13 +500,13 @@ export function Step2_AllianceSelect({
 
 // ===== Droppable Team Pool =====
 function DroppablePool({
-    id,
-    children,
-}: {
+                           id,
+                           children,
+                       }: {
     id: string
     children: React.ReactNode
 }) {
-    const { setNodeRef, isOver } = useDroppable({ id })
+    const {setNodeRef, isOver} = useDroppable({id})
     return (
         <div
             ref={setNodeRef}
@@ -439,8 +520,8 @@ function DroppablePool({
 }
 
 // ===== Draggable team chips =====
-function DraggableTeam({ team }: { team: number }) {
-    const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+function DraggableTeam({team}: { team: number }) {
+    const {attributes, listeners, setNodeRef, transform, isDragging} = useDraggable({
         id: `team-${team}`,
     })
 
@@ -456,27 +537,32 @@ function DraggableTeam({ team }: { team: number }) {
             {...listeners}
             {...attributes}
             style={style}
-            className="select-none border rounded p-1 my-1 text-center bg-gray-50 hover:bg-gray-100"
+            className="select-none border rounded p-1 my-1 text-center bg-gray-50 hover:bg-gray-100 w-40"
         >
             {team}
         </div>
     )
 }
 
-// ===== Droppable alliance slots =====
 function AllianceSlot({ id, current }: { id: string; current: number | null }) {
-    const { setNodeRef, isOver } = useDroppable({ id })
+  const { setNodeRef, isOver } = useDroppable({ id })
 
-    return (
-        <td
-            ref={setNodeRef}
-            className={`border p-1 text-center align-middle transition-all duration-150
-                ${isOver ? "bg-green-100" : ""}
-                ${current ? "h-8" : "h-13"}`}
-        >
-            {current ? <DraggableTeam team={current} /> : "—"}
-        </td>
-    )
+  return (
+    <td
+      ref={setNodeRef}
+      className={`border transition-all duration-150 
+                  ${isOver ? "bg-green-100" : ""} 
+                  ${current ? "h-10" : "h-12"} p-0`}
+    >
+      <div className="flex items-center justify-center w-full h-full">
+        {current ? (
+          <DraggableTeam team={current} />
+        ) : (
+          <span className="text-gray-400 select-none">—</span>
+        )}
+      </div>
+    </td>
+  )
 }
 
 

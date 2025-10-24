@@ -1,3 +1,53 @@
+"""
+To add a new database function to this module, follow these steps:
+
+1. **Determine purpose and scope**
+   - Decide whether the function operates on an existing table (e.g., `match_scouting`, `pit_scouting`, `users`, etc.)
+     or requires a new table. If new, define its schema in `init_data_db()`.
+
+2. **Acquire a database connection**
+   - Always use:
+     ```python
+     conn = await get_db_connection(DB_NAME)
+     ```
+     This ensures the connection pool and JSON codecs are used properly.
+
+3. **Write database logic inside try/finally**
+   - Example pattern:
+     ```python
+     try:
+         async with conn.transaction():
+             await conn.execute("SQL HERE", params...)
+     except PostgresError as e:
+         logger.error("Your descriptive message: %s", e)
+         raise HTTPException(status_code=500, detail="Your descriptive message")
+     finally:
+         await release_db_connection(DB_NAME, conn)
+     ```
+   - Use `fetchrow`, `fetch`, or `execute` depending on the operation.
+
+4. **Handle conflicts and unique constraints**
+   - If insertion can collide with existing rows, catch `UniqueViolationError` and raise:
+     ```python
+     raise HTTPException(status_code=409, detail="Conflict message")
+     ```
+
+5. **Maintain consistent patterns**
+   - Use `HTTPException` for FastAPI endpoints.
+   - Use `_to_db_scouter()` and `_from_db_scouter()` for nullable `scouter` values.
+   - Include `time.time_ns()` for modification tracking if applicable.
+   - Follow naming convention `add_x`, `update_x`, `get_x`, `delete_x`.
+
+6. **Return structured results**
+   - Return lists or dicts with snake_case keys matching database columns.
+   - Convert timestamps to ISO strings if user-facing.
+
+7. **Test the new function**
+   - Call it from a temporary FastAPI route or REPL with a live database connection.
+   - Confirm it correctly handles both success and error conditions.
+"""
+
+
 import asyncpg
 import json
 import time
@@ -133,6 +183,38 @@ async def init_data_db():
             # --- processed_data table ---
             await conn.execute("CREATE TABLE IF NOT EXISTS processed_data (data TEXT)")
 
+            # --- tba table ---
+            await conn.execute("""
+                               CREATE TABLE IF NOT EXISTS tba_matches
+                               (
+                                   match_key           TEXT PRIMARY KEY,
+                                   event_key           TEXT   NOT NULL,
+                                   comp_level          TEXT   NOT NULL,
+                                   set_number          INTEGER,
+                                   match_number        INTEGER,
+                                   time                BIGINT,
+                                   actual_time         BIGINT,
+                                   predicted_time      BIGINT,
+                                   post_result_time    BIGINT,
+                                   winning_alliance    TEXT,
+                                   red_teams           TEXT[] NOT NULL,
+                                   blue_teams          TEXT[] NOT NULL,
+                                   red_score           INTEGER,
+                                   blue_score          INTEGER,
+                                   red_rp              INTEGER,
+                                   blue_rp             INTEGER,
+                                   red_auto_points     INTEGER,
+                                   blue_auto_points    INTEGER,
+                                   red_teleop_points   INTEGER,
+                                   blue_teleop_points  INTEGER,
+                                   red_endgame_points  INTEGER,
+                                   blue_endgame_points INTEGER,
+                                   score_breakdown     JSONB,
+                                   videos              JSONB,
+                                   last_update         TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                               );
+                               """)
+
             # --- users table ---
             await conn.execute("""
                 CREATE TABLE IF NOT EXISTS users(
@@ -212,11 +294,7 @@ async def get_team_info(team_number: int) -> Optional[dict]:
 
 # =================== Match Scouting ===================
 
-async def get_match_info(
-    match_type: str,
-    match_number: int,
-    set_number: int = 1
-) -> Optional[dict]:
+async def get_match_info(match_type: str, match_number: int, set_number: int = 1) -> Optional[dict]:
     """
     Fetches a single match record from the `matches` table,
     automatically using the current event key from metadata.
@@ -410,8 +488,6 @@ async def get_processed_data(event_key: Optional[str] = None) -> Optional[dict]:
         await release_db_connection(DB_NAME, conn)
 
 
-
-
 # =================== Pit Scouting ===================
 
 async def add_pit_scouting(
@@ -487,10 +563,7 @@ async def update_pit_scouting(
         await release_db_connection(DB_NAME, conn)
 
 
-async def get_pit_scouting(
-    team: Optional[int | str] = None,
-    scouter: Optional[str] = "__NOTPASSED__",
-) -> list[Dict[str, Any]]:
+async def get_pit_scouting(team: Optional[int | str] = None, scouter: Optional[str] = "__NOTPASSED__",) -> list[Dict[str, Any]]:
     """
     Fetch pit scouting records scoped by current_event from metadata.
     Any combination of parameters can be supplied.
@@ -530,10 +603,7 @@ async def get_pit_scouting(
         await release_db_connection(DB_NAME, conn)
 
 
-async def delete_pit_scouting(
-    team: int | str,
-    scouter: Optional[str]
-) -> bool:
+async def delete_pit_scouting(team: int | str, scouter: Optional[str]) -> bool:
     """Delete a pit scouting record."""
     conn = await get_db_connection(DB_NAME)
     try:
@@ -546,6 +616,204 @@ async def delete_pit_scouting(
     except PostgresError as e:
         logger.error("Failed to delete pit scouting data: %s", e)
         raise HTTPException(status_code=500, detail=f"Failed to delete pit scouting data: {e}")
+    finally:
+        await release_db_connection(DB_NAME, conn)
+
+
+# =================== TBA data =========================
+
+async def add_tba_match(match_data: dict):
+    """
+    Insert or update a TBA match record in the `tba_matches` table.
+    Used for caching data from The Blue Alliance.
+
+    Args:
+        match_data: Full JSON from TBA's /match/{match_key} endpoint.
+    """
+
+    conn = await get_db_connection(DB_NAME)
+    try:
+        async with conn.transaction():
+            # Extract core fields
+            key = match_data["key"]
+            event_key = match_data["event_key"]
+            comp_level = match_data["comp_level"]
+            set_number = match_data.get("set_number")
+            match_number = match_data.get("match_number")
+            time_val = match_data.get("time")
+            actual_time = match_data.get("actual_time")
+            predicted_time = match_data.get("predicted_time")
+            post_result_time = match_data.get("post_result_time")
+            winning_alliance = match_data.get("winning_alliance")
+
+            red = match_data["alliances"]["red"]
+            blue = match_data["alliances"]["blue"]
+
+            red_teams = red["team_keys"]
+            blue_teams = blue["team_keys"]
+            red_score = red.get("score")
+            blue_score = blue.get("score")
+
+            score_breakdown = match_data.get("score_breakdown", {})
+            videos = match_data.get("videos", [])
+
+            # Extract useful subfields (safe defaults)
+            red_rp = score_breakdown.get("red", {}).get("rp")
+            blue_rp = score_breakdown.get("blue", {}).get("rp")
+            red_auto = score_breakdown.get("red", {}).get("autoPoints")
+            blue_auto = score_breakdown.get("blue", {}).get("autoPoints")
+            red_teleop = score_breakdown.get("red", {}).get("teleopPoints")
+            blue_teleop = score_breakdown.get("blue", {}).get("teleopPoints")
+            red_endgame = score_breakdown.get("red", {}).get("endGameBargePoints")
+            blue_endgame = score_breakdown.get("blue", {}).get("endGameBargePoints")
+
+            # UPSERT (insert or update existing)
+            await conn.execute("""
+                INSERT INTO matches_tba (
+                    match_key, event_key, comp_level, set_number, match_number,
+                    time, actual_time, predicted_time, post_result_time,
+                    winning_alliance, red_teams, blue_teams, red_score, blue_score,
+                    red_rp, blue_rp, red_auto_points, blue_auto_points,
+                    red_teleop_points, blue_teleop_points,
+                    red_endgame_points, blue_endgame_points,
+                    score_breakdown, videos, last_update
+                )
+                VALUES (
+                    $1, $2, $3, $4, $5,
+                    $6, $7, $8, $9,
+                    $10, $11, $12, $13, $14,
+                    $15, $16, $17, $18,
+                    $19, $20,
+                    $21, $22,
+                    $23, $24, NOW()
+                )
+                ON CONFLICT (match_key) DO UPDATE SET
+                    red_score = EXCLUDED.red_score,
+                    blue_score = EXCLUDED.blue_score,
+                    score_breakdown = EXCLUDED.score_breakdown,
+                    videos = EXCLUDED.videos,
+                    last_update = NOW();
+            """, (
+                key, event_key, comp_level, set_number, match_number,
+                time_val, actual_time, predicted_time, post_result_time,
+                winning_alliance, red_teams, blue_teams, red_score, blue_score,
+                red_rp, blue_rp, red_auto, blue_auto,
+                red_teleop, blue_teleop,
+                red_endgame, blue_endgame,
+                json.dumps(score_breakdown), json.dumps(videos)
+            ))
+
+    except UniqueViolationError:
+        raise HTTPException(status_code=409, detail=f"Match {key} already exists.")
+    except PostgresError as e:
+        logger.error("Failed to cache TBA match %s: %s", match_data.get("key"), e)
+        raise HTTPException(status_code=500, detail="Database error while caching match")
+    finally:
+        await release_db_connection(DB_NAME, conn)
+
+    return {"status": "ok", "match_key": match_data.get("key")}
+
+
+async def get_tba_match(match_key: str) -> Optional[dict]:
+    """
+    Retrieve a single TBA match record from `tba_matches` by match_key.
+    Returns None if not found.
+    """
+    conn = await get_db_connection(DB_NAME)
+    try:
+        row = await conn.fetchrow("""
+            SELECT *
+            FROM matches_tba
+            WHERE match_key = $1
+            LIMIT 1
+        """, match_key)
+
+        if not row:
+            return None
+
+        return {
+            "match_key": row["match_key"],
+            "event_key": row["event_key"],
+            "comp_level": row["comp_level"],
+            "set_number": row["set_number"],
+            "match_number": row["match_number"],
+            "time": row["time"],
+            "actual_time": row["actual_time"],
+            "predicted_time": row["predicted_time"],
+            "post_result_time": row["post_result_time"],
+            "winning_alliance": row["winning_alliance"],
+            "red_teams": row["red_teams"],
+            "blue_teams": row["blue_teams"],
+            "red_score": row["red_score"],
+            "blue_score": row["blue_score"],
+            "red_rp": row["red_rp"],
+            "blue_rp": row["blue_rp"],
+            "red_auto_points": row["red_auto_points"],
+            "blue_auto_points": row["blue_auto_points"],
+            "red_teleop_points": row["red_teleop_points"],
+            "blue_teleop_points": row["blue_teleop_points"],
+            "red_endgame_points": row["red_endgame_points"],
+            "blue_endgame_points": row["blue_endgame_points"],
+            "score_breakdown": row["score_breakdown"],
+            "videos": row["videos"],
+            "last_update": row["last_update"].isoformat() if row["last_update"] else None,
+        }
+
+    except PostgresError as e:
+        logger.error("Failed to fetch TBA match %s: %s", match_key, e)
+        raise HTTPException(status_code=500, detail=f"Failed to fetch TBA match {match_key}: {e}")
+    finally:
+        await release_db_connection(DB_NAME, conn)
+
+
+async def get_tba_event_matches(event_key: str) -> list[dict]:
+    """
+    Retrieve all TBA matches for a given event_key.
+    Returns an empty list if the event has no cached matches.
+    """
+    conn = await get_db_connection(DB_NAME)
+    try:
+        rows = await conn.fetch("""
+            SELECT *
+            FROM matches_tba
+            WHERE event_key = $1
+            ORDER BY comp_level, set_number, match_number
+        """, event_key)
+
+        return [
+            {
+                "match_key": r["match_key"],
+                "event_key": r["event_key"],
+                "comp_level": r["comp_level"],
+                "set_number": r["set_number"],
+                "match_number": r["match_number"],
+                "time": r["time"],
+                "actual_time": r["actual_time"],
+                "predicted_time": r["predicted_time"],
+                "post_result_time": r["post_result_time"],
+                "winning_alliance": r["winning_alliance"],
+                "red_teams": r["red_teams"],
+                "blue_teams": r["blue_teams"],
+                "red_score": r["red_score"],
+                "blue_score": r["blue_score"],
+                "red_rp": r["red_rp"],
+                "blue_rp": r["blue_rp"],
+                "red_auto_points": r["red_auto_points"],
+                "blue_auto_points": r["blue_auto_points"],
+                "red_teleop_points": r["red_teleop_points"],
+                "blue_teleop_points": r["blue_teleop_points"],
+                "red_endgame_points": r["red_endgame_points"],
+                "blue_endgame_points": r["blue_endgame_points"],
+                "score_breakdown": r["score_breakdown"],
+                "videos": r["videos"],
+                "last_update": r["last_update"].isoformat() if r["last_update"] else None,
+            }
+            for r in rows
+        ]
+
+    except PostgresError as e:
+        logger.error("Failed to fetch matches for event %s: %s", event_key, e)
+        raise HTTPException(status_code=500, detail=f"Failed to fetch matches for event {event_key}: {e}")
     finally:
         await release_db_connection(DB_NAME, conn)
 
@@ -690,7 +958,6 @@ async def create_user_if_missing(email: str, name: str):
         await release_db_connection(DB_NAME, conn)
 
 
-
 # =================== FastAPI dependencies ===================
 
 def require_session() -> Callable[..., enums.SessionInfo]:
@@ -702,6 +969,7 @@ def require_session() -> Callable[..., enums.SessionInfo]:
             permissions=enums.SessionPermissions(**s["permissions"]),
         )
     return dep
+
 
 def require_permission(required: str) -> Callable[..., enums.SessionInfo]:
     """

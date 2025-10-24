@@ -73,6 +73,7 @@ export function useAPI() {
         }
     };
 
+    // --- Endpoint: POST /auth/login ---
     const login = async (credential: string): Promise<{
         success: boolean
         name?: string
