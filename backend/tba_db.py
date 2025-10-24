@@ -44,23 +44,39 @@ def cache_match_to_db(match_data: dict):
 
     red = match_data["alliances"]["red"]
     blue = match_data["alliances"]["blue"]
-
     red_teams = red["team_keys"]
     blue_teams = blue["team_keys"]
     red_score = red.get("score")
     blue_score = blue.get("score")
 
-    score_breakdown = match_data.get("score_breakdown", {})
+    score_breakdown = match_data.get("score_breakdown", {}) or {}
     videos = match_data.get("videos", [])
 
-    red_rp = score_breakdown.get("red", {}).get("rp")
-    blue_rp = score_breakdown.get("blue", {}).get("rp")
-    red_auto = score_breakdown.get("red", {}).get("autoPoints")
-    blue_auto = score_breakdown.get("blue", {}).get("autoPoints")
-    red_teleop = score_breakdown.get("red", {}).get("teleopPoints")
-    blue_teleop = score_breakdown.get("blue", {}).get("teleopPoints")
-    red_endgame = score_breakdown.get("red", {}).get("endGameBargePoints")
-    blue_endgame = score_breakdown.get("blue", {}).get("endGameBargePoints")
+    red_breakdown = score_breakdown.get("red", {})
+    blue_breakdown = score_breakdown.get("blue", {})
+
+    red_rp = red_breakdown.get("rp")
+    blue_rp = blue_breakdown.get("rp")
+    red_auto = red_breakdown.get("autoPoints")
+    blue_auto = blue_breakdown.get("autoPoints")
+    red_teleop = red_breakdown.get("teleopPoints")
+    blue_teleop = blue_breakdown.get("teleopPoints")
+    red_endgame = red_breakdown.get("endGameBargePoints")
+    blue_endgame = blue_breakdown.get("endGameBargePoints")
+
+    # ---------- Coopertition Inference ----------
+    def infer_coop(breakdown: dict) -> bool:
+        """Infer Coopertition from official field or fallback rule."""
+        # 1. Prefer direct TBA boolean
+        if "coopertitionCriteriaMet" in breakdown:
+            return bool(breakdown.get("coopertitionCriteriaMet"))
+
+        # 2. Fallback: infer from algae delivered to Processor (approximation)
+        processor_algae = breakdown.get("wallAlgaeCount", 0)
+        return processor_algae >= 2
+
+    red_coop = infer_coop(red_breakdown)
+    blue_coop = infer_coop(blue_breakdown)
 
     cur.execute("""
         INSERT INTO matches_tba (
@@ -70,20 +86,27 @@ def cache_match_to_db(match_data: dict):
             red_rp, blue_rp, red_auto_points, blue_auto_points,
             red_teleop_points, blue_teleop_points,
             red_endgame_points, blue_endgame_points,
-            score_breakdown, videos, last_update
-        ) VALUES (
+            score_breakdown, videos,
+            red_coopertition_criteria, blue_coopertition_criteria,
+            last_update
+        )
+        VALUES (
             %(match_key)s, %(event_key)s, %(comp_level)s, %(set_number)s, %(match_number)s,
             %(time)s, %(actual_time)s, %(predicted_time)s, %(post_result_time)s,
             %(winning_alliance)s, %(red_teams)s, %(blue_teams)s, %(red_score)s, %(blue_score)s,
             %(red_rp)s, %(blue_rp)s, %(red_auto)s, %(blue_auto)s,
             %(red_teleop)s, %(blue_teleop)s,
             %(red_endgame)s, %(blue_endgame)s,
-            %(score_breakdown)s, %(videos)s, CURRENT_TIMESTAMP
+            %(score_breakdown)s, %(videos)s,
+            %(red_coop)s, %(blue_coop)s,
+            CURRENT_TIMESTAMP
         )
         ON CONFLICT (match_key) DO UPDATE SET
             red_score = EXCLUDED.red_score,
             blue_score = EXCLUDED.blue_score,
             score_breakdown = EXCLUDED.score_breakdown,
+            red_coopertition_criteria = EXCLUDED.red_coopertition_criteria,
+            blue_coopertition_criteria = EXCLUDED.blue_coopertition_criteria,
             videos = EXCLUDED.videos,
             last_update = CURRENT_TIMESTAMP;
     """, {
@@ -111,12 +134,14 @@ def cache_match_to_db(match_data: dict):
         "blue_endgame": blue_endgame,
         "score_breakdown": Json(score_breakdown),
         "videos": Json(videos),
+        "red_coop": red_coop,
+        "blue_coop": blue_coop,
     })
 
     conn.commit()
     cur.close()
     conn.close()
-    print(f"✅ Cached {key} to database.")
+
 
 
 def get_event_match_keys(event_key: str, cache_to_db: bool = False):
