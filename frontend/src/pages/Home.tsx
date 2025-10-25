@@ -1,4 +1,4 @@
-import {useEffect, useState} from "react"
+import {useEffect, useRef, useState} from "react"
 import {useNavigate} from "react-router-dom"
 import {useAPI} from "@/hooks/useAPI.ts"
 import TooltipButton from "@/components/ui/tooltipButton"
@@ -18,6 +18,8 @@ export function HomeLayout() {
     const {login, verify} = useAPI()
     const {isOnline, serverOnline} = useClientEnvironment()
 
+    const googleDivRef = useRef<HTMLDivElement | null>(null);
+
     const [name, setName] = useState<string | null>(null)
     const [permissions, setPermissions] = useState<{
         dev: boolean
@@ -31,6 +33,7 @@ export function HomeLayout() {
     const [theme, setTheme] = useState<Settings["theme"]>(
         () => getSettingSync("theme", "2026")
     )
+    const wakingUp = isOnline && !serverOnline
 
     useEffect(() => {
         void (async () => {
@@ -75,57 +78,62 @@ export function HomeLayout() {
     }, [])
 
     useEffect(() => {
-        if (!window.google || !import.meta.env.VITE_GOOGLE_CLIENT_ID) return;
+        let attempts = 0;
 
-        window.google.accounts.id.initialize({
-            client_id: import.meta.env.VITE_GOOGLE_CLIENT_ID,
-            callback: async (response: any) => {
-                const result = await login(response.credential);
-                if (result.success && result.name && result.permissions) {
-                    setName(result.name);
-                    setPermissions(result.permissions);
-                    setError(null);
-                    setMessageIndex(Math.floor(Math.random() * greetings.length));
+        const tryRender = () => {
+            const gsi = window.google?.accounts?.id;
+            const div = googleDivRef.current;
 
-                    // prevent Google from prompting again after successful login
-                    window.google.accounts.id.disableAutoSelect();
-                    window.google.accounts.id.cancel();
-                } else {
-                    setError(result.error ?? "Login failed");
-                    setName(null);
-                    setPermissions(null);
-                }
-            },
-            auto_select: false, // prevents automatic re-prompts on reload
-            cancel_on_tap_outside: true,
-        });
+            if (!gsi || !div) {
+                // Retry up to 50 times (~5 s total)
+                if (attempts++ < 50) setTimeout(tryRender, 100);
+                return;
+            }
 
-        // Determine Google button theme
-        let buttonTheme: "outline" | "filled_blue" | "filled_black" = "outline";
-        if (theme === "dark") buttonTheme = "filled_black";
-        else if (theme === "2025") buttonTheme = "filled_blue";
-        else if (theme === "light" || theme === "2026") buttonTheme = "outline";
+            gsi.initialize({
+                client_id: import.meta.env.VITE_GOOGLE_CLIENT_ID,
+                callback: async (response: any) => {
+                    const result = await login(response.credential);
+                    if (result.success && result.name && result.permissions) {
+                        setName(result.name);
+                        setPermissions(result.permissions);
+                        setError(null);
+                        setMessageIndex(Math.floor(Math.random() * greetings.length));
+                        gsi.disableAutoSelect();
+                    } else {
+                        setError(result.error ?? "Login failed");
+                        setName(null);
+                        setPermissions(null);
+                    }
+                },
+                auto_select: false,
+                cancel_on_tap_outside: true,
+            });
 
-        window.google.accounts.id.renderButton(
-            document.getElementById("googleSignInDiv"),
-            {
+            const buttonTheme =
+                theme === "dark" ? "filled_black"
+                    : theme === "2025" ? "filled_blue"
+                        : "outline";
+
+            gsi.renderButton(div, {
                 theme: buttonTheme,
                 size: "large",
                 shape: "pill",
                 text: "continue_with",
                 width: 300,
-            }
-        );
+            });
+        };
 
-        // Only show prompt if not logged in
-        if (!name && !permissions) {
-            window.google.accounts.id.prompt();
-        } else {
-            window.google.accounts.id.cancel();
-        }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [theme, name, permissions]);
+        tryRender();
+    }, []); // still runs once
 
+
+    // Separate effect for prompting only once
+    useEffect(() => {
+        if (!window.google) return;
+        if (!name && !permissions) window.google.accounts.id.prompt();
+        else window.google.accounts.id.cancel();
+    }, [name, permissions]);
 
     const handleNavigate = (path: string | null) => {
         if (path) navigate(path)
@@ -178,20 +186,35 @@ export function HomeLayout() {
 
                 {/* --- Google OAuth Login --- */}
                 <div className="flex flex-col items-center space-y-4">
-                    <div id="googleSignInDiv"></div>
-
-                    {error && <p className="text-red-500 text-sm">{error}</p>}
-                    {name && (
-                        <p
-                            className={`
-                                text-sm transition
-                                ${theme === "2026" ? "text-[#5a4800]" : "text-zinc-400"}
-                            `}
-                        >
-                            {greetings[messageIndex!]}
-                        </p>
+                    {wakingUp ? (
+                        <div className="flex flex-col items-center space-y-2">
+                            <div
+                                className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-zinc-400"></div>
+                            <p
+                                className={`text-sm ${
+                                    theme === "2026" ? "text-[#5a4800]" : "text-zinc-400"
+                                }`}
+                            >
+                                Waking up backend service...
+                            </p>
+                        </div>
+                    ) : (
+                        <>
+                            <div id="googleSignInDiv" ref={googleDivRef}></div>
+                            {error && <p className="text-red-500 text-sm">{error}</p>}
+                            {name && (
+                                <p
+                                    className={`text-sm ${
+                                        theme === "2026" ? "text-[#5a4800]" : "text-zinc-400"
+                                    }`}
+                                >
+                                    {greetings[messageIndex!]}
+                                </p>
+                            )}
+                        </>
                     )}
                 </div>
+
 
                 <div
                     className={`
