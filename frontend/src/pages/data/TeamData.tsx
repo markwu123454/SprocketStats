@@ -16,347 +16,286 @@ team scores over time(line graph)
 
 
 // src/pages/TeamData.tsx
-import {useEffect, useMemo, useState} from "react"
+import React, {useMemo, useState} from "react"
 import {useParams} from "react-router-dom"
-// SKIPPED: imports for your chart lib (e.g., recharts) if desired
-// SKIPPED: shadcn/ui Card components; plain Tailwind used for neutrality
+import {ResponsiveSunburst} from "@nivo/sunburst"
+import {ResponsiveBar} from "@nivo/bar"
 
-type RPContribution = {
-  winRP: number
-  coralRP: number
-  algaeRP: number
-  coopRP: number
+interface SunburstNode {
+    id: string
+    label: string
+    value?: number
+    color?: string
+    children?: SunburstNode[]
+    sumValue?: number
 }
 
-type MatchRow = {
-  key: string
-  phase: "qm" | "qf" | "sf" | "f"
-  number: string
-  alliance: "red" | "blue"
-  result: "W" | "L" | "T" | "-"
-  rp: number
-  score: number | null
-  scheduled?: string // ISO for future matches
-}
-
-type MetricCell = string | number | null
-type MetricRow = { label: string; values: MetricCell[] }
-type MetricSection = { title: string; columns: string[]; rows: MetricRow[] }
 
 export default function TeamData() {
-  const {team} = useParams<{ team: string }>()
-  const teamNum = team ? parseInt(team, 10) : NaN
+    const {team} = useParams<{ team: string }>()
+    const teamNum = team ? parseInt(team, 10) : NaN
 
-  // ---- Data state (wire-up to your useAPI) ----
-  const [nickname, setNickname] = useState<string>("")
-  const [logoUrl, setLogoUrl] = useState<string>("")
-  const [currentRank, setCurrentRank] = useState<number | null>(null)
-  const [predRank, setPredRank] = useState<number | null>(null)
-  const [currentRP, setCurrentRP] = useState<number | null>(null)
-  const [predRP, setPredRP] = useState<number | null>(null)
-  const [rpContrib, setRpContrib] = useState<RPContribution | null>(null)
-  const [matchRows, setMatchRows] = useState<MatchRow[]>([])
-  const [metricSections, setMetricSections] = useState<MetricSection[]>([])
+    const [nickname] = useState("Team Sprocket")
+    const [currentRank] = useState(3)
+    const [predRank] = useState(2)
+    const [currentRP] = useState(2.43)
+    const [predRP] = useState(2.61)
+    const tags = useMemo(() => ["High Auto", "Fast Climb", "Reliable"], [])
 
-  useEffect(() => {
-    if (!teamNum) return
+    // ---------- Sample Hierarchical Score Composition ----------
+    const scoreComposition = useMemo(() => {
+        const data: SunburstNode = {
+            id: "total",
+            label: "Total",
+            value: 0,
+            children: [
+                {
+                    id: "auto",
+                    label: "Auto",
+                    children: [
+                        {
+                            id: "auto_coral",
+                            label: "Coral",
+                            children: [{id: "auto_l4", label: "L4", value: 21}],
+                        },
+                        {id: "auto_other", label: "Other", value: 3},
+                    ],
+                },
+                {
+                    id: "teleop",
+                    label: "Teleop",
+                    children: [
+                        {
+                            id: "teleop_coral",
+                            label: "Coral",
+                            children: [
+                                {id: "teleop_l1", label: "L1", value: 12},
+                                {id: "teleop_l2", label: "L2", value: 8},
+                                {id: "teleop_l3", label: "L3", value: 12},
+                                {id: "teleop_l4", label: "L4", value: 30},
+                            ],
+                        },
+                        {
+                            id: "teleop_algae",
+                            label: "Algae",
+                            children: [{id: "teleop_barge", label: "Barge", value: 16}],
+                        },
+                    ],
+                },
+                {
+                    id: "endgame",
+                    label: "Endgame",
+                    children: [{id: "climb", label: "Climb", value: 12}],
+                },
+            ],
+        };
 
-    // ---- Identity & assets ----
-    setNickname("") // replace via getTeamBasicInfo(teamNum)
-    setLogoUrl(`/teams/team_icons/${teamNum}.png`) // public folder
+        normalizeSunburst(data);
+        annotateTotals(data);
 
-    // ---- Example placeholders (replace with getProcessedData outputs) ----
-    setCurrentRank(3)
-    setPredRank(2)
-    setCurrentRP(2.43)
-    setPredRP(2.61)
+        return data;
+    }, []);
 
-    setRpContrib({
-      winRP: 2.10,
-      coralRP: 0.34,
-      algaeRP: 0.17,
-      coopRP: 0.09,
-    })
 
-    setMatchRows([
-      {key: "2025oc_qm1", phase: "qm", number: "1", alliance: "red", result: "W", rp: 3, score: 142},
-      {key: "2025oc_qm2", phase: "qm", number: "2", alliance: "blue", result: "L", rp: 1, score: 112},
-      {key: "2025oc_qm3", phase: "qm", number: "3", alliance: "red", result: "W", rp: 2, score: 130},
-      {key: "2025oc_qf1", phase: "qf", number: "1", alliance: "red", result: "W", rp: 0, score: 145},
-      {key: "2025oc_qm4", phase: "qm", number: "4", alliance: "blue", result: "-", rp: 0, score: null, scheduled: "2025-10-25T14:35:00-07:00"},
-    ])
+    // ---------- Score Over Time ----------
+    const scoreTimeline = [
+        {match: "QM1", auto: 45, teleop: 75, endgame: 22},
+        {match: "QM2", auto: 30, teleop: 60, endgame: 22},
+        {match: "QM3", auto: 42, teleop: 70, endgame: 18},
+        {match: "QF1", auto: 47, teleop: 78, endgame: 20},
+    ]
 
-    setMetricSections([
-      {
-        title: "General",
-        columns: ["Metric", "Value"],
-        rows: [
-          {label: "Average Score", values: [128.4]},
-          {label: "RP / Match", values: [2.10]},
-          {label: "Win %", values: ["67%"]},
-          {label: "Defense Impact (opp Δ)", values: [-6.8]},
-        ],
-      },
-      {
-        title: "Auto",
-        columns: ["Metric", "Auto", "Teleop", "Overall"],
-        rows: [
-          {label: "Coral L1", values: [2.3, 3.1, 5.4]},
-          {label: "Coral L2", values: [1.1, 2.0, 3.1]},
-          {label: "Processor (acc.)", values: ["85%", "92%", "88%"]},
-        ],
-      },
-      {
-        title: "Endgame",
-        columns: ["Metric", "Value"],
-        rows: [
-          {label: "Climb Success", values: ["92%"]},
-          {label: "Preferred Level", values: ["High"]},
-        ],
-      },
-      {
-        title: "Reliability",
-        columns: ["Metric", "Value"],
-        rows: [
-          {label: "Fouls / Match", values: [0.3]},
-          {label: "Disconnect Rate", values: ["0%"]},
-        ],
-      },
-    ])
-  }, [teamNum])
-
-  const tags = useMemo(() => {
-    const t: string[] = []
-    // Derive tags from data; placeholders:
-    t.push("High Auto")
-    t.push("Fast Climb")
-    t.push("Reliable")
-    return t
-  }, [])
-
-  return (
-    <div className="h-full w-full bg-gray-50">
-      {/* ===== Sticky Header ===== */}
-      <div className="sticky top-0 z-10 border-b bg-white/90 backdrop-blur">
-        <div className="mx-auto max-w-7xl px-4 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <img
-              src={logoUrl}
-              alt={`Team ${teamNum} logo`}
-              className="h-12 w-12 rounded bg-white object-contain ring-1 ring-gray-200"
-              onError={(e) => { (e.currentTarget as HTMLImageElement).style.visibility = "hidden" }}
-            />
-            <div className="leading-tight">
-              <div className="text-xl font-semibold">
-                #{teamNum}{nickname ? ` “${nickname}”` : ""}
-              </div>
-              <div className="text-sm text-gray-600">
-                Rank {fmt(currentRank)} ({trendArrow(currentRank, predRank)})
-                <span className="mx-2">•</span>
-                RP {fmt(currentRP)} (pred {fmt(predRP)})
-              </div>
-              <div className="mt-1 flex flex-wrap gap-1">
-                {tags.map((t) => (
-                  <span
-                    key={t}
-                    className="rounded-full border px-2 py-0.5 text-xs text-gray-700 bg-gray-100"
-                  >
-                    {t}
-                  </span>
-                ))}
-              </div>
-            </div>
-          </div>
-          {/* SKIPPED: event selector / compare toggle */}
-        </div>
-      </div>
-
-      {/* ===== Matrix Dashboard (2x2) ===== */}
-      <div className="mx-auto max-w-7xl p-4 grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* A. Metrics Overview */}
-        <Card title="A. Metrics Overview">
-          <div className="space-y-6">
-            {metricSections.map((sec) => (
-              <MetricTable key={sec.title} section={sec}/>
-            ))}
-          </div>
-        </Card>
-
-        {/* B. RP Contribution */}
-        <Card title="B. RP Contribution">
-          {rpContrib ? (
-            <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 h-full">
-              <div className="min-h-[220px]">
-                {/* SKIPPED: Replace with your Pie/Bar chart */}
-                <ChartPlaceholder label="RP Contribution Chart (pie/bar)"/>
-              </div>
-              <div className="overflow-auto">
-                <table className="w-full text-sm">
-                  <tbody className="[&>tr>td]:py-1">
-                  <tr><td className="text-gray-600">Win RP</td><td className="text-right font-medium">{rpContrib.winRP.toFixed(2)}</td></tr>
-                  <tr><td className="text-gray-600">Coral RP</td><td className="text-right font-medium">{rpContrib.coralRP.toFixed(2)}</td></tr>
-                  <tr><td className="text-gray-600">Algae RP</td><td className="text-right font-medium">{rpContrib.algaeRP.toFixed(2)}</td></tr>
-                  <tr><td className="text-gray-600">Coop RP</td><td className="text-right font-medium">{rpContrib.coopRP.toFixed(2)}</td></tr>
-                  </tbody>
-                </table>
-                <div className="mt-4">
-                  {/* SKIPPED: small bar comparing to event average */}
-                  <ChartPlaceholder label="RP vs Event Avg (bar)"/>
+    return (
+        <div className="h-screen w-screen overflow-hidden bg-gray-50 flex flex-col">
+            {/* ===== Compact Single-Line Header ===== */}
+            <header
+                className="flex-none border-b bg-white/90 backdrop-blur px-4 py-2 flex items-center justify-between h-[3.5rem]">
+                <div className="flex items-center gap-3 min-w-0">
+                    <img
+                        src={`/teams/team_icons/${teamNum}.png`}
+                        alt="logo"
+                        className="h-8 w-8 rounded bg-white object-contain ring-1 ring-gray-200"
+                        onError={(e) => (e.currentTarget.style.visibility = "hidden")}
+                    />
+                    <div className="truncate font-semibold text-base">
+                        #{teamNum} “{nickname}”
+                    </div>
                 </div>
-              </div>
+
+                <div className="flex items-center gap-6 text-sm text-gray-700">
+                    <div>
+                        Rank <span className="font-medium">{currentRank}</span> (pred {predRank})
+                    </div>
+                    <div>
+                        RP <span className="font-medium">{currentRP}</span> (pred {predRP})
+                    </div>
+                    <div className="flex flex-wrap gap-1">
+                        {tags.map((t) => (
+                            <span
+                                key={t}
+                                className="rounded-full border px-2 py-0.5 text-[10px] text-gray-700 bg-gray-100"
+                            >
+                {t}
+              </span>
+                        ))}
+                    </div>
+                </div>
+            </header>
+
+            {/* ===== 2×2 Matrix Dashboard ===== */}
+            <main className="grow grid grid-cols-2 grid-rows-2 gap-2 p-2">
+                <Quadrant title="A. Metrics Overview">
+                    <Placeholder label="Metric tables (General / Auto / Endgame / Reliability)"/>
+                </Quadrant>
+
+                <Quadrant title="B. RP Contribution">
+                    <div className="grid grid-cols-2 gap-2 h-full">
+                        <Placeholder label="RP Contribution Chart (pie / bar)"/>
+                        <Placeholder label="RP Contribution Details Table"/>
+                    </div>
+                </Quadrant>
+
+                <Quadrant title="C. Match History">
+                    <Placeholder label="Match History Table (6–8 rows)"/>
+                </Quadrant>
+
+                {/* D. Scoring & Trends (Sunburst + Bar Chart) */}
+                <Quadrant title="D. Scoring & Trends">
+                    <div className="grid grid-cols-2 gap-2 h-full">
+                        {/* Sunburst Score Composition */}
+                        <div className="h-full w-full">
+                            <ResponsiveSunburst
+                                data={scoreComposition}
+                                margin={{top: 10, right: 10, bottom: 10, left: 10}}
+                                id="id"
+                                value="value"
+                                cornerRadius={3}
+                                borderWidth={2}
+                                borderColor={{from: "color", modifiers: [["brighter", 0.2]]}}
+                                colors={{scheme: "paired"}}
+                                childColor={{from: "color"}}
+                                animate
+                                motionConfig="gentle"
+
+                                // === Label Settings ===
+                                enableArcLabels
+                                arcLabel={(d) => (d.depth <= 3 ? d.data.label : "")}
+                                arcLabelsRadiusOffset={0.65}
+                                arcLabelsSkipAngle={0}
+                                arcLabelsTextColor={{from: "color", modifiers: [["darker", 2]]}}
+
+                                theme={{
+                                    labels: {
+                                        text: {
+                                            fontSize: 12,
+                                            fontWeight: 600,
+                                        },
+                                    },
+                                }}
+
+                                tooltip={({data, color}) => (
+                                    <div style={{background: color}} className="px-2 py-1 text-xs text-white rounded">
+                                        {data.label}: {data.value ?? data.sumValue ?? 0}
+                                    </div>
+                                )}
+                            />
+                        </div>
+
+                        {/* Score Over Time */}
+                        <div className="h-full w-full">
+                            <ResponsiveBar
+                                data={scoreTimeline}
+                                keys={["auto", "teleop", "endgame"]}
+                                indexBy="match"
+                                margin={{top: 10, right: 10, bottom: 30, left: 40}}
+                                padding={0.3}
+                                groupMode="stacked"
+                                colors={{scheme: "set2"}}
+                                axisBottom={{
+                                    tickRotation: -25,
+                                    tickPadding: 4,
+                                    legend: "Match",
+                                    legendOffset: 28,
+                                }}
+                                axisLeft={{
+                                    legend: "Points",
+                                    legendOffset: -32,
+                                    legendPosition: "middle",
+                                }}
+                                labelSkipWidth={16}
+                                labelSkipHeight={12}
+                                labelTextColor={{from: "color", modifiers: [["darker", 2]]}}
+                                tooltip={({id, value, indexValue, color}) => (
+                                    <div
+                                        className="px-2 py-1 text-xs text-white rounded"
+                                        style={{background: color}}
+                                    >
+                                        {indexValue} — {id}: {value}
+                                    </div>
+                                )}
+                                animate={true}
+                                motionConfig="gentle"
+                            />
+                        </div>
+                    </div>
+                </Quadrant>
+            </main>
+        </div>
+    )
+}
+
+/* ============= Helpers ============= */
+
+function Quadrant({title, children}: { title: string; children: React.ReactNode }) {
+    return (
+        <section
+            className="rounded-lg border bg-white shadow-sm overflow-hidden flex flex-col"
+            style={{height: "calc((100vh - 5rem) / 2)"}}
+        >
+            <div className="border-b px-3 py-1.5 text-sm font-semibold text-gray-800 shrink-0">
+                {title}
             </div>
-          ) : (
-            <EmptyState text="No RP data"/>
-          )}
-        </Card>
-
-        {/* C. Match History */}
-        <Card title="C. Match History">
-          <MatchTable rows={matchRows}/>
-        </Card>
-
-        {/* D. Scoring & Trends */}
-        <Card title="D. Scoring & Trends">
-          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-            <div className="min-h-[240px]">
-              {/* SKIPPED: Score Composition Pie/Stacked Bar */}
-              <ChartPlaceholder label="Score Composition (pie/stacked bar)"/>
-            </div>
-            <div className="min-h-[240px]">
-              {/* SKIPPED: Score Over Time Line */}
-              <ChartPlaceholder label="Score Over Time (line)"/>
-            </div>
-            <div className="min-h-[200px] xl:col-span-2">
-              {/* SKIPPED: Climb success trend (line/scatter) w/ auto/tele toggle */}
-              <ChartPlaceholder label="Climb Success Trend (line/scatter)"/>
-            </div>
-          </div>
-        </Card>
-      </div>
-    </div>
-  )
+            <div className="flex-1 overflow-hidden p-2">{children}</div>
+        </section>
+    )
 }
 
-/* ================= Components ================= */
-
-function Card({title, children}: {title: string; children: React.ReactNode}) {
-  return (
-    <div className="rounded-xl border bg-white shadow-sm overflow-hidden flex flex-col min-h-[320px]">
-      <div className="border-b px-4 py-2.5 font-semibold text-gray-800">{title}</div>
-      <div className="p-4 overflow-auto grow">{children}</div>
-    </div>
-  )
+function Placeholder({label}: { label: string }) {
+    return (
+        <div
+            className="h-full w-full border border-dashed rounded-lg flex items-center justify-center text-xs text-gray-500 text-center px-4">
+            {label}
+        </div>
+    )
 }
 
-function EmptyState({text}: {text: string}) {
-  return (
-    <div className="h-full flex items-center justify-center text-gray-500 text-sm">
-      {text}
-    </div>
-  )
+function normalizeSunburst(node: SunburstNode): number {
+    // Leaf node → return its value directly
+    if (!node.children || node.children.length === 0) {
+        return node.value ?? 0;
+    }
+
+    // Recursively normalize children first
+    const total = node.children.map(normalizeSunburst).reduce((a, b) => a + b, 0);
+
+    // Remove parent value to avoid double-counting
+    delete node.value;
+
+    // Return summed total for parent's computation
+    return total;
 }
 
-function MetricTable({section}: {section: MetricSection}) {
-  return (
-    <div className="rounded-lg border">
-      <div className="px-3 py-2 border-b text-sm font-medium text-gray-800">{section.title}</div>
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead className="bg-gray-50 text-gray-600">
-          <tr>
-            {section.columns.map((c, i) => (
-              <th key={i} className={`px-3 py-2 font-medium ${i === 0 ? "text-left w-1/3" : "text-right"}`}>{c}</th>
-            ))}
-          </tr>
-          </thead>
-          <tbody>
-          {section.rows.map((r) => (
-            <tr key={r.label} className="border-t">
-              <td className="px-3 py-2 text-left">{r.label}</td>
-              {r.values.map((v, i) => (
-                <td key={i} className="px-3 py-2 text-right tabular-nums">{fmt(v)}</td>
-              ))}
-            </tr>
-          ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  )
+function annotateTotals(node: SunburstNode): number {
+    // Leaf → return its value
+    if (!node.children || node.children.length === 0) {
+        return node.value ?? 0;
+    }
+
+    // Recursively compute children's totals
+    const total = node.children.map(annotateTotals).reduce((a, b) => a + b, 0);
+
+    // Store total for tooltip/reference use
+    node.sumValue = total;
+
+    return total;
 }
-
-function MatchTable({rows}: {rows: MatchRow[]}) {
-  return (
-    <div className="overflow-auto">
-      <table className="w-full text-sm">
-        <thead className="bg-gray-50 text-gray-600">
-        <tr>
-          <th className="px-3 py-2 text-left w-20">Match</th>
-          <th className="px-3 py-2 text-center w-20">Alliance</th>
-          <th className="px-3 py-2 text-center w-16">Res</th>
-          <th className="px-3 py-2 text-center w-16">RP</th>
-          <th className="px-3 py-2 text-right w-20">Score</th>
-          <th className="px-3 py-2 text-right">Time</th>
-        </tr>
-        </thead>
-        <tbody>
-        {rows.map((m) => {
-          const code = `${m.phase.toUpperCase()}${m.number}`
-          const isFuture = m.result === "-" && m.score == null
-          return (
-            <tr key={m.key} className="border-t hover:bg-gray-50">
-              <td className="px-3 py-2 text-left">
-                <a className="text-blue-600 hover:underline" href={`/matches/${m.key}`}>{code}</a>
-              </td>
-              <td className="px-3 py-2 text-center">
-                <span className={`px-2 py-0.5 rounded text-xs font-medium ${m.alliance === "red" ? "bg-red-100 text-red-700" : "bg-blue-100 text-blue-700"}`}>
-                  {m.alliance.toUpperCase()}
-                </span>
-              </td>
-              <td className="px-3 py-2 text-center">
-                {isFuture ? <span className="text-gray-400">—</span> : (
-                  <span className={`${m.result === "W" ? "text-green-700" : m.result === "L" ? "text-red-700" : "text-gray-700"} font-semibold`}>{m.result}</span>
-                )}
-              </td>
-              <td className="px-3 py-2 text-center tabular-nums">{m.rp}</td>
-              <td className="px-3 py-2 text-right tabular-nums">{m.score ?? "—"}</td>
-              <td className="px-3 py-2 text-right text-gray-500">
-                {m.scheduled ? new Date(m.scheduled).toLocaleTimeString([], {hour: "2-digit", minute: "2-digit"}) : "—"}
-              </td>
-            </tr>
-          )
-        })}
-        </tbody>
-      </table>
-    </div>
-  )
-}
-
-function ChartPlaceholder({label}: {label: string}) {
-  return (
-    <div className="h-full min-h-[160px] w-full rounded-lg border border-dashed flex items-center justify-center text-xs text-gray-500">
-      {label}
-    </div>
-  )
-}
-
-/* ================= Utils ================= */
-
-function fmt(v: MetricCell): string {
-  if (v === null || v === undefined) return "—"
-  if (typeof v === "number") {
-    // Heuristic formatting
-    if (Math.abs(v) >= 100) return v.toFixed(0)
-    if (Math.abs(v) >= 10) return v.toFixed(1)
-    return v.toFixed(2)
-  }
-  return String(v)
-}
-
-function trendArrow(curr: number | null, pred: number | null): string {
-  if (curr == null || pred == null) return "—"
-  if (pred < curr) return "↑" // better rank (numerically lower)
-  if (pred > curr) return "↓"
-  return "→"
-}
-
