@@ -35,7 +35,7 @@ type Alliance = {
 export default function AllianceSimData() {
 
     const [step, setStep] = useState<1 | 2 | 3>(1)
-    const [recentMatch, setRecentMatch] = useState<string>("qm0")
+    const [recentMatch, setRecentMatch] = useState<string>("qm3")
     const [matches, setMatches] = useState<Match[]>([
         {
             matchKey: "qm1",

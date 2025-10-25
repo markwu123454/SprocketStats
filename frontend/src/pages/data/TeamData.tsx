@@ -16,7 +16,7 @@ team scores over time(line graph)
 
 
 // src/pages/TeamData.tsx
-import React, {useMemo, useState} from "react"
+import React, {useEffect, useMemo, useState} from "react"
 import {useParams} from "react-router-dom"
 import {ResponsiveSunburst} from "@nivo/sunburst"
 import {ResponsiveBar} from "@nivo/bar"
@@ -30,17 +30,36 @@ interface SunburstNode {
     sumValue?: number
 }
 
+type Data = {
+    ranking: {
+        auto: number
+        teleop: number
+        endgame: number
+        rp: number
+        rp_pred: number
+        rp_avg: number
+        rp_avg_pred: number
+    }
+}
+
 
 export default function TeamData() {
     const {team} = useParams<{ team: string }>()
     const teamNum = team ? parseInt(team, 10) : NaN
 
-    const [nickname] = useState("Team Sprocket")
+    const [teamNames, setTeamNames] = useState<Record<string, string>>({})
     const [currentRank] = useState(3)
     const [predRank] = useState(2)
     const [currentRP] = useState(2.43)
     const [predRP] = useState(2.61)
     const tags = useMemo(() => ["High Auto", "Fast Climb", "Reliable"], [])
+
+    useEffect(() => {
+        fetch("/teams/team_names.json")
+            .then((res) => res.json())
+            .then((data) => setTeamNames(data))
+            .catch(() => setTeamNames({}))
+    }, [])
 
     // ---------- Sample Hierarchical Score Composition ----------
     const scoreComposition = useMemo(() => {
@@ -104,6 +123,7 @@ export default function TeamData() {
         {match: "QM3", auto: 42, teleop: 70, endgame: 18},
         {match: "QF1", auto: 47, teleop: 78, endgame: 20},
     ]
+    const keys = Object.keys(scoreTimeline[0]).filter(k => k !== "match")
 
     return (
         <div className="h-screen w-screen overflow-hidden bg-gray-50 flex flex-col">
@@ -118,16 +138,25 @@ export default function TeamData() {
                         onError={(e) => (e.currentTarget.style.visibility = "hidden")}
                     />
                     <div className="truncate font-semibold text-base">
-                        #{teamNum} “{nickname}”
+                        #{teamNum} {teamNames[teamNum]}
                     </div>
                 </div>
 
                 <div className="flex items-center gap-6 text-sm text-gray-700">
                     <div>
-                        Rank <span className="font-medium">{currentRank}</span> (pred {predRank})
+                        Auto Rank: #<span className="font-medium">{currentRank}</span>
                     </div>
                     <div>
-                        RP <span className="font-medium">{currentRP}</span> (pred {predRP})
+                        Teleop Rank: #<span className="font-medium">{currentRP}</span>
+                    </div>
+                    <div>
+                        Endgame Rank: #<span className="font-medium">{currentRank}</span>
+                    </div>
+                    <div>
+                        RP Rank: #<span className="font-medium">{currentRank}</span> (pred #{predRank})
+                    </div>
+                    <div>
+                        RP avg: <span className="font-medium">{currentRP}</span> (pred {predRP})
                     </div>
                     <div className="flex flex-wrap gap-1">
                         {tags.map((t) => (
@@ -144,23 +173,23 @@ export default function TeamData() {
 
             {/* ===== 2×2 Matrix Dashboard ===== */}
             <main className="grow grid grid-cols-2 grid-rows-2 gap-2 p-2">
-                <Quadrant title="A. Metrics Overview">
+                <Quadrant title="Metrics Overview">
                     <Placeholder label="Metric tables (General / Auto / Endgame / Reliability)"/>
                 </Quadrant>
 
-                <Quadrant title="B. RP Contribution">
+                <Quadrant title="RP Contribution">
                     <div className="grid grid-cols-2 gap-2 h-full">
                         <Placeholder label="RP Contribution Chart (pie / bar)"/>
                         <Placeholder label="RP Contribution Details Table"/>
                     </div>
                 </Quadrant>
 
-                <Quadrant title="C. Match History">
+                <Quadrant title="Match History">
                     <Placeholder label="Match History Table (6–8 rows)"/>
                 </Quadrant>
 
                 {/* D. Scoring & Trends (Sunburst + Bar Chart) */}
-                <Quadrant title="D. Scoring & Trends">
+                <Quadrant title="Scoring & Trends">
                     <div className="grid grid-cols-2 gap-2 h-full">
                         {/* Sunburst Score Composition */}
                         <div className="h-full w-full">
@@ -174,8 +203,6 @@ export default function TeamData() {
                                 borderColor={{from: "color", modifiers: [["brighter", 0.2]]}}
                                 colors={{scheme: "paired"}}
                                 childColor={{from: "color"}}
-                                animate
-                                motionConfig="gentle"
 
                                 // === Label Settings ===
                                 enableArcLabels
@@ -205,7 +232,7 @@ export default function TeamData() {
                         <div className="h-full w-full">
                             <ResponsiveBar
                                 data={scoreTimeline}
-                                keys={["auto", "teleop", "endgame"]}
+                                keys={keys}
                                 indexBy="match"
                                 margin={{top: 10, right: 10, bottom: 30, left: 40}}
                                 padding={0.3}
@@ -225,16 +252,14 @@ export default function TeamData() {
                                 labelSkipWidth={16}
                                 labelSkipHeight={12}
                                 labelTextColor={{from: "color", modifiers: [["darker", 2]]}}
-                                tooltip={({id, value, indexValue, color}) => (
+                                tooltip={({id, value, color}) => (
                                     <div
                                         className="px-2 py-1 text-xs text-white rounded"
                                         style={{background: color}}
                                     >
-                                        {indexValue} — {id}: {value}
+                                        {id}: {value}
                                     </div>
                                 )}
-                                animate={true}
-                                motionConfig="gentle"
                             />
                         </div>
                     </div>
