@@ -8,6 +8,9 @@ from google.auth.transport import requests as g_requests
 import os
 import db
 import enums
+import importlib
+translator = importlib.import_module("seasons.2025.translator")
+
 
 router = APIRouter()
 
@@ -646,6 +649,7 @@ async def get_data_processed(
     event_key: Optional[str] = None,
 ):
     result = await db.get_processed_data(event_key)
+    result = translator.generate_sample_data(result)
     return {"event_key": event_key, "data": result}
 
 

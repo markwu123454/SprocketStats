@@ -14,29 +14,35 @@ export default function AuthGate({
     permission,
     device,
     dialogTheme = "dark",
+    mode = "pessimistic", // NEW: control timing
     children,
 }: {
     permission: "dev" | "admin" | "match_scouting" | "pit_scouting"
     device?: "mobile" | "desktop"
     dialogTheme?: "light" | "dark"
+    mode?: "pessimistic" | "optimistic"
     children: React.ReactNode
 }) {
-    const [authorized, setAuthorized] = useState<boolean | null>(null)
+    const [authorized, setAuthorized] = useState<boolean | null>(mode === "pessimistic" ? null : true)
+    const [verifying, setVerifying] = useState(true)
     const [deviceWarning, setDeviceWarning] = useState(false)
     const [ignoredWarning, setIgnoredWarning] = useState(false)
     const navigate = useNavigate()
     const {verify} = useAPI()
     const {isOnline, serverOnline, deviceType} = useClientEnvironment()
 
-    // --- FIX 1: memoize verify call ---
     const memoizedVerify = useCallback(async () => {
+        setVerifying(true)
         if ((!isOnline || !serverOnline) && (permission === "match_scouting" || permission === "pit_scouting")) {
             setAuthorized(true)
+            setVerifying(false)
             return
         }
         const result = await verify()
         const perms = result.permissions as Partial<Record<typeof permission, boolean>>
-        setAuthorized(result.success && !!perms[permission])
+        const success = result.success && !!perms[permission]
+        setAuthorized(success)
+        setVerifying(false)
     }, [isOnline, serverOnline, verify, permission])
 
     useEffect(() => {
@@ -44,8 +50,7 @@ export default function AuthGate({
     }, [memoizedVerify])
 
     useEffect(() => {
-        if (authorized !== true) return
-        if (device && deviceType !== device) setDeviceWarning(true)
+        if (authorized === true && device && deviceType !== device) setDeviceWarning(true)
     }, [authorized, device, deviceType])
 
     const isLight = dialogTheme === "light"
@@ -53,15 +58,12 @@ export default function AuthGate({
     const border = isLight ? "border border-gray-300 shadow-lg" : "border border-zinc-700 shadow-xl"
     const dialogRef = useRef<HTMLDivElement | null>(null)
 
-    // --- FIX 5: accessibility enhancements ---
     useEffect(() => {
-        if (deviceWarning && !ignoredWarning && dialogRef.current) {
-            dialogRef.current.focus()
-        }
+        if (deviceWarning && !ignoredWarning && dialogRef.current) dialogRef.current.focus()
     }, [deviceWarning, ignoredWarning])
 
-    if (authorized === null) {
-        // --- FIX 3: spinner on loading ---
+    // Spinner only in block_first mode or while verifying
+    if (verifying && mode === "pessimistic") {
         return (
             <div className={`w-screen h-screen flex flex-col items-center justify-center ${isLight ? "bg-zinc-100 text-black" : "bg-zinc-950 text-white"}`}>
                 <div className="flex flex-col items-center gap-4">
@@ -74,7 +76,7 @@ export default function AuthGate({
         )
     }
 
-    if (!authorized) {
+    if (!verifying && authorized === false) {
         return (
             <div className="w-screen h-screen bg-zinc-950 text-white flex flex-col items-center justify-center">
                 <div className={`rounded-xl p-8 text-center max-w-sm ${overlayBg} ${border}`} role="alert" aria-live="assertive">
