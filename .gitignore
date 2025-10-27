@@ -28,3 +28,4 @@ Thumbs.db
 
 # --- Lock files (optional) ---
 frontend/package-lock.json
+/analysis/.env

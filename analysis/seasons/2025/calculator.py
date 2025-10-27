@@ -1,4 +1,6 @@
 import asyncio
+import json
+
 import pandas as pd
 
 import numpy as np
@@ -9,6 +11,7 @@ from collections import defaultdict
 from .calculators.Bayesian_Elo_Calculator import compute_feature_elos
 from .calculators.KMeans_Clustering import compute_ai_ratings
 from .calculators.Random_Forest_Regressor import predict_all_playable_matches
+from .helper import extract_team_metrics
 
 
 # =========================
@@ -407,6 +410,8 @@ async def _calculate_async(data, progress, log, get_settings):
         return {"status": 1, "result": {"error": "no data"}}
 
     try:
+        log(json.dumps(extract_team_metrics(data)))
+
         settings = get_settings()
         verbose = settings.get("verbose", True)
         simulation = settings.get("simulation", False)

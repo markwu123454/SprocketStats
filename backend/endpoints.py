@@ -8,6 +8,9 @@ from google.auth.transport import requests as g_requests
 import os
 import db
 import enums
+import importlib
+translator = importlib.import_module("seasons.2025.translator")
+
 
 router = APIRouter()
 
@@ -640,6 +643,16 @@ async def submit_pit_data(
     return {"status": "submitted", "team": team}
 
 
+@router.get("/data/processed")
+async def get_data_processed(
+    _: enums.SessionInfo = Depends(db.require_permission("admin")),
+    event_key: Optional[str] = None,
+):
+    result = await db.get_processed_data(event_key)
+    result = translator.generate_sample_data(result)
+    return {"event_key": event_key, "data": result}
+
+
 '''
 @router.post("/auth/login/guest")
 async def guest_login(request: Request, body: enums.PasscodeBody):
@@ -722,18 +735,6 @@ async def set_event(event: str, _: enums.SessionInfo = Depends(db.require_permis
                 )
 
     return {"status": "event initialized", "matches": len(matches)}
-
-
-
-@router.get("/data/processed")
-async def get_data_processed(_: enums.SessionInfo = Depends(db.require_permission("admin"))):
-    rows = await db.get_processed_data()
-    #print(rows)
-    return {
-        "data": rows,
-    }
-
-
 
 
 

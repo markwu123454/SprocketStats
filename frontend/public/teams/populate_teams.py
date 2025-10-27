@@ -3,13 +3,15 @@ import asyncio
 import aiohttp
 import logging
 import base64
+import json
 from tqdm.asyncio import tqdm_asyncio
 
 # === CONFIG ===
-TBA_KEY = "ldpsOPcknI172x94QFD4r8BLMopCk9Kq23qnWaZjcIBugxULh7uHPGPlX7xOOaaT"
+TBA_KEY = ""
 HEADERS = {"X-TBA-Auth-Key": TBA_KEY}
 BASE_URL = "https://www.thebluealliance.com/api/v3"
 OUT_DIR = "team_icons"
+TEAM_NAMES_JSON = "team_names.json"
 MAX_SIZE = 65536  # bytes
 CURRENT_YEAR = 2025
 CONCURRENCY = 25
@@ -23,6 +25,7 @@ logging.basicConfig(
     datefmt="%H:%M:%S"
 )
 log = logging.getLogger("tba_fetch")
+
 
 # === CORE FUNCTIONS ===
 
@@ -38,6 +41,7 @@ async def fetch_json(session, url):
 
 
 async def get_all_teams(session):
+    """Fetch all teams from TBA paginated /teams/{page} endpoint."""
     teams = []
     page = 0
     while True:
@@ -128,10 +132,20 @@ async def main():
 
     async with aiohttp.ClientSession() as session:
         teams = await get_all_teams(session)
+
+        # === NEW SECTION: extract and save team names ===
+        team_name_map = {str(t["team_number"]): t.get("nickname") or t.get("name") or "Unknown" for t in teams}
+        with open(TEAM_NAMES_JSON, "w", encoding="utf-8") as f:
+            json.dump(team_name_map, f, indent=2, ensure_ascii=False)
+        log.info(f"Saved {len(team_name_map)} team names to {TEAM_NAMES_JSON}")
+
+        # === Download team icons ===
         sem = asyncio.Semaphore(CONCURRENCY)
         tasks = [process_team(sem, session, t, existing_files) for t in teams]
         results = await tqdm_asyncio.gather(*tasks, desc="Downloading icons")
         saved = sum(results)
+
+        # === Summary ===
         log.info("=== SUMMARY ===")
         log.info(f"Teams processed: {len(teams)}")
         log.info(f"Already present: {len(existing_files)}")
