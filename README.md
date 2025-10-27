@@ -1,41 +1,52 @@
-# FRC Scouting Demo App
+# **FRC Scouting Demo App**
 
-A modern web app for scouting FRC matches, built for mobile, tablets, and desktops. It features real-time syncing,
-interactive match input, and TBA integration.
+A modern, cross-platform web app for scouting **FIRST Robotics Competition (FRC)** matches.
+Built for **mobile**, **tablet**, and **desktop** use — featuring real-time data syncing, visual match input, and full
+TBA integration.
 
-## Features
+---
 
-- Using PWA for a persistent semi-native app
-- Live match syncing and local caching
-- TBA API integration: match/team fetching, team logos
-- Live admin control and sync across devices
-- Visual scouting interface
-- Modular component-based architecture (React + TypeScript)
-- Minimal changes required per season
+## **Key Features**
 
-### TODO:
+* **Progressive Web App (PWA)** — persistent and installable, runs like a native app.
+* **Live Match Syncing** — real-time updates with offline caching.
+* **TBA API Integration** — fetch matches, teams, and team logos.
+* **Live Admin Control** — synchronize data across devices instantly.
+* **Visual Scouting Interface** — optimized for touch input and fast entry.
+* **Season Rollover Ready** — minimal changes required each new season.
+* **Independent Analysis Tool** — separate desktop program for advanced data processing and algorithm testing.
 
-- Push mobile notifications
-- Data visualization
-- Complete admin control(matches, active event, scouting data dedupe)
-- Redo mobile caching and sync logic
+---
 
-## Architecture
+## **Planned Improvements**
 
-### Frontend
+* Push notifications (mobile + web).
+* Advanced data visualization and analytics dashboards.
+* Complete admin control for:
 
-* React + Vite(TypeScript)
-* Tailwind
-* Stateless
+    * Match creation and scheduling
+    * Active event management
+    * Scouting data deduplication
+* Rewritten caching and sync logic for mobile.
+* Data validation via cross-checks with official TBA data.
 
-### Backend
+---
 
-* Python FastAPI server
-* polling requests use time.time_ns()
-* non-polling requests use unix timestamp in seconds
-* Stateless
+## **Architecture Overview**
 
-### analysis
+### **Frontend**
 
-* Independent program for data processing, analysis, and interpretation
+* React + Vite (TypeScript)
+* Tailwind CSS
+* Stateless design for scalability
 
+### **Backend**
+
+* Python **FastAPI** server
+* Lightweight and async for concurrent connections
+
+### **Analysis**
+
+* Independent program for data processing, performance analysis, and statistical modeling
+* See [**Releases**](https://github.com/markwu123454/SprocketStats/releases)
+  *(requires your own database API key)*
