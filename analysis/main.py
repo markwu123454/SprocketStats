@@ -4,6 +4,7 @@ import importlib, threading, asyncio, dotenv, ttkbootstrap as tb
 from ttkbootstrap.constants import *
 import asyncpg, ssl, json, certifi, os
 
+
 # ================== Database Config ==================
 dotenv.load_dotenv()
 DB_DSN = os.getenv("DATABASE_URL")
