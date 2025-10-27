@@ -81,9 +81,9 @@ class TeamMatchEntry(TypedDict, total=False):
     own_score: int
     opp_score: int
     result: str
-    autoPoints: int
-    teleopPoints: int
-    endgamePoints: int
+    auto_Points: int
+    teleop_Points: int
+    endgame_Points: int
     rp_Earned: int
 
 
@@ -100,6 +100,25 @@ class TeamTimelineEntry(TypedDict, total=False):
     teleop: float
     endgame: float
 
+class RPAspectEntry(TypedDict, total=False):
+    """Subfields of a single RP category (booleans, numbers, etc.)."""
+    # flexible field values
+    Move: bool
+    Score: bool
+    L1: int
+    L2: int
+    L3: int
+    L4: int
+    Processor: bool
+    Climb: str
+
+
+class TeamRPData(TypedDict, total=False):
+    """Grouped RP breakdowns by point category."""
+    Auto: RPAspectEntry
+    Coral: RPAspectEntry
+    Barge: RPAspectEntry
+
 
 # ============================================================
 # Team Main Structure
@@ -110,7 +129,7 @@ class TeamData(TypedDict, total=False):
     basic: TeamBasicInfo
     ranking: TeamRankingData
     metrics: Dict[str, str]
-    rp: Dict[str, str]
+    rp: Dict[str, TeamRPData]
     matches: List[TeamMatchEntry]
     breakdown: TeamBreakdownNode
     timeline: List[TeamTimelineEntry]
@@ -188,116 +207,98 @@ class Data(TypedDict, total=False):
 # Translator Function
 # ============================================================
 
-
 def generate_sample_data(entry: RawData) -> Data:
-    teams = [3473, 3476]
-    matches = ["QM1", "QM2"]
+        teams = [3473, 3476, 118, 10118, 2910, 1690, 1323, 4414, 5199, 4415, 2056, 148, 1678, 254, 6995, 6800, 4481,
+                 968]
+        matches = ["QM1", "QM2", "QM3", "QM4"]
+        climb_types = ["None", "Park", "Shallow", "Deep"]
 
-    data: Data = {
-        "ranking": {"rp": [random.randint(0, 4) for _ in range(2)]},
-        "team": {},
-        "match": {},
-        "Alliance": {
-            "average_score": round(random.uniform(80, 130), 2),
-            "score_stddev": round(random.uniform(5, 15), 2),
-            "consistency": round(random.uniform(85, 98), 2),
-            "fault_rate": round(random.uniform(0, 10), 2),
-            "qm_matches": {},
-            "last_played": random.choice(matches),
-            "past_matches": ["QM1"],
-            "predicted_matches": ["QM2"],
-            "model_analysis": {
-                "model_type": "RandomForest",
-                "win_probability": round(random.uniform(0.4, 0.9), 2),
-                "predicted_rp": {
-                    "auto": round(random.uniform(0.5, 1.0), 2),
-                    "teleop": round(random.uniform(0.5, 1.0), 2),
-                    "climb": round(random.uniform(0.5, 1.0), 2),
+        data: Data = {
+            "ranking": {"rp": [random.randint(0, 4) for _ in range(2)]},
+            "team": {},
+            "match": {},
+            "Alliance": {
+                "average_score": round(random.uniform(80, 130), 2),
+                "score_stddev": round(random.uniform(5, 15), 2),
+                "consistency": round(random.uniform(85, 98), 2),
+                "fault_rate": round(random.uniform(0, 10), 2),
+                "qm_matches": {},
+                "last_played": random.choice(matches),
+                "past_matches": ["QM1"],
+                "predicted_matches": ["QM2"],
+                "model_analysis": {
+                    "model_type": "RandomForest",
+                    "win_probability": round(random.uniform(0.4, 0.9), 2),
+                    "predicted_rp": {
+                        "auto": round(random.uniform(0.4, 1.0), 2),
+                        "coral": round(random.uniform(0.4, 1.0), 2),
+                        "barge": round(random.uniform(0.4, 1.0), 2),
+                    },
+                    "feature_importance": {
+                        "auto_points": 0.3,
+                        "teleop_points": 0.4,
+                        "climb_points": 0.3,
+                    },
+                    "notes": "Simulated data",
                 },
-                "feature_importance": {
-                    "auto_points": 0.3,
-                    "teleop_points": 0.4,
-                    "climb_points": 0.3,
-                },
-                "notes": "Simulated data",
             },
-        },
-    }
+        }
 
-    for team in teams:
-        data["team"][team] = {
-            "basic": {
-                "tags": ["High Auto", "Reliable", "Fast Climb"],
-            },
-            "ranking": {
-                "auto": round(random.uniform(1, 5), 2),
-                "teleop": round(random.uniform(1, 5), 2),
-                "endgame": round(random.uniform(1, 5), 2),
-                "rp": round(random.uniform(1, 4), 2),
-                "rp_pred": round(random.uniform(1, 4), 2),
-                "rp_avg": round(random.uniform(1, 3), 2),
-                "rp_avg_pred": round(random.uniform(1, 3), 2),
-            },
-            "metrics": {
-                "Average_Score": f"{round(random.uniform(70, 120), 2)}",
-                "Score_StdDev": f"{round(random.uniform(5, 15), 2)}",
-                "Fault_Rate_Percent": f"{round(random.uniform(0, 10), 2)}%",
-            },
-            "matches": [
-                {
-                    "match": "QM1",
-                    "alliance": "Red",
-                    "own_alliance": [3473, 6800, 4499],
-                    "opp_alliance": [1323, 971, 4414],
-                    "own_score": 143,
-                    "opp_score": 247,
-                    "result": "W",
-                    "autoPoints": 45,
-                    "teleopPoints": 75,
-                    "endgamePoints": 12,
-                    "rp_Earned": 4,
+        for team in teams:
+            # --- Generate per-match RP sets ---
+            rp_by_match: Dict[str, TeamRPData] = {}
+            for m in matches:
+                rp_by_match[m] = {
+                    "Auto": {
+                        "Move": random.choice([True, False]),
+                        "Score": random.choice([True, False]),
+                    },
+                    "Coral": {
+                        "L1": random.randint(0, 5),
+                        "L2": random.randint(0, 5),
+                        "L3": random.randint(0, 5),
+                        "L4": random.randint(0, 5),
+                        "Processor": random.choice([True, False]),
+                    },
+                    "Barge": {
+                        "Climb": random.choice(climb_types),
+                    },
+                }
+
+            data["team"][team] = {
+                "basic": {"tags": ["High Auto", "Reliable", "Fast Climb"]},
+                "ranking": {
+                    "auto": round(random.uniform(1, 5), 2),
+                    "teleop": round(random.uniform(1, 5), 2),
+                    "endgame": round(random.uniform(1, 5), 2),
+                    "rp": round(random.uniform(1, 4), 2),
+                    "rp_pred": round(random.uniform(1, 4), 2),
+                    "rp_avg": round(random.uniform(1, 3), 2),
+                    "rp_avg_pred": round(random.uniform(1, 3), 2),
                 },
-                {
-                    "match": "QM2",
-                    "alliance": "Blue",
-                    "own_alliance": [3473, 148, 6995],
-                    "opp_alliance": [3476, 118, 10118],
-                    "own_score": 143,
-                    "opp_score": 186,
-                    "result": "L",
-                    "autoPoints": 30,
-                    "teleopPoints": 60,
-                    "endgamePoints": 14,
-                    "rp_Earned": 1,
+                "rp": rp_by_match,  # ✅ per-match RP sets
+                "metrics": {
+                    "Average_Score": f"{round(random.uniform(70, 120), 2)}",
+                    "Score_StdDev": f"{round(random.uniform(5, 15), 2)}",
+                    "Fault_Rate_Percent": f"{round(random.uniform(0, 10), 2)}%",
                 },
-                {
-                    "match": "QM3",
-                    "alliance": "Red",
-                    "own_alliance": [3473, 968, 2056],
-                    "opp_alliance": [5857, 971, 4415],
-                    "own_score": 232,
-                    "opp_score": 123,
-                    "result": "W",
-                    "autoPoints": 42,
-                    "teleopPoints": 70,
-                    "endgamePoints": 7,
-                    "rp_Earned": 4,
-                },
-                {
-                    "match": "QF1",
-                    "alliance": "Blue",
-                    "own_alliance": [3473, 254, 1678],
-                    "opp_alliance": [2910, 5199, 4481],
-                    "own_score": 213,
-                    "opp_score": 256,
-                    "result": "W",
-                    "autoPoints": 47,
-                    "teleopPoints": 78,
-                    "endgamePoints": 12,
-                    "rp_Earned": 4,
-                },
-            ],
-            "breakdown": {
+                "matches": [
+                    {
+                        "match": m,
+                        "alliance": random.choice(["Red", "Blue"]),
+                        "own_alliance": random.sample(teams, 3),
+                        "opp_alliance": random.sample(teams, 3),
+                        "own_score": random.randint(100, 250),
+                        "opp_score": random.randint(100, 250),
+                        "result": random.choice(["W", "L"]),
+                        "auto_Points": random.randint(20, 60),
+                        "teleop_Points": random.randint(50, 90),
+                        "endgame_Points": random.randint(0, 20),
+                        "rp_Earned": random.randint(0, 4),
+                    }
+                    for m in matches
+                ],
+                "breakdown": {
                 "id": "root",
                 "label": "Score Breakdown",
                 "children": [
@@ -316,14 +317,10 @@ def generate_sample_data(entry: RawData) -> Data:
                                 ],
                             },
                             {
-                                "id": "auto_algae",
-                                "label": "Algae",
-                                "children": [
-                                    {"id": "auto_processor", "label": "Processor", "value": random.randint(5, 10)},
-                                    {"id": "auto_net", "label": "Net", "value": random.randint(3, 8)},
-                                ],
+                                "id": "auto_move",
+                                "label": "Move",
+                                "value": random.randint(5, 15),
                             },
-                            {"id": "auto_move", "label": "Move", "value": random.randint(5, 15)},
                         ],
                     },
                     {
@@ -340,48 +337,42 @@ def generate_sample_data(entry: RawData) -> Data:
                                     {"id": "teleop_l4", "label": "L4", "value": random.randint(10, 16)},
                                 ],
                             },
-                            {
-                                "id": "teleop_algae",
-                                "label": "Algae",
-                                "children": [
-                                    {"id": "teleop_processor", "label": "Processor", "value": random.randint(5, 12)},
-                                    {"id": "teleop_net", "label": "Net", "value": random.randint(4, 10)},
-                                ],
-                            },
                         ],
                     },
                     {
                         "id": "endgame",
                         "label": "Endgame",
-                        "children": [
-                            {"id": "climb", "label": "Climb", "value": random.randint(10, 30)},
-                        ],
+                        "children": [{"id": "climb", "label": "Climb", "value": random.randint(10, 30)}],
                     },
                 ],
             },
-            "timeline": [
-                {"match": "QM1", "auto": 32.5, "teleop": 55.1, "endgame": 12.4},
-                {"match": "QM2", "auto": 28.9, "teleop": 60.3, "endgame": 18.8},
-            ],
-        }
+                "timeline": [
+                    {
+                        "match": m,
+                        "auto": random.randint(3, 30),
+                        "teleop": random.randint(10, 60),
+                        "endgame": random.randint(0, 12),
+                    }
+                    for m in matches
+                ],
+            }
 
-    for match in matches:
-        data["match"][match] = {
-            "placeholder": f"Sample data for {match}"
-        }
-        data["Alliance"]["qm_matches"][match] = {
-            "alliance_color": random.choice(["Red", "Blue"]),
-            "opponent_color": "Red" if random.choice(["Red", "Blue"]) == "Blue" else "Blue",
-            "own_score": random.randint(80, 130),
-            "opp_score": random.randint(70, 120),
-            "result": random.choice(["W", "L"]),
-            "rp_earned": [random.randint(1, 3)],
-            "played": match == "QM1",
-            "match_type": "QM",
-            "match_number": int(match.replace("QM", "")),
-        }
+        for match in matches:
+            data["match"][match] = {"placeholder": f"Sample data for {match}"}
+            data["Alliance"]["qm_matches"][match] = {
+                "alliance_color": random.choice(["Red", "Blue"]),
+                "opponent_color": random.choice(["Red", "Blue"]),
+                "own_score": random.randint(80, 130),
+                "opp_score": random.randint(70, 120),
+                "result": random.choice(["W", "L"]),
+                "rp_earned": [random.randint(0, 1) for _ in range(3)],
+                "played": match == "QM1",
+                "match_type": "QM",
+                "match_number": int(match.replace("QM", "")),
+            }
 
-    return data
+        return data
+
 
 if __name__ == "__main__":
     from pprint import pprint

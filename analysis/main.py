@@ -56,6 +56,54 @@ log_text = tb.ScrolledText(log_frame, wrap="word", height=18)
 log_text.pack(fill="both", expand=True)
 log_text.configure(state="disabled", background="#0c0c0c", foreground="#00ff6f", insertbackground="#00ff6f")
 
+# ---- Python Command Entry ----
+cmd_frame = tb.Frame(log_frame)
+cmd_frame.pack(fill="x", pady=(5, 0))
+
+cmd_var = tb.StringVar()
+cmd_entry = tb.Entry(cmd_frame, textvariable=cmd_var, bootstyle="dark")
+cmd_entry.pack(fill="x")
+
+def run_command(event=None):
+    cmd = cmd_var.get().strip()
+    if not cmd:
+        return
+    cmd_var.set("")
+    append_log(f">>> {cmd}")
+    try:
+        # Restricted globals: can access key program data safely
+        safe_globals = {
+            "__builtins__": {
+                "print": lambda *a, **kw: append_log(" ".join(map(str, a))),
+                "len": len,
+                "range": range,
+                "sum": sum,
+                "min": min,
+                "max": max,
+                "sorted": sorted,
+                "round": round,
+                "json": json,
+            },
+            "downloaded_data": downloaded_data,
+            "calc_result": calc_result,
+            "get_settings_snapshot": get_settings_snapshot,
+            "append_log": append_log,
+            "update_progress": update_progress,
+        }
+        result = eval(cmd, safe_globals)
+        if result is not None:
+            append_log(str(result))
+    except SyntaxError:
+        try:
+            exec(cmd, safe_globals)
+        except Exception as e:
+            append_log(f"[ERROR] {e}")
+    except Exception as e:
+        append_log(f"[ERROR] {e}")
+
+cmd_entry.bind("<Return>", run_command)
+
+
 # ---- Right Pane (Settings + Buttons) ----
 right = tb.Frame(main_pane, padding=10)
 main_pane.add(right, weight=1)
