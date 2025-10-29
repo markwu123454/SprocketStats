@@ -19,7 +19,10 @@ This document serves as a concise guide for developers working on the FRC Scouti
 **Installation**
 Using Node.js v22 and Python v3.11
 ```bash
+cd frontend
 npm install
+cd ..
+cd backend
 pip install -r backend/requirements.txt
 ````
 
