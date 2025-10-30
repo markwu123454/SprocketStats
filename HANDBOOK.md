@@ -20,7 +20,7 @@ This document serves as a concise guide for developers working on the FRC Scouti
 Using Node.js v22 and Python v3.11
 ```bash
 npm install
-pip install -r backend/requirements.txt
+pip install -r requirements.txt
 ````
 
 **Run Commands**
