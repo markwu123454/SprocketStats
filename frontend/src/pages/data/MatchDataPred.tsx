@@ -3,7 +3,7 @@
 
 import { useParams } from "react-router-dom"
 
-export default function MatchData() {
+export default function MatchDataPost() {
     const { matchKey } = useParams<{ matchKey: string }>()
     return (
         <div className="flex h-full items-center justify-center text-2xl font-semibold bg-white">
