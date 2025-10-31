@@ -20,8 +20,8 @@ export default function PingMonitor() {
     const [data, setData] = useState<PingPoint[]>([])
     const intervalRef = useRef<NodeJS.Timeout | null>(null)
 
-    const PING_INTERVAL_MS = 12.5 * 60 * 1000 // 13 minutes
-    const MAX_POINTS = 360 // store ~78 hours of logs
+    const PING_INTERVAL_MS = 5 * 60 * 1000 // 5 minutes
+    const MAX_POINTS = 1080 // store ~78 hours of logs
 
     async function doPing() {
         const start = performance.now()
@@ -68,10 +68,10 @@ export default function PingMonitor() {
                     />
                 </div>
                 <h1 className="text-3xl font-bold tracking-tight text-[#C77DFF]">
-                    Team 3473 — Backend Ping Monitor
+                    Team 3473 — Server latency checker
                 </h1>
                 <p className="text-sm text-zinc-400 mt-1">
-                    Measures backend latency every {PING_INTERVAL_MS / 60000} min
+                    DO NOT TOUCH
                 </p>
             </div>
 
