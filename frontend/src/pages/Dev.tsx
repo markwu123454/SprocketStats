@@ -1,7 +1,1 @@
-export default function DevLayout() {
-    return (
-        <div>
-
-        </div>
-    )
-}
+export default function DevLayout() {return (<></>)}

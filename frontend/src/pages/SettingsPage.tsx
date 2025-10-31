@@ -4,7 +4,7 @@ import {ArrowLeft, RotateCcw, RotateCw} from "lucide-react"
 import {getSetting, getSettingSync, setSetting, type Settings} from "@/db/settingsDb.ts"
 import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from "@/components/ui/select"
 import {Label} from "@/components/ui/label"
-import fieldImg from "@/assets/2025_Field.png"
+import fieldImg from "@/assets/seasons/2025/Field.png"
 
 export default function SettingLayout() {
     const navigate = useNavigate()
