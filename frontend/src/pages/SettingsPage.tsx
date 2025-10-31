@@ -4,7 +4,7 @@ import {ArrowLeft, RotateCcw, RotateCw} from "lucide-react"
 import {getSetting, getSettingSync, setSetting, type Settings} from "@/db/settingsDb.ts"
 import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from "@/components/ui/select"
 import {Label} from "@/components/ui/label"
-import fieldImg from "@/assets/2025_Field.png"
+import fieldImg from "@/assets/seasons/2025/Field.png"
 
 export default function SettingLayout() {
     const navigate = useNavigate()
@@ -55,7 +55,7 @@ export default function SettingLayout() {
                 className={`
                 absolute inset-0 bg-top bg-cover transition-opacity duration-700 ease-in-out
                 ${theme === "2025" ? "opacity-100" : "opacity-0"}
-                bg-[url('@/assets/backgrounds/2025_expanded.png')]
+                bg-[url('@/assets/seasons/2025/expanded.png')]
             `}
             />
             {/* Desert (2026) */}
@@ -63,7 +63,7 @@ export default function SettingLayout() {
                 className={`
                 absolute inset-0 bg-top bg-cover transition-opacity duration-700 ease-in-out
                 ${theme === "2026" ? "opacity-100" : "opacity-0"}
-                bg-[url('@/assets/backgrounds/2026_expanded.png')]
+                bg-[url('@/assets/seasons/2026/expanded.png')]
             `}
             />
             {/* Explicit Light & Dark backgrounds */}

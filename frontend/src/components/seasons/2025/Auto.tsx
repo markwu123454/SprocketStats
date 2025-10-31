@@ -1,10 +1,10 @@
 import {useState} from "react"
 import type {MatchScoutingData} from "@/types"
 import ScoreBox from "@/components/ui/scoreBox.tsx"
-import blueFieldImage from "@/assets/2025_Reef_Transparent_No-Tape_Blue.png"
-import redFieldImage from "@/assets/2025_Reef_Transparent_No-Tape_Red.png"
+import blueFieldImage from "@/assets/seasons/2025/Reef_Transparent_No-Tape_Blue.png"
+import redFieldImage from "@/assets/seasons/2025/Reef_Transparent_No-Tape_Red.png"
 import * as React from "react";
-import regions from "@/assets/reef_button_regions.json"
+import regions from "@/assets/seasons/2025/reef_button_regions.json"
 import {getSettingSync} from "@/db/settingsDb.ts";
 
 const coralLevels = ['l2', 'l3', 'l4'] as const

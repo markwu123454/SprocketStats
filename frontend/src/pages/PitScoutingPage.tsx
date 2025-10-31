@@ -113,8 +113,8 @@ export default function PitScoutingLayout() {
             min-h-screen overflow-x-hidden w-full p-4 transition-colors duration-500
             theme-light:bg-zinc-100 theme-light:text-zinc-900
             theme-dark:bg-zinc-950 theme-dark:text-white
-            theme-2025:bg-[url('@/assets/backgrounds/2025_expanded.png')] theme-2025:bg-top theme-2025:bg-cover theme-2025:text-white
-            theme-2026:bg-[url('@/assets/backgrounds/2026_expanded.png')] theme-2026:bg-top theme-2026:bg-cover theme-2026:text-[#3b2d00]
+            theme-2025:bg-[url('@/assets/seasons/2025/expanded.png')] theme-2025:bg-top theme-2025:bg-cover theme-2025:text-white
+            theme-2026:bg-[url('@/assets/seasons/2026/expanded.png')] theme-2026:bg-top theme-2026:bg-cover theme-2026:text-[#3b2d00]
         ">
             <form
                 onSubmit={handleSubmit}

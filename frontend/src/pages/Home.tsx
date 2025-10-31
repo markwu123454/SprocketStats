@@ -5,8 +5,8 @@ import TooltipButton from "@/components/ui/tooltipButton"
 import {useClientEnvironment} from "@/hooks/useClientEnvironment.ts"
 import {getSetting, getSettingSync, type Settings} from "@/db/settingsDb.ts"
 
-import logo_animation_2025 from "@/assets/2025_logo_animation.gif"
-import logo_animation_2026 from "@/assets/2026_logo_animation.gif"
+import logo_animation_2025 from "@/assets/seasons/2025/logo_animation.gif"
+import logo_animation_2026 from "@/assets/seasons/2026/logo_animation.gif"
 
 declare global {
     interface Window {
@@ -148,8 +148,8 @@ export function HomeLayout() {
                 absolute inset-0 bg-top bg-cover transition-colors duration-500
                 theme-light:bg-zinc-100
                 theme-dark:bg-zinc-950
-                theme-2025:bg-[url('@/assets/backgrounds/2025_expanded.png')]
-                theme-2026:bg-[url('@/assets/backgrounds/2026_expanded.png')]
+                theme-2025:bg-[url('@/assets/seasons/2025/expanded.png')]
+                theme-2026:bg-[url('@/assets/seasons/2026/expanded.png')]
                 "
             />
 
