@@ -55,7 +55,7 @@ export default function SettingLayout() {
                 className={`
                 absolute inset-0 bg-top bg-cover transition-opacity duration-700 ease-in-out
                 ${theme === "2025" ? "opacity-100" : "opacity-0"}
-                bg-[url('@/assets/backgrounds/2025_expanded.png')]
+                bg-[url('@/assets/seasons/2025/expanded.png')]
             `}
             />
             {/* Desert (2026) */}
@@ -63,7 +63,7 @@ export default function SettingLayout() {
                 className={`
                 absolute inset-0 bg-top bg-cover transition-opacity duration-700 ease-in-out
                 ${theme === "2026" ? "opacity-100" : "opacity-0"}
-                bg-[url('@/assets/backgrounds/2026_expanded.png')]
+                bg-[url('@/assets/seasons/2026/expanded.png')]
             `}
             />
             {/* Explicit Light & Dark backgrounds */}
