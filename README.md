@@ -1,5 +1,7 @@
 # **FRC Scouting Demo App**
 
+[![License: CC BY-NC-SA 4.0](https://img.shields.io/badge/License-CC%20BY--NC--SA%204.0-lightgrey.svg)](https://creativecommons.org/licenses/by-nc-sa/4.0/)
+
 A modern, cross-platform web app for scouting **FIRST Robotics Competition (FRC)** matches.
 Built for **mobile**, **tablet**, and **desktop** use — featuring real-time data syncing, visual match input, and full
 TBA integration.
