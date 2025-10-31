@@ -24,7 +24,7 @@ cd frontend
 npm install
 cd ..
 cd backend
-pip install -r backend/requirements.txt
+pip install -r requirements.txt
 ````
 
 **Run Commands**

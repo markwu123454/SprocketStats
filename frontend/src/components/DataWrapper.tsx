@@ -1,5 +1,5 @@
 // src/context/DataContext.tsx
-import React, { createContext, useContext, useEffect, useState, useMemo } from "react"
+import { createContext, useContext, useEffect, useState, useMemo } from "react"
 import { Outlet } from "react-router-dom"
 import { useAPI } from "@/hooks/useAPI.ts"
 
@@ -13,6 +13,7 @@ export interface DataSchema {
     team: Record<number, TeamData>
     match: Record<string, MatchData>
     Alliance: AllianceData
+    issues?: string[]
 }
 
 export interface DataContextType {
@@ -25,9 +26,6 @@ const DataContext = createContext<DataContextType | undefined>(undefined)
 const CACHE_TTL = 60_000
 let CACHE: { data: DataSchema | null; timestamp: number } = { data: null, timestamp: 0 }
 
-// ============================================================
-// Provider
-// ============================================================
 export function DataWrapper() {
     const { getProcessedData } = useAPI()
     const [state, setState] = useState<DataContextType>({
@@ -39,7 +37,8 @@ export function DataWrapper() {
     async function loadAll() {
         setState((s) => ({ ...s, loading: true }))
         try {
-            const data = await getProcessedData()
+            const rawData = await getProcessedData()
+            const data = rawData as DataSchema
             if (data) {
                 CACHE = { data, timestamp: Date.now() }
             }
@@ -64,6 +63,7 @@ export function DataWrapper() {
     }, [])
 
     const value = useMemo(() => ({ ...state, refresh: loadAll }), [state])
+    const issues = state.processedData?.issues ?? []
 
     return (
         <DataContext.Provider value={value}>
@@ -72,22 +72,33 @@ export function DataWrapper() {
                     Loading event data…
                 </div>
             ) : (
-                <Outlet />
+                <>
+                    <Outlet />
+                    {issues.length > 0 && (
+                        <div className="fixed bottom-4 right-4 flex flex-col gap-2 z-50">
+                            {issues.map((msg, i) => (
+                                <div
+                                    key={i}
+                                    className="bg-red-600 text-white text-sm px-4 py-2 rounded-lg shadow-lg animate-fade-in"
+                                >
+                                    {msg}
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </>
             )}
         </DataContext.Provider>
     )
 }
 
-// ============================================================
-// Hook + Selectors
-// ============================================================
+// Hooks (unchanged)
 export function useDataContext() {
     const ctx = useContext(DataContext)
     if (!ctx) throw new Error("useDataContext must be used inside <DataWrapper>")
     return ctx
 }
 
-// --- Selectors ---
 export function useRankingData(): RankingData | null {
     const { processedData } = useDataContext()
     return processedData?.ranking ?? null

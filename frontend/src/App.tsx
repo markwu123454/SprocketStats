@@ -13,10 +13,11 @@ import PitScoutingLayout from "@/pages/PitScoutingPage.tsx"
 import SettingLayout from "@/pages/SettingsPage.tsx"
 
 import AllianceSimData from "@/pages/data/AllianceSimData.tsx"
-import MatchData from "@/pages/data/MatchData.tsx"
+import MatchDataPost from "@/pages/data/MatchDataPost.tsx"
 import RankingData from "@/pages/data/RankingData.tsx"
 import TeamData from "@/pages/data/TeamData.tsx"
 import {DataWrapper} from "@/components/DataWrapper.tsx";
+import PingMonitor from "@/pages/PingPage.tsx";
 
 export default function App() {
     return (
@@ -25,6 +26,12 @@ export default function App() {
                 <div className="h-screen flex flex-col min-h-0">
                     <Routes>
                         <Route path="/" element={<HomeLayout/>}/>
+                        <Route
+                            path="/ping"
+                            element={
+                                <PingMonitor/>
+                            }
+                        />
 
                         {/* --- Scouting pages (mobile-locked, user permissions) --- */}
                         <Route
@@ -61,7 +68,7 @@ export default function App() {
                                 <Route index element={<RankingData/>}/>
                                 <Route path="ranking" element={<RankingData/>}/>
                                 <Route path="team/:team" element={<TeamData/>}/>
-                                <Route path="match/:matchKey" element={<MatchData/>}/>
+                                <Route path="match/:matchKey" element={<MatchDataPost/>}/>
                                 <Route path="alliance-sim" element={<AllianceSimData/>}/>
                             </Route>
                         </Route>
