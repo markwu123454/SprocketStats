@@ -227,7 +227,7 @@ export function useAPI() {
         } catch (err) {
             console.error("getTeamBasicInfo failed:", err);
             return null;
-        } 
+        }
     };
 
 
@@ -318,6 +318,20 @@ export function useAPI() {
         } catch (err) {
             console.error("unclaimTeam failed:", err);
             return false;
+        }
+    };
+
+    const unclaimTeamBeacon = (
+        match: number,
+        team: number,
+        match_type: MatchType,
+        scouter: string
+    ) => {
+        try {
+            const url = `${BASE_URL}/scouting/${match_type}/${match}/${team}/unclaim-beacon?scouter=${encodeURIComponent(scouter)}`;
+            navigator.sendBeacon(url);
+        } catch (err) {
+            console.warn("unclaimTeamBeacon failed:", err);
         }
     };
 
@@ -618,6 +632,7 @@ export function useAPI() {
         ping,
         claimTeam,
         unclaimTeam,
+        unclaimTeamBeacon,
         updateState,
         submitData,
         getTeamList,
