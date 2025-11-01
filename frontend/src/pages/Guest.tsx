@@ -151,8 +151,8 @@ export default function GuestDataPage() {
                                 className="text-xs sm:text-sm">Data Points Logged</p></div>
                             <div><p className="text-3xl sm:text-4xl font-bold">99.9%</p><p
                                 className="text-xs sm:text-sm">Website uptime</p></div>
-                            <div><p className="text-3xl sm:text-4xl font-bold">97.2%</p><p
-                                className="text-xs sm:text-sm">Scouting accuracy</p></div>
+                            <div><p className="text-3xl sm:text-4xl font-bold">98.2%</p><p
+                                className="text-xs sm:text-sm">Data accuracy</p></div>
                             <div><p className="text-3xl sm:text-4xl font-bold">100+</p><p
                                 className="text-xs sm:text-sm">Matches Analyzed</p></div>
                         </div>
@@ -216,7 +216,7 @@ export default function GuestDataPage() {
     )
 }
 
-async function fakeGuestAuth(token: string): Promise<{ name: string; pages: PageLink[] }> {
+async function fakeGuestAuth(token: string | null): Promise<{ name: string; pages: PageLink[] }> {
     await new Promise((r) => setTimeout(r, 500))
     if (token !== "validdemo") throw new Error("invalid")
     return {
