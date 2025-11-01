@@ -278,17 +278,17 @@ async def claim_team(
 
 @router.patch("/scouting/{m_type}/{match}/{team}/unclaim")
 async def unclaim_team(
-        m_type: enums.MatchType,
-        match: int,
-        team: int,
-        scouter: str = Query(...),
-        _: enums.SessionInfo = Depends(db.require_permission("match_scouting")),
+    m_type: enums.MatchType,
+    match: int,
+    team: int,
+    scouter: str = Query(...),
+    _: enums.SessionInfo = Depends(db.require_permission("match_scouting")),
+    _body: str | None = Body(None)  # ← add this line
 ):
     """
     Unclaims a team if the requester currently owns it.
     Also resets its state to UNCLAIMED.
     """
-
     rows = await db.get_match_scouting(match=match, m_type=m_type, team=team)
     if not rows:
         raise HTTPException(status_code=404, detail="Entry not found")
@@ -303,7 +303,7 @@ async def unclaim_team(
         team=team,
         scouter=scouter,
         scouter_new="__NONE__",
-        status=enums.StatusType.UNCLAIMED,  # ← explicitly reset to unclaimed
+        status=enums.StatusType.UNCLAIMED,
         data=None,
     )
 
@@ -311,6 +311,37 @@ async def unclaim_team(
         raise HTTPException(status_code=409, detail="Failed to unclaim (possible race)")
 
     return {"status": "unclaimed", "team": team}
+
+
+@router.post("/scouting/{m_type}/{match}/{team}/unclaim-beacon")
+async def unclaim_team_beacon(
+    m_type: enums.MatchType,
+    match: int,
+    team: int,
+    scouter: str = Query(...),
+):
+    """
+    Beacon-compatible unclaim: skips auth and only unclaims if scouter matches current owner.
+    """
+    rows = await db.get_match_scouting(match=match, m_type=m_type, team=team)
+    if not rows:
+        return {"status": "noop", "reason": "not_found"}
+
+    entry = rows[0]
+    if entry["scouter"] != scouter:
+        return {"status": "noop", "reason": "not_owner"}
+
+    await db.update_match_scouting(
+        match=match,
+        m_type=m_type,
+        team=team,
+        scouter=scouter,
+        scouter_new="__NONE__",
+        status=enums.StatusType.UNCLAIMED,
+        data=None,
+    )
+    return {"status": "unclaimed", "team": team}
+
 
 
 @router.patch("/scouting/{m_type}/{match}/{team}/state")

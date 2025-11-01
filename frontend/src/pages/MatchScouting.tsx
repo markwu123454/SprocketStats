@@ -25,7 +25,7 @@ export function MatchScoutingLayout() {
     // 1. External hooks
     const navigate = useNavigate()
 
-    const {submitData, verify, unclaimTeam, updateState} = useAPI()
+    const {submitData, verify, claimTeam, unclaimTeam, unclaimTeamBeacon, updateState} = useAPI()
     const {isOnline, serverOnline} = useClientEnvironment()
     const scouterName = getScouterName()!
 
@@ -47,6 +47,21 @@ export function MatchScoutingLayout() {
         scoutingData.alliance === null ||
         scoutingData.teamNumber === null
 
+    function normalizeScoutingData<T extends object>(raw: T, defaults: T): T {
+        // Deep merge recursively
+        if (typeof raw !== "object" || raw === null) return structuredClone(defaults)
+        const result: any = Array.isArray(defaults) ? [] : {}
+        for (const key in defaults) {
+            if (Object.hasOwn(raw, key)) {
+                if (typeof defaults[key] === "object" && defaults[key] !== null) {
+                    result[key] = normalizeScoutingData((raw as any)[key], (defaults as any)[key])
+                } else result[key] = (raw as any)[key]
+            } else result[key] = structuredClone((defaults as any)[key])
+        }
+        return result
+    }
+
+
     // 4. Effects
     useEffect(() => {
         (async () => {
@@ -67,70 +82,40 @@ export function MatchScoutingLayout() {
     }, [])
 
     useEffect(() => {
+        // Only start autosaving after leaving pre phase
         if (phase === "pre") return;
-
-        // Determine if user entered anything different from default
-        const isDataChanged = Object.keys(createDefaultScoutingData()).some(key => {
-            const value = (scoutingData as any)[key];
-            const defaultValue = (createDefaultScoutingData() as any)[key];
-            return JSON.stringify(value) !== JSON.stringify(defaultValue);
-        });
-
-        if (!isDataChanged) return; // no changes, skip autosave
 
         const interval = setInterval(() => {
             const {match, match_type, teamNumber} = scoutingData;
             if (!match || !match_type || teamNumber == null) return;
 
             const status = PHASE_ORDER[phaseIndex] as ScoutingStatus;
-            saveScoutingData(scoutingData, status).catch(err => {
-                console.error("Autosave failed", err);
+
+            saveScoutingData(
+                structuredClone ? structuredClone(scoutingData) : JSON.parse(JSON.stringify(scoutingData)),
+                status
+            ).catch(err => {
+                console.error("Autosave failed:", err);
             });
         }, 3000);
 
         return () => clearInterval(interval);
-    }, [scoutingData, phase, phaseIndex, isOnline, serverOnline]);
-
+    }, [phase, phaseIndex, scoutingData.match, scoutingData.match_type, scoutingData.teamNumber]);
 
     useEffect(() => {
-        const handleBeforeUnload = async () => {
+        const handleUnload = () => {
             const {match, match_type, teamNumber} = scoutingData;
-            if (isOnline && serverOnline && match && match_type && teamNumber) {
-                try {
-                    await updateState(match, teamNumber, match_type, scouterName, "offline" as any);
-                    console.log(`Marked team ${teamNumber} offline for match ${match}`);
-                } catch (err) {
-                    console.warn("Failed to set offline on exit:", err);
-                }
-            }
+            if (!match || !match_type || !teamNumber) return;
+            if (submitStatus === "success" || submitStatus === "local") return;
+            if (isOnline && serverOnline)
+                unclaimTeamBeacon(match, teamNumber, match_type, scouterName);
         };
 
-        // Handle browser close/refresh
-        window.addEventListener("beforeunload", handleBeforeUnload);
-
-        // Handle internal route change
+        window.addEventListener("beforeunload", handleUnload);
         return () => {
-            handleBeforeUnload();
-            window.removeEventListener("beforeunload", handleBeforeUnload);
+            window.removeEventListener("beforeunload", handleUnload);
         };
-    }, []); // fire on unmount
-
-    useEffect(() => {
-        return () => {
-            // This cleanup runs before navigating away
-            (async () => {
-                const {match, match_type, teamNumber} = scoutingData;
-                if (isOnline && serverOnline && match && match_type && teamNumber) {
-                    try {
-                        await updateState(match, teamNumber, match_type, scouterName, "offline" as any);
-                        console.log(`Marked team ${teamNumber} offline for match ${match}`);
-                    } catch (err) {
-                        console.warn("Failed to set offline on exit:", err);
-                    }
-                }
-            })();
-        };
-    }, [location.pathname]);
+    }, [scoutingData.match, scoutingData.match_type, scoutingData.teamNumber, isOnline, serverOnline]);
 
     useEffect(() => {
         console.log("scoutingData updated:", scoutingData)
@@ -259,12 +244,40 @@ export function MatchScoutingLayout() {
                                         className="bg-zinc-600"
                                         onClick={async () => {
                                             try {
-                                                if (isOnline && serverOnline)
-                                                    await updateState(entry.match!, entry.teamNumber!, entry.match_type, scouterName, entry.status as Phase);
+                                                if (isOnline && serverOnline) {
+                                                    // Step 1: try to claim again before resuming
+                                                    const success = await claimTeam(
+                                                        entry.match!,
+                                                        entry.teamNumber!,
+                                                        entry.match_type,
+                                                        scouterName
+                                                    );
+
+                                                    if (!success) {
+                                                        alert("This team is already being scouted by someone else.");
+                                                        return;
+                                                    }
+
+                                                    // Step 2: mark server state to resume at previous phase
+                                                    await updateState(
+                                                        entry.match!,
+                                                        entry.teamNumber!,
+                                                        entry.match_type,
+                                                        scouterName,
+                                                        entry.status as Phase
+                                                    );
+                                                }
                                             } catch (err) {
                                                 console.warn("Failed to resume team:", err);
+                                                return;
                                             }
-                                            setScoutingData(entry);
+
+                                            // Step 3: restore local data
+                                            const restored = normalizeScoutingData(entry, {
+                                                ...createDefaultScoutingData(),
+                                                scouter: scouterName
+                                            })
+                                            setScoutingData(restored)
                                             setPhaseIndex(PHASE_ORDER.indexOf(entry.status as Phase));
                                             setShowResumeDialog(false);
                                         }}
