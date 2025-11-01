@@ -1,5 +1,5 @@
 import React, {useEffect, useState, useCallback, useRef} from "react"
-import {useNavigate} from "react-router-dom"
+import {Outlet, useNavigate} from "react-router-dom"
 import {useAPI} from "@/hooks/useAPI.ts"
 import {useClientEnvironment} from "@/hooks/useClientEnvironment.ts"
 
@@ -14,14 +14,14 @@ export default function AuthGate({
     permission,
     device,
     dialogTheme = "dark",
-    mode = "pessimistic", // NEW: control timing
+    mode = "pessimistic",
     children,
 }: {
     permission: "dev" | "admin" | "match_scouting" | "pit_scouting"
     device?: "mobile" | "desktop"
     dialogTheme?: "light" | "dark"
     mode?: "pessimistic" | "optimistic"
-    children: React.ReactNode
+    children?: React.ReactNode
 }) {
     const [authorized, setAuthorized] = useState<boolean | null>(mode === "pessimistic" ? null : true)
     const [verifying, setVerifying] = useState(true)
@@ -96,9 +96,9 @@ export default function AuthGate({
     }
 
     return (
-        <div className="relative min-h-screen w-screen">
+        <div className="relative min-h-screen w-full max-w-[100vw]">
             <div className={deviceWarning && !ignoredWarning ? "brightness-50 pointer-events-none" : ""}>
-                {children}
+                {children ?? <Outlet />}
             </div>
 
             {deviceWarning && !ignoredWarning && (
