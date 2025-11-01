@@ -18,6 +18,8 @@ import RankingData from "@/pages/data/RankingData.tsx"
 import TeamData from "@/pages/data/TeamData.tsx"
 import {DataWrapper} from "@/components/DataWrapper.tsx";
 import PingMonitor from "@/pages/PingPage.tsx";
+import Guest from "@/pages/Guest.tsx";
+import GuestRedirect from "@/pages/GuestRedir.tsx";
 
 export default function App() {
     return (
@@ -26,6 +28,9 @@ export default function App() {
                 <div className="h-screen flex flex-col min-h-0">
                     <Routes>
                         <Route path="/" element={<HomeLayout/>}/>
+
+                        <Route path="/guest" element={<GuestRedirect/>}/>
+
                         <Route
                             path="/ping"
                             element={
@@ -52,20 +57,16 @@ export default function App() {
                         />
 
                         {/* --- Admin pages (desktop-locked) --- */}
-                        <Route
-                            path="/admin"
-                            element={
-                                <AuthGate permission="admin" device="desktop" mode="optimistic">
-                                    <Outlet/>
-                                </AuthGate>
-                            }
-                        >
-                            <Route index element={<AdminHomeLayout/>}/>
-                            <Route path="monitor/*" element={<MatchMonitoringLayout/>}/>
+                        <Route path="/admin" element={<Outlet/>}>
 
-                            {/* Data pages */}
+                            <Route element={<AuthGate permission="admin" device="desktop"/>}>
+                                <Route index element={<AdminHomeLayout/>}/>
+                                <Route path="monitor/*" element={<MatchMonitoringLayout/>}/>
+                            </Route>
+
                             <Route path="data" element={<DataWrapper/>}>
                                 <Route index element={<RankingData/>}/>
+                                <Route path="guest" element={<Guest/>}/>
                                 <Route path="ranking" element={<RankingData/>}/>
                                 <Route path="team/:team" element={<TeamData/>}/>
                                 <Route path="match/:matchKey" element={<MatchDataPost/>}/>
