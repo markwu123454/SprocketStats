@@ -2,7 +2,7 @@ import {useEffect, useState} from 'react'
 import {getAuthHeaders, useAPI} from '@/hooks/useAPI.ts'
 import {Badge} from '@/components/ui/badge'
 import type {TeamInfo, UIInfo, MatchScoutingData, MatchType} from '@/types'
-import field_overlay from '@/assets/2025_FMS_In-Match.png'
+import field_overlay from '@/assets/seasons/2025/FMS_In-Match.png'
 import {defaultUIINFO} from "@/components/seasons/2025/yearConfig.ts";
 import {Input} from '@/components/ui/input'
 import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from "@/components/ui/select.tsx";
