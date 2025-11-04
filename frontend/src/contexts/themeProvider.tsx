@@ -8,7 +8,7 @@ type ThemeContextType = {
 
 const ThemeContext = createContext<ThemeContextType | null>(null)
 
-export function ThemeProvider({ children }: { children: ReactNode }) {
+export default function ThemeProvider({ children }: { children: ReactNode }) {
     const [theme, setThemeState] = useState<Settings["theme"]>(() =>
         getSettingSync("theme", "2025")
     )
@@ -31,7 +31,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     }, [theme])
 
     const setTheme = (t: Settings["theme"]) => {
-        setThemeState(t.toLowerCase() as Settings["theme"])
+        setThemeState(t?.toLowerCase() as Settings["theme"])
     }
 
     return (

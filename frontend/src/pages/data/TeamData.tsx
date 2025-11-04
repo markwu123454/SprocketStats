@@ -4,7 +4,7 @@ import {Link, useParams} from "react-router-dom"
 import {ResponsiveSunburst} from "@nivo/sunburst"
 import {ResponsiveBar} from "@nivo/bar"
 import {AgGridReact} from "ag-grid-react"
-import {useTeamData} from "@/components/DataWrapper.tsx"
+import {useTeamData} from "@/components/wrappers/DataWrapper.tsx"
 import {SquareCheckBig, SquareX} from "lucide-react";
 
 type BreakdownNode = {

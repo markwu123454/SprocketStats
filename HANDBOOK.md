@@ -56,7 +56,8 @@ backend/ → FastAPI server and API logic
 
 frontend/ → React + Vite web client
 │ ├── src/ → Main source directory
-│ │ ├── assets/ → Images, icons, and static frontend assets
+│ │ ├── assets/ → Images, icons, and static frontend 
+│ │ │ └── seasons/ → Year-spesific assets
 │ │ ├── components/ → Reusable UI components
 │ │ │ ├── seasons/ → Year-spesific scouting pages and types
 │ │ │ └── ui/ → Pre-built ui elements for match and pit scouting
@@ -240,7 +241,6 @@ frontend/ → React + Vite web client
 │ │ ├── components/ 
 │ │ │ └── seasons/ → Add new folder with year number
 │ │ ├── contexts/
-│ │ │ └── dataProvider.tsx → Update types
 │ │ │ └── themeProvider.tsx → Add new year theme
 │ │ ├── db/ → Local Dexie/IndexedDB interfaces
 │ │ │ └── settingsDb.ts → Add new year theme

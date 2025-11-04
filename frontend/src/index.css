@@ -132,33 +132,4 @@
     --font-roboto: "Roboto", sans-serif;
 }
 
-@layer utilities {
-  .bg-rainbow {
-    background-image: linear-gradient(
-      60deg,
-      #ff4d4d,
-      #ff4d4d,
-      #ff9900,
-      #ffee00,
-      #33cc33,
-      #00ccff,
-      #3366ff,
-      #cc33ff,
-      #ff4d4d,
-        #ff4d4d/* repeat first color to close the loop */
-    );
-    background-size: 800% 100%;
-    animation: rainbow-scroll 6s linear infinite;
-  }
-}
-
-@keyframes rainbow-scroll {
-  0% {
-    background-position-x: 0;
-  }
-  100% {
-    background-position-x: 100%;
-  }
-}
-
 

@@ -26,7 +26,7 @@ const DataContext = createContext<DataContextType | undefined>(undefined)
 const CACHE_TTL = 60_000
 let CACHE: { data: DataSchema | null; timestamp: number } = { data: null, timestamp: 0 }
 
-export function DataWrapper() {
+export default function DataWrapper() {
     const { getProcessedData } = useAPI()
     const [state, setState] = useState<DataContextType>({
         processedData: null,

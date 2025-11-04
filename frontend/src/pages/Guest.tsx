@@ -47,7 +47,7 @@ export default function GuestDataPage() {
             }
         }
 
-        authenticate()
+        void authenticate()
     }, [searchParams])
 
     return (

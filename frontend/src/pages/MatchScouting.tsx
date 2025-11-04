@@ -21,7 +21,7 @@ import {createDefaultScoutingData} from "@/components/seasons/2025/yearConfig.ts
 
 const PHASE_ORDER: Phase[] = ['pre', 'auto', 'teleop', 'post']
 
-export function MatchScoutingLayout() {
+export default function MatchScoutingPage() {
     // 1. External hooks
     const navigate = useNavigate()
 

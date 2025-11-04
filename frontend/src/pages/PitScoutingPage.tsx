@@ -7,6 +7,8 @@ import {AlertCircle, ArrowLeft, CheckCircle, XCircle} from "lucide-react";
 import {useNavigate} from "react-router-dom";
 import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from "@/components/ui/select.tsx";
 import {Button} from "@/components/ui/button.tsx";
+import PhotoCaptureCard from "@/components/ui/cameraCapture";
+import {pitQuestions} from "@/components/seasons/2025/yearConfig.ts"
 
 // TODO: add questions for human factor(openness, approachability, etc)
 
@@ -234,187 +236,100 @@ export default function PitScoutingLayout() {
 
                 {/* --- Form Sections --- */}
                 <div className="space-y-6">
-                    <Label className="text-lg font-semibold">Robot Info</Label>
+                    {pitQuestions.map((q, i) => {
+                        if (q.section)
+                            return (
+                                <div key={`section-${i}`} className="pt-6">
+                                    <div className="border-b border-white/10 my-4"></div>
+                                    <Label className="text-lg font-semibold">{q.section}</Label>
+                                </div>
+                            )
 
-                    {/* --- TODO: CameraCapture --- */}
-                    {/* <CameraCapture title="Robot Photos" ... /> */}
-
-                    {/* --- Dimensions & Weight --- */}
-                    <div>
-                        <Label>Drivebase Type</Label>
-                        <ThemedInput
-                            placeholder="e.g. Swerve, Tank"
-                            value={answers.drivebase ?? ""}
-                            onChange={(e) => setAnswers({...answers, drivebase: e.target.value})}
-                        />
-                    </div>
-
-                    <div>
-                        <Label>Cage Set</Label>
-                        <ThemedSelect
-                            value={answers.cageSet}
-                            onValueChange={(val) => setAnswers({...answers, cageSet: val})}
-                            placeholder="Select one"
-                        >
-                            <SelectItem value="High">High</SelectItem>
-                            <SelectItem value="Low">Low</SelectItem>
-                            <SelectItem value="No Preference">No Preference</SelectItem>
-                        </ThemedSelect>
-                    </div>
-
-                    <div>
-                        <Label>Center of Gravity (collapsed) height (inches)</Label>
-                        <ThemedInput
-                            type="number"
-                            placeholder="e.g. 10"
-                            value={answers.cgCollapsed ?? ""}
-                            onChange={(e) => setAnswers({...answers, cgCollapsed: e.target.value})}
-                        />
-                    </div>
-
-                    <div>
-                        <Label>Center of Gravity (extended) height (inches)</Label>
-                        <ThemedInput
-                            type="number"
-                            placeholder="e.g. 18"
-                            value={answers.cgExtended ?? ""}
-                            onChange={(e) => setAnswers({...answers, cgExtended: e.target.value})}
-                        />
-                    </div>
-
-                    {/* --- Mechanism & Manipulation --- */}
-                    <div>
-                        <Label>Describe the intake</Label>
-                        <ThemedInput
-                            placeholder="e.g. Two rollers with polycord belts"
-                            value={answers.intake ?? ""}
-                            onChange={(e) => setAnswers({...answers, intake: e.target.value})}
-                        />
-                    </div>
-
-                    <div>
-                        <Label>Scoring mechanism type</Label>
-                        <ThemedInput
-                            placeholder="e.g. Elevator, Arm, Shooter, Hybrid"
-                            value={answers.mechanism ?? ""}
-                            onChange={(e) => setAnswers({...answers, mechanism: e.target.value})}
-                        />
-                    </div>
-
-                    <div>
-                        <Label>What game pieces can it handle?</Label>
-                        <ThemedSelect
-                            value={answers.pieces}
-                            onValueChange={(val) => setAnswers({...answers, pieces: val})}
-                            placeholder="Select one"
-                        >
-                            <SelectItem value="Coral">Coral</SelectItem>
-                            <SelectItem value="Algae">Algae</SelectItem>
-                            <SelectItem value="Both">Both</SelectItem>
-                        </ThemedSelect>
-                    </div>
-
-                    <div>
-                        <Label>Which levels can it score on?</Label>
-                        <div className="flex flex-col space-y-1 mt-1">
-                            {["L1", "L2", "L3", "L4"].map((level) => (
-                                <label key={level} className="flex items-center space-x-2">
-                                    <input
-                                        type="checkbox"
-                                        checked={Array.isArray(answers.levels) && answers.levels.includes(level)}
-                                        onChange={(e) => handleMultiToggle("levels", level, e.target.checked)}
-                                        className="h-4 w-4 accent-primary theme-2025:accent-[#4d75d9] theme-2026:accent-[#a28d46]"
+                        if (q.type === "camera")
+                            return (
+                                <div key={q.key}>
+                                    <Label>{q.label}</Label>
+                                    <PhotoCaptureCard
+                                        id={`camera-${q.key}`}
+                                        title={q.label}
+                                        maxCount={5}
+                                        maxTotalBytes={15 * 1024 * 1024}
+                                        maxPerFileBytes={5 * 1024 * 1024}
+                                        jpegQuality={0.9}
+                                        jpegMaxEdge={1920}
+                                        onChange={(files) => {
+                                            const dataUrls: string[] = []
+                                            for (const f of files) {
+                                                const reader = new FileReader()
+                                                reader.onload = () => {
+                                                    const result = reader.result as string
+                                                    dataUrls.push(result)
+                                                    if (dataUrls.length === files.length)
+                                                        setAnswers({...answers, [q.key]: dataUrls})
+                                                }
+                                                reader.readAsDataURL(f)
+                                            }
+                                        }}
+                                        onError={(msg) => console.warn(msg)}
                                     />
-                                    <span>{level}</span>
-                                </label>
-                            ))}
-                        </div>
-                    </div>
+                                </div>
+                            )
 
-                    {/* --- Strategy & Function --- */}
-                    <div>
-                        <Label>Defense or Offense</Label>
-                        <ThemedSelect
-                            value={answers.role}
-                            onValueChange={(val) => setAnswers({...answers, role: val})}
-                            placeholder="Select one"
-                        >
-                            <SelectItem value="Defense">Defense</SelectItem>
-                            <SelectItem value="Offense">Offense</SelectItem>
-                            <SelectItem value="Both">Both</SelectItem>
-                        </ThemedSelect>
-                    </div>
-
-                    <div>
-                        <Label>Auton start location</Label>
-                        <ThemedSelect
-                            value={answers.autonStart}
-                            onValueChange={(val) => setAnswers({...answers, autonStart: val})}
-                            placeholder="Select one"
-                        >
-                            <SelectItem value="Center Field">Center Field</SelectItem>
-                            <SelectItem value="Processor Side">Processor Side (Right)</SelectItem>
-                            <SelectItem value="Opposite Side">Opposite Side (Left)</SelectItem>
-                        </ThemedSelect>
-                    </div>
-
-                    <div>
-                        <Label>Primary teleop role / actions</Label>
-                        <ThemedInput
-                            placeholder="e.g. Scoring top coral, occasional algae removal"
-                            value={answers.teleopAction ?? ""}
-                            onChange={(e) => setAnswers({...answers, teleopAction: e.target.value})}
-                        />
-                    </div>
-
-                    <div>
-                        <Label>How many cycles per game / pieces scored?</Label>
-                        <ThemedInput
-                            placeholder="e.g. 6–7 cycles, 8 pieces total"
-                            value={answers.cycles ?? ""}
-                            onChange={(e) => setAnswers({...answers, cycles: e.target.value})}
-                        />
-                    </div>
-
-                    <div>
-                        <Label>Climb or Endgame capability</Label>
-                        <ThemedInput
-                            placeholder="e.g. Can hang on mid bar"
-                            value={answers.climb ?? ""}
-                            onChange={(e) => setAnswers({...answers, climb: e.target.value})}
-                        />
-                    </div>
-
-                    {/* --- Optional / Miscellaneous --- */}
-                    <div>
-                        <Label>Programming highlights</Label>
-                        <div className="flex flex-col space-y-1 mt-1">
-                            {[
-                                {key: "vision", label: "Vision alignment"},
-                                {key: "path planner", label: "Path planner path gen."},
-                                {key: "driver assist", label: "Teleop driver assist"},
-                            ].map((prog) => (
-                                <label key={prog.key} className="flex items-center space-x-2">
-                                    <input
-                                        type="checkbox"
-                                        checked={Array.isArray(answers.programming) && answers.programming.includes(prog.key)}
-                                        onChange={(e) => handleMultiToggle("programming", prog.key, e.target.checked)}
-                                        className="h-4 w-4 accent-primary theme-2025:accent-[#4d75d9] theme-2026:accent-[#a28d46]"
+                        if (q.type === "text" || q.type === "number")
+                            return (
+                                <div key={q.key}>
+                                    <Label>{q.label}</Label>
+                                    <ThemedInput
+                                        type={q.type}
+                                        placeholder={q.placeholder}
+                                        value={answers[q.key] ?? ""}
+                                        onChange={(e) => setAnswers({...answers, [q.key]: e.target.value})}
                                     />
-                                    <span>{prog.label}</span>
-                                </label>
-                            ))}
-                        </div>
-                    </div>
+                                </div>
+                            )
 
-                    <div>
-                        <Label>Robot name</Label>
-                        <ThemedInput
-                            placeholder="e.g. Nautilus"
-                            value={answers.comments ?? ""}
-                            onChange={(e) => setAnswers({...answers, comments: e.target.value})}
-                        />
-                    </div>
+                        if (q.type === "select")
+                            return (
+                                <div key={q.key}>
+                                    <Label>{q.label}</Label>
+                                    <ThemedSelect
+                                        value={answers[q.key]}
+                                        onValueChange={(val) => setAnswers({...answers, [q.key]: val})}
+                                        placeholder="Select one"
+                                    >
+                                        {q.options?.map((opt) => (
+                                            <SelectItem key={opt} value={opt}>
+                                                {opt}
+                                            </SelectItem>
+                                        ))}
+                                    </ThemedSelect>
+                                </div>
+                            )
+
+                        if (q.type === "multi")
+                            return (
+                                <div key={q.key}>
+                                    <Label>{q.label}</Label>
+                                    <div className="flex flex-col space-y-1 mt-1">
+                                        {q.options?.map((opt: any) => (
+                                            <label key={opt.key || opt} className="flex items-center space-x-2">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={Array.isArray(answers[q.key]) && answers[q.key].includes(opt.key || opt)}
+                                                    onChange={(e) =>
+                                                        handleMultiToggle(q.key, opt.key || opt, e.target.checked)
+                                                    }
+                                                    className="h-4 w-4 accent-primary theme-2025:accent-[#4d75d9] theme-2026:accent-[#a28d46]"
+                                                />
+                                                <span>{opt.label || opt}</span>
+                                            </label>
+                                        ))}
+                                    </div>
+                                </div>
+                            )
+
+                        return null
+                    })}
                 </div>
 
                 {/* --- Submit --- */}

@@ -1,5 +1,6 @@
 import type {AllianceType, MatchType} from "@/types"
-import type {Branches} from "@/types/data.ts";
+
+type Branches = "A" | "B" | "C" | "D" | "E" | "F" | "G" | "H" | "I" | "J" | "K" | "L"
 
 export type MatchScoutingData = {
     match: number | null
@@ -109,6 +110,90 @@ export const createDefaultScoutingData = (): Omit<MatchScoutingData, "scouter"> 
     }
 }
 
+export const pitQuestions = [
+    {section: "Robot Info"},
+
+    {key: "camera", label: "Robot Photos", type: "camera"},
+
+    {key: "drivebase", label: "Drivebase Type", placeholder: "e.g. Swerve, Tank", type: "text"},
+    {
+        key: "cageSet",
+        label: "Cage Set",
+        type: "select",
+        options: ["High", "Low", "No Preference"],
+    },
+    {
+        key: "cgCollapsed",
+        label: "Center of Gravity (collapsed) height (inches)",
+        type: "number",
+        placeholder: "e.g. 10"
+    },
+    {key: "cgExtended", label: "Center of Gravity (extended) height (inches)", type: "number", placeholder: "e.g. 18"},
+
+    {section: "Mechanism & Manipulation"},
+
+    {key: "intake", label: "Describe the intake", type: "text", placeholder: "e.g. Two rollers with polycord belts"},
+    {
+        key: "mechanism",
+        label: "Scoring mechanism type",
+        type: "text",
+        placeholder: "e.g. Elevator, Arm, Shooter, Hybrid"
+    },
+    {
+        key: "pieces",
+        label: "What game pieces can it handle?",
+        type: "select",
+        options: ["Coral", "Algae", "Both"],
+    },
+    {
+        key: "levels",
+        label: "Which levels can it score on?",
+        type: "multi",
+        options: ["L1", "L2", "L3", "L4"],
+    },
+
+    {section: "Strategy & Function"},
+
+    {
+        key: "role",
+        label: "Defense or Offense",
+        type: "select",
+        options: ["Defense", "Offense", "Both"],
+    },
+    {
+        key: "autonStart",
+        label: "Auton start location",
+        type: "select",
+        options: ["Center Field", "Processor Side", "Opposite Side"],
+    },
+    {
+        key: "teleopAction",
+        label: "Primary teleop role / actions",
+        type: "text",
+        placeholder: "e.g. Scoring top coral, occasional algae removal"
+    },
+    {
+        key: "cycles",
+        label: "How many cycles per game / pieces scored?",
+        type: "text",
+        placeholder: "e.g. 6–7 cycles, 8 pieces total"
+    },
+    {key: "climb", label: "Climb or Endgame capability", type: "text", placeholder: "e.g. Can hang on mid bar"},
+
+    {section: "Programming & Misc"},
+
+    {
+        key: "programming",
+        label: "Programming highlights",
+        type: "multi",
+        options: [
+            {key: "vision", label: "Vision alignment"},
+            {key: "path planner", label: "Path planner path gen."},
+            {key: "driver assist", label: "Teleop driver assist"},
+        ],
+    },
+    {key: "comments", label: "Robot name", type: "text", placeholder: "e.g. Nautilus"},
+]
 
 export type PitScoutingData = {
     team: number;
@@ -132,31 +217,3 @@ export type PitScoutingData = {
 
     additionalComments?: string;
 };
-
-export type UIInfo = {
-    red: {
-        score: number
-        coral: number
-        algae: number
-    }
-    blue: {
-        score: number
-        coral: number
-        algae: number
-    }
-}
-
-export const defaultUIINFO = {
-    red: {
-        score: 0,
-        coral: 0,
-        algae: 0
-    },
-    blue: {
-        score: 0,
-        coral: 0,
-        algae: 0
-    }
-}
-
-

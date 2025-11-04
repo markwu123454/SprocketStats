@@ -1,25 +1,26 @@
 import {BrowserRouter, Routes, Route, Outlet} from "react-router-dom"
 import "./index.css"
 
-import {ThemeProvider} from "@/contexts/themeProvider.tsx"
-import AuthGate from "@/components/AuthGate.tsx"
+import ThemeProvider from "@/contexts/themeProvider.tsx"
 
-import {HomeLayout} from "./pages/Home"
-import {MatchScoutingLayout} from "./pages/MatchScouting"
-import MatchMonitoringLayout from "./pages/MatchMonitoring"
-import AdminHomeLayout from "@/pages/AdminHome.tsx"
+import AuthWrapper from "@/components/wrappers/AuthGate.tsx"
+import DataWrapper from "@/components/wrappers/DataWrapper.tsx";
+
+import HomePage from "./pages/Home"
+import AdminHomePage from "@/pages/AdminHome.tsx"
+import MatchMonitoringPage from "./pages/MatchMonitoring"
+import MatchScoutingPage from "./pages/MatchScouting"
+import PitScoutingPage from "@/pages/PitScoutingPage.tsx"
 import NotFoundPage from "@/pages/NotFoundPage.tsx"
-import PitScoutingLayout from "@/pages/PitScoutingPage.tsx"
-import SettingLayout from "@/pages/SettingsPage.tsx"
-
-import AllianceSimData from "@/pages/data/AllianceSimData.tsx"
-import MatchDataPost from "@/pages/data/MatchDataPost.tsx"
-import RankingData from "@/pages/data/RankingData.tsx"
-import TeamData from "@/pages/data/TeamData.tsx"
-import {DataWrapper} from "@/components/DataWrapper.tsx";
-import PingMonitor from "@/pages/PingPage.tsx";
-import Guest from "@/pages/Guest.tsx";
-import GuestRedirect from "@/pages/GuestRedir.tsx";
+import SettingPage from "@/pages/SettingsPage.tsx"
+import PingMonitorPage from "@/pages/PingPage.tsx";
+import GuestPage from "@/pages/Guest.tsx";
+import GuestRedirectPage from "@/pages/GuestRedir.tsx";
+import AllianceSimDataPage from "@/pages/data/AllianceSimData.tsx"
+import MatchDataPostPage from "@/pages/data/MatchDataPost.tsx"
+import RankingDataPage from "@/pages/data/RankingData.tsx"
+import TeamDataPage from "@/pages/data/TeamData.tsx"
+import DevPage from "@/pages/Dev.tsx";
 
 export default function App() {
     return (
@@ -27,68 +28,56 @@ export default function App() {
             <BrowserRouter>
                 <div className="h-screen flex flex-col min-h-0">
                     <Routes>
-                        <Route path="/" element={<HomeLayout/>}/>
+                        <Route path="/" element={<HomePage/>}/>
 
-                        <Route path="/guest" element={<GuestRedirect/>}/>
+                        <Route path="/guest" element={<GuestRedirectPage/>}/>
 
-                        <Route
-                            path="/ping"
-                            element={
-                                <PingMonitor/>
-                            }
-                        />
+                        <Route path="/ping" element={
+                            <PingMonitorPage/>
+                        }/>
 
                         {/* --- Scouting pages (mobile-locked, user permissions) --- */}
-                        <Route
-                            path="/scouting/match"
-                            element={
-                                <AuthGate permission="match_scouting" device="mobile">
-                                    <MatchScoutingLayout/>
-                                </AuthGate>
-                            }
-                        />
-                        <Route
-                            path="/scouting/pit"
-                            element={
-                                <AuthGate permission="pit_scouting" device="mobile">
-                                    <PitScoutingLayout/>
-                                </AuthGate>
-                            }
-                        />
+                        <Route path="/scouting/match" element={
+                            <AuthWrapper permission="match_scouting" device="mobile">
+                                <MatchScoutingPage/>
+                            </AuthWrapper>
+                        }/>
+                        <Route path="/scouting/pit" element={
+                            <AuthWrapper permission="pit_scouting" device="mobile">
+                                <PitScoutingPage/>
+                            </AuthWrapper>
+                        }/>
 
                         {/* --- Admin pages (desktop-locked) --- */}
                         <Route path="/admin" element={<Outlet/>}>
 
-                            <Route element={<AuthGate permission="admin" device="desktop"/>}>
-                                <Route index element={<AdminHomeLayout/>}/>
-                                <Route path="monitor/*" element={<MatchMonitoringLayout/>}/>
+                            <Route element={<AuthWrapper permission="admin" device="desktop"/>}>
+                                <Route index element={<AdminHomePage/>}/>
+                                <Route path="monitor/*" element={<MatchMonitoringPage/>}/>
                             </Route>
 
                             <Route path="data" element={<DataWrapper/>}>
-                                <Route index element={<RankingData/>}/>
-                                <Route path="guest" element={<Guest/>}/>
-                                <Route path="ranking" element={<RankingData/>}/>
-                                <Route path="team/:team" element={<TeamData/>}/>
-                                <Route path="match/:matchKey" element={<MatchDataPost/>}/>
-                                <Route path="alliance-sim" element={<AllianceSimData/>}/>
+                                <Route index element={<RankingDataPage/>}/>
+                                <Route path="guest" element={<GuestPage/>}/>
+                                <Route path="ranking" element={<RankingDataPage/>}/>
+                                <Route path="team/:team" element={<TeamDataPage/>}/>
+                                <Route path="match/:matchKey" element={<MatchDataPostPage/>}/>
+                                <Route path="alliance-sim" element={<AllianceSimDataPage/>}/>
                             </Route>
                         </Route>
 
                         {/* --- Developer-only section --- */}
-                        <Route
-                            path="/dev"
-                            element={
-                                <AuthGate permission="dev" device="desktop">
-                                    <NotFoundPage code={501}/>
-                                </AuthGate>
-                            }
-                        />
+                        <Route path="/dev" element={
+                            <AuthWrapper permission="dev" device="desktop">
+                                <DevPage/>
+                            </AuthWrapper>
+                        }/>
 
                         {/* --- Guests not yet implemented --- */}
                         <Route path="/guest" element={<NotFoundPage code={501}/>}/>
 
                         {/* --- Settings (always allowed) --- */}
-                        <Route path="/setting" element={<SettingLayout/>}/>
+                        <Route path="/setting" element={<SettingPage/>}/>
 
                         {/* --- Catch-all --- */}
                         <Route path="*" element={<NotFoundPage/>}/>
