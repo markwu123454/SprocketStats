@@ -1,4 +1,4 @@
-// src/pages/TeamData.tsx
+// src/pages/TeamDataPage.tsx
 import React, {useEffect, useMemo, useState} from "react"
 import {Link, useParams} from "react-router-dom"
 import {ResponsiveSunburst} from "@nivo/sunburst"

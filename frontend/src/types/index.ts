@@ -1,6 +1,5 @@
 export type {
   MatchScoutingData,
-  PitScoutingData,
 } from "@/components/seasons/2025/yearConfig"
 
 export type MatchType = 'qm' | 'sf' | 'f' | null

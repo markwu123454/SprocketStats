@@ -3,7 +3,7 @@ import "./index.css"
 
 import ThemeProvider from "@/contexts/themeProvider.tsx"
 
-import AuthWrapper from "@/components/wrappers/AuthGate.tsx"
+import AuthWrapper from "@/components/wrappers/AuthWrapper.tsx"
 import DataWrapper from "@/components/wrappers/DataWrapper.tsx";
 
 import HomePage from "./pages/HomePage.tsx"
@@ -12,15 +12,15 @@ import MatchMonitorPage from "./pages/MatchMonitorPage.tsx"
 import MatchScoutingPage from "./pages/MatchScoutingPage.tsx"
 import PitScoutingPage from "@/pages/PitScoutingPage.tsx"
 import NotFoundPage from "@/pages/NotFoundPage.tsx"
-import SettingPage from "@/pages/SettingsPage.tsx"
-import PingMonitorPage from "@/pages/PingPage.tsx";
+import SettingsPage from "@/pages/SettingsPage.tsx"
+import PingPage from "@/pages/PingPage.tsx";
 import GuestPage from "@/pages/GuestPage.tsx";
 import GuestRedirectPage from "@/pages/GuestRedirectPage.tsx";
-import AllianceSimDataPage from "@/pages/data/AllianceSimData.tsx"
-import MatchDataPostPage from "@/pages/data/MatchDataPost.tsx"
-import RankingDataPage from "@/pages/data/RankingData.tsx"
-import TeamDataPage from "@/pages/data/TeamData.tsx"
-import DevPage from "@/pages/DeveloperPage.tsx";
+import AllianceSimDataPage from "@/pages/data/AllianceSimDataPage.tsx"
+import MatchDataPostPage from "@/pages/data/MatchDataPostPage.tsx"
+import RankingDataPage from "@/pages/data/RankingDataPage.tsx"
+import TeamDataPage from "@/pages/data/TeamDataPage.tsx"
+import DeveloperPage from "@/pages/DeveloperPage.tsx";
 
 export default function App() {
     return (
@@ -33,7 +33,7 @@ export default function App() {
                         <Route path="/guest" element={<GuestRedirectPage/>}/>
 
                         <Route path="/ping" element={
-                            <PingMonitorPage/>
+                            <PingPage/>
                         }/>
 
                         {/* --- Scouting pages (mobile-locked, user permissions) --- */}
@@ -69,7 +69,7 @@ export default function App() {
                         {/* --- Developer-only section --- */}
                         <Route path="/dev" element={
                             <AuthWrapper permission="dev" device="desktop">
-                                <DevPage/>
+                                <DeveloperPage/>
                             </AuthWrapper>
                         }/>
 
@@ -77,7 +77,7 @@ export default function App() {
                         <Route path="/guest" element={<NotFoundPage code={501}/>}/>
 
                         {/* --- Settings (always allowed) --- */}
-                        <Route path="/setting" element={<SettingPage/>}/>
+                        <Route path="/setting" element={<SettingsPage/>}/>
 
                         {/* --- Catch-all --- */}
                         <Route path="*" element={<NotFoundPage/>}/>

@@ -194,26 +194,3 @@ export const pitQuestions = [
     },
     {key: "comments", label: "Robot name", type: "text", placeholder: "e.g. Nautilus"},
 ]
-
-export type PitScoutingData = {
-    team: number;
-
-    // Robot Specs
-    widthInches: number;
-    lengthInches: number;
-    heightExtendedInches: number;
-    heightCollapsedInches: number;
-    weightPounds: number;
-
-    drivebaseType: string;
-    hoursOfDrivePractice: number;
-    intakeDescription: string;
-
-    climbLevel: "shallow" | "deep"; // was: cageSetting
-    role: "Defense" | "Offense" | "Both";
-
-    autonStartPosition: ("Center" | "Left Wing" | "Right Wing" | "Stage Edge" | "Far Side")[];
-    teleopPlayArea: ("AB Zone" | "CD Zone" | "EF Zone" | "GH Zone" | "IJ Zone" | "KL Zone")[];
-
-    additionalComments?: string;
-};
