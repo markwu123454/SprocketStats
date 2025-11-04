@@ -1,10 +1,9 @@
-import {useEffect, useState, useRef} from "react"
+import {useEffect, useState} from "react"
 import {
     LineChart,
     Line,
     XAxis,
     YAxis,
-    Tooltip,
     ResponsiveContainer,
     CartesianGrid,
 } from "recharts"
@@ -18,7 +17,6 @@ interface PingPoint {
 export default function PingMonitor() {
     const {ping} = useAPI()
     const [data, setData] = useState<PingPoint[]>([])
-    const intervalRef = useRef<NodeJS.Timeout | null>(null)
 
     const PING_INTERVAL_MS = 5 * 60 * 1000 // 5 minutes
     const MAX_POINTS = 1080 // store ~78 hours of logs

@@ -1,8 +1,5 @@
-// src/pages/MatchDataPost.tsx
-"use client"
-
 import { useParams } from "react-router-dom"
-import { useMatchData } from "@/components/DataWrapper"
+import { useMatchData } from "@/components/wrappers/DataWrapper"
 
 export default function MatchDataPost() {
     const { matchKey } = useParams<{ matchKey: string }>()

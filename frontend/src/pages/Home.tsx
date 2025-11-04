@@ -5,16 +5,13 @@ import TooltipButton from "@/components/ui/tooltipButton"
 import {useClientEnvironment} from "@/hooks/useClientEnvironment.ts"
 import {getSetting, getSettingSync, type Settings} from "@/db/settingsDb.ts"
 
-import logo_animation_2025 from "@/assets/seasons/2025/logo_animation.gif"
-import logo_animation_2026 from "@/assets/seasons/2026/logo_animation.gif"
-
 declare global {
     interface Window {
         google?: any
     }
 }
 
-export function HomeLayout() {
+export default function HomePage() {
     const {login, verify} = useAPI()
     const {isOnline, serverOnline} = useClientEnvironment()
 
@@ -148,15 +145,15 @@ export function HomeLayout() {
                 absolute inset-0 bg-top bg-cover transition-colors duration-500
                 theme-light:bg-zinc-100
                 theme-dark:bg-zinc-950
-                theme-2025:bg-[url('@/assets/seasons/2025/expanded.png')]
-                theme-2026:bg-[url('@/assets/seasons/2026/expanded.png')]
+                theme-2025:bg-[url('/seasons/2025/expanded.png')]
+                theme-2026:bg-[url('/seasons/2026/expanded.png')]
                 "
             />
 
             {/* --- Logo --- */}
             {(theme === "2025" || theme === "2026") && (
                 <img
-                    src={theme === "2025" ? logo_animation_2025 : logo_animation_2026}
+                    src={theme === "2025" ? "/seasons/2025/logo_animation.gif" : "/seasons/2026/logo_animation.gif"}
                     alt="logo animation"
                     className="absolute top-2 left-4 h-20 pointer-events-none z-10"
                 />

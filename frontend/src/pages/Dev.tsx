@@ -1,1 +1,1 @@
-export default function DevLayout() {return (<></>)}
+export default function DevPage() {return (<></>)}
