@@ -145,8 +145,8 @@ export default function HomePage() {
                 absolute inset-0 bg-top bg-cover transition-colors duration-500
                 theme-light:bg-zinc-100
                 theme-dark:bg-zinc-950
-                theme-2025:bg-[url('@/assets/seasons/2025/expanded.png')]
-                theme-2026:bg-[url('@/assets/seasons/2026/expanded.png')]
+                theme-2025:bg-[url('/seasons/2025/expanded.png')]
+                theme-2026:bg-[url('/seasons/2026/expanded.png')]
                 "
             />
 

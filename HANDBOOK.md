@@ -56,8 +56,6 @@ backend/ → FastAPI server and API logic
 
 frontend/ → React + Vite web client
 │ ├── src/ → Main source directory
-│ │ ├── assets/ → Images, icons, and static frontend 
-│ │ │ └── seasons/ → Year-spesific assets
 │ │ ├── components/ → Reusable UI components
 │ │ │ ├── seasons/ → Year-spesific scouting pages and types
 │ │ │ └── ui/ → Pre-built ui elements for match and pit scouting
@@ -236,8 +234,6 @@ frontend/ → React + Vite web client
 │ │ ├── teams/
 │ │ │ └── populate_teams.py → Change year number
 │ ├── src/ → Main source directory
-│ │ ├── assets/ → Add new season logo .gif, Add new season field image
-│ │ │ └── backgrounds/ → Add new season background
 │ │ ├── components/ 
 │ │ │ └── seasons/ → Add new folder with year number
 │ │ ├── contexts/

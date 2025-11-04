@@ -6,7 +6,7 @@ interface NotFoundPageProps {
 
 export default function NotFoundPage({ code = 404 }: NotFoundPageProps) {
     const memeImages = useMemo(() => {
-        const allImports = import.meta.glob("@/assets/meme/*.{png,gif}", { eager: true })
+        const allImports = import.meta.glob("/meme/*.{png,gif}", { eager: true })
         return Object.values(allImports).map((mod: any) => mod.default)
     }, [])
 
