@@ -32,7 +32,7 @@
  *
  * **/
 
-export default function AdminHomeLayout() {
+export default function AdminPage() {
     return (
         <div></div>
     );

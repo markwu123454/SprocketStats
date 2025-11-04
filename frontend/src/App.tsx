@@ -6,21 +6,21 @@ import ThemeProvider from "@/contexts/themeProvider.tsx"
 import AuthWrapper from "@/components/wrappers/AuthGate.tsx"
 import DataWrapper from "@/components/wrappers/DataWrapper.tsx";
 
-import HomePage from "./pages/Home"
-import AdminHomePage from "@/pages/AdminHome.tsx"
-import MatchMonitoringPage from "./pages/MatchMonitoring"
-import MatchScoutingPage from "./pages/MatchScouting"
+import HomePage from "./pages/HomePage.tsx"
+import AdminPage from "@/pages/AdminPage.tsx"
+import MatchMonitorPage from "./pages/MatchMonitorPage.tsx"
+import MatchScoutingPage from "./pages/MatchScoutingPage.tsx"
 import PitScoutingPage from "@/pages/PitScoutingPage.tsx"
 import NotFoundPage from "@/pages/NotFoundPage.tsx"
 import SettingPage from "@/pages/SettingsPage.tsx"
 import PingMonitorPage from "@/pages/PingPage.tsx";
-import GuestPage from "@/pages/Guest.tsx";
-import GuestRedirectPage from "@/pages/GuestRedir.tsx";
+import GuestPage from "@/pages/GuestPage.tsx";
+import GuestRedirectPage from "@/pages/GuestRedirectPage.tsx";
 import AllianceSimDataPage from "@/pages/data/AllianceSimData.tsx"
 import MatchDataPostPage from "@/pages/data/MatchDataPost.tsx"
 import RankingDataPage from "@/pages/data/RankingData.tsx"
 import TeamDataPage from "@/pages/data/TeamData.tsx"
-import DevPage from "@/pages/Dev.tsx";
+import DevPage from "@/pages/DeveloperPage.tsx";
 
 export default function App() {
     return (
@@ -52,8 +52,8 @@ export default function App() {
                         <Route path="/admin" element={<Outlet/>}>
 
                             <Route element={<AuthWrapper permission="admin" device="desktop"/>}>
-                                <Route index element={<AdminHomePage/>}/>
-                                <Route path="monitor/*" element={<MatchMonitoringPage/>}/>
+                                <Route index element={<AdminPage/>}/>
+                                <Route path="monitor/*" element={<MatchMonitorPage/>}/>
                             </Route>
 
                             <Route path="data" element={<DataWrapper/>}>

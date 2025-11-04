@@ -241,9 +241,9 @@ frontend/ → React + Vite web client
 │ │ ├── db/ → Local Dexie/IndexedDB interfaces
 │ │ │ └── settingsDb.ts → Add new year theme
 │ │ ├── pages/
-│ │ │ ├── Home.tsx → Add new year theme
-│ │ │ ├── MatchMonitoring.tsx → Add new year theme
-│ │ │ ├── MatchScouting.tsx → Update import
+│ │ │ ├── HomePage.tsx → Add new year theme
+│ │ │ ├── MatchMonitorPage.tsx → Add new year theme
+│ │ │ ├── MatchScoutingPage.tsx → Update import
 │ │ │ ├── NotFoundPage.tsx → Add new year theme
 │ │ │ ├── NotFoundPage.tsx → Add new year theme
 │ │ │ └── Settings.tsx → Add new year theme
