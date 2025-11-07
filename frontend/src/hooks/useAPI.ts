@@ -109,6 +109,17 @@ export function useAPI() {
         }
     }
 
+    // --- Endpoint: Local logout ---
+    const logout = async (): Promise<void> => {
+        try {
+            deleteCookie(UUID_COOKIE)
+            deleteCookie(NAME_COOKIE)
+            cachedName = null
+        } catch (err) {
+            console.error("logout failed:", err)
+        }
+    }
+
 
     // --- Endpoint: GET /auth/verify ---
     const verify = useCallback(async (): Promise<{
@@ -628,6 +639,7 @@ export function useAPI() {
 
     return {
         login,
+        logout,
         verify,
         ping,
         claimTeam,

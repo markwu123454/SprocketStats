@@ -1,151 +1,139 @@
-import {useAPI} from "@/hooks/useAPI.ts";
+import { useAPI } from "@/hooks/useAPI.ts";
 import * as React from "react";
-import {useEffect, useState} from "react";
-import {Label} from "@/components/ui/label.tsx";
-import {Input} from "@/components/ui/input.tsx";
-import {AlertCircle, ArrowLeft, CheckCircle, XCircle} from "lucide-react";
-import {useNavigate} from "react-router-dom";
-import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from "@/components/ui/select.tsx";
-import {Button} from "@/components/ui/button.tsx";
+import { useEffect, useState } from "react";
+import { Label } from "@/components/ui/label.tsx";
+import { Input } from "@/components/ui/input.tsx";
+import { AlertCircle, ArrowLeft, CheckCircle, XCircle } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select.tsx";
+import { Button } from "@/components/ui/button.tsx";
 import PhotoCaptureCard from "@/components/ui/cameraCapture";
-import {pitQuestions} from "@/components/seasons/2025/yearConfig.ts"
+import { pitQuestions } from "@/components/seasons/2025/yearConfig.ts";
+import { getSettingSync, type Settings } from "@/db/settingsDb.ts";
+import ThemedWrapper from "@/components/wrappers/ThemedWrapper.tsx";
 
 // TODO: add questions for human factor(openness, approachability, etc)
 
 export default function PitScoutingLayout() {
-    const navigate = useNavigate()
-    const {getTeamBasicInfo, submitPitData} = useAPI()
+    const navigate = useNavigate();
+    const { getTeamBasicInfo, submitPitData } = useAPI();
 
-    const [teamNumber, setTeamNumber] = useState("")
+    const [teamNumber, setTeamNumber] = useState("");
     const [teamInfo, setTeamInfo] = useState<{
-        number?: number
-        nickname?: string
-        rookie_year?: number | null
-        scouted?: boolean
-    } | null>(null)
-    const [loading, setLoading] = useState(false)
-    const [submitting, setSubmitting] = useState(false)
-    const [notFound, setNotFound] = useState(false)
-    const [answers, setAnswers] = useState<Partial<Record<string, string>>>({})
-    const [submitted, setSubmitted] = useState(false)
-    const [teamNames, setTeamNames] = useState<Record<string, string>>({})
+        number?: number;
+        nickname?: string;
+        rookie_year?: number | null;
+        scouted?: boolean;
+    } | null>(null);
+    const [loading, setLoading] = useState(false);
+    const [submitting, setSubmitting] = useState(false);
+    const [notFound, setNotFound] = useState(false);
+    const [answers, setAnswers] = useState<Partial<Record<string, string>>>({});
+    const [submitted, setSubmitted] = useState(false);
+    const [teamNames, setTeamNames] = useState<Record<string, string>>({});
+    const [theme] = useState<Settings["theme"]>(() => getSettingSync("theme", "2025"));
 
-    // --- Load team names once from public JSON ---
+    // --- Load team names once ---
     useEffect(() => {
         fetch("/teams/team_names.json")
             .then((res) => res.json())
             .then((data) => setTeamNames(data))
-            .catch(() => setTeamNames({}))
-    }, [])
+            .catch(() => setTeamNames({}));
+    }, []);
 
     // --- Fetch scouting status whenever teamNumber changes ---
     useEffect(() => {
         if (!teamNumber) {
-            setTeamInfo(null)
-            setNotFound(false)
-            return
+            setTeamInfo(null);
+            setNotFound(false);
+            return;
         }
 
-        const nickname = teamNames[teamNumber]
+        const nickname = teamNames[teamNumber];
         if (!nickname) {
-            // not in local list
-            setTeamInfo(null)
-            setNotFound(true)
-            return
+            setTeamInfo(null);
+            setNotFound(true);
+            return;
         }
 
-        setLoading(true)
+        setLoading(true);
         const timeout = setTimeout(async () => {
-            // only ask backend if already scouted
-            const info = await getTeamBasicInfo(teamNumber)
-            const scouted = info?.scouted ?? false
+            const info = await getTeamBasicInfo(teamNumber);
+            const scouted = info?.scouted ?? false;
 
             setTeamInfo({
                 number: parseInt(teamNumber),
                 nickname,
                 scouted,
-            })
-            setLoading(false)
-            setNotFound(false)
-        }, 400)
+            });
+            setLoading(false);
+            setNotFound(false);
+        }, 400);
 
-        return () => clearTimeout(timeout)
-    }, [teamNumber, teamNames])
+        return () => clearTimeout(timeout);
+    }, [teamNumber, teamNames]);
 
     // --- Submit handler ---
     const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault()
-        if (!teamNumber || notFound) return
+        e.preventDefault();
+        if (!teamNumber || notFound) return;
 
-        setSubmitting(true)
+        setSubmitting(true);
         const scouter =
             document.cookie
                 .split("; ")
-                .find(r => r.startsWith("scouting_name="))
-                ?.split("=")[1] || "unknown"
+                .find((r) => r.startsWith("scouting_name="))
+                ?.split("=")[1] || "unknown";
 
-        const success = await submitPitData(teamNumber, scouter, answers)
-        setSubmitting(false)
+        const success = await submitPitData(teamNumber, scouter, answers);
+        setSubmitting(false);
 
         if (success) {
-            setSubmitted(true)
+            setSubmitted(true);
             setTimeout(() => {
-                setTeamNumber("")
-                setTeamInfo(null)
-                setNotFound(false)
-                setAnswers({})
-                setSubmitted(false)
-            }, 2000)
+                setTeamNumber("");
+                setTeamInfo(null);
+                setNotFound(false);
+                setAnswers({});
+                setSubmitted(false);
+            }, 2000);
         }
-    }
+    };
 
     const handleMultiToggle = (key: string, option: string, checked: boolean) => {
         setAnswers((prev) => {
-            const current = Array.isArray(prev[key]) ? prev[key] : []
+            const current = Array.isArray(prev[key]) ? prev[key] : [];
             const updated = checked
                 ? [...current, option]
-                : current.filter((l: string) => l !== option)
-            return {...prev, [key]: updated}
-        })
-    }
+                : current.filter((l: string) => l !== option);
+            return { ...prev, [key]: updated };
+        });
+    };
 
     return (
-        <div
-            className="
-            min-h-screen overflow-x-hidden w-full p-4 transition-colors duration-500
-            theme-light:bg-zinc-100 theme-light:text-zinc-900
-            theme-dark:bg-zinc-950 theme-dark:text-white
-            :bgtheme-2025-[url('/seasons/2025/expanded.png')] theme-2025:bg-top theme-2025:bg-cover theme-2025:text-white
-            theme-2026:bg-[url('/seasons/2026/expanded.png')] theme-2026:bg-top theme-2026:bg-cover theme-2026:text-[#3b2d00]
-        ">
+        <ThemedWrapper theme={theme??"2026"} showLogo={false}>
             <form
                 onSubmit={handleSubmit}
-                className="
-                    space-y-6 max-w-xl mx-auto backdrop-blur-sm p-6 rounded-lg shadow-lg border transition-colors duration-500
-                    theme-light:bg-white/90 theme-light:border-zinc-300
-                    theme-dark:bg-zinc-900/80 theme-dark:border-zinc-700
-                    theme-2025:bg-[#0b234f]/70 theme-2025:border-[#1b3d80]
-                    theme-2026:bg-[#fef7dc]/80 theme-2026:border-[#e6ddae]
-                "
+                className="space-y-6 max-w-xl mx-auto"
             >
                 {/* --- Team Input Section --- */}
                 <div>
                     <div className="flex items-center justify-between">
-                        <Label htmlFor="teamNumber" className="text-lg font-semibold">
+                        <Label
+                            htmlFor="teamNumber"
+                            className="text-lg font-semibold"
+                            style={{ color: "var(--themed-h1-color)" }}
+                        >
                             Enter Team Number
                         </Label>
                         <button
                             onClick={() => navigate("/")}
-                            className="
-                transition
-                theme-light:text-zinc-600 theme-light:hover:text-zinc-900
-                theme-dark:text-zinc-400 theme-dark:hover:text-white
-                theme-2025:text-zinc-300 theme-2025:hover:text-white
-                theme-2026:text-[#5a4800] theme-2026:hover:text-[#2d2100]
-            "
+                            className="transition hover:opacity-80"
                             title="Back to Home"
+                            type="button"
+                            style={{ color: "var(--themed-subtext-color)" }}
                         >
-                            <ArrowLeft className="w-5 h-5"/>
+                            <ArrowLeft className="w-5 h-5" />
                         </button>
                     </div>
 
@@ -157,30 +145,23 @@ export default function PitScoutingLayout() {
                         placeholder="e.g. 3473"
                         value={teamNumber}
                         onChange={(e) => {
-                            const val = e.target.value
-                            if (val === "" || /^\d{0,5}$/.test(val)) setTeamNumber(val)
+                            const val = e.target.value;
+                            if (val === "" || /^\d{0,5}$/.test(val)) setTeamNumber(val);
                         }}
-                        className="
-            w-40 mt-1
-            theme-light:bg-zinc-50 theme-light:border-zinc-300 theme-light:text-zinc-900
-            theme-dark:bg-zinc-800 theme-dark:border-zinc-700 theme-dark:text-white
-            theme-2025:bg-[#102b6a]/80 theme-2025:border-[#2146a1] theme-2025:text-white
-            theme-2026:bg-[#fff8e5] theme-2026:border-[#d7cfa3] theme-2026:text-[#3b2d00]
-        "
+                        className="w-40 mt-1 border rounded-md transition-colors duration-300"
+                        style={{
+                            background: "var(--themed-button-bg)",
+                            borderColor: "var(--themed-border-color)",
+                            color: "var(--themed-text-color)",
+                        }}
                     />
 
-                    {/* --- Inline team info display --- */}
+                    {/* Inline team info display */}
                     <div
-                        className="
-            mt-3 flex items-center justify-between p-2 border rounded-lg min-h-[60px]
-            theme-light:border-zinc-300 theme-dark:border-zinc-700
-            theme-2025:border-[#1b3d80] theme-2026:border-[#e6ddae]
-            transition-colors duration-500
-        "
+                        className="mt-3 flex items-center justify-between p-2 border rounded-lg min-h-[60px] transition-colors duration-500"
+                        style={{ borderColor: "var(--themed-border-color)" }}
                     >
-                        {/* --- Left side: team icon + info --- */}
                         <div className="flex items-center space-x-3">
-                            {/* Show icon immediately if team exists in local JSON */}
                             {teamNumber && teamNames[teamNumber] && (
                                 <img
                                     key={teamNumber}
@@ -201,14 +182,12 @@ export default function PitScoutingLayout() {
                                         </div>
                                     </>
                                 )}
-
                                 {!teamNumber && (
-                                    <span className="text-sm text-muted-foreground">Enter a team number</span>
+                                    <span className="text-sm opacity-60">Enter a team number</span>
                                 )}
                                 {!teamNames[teamNumber] && teamNumber && !loading && (
-                                    <span className="text-sm text-destructive">Team not found.</span>
+                                    <span className="text-sm text-red-500">Team not found.</span>
                                 )}
-
                                 {!loading && teamInfo?.scouted && (
                                     <div className="text-xs text-orange-500 mt-1">
                                         Team already scouted (re-scouting will override).
@@ -217,33 +196,39 @@ export default function PitScoutingLayout() {
                             </div>
                         </div>
 
-                        {/* --- Right side: status or loading icon --- */}
                         <div className="flex items-center">
                             {loading && teamNumber && teamNames[teamNumber] && (
-                                <div
-                                    className="w-6 h-6 rounded-full border-2 border-current border-t-transparent animate-spin opacity-70"></div>
+                                <div className="w-6 h-6 rounded-full border-2 border-current border-t-transparent animate-spin opacity-70" />
                             )}
                             {!loading && teamInfo?.scouted && !notFound && (
-                                <AlertCircle className="w-6 h-6 text-orange-500"/>
+                                <AlertCircle className="w-6 h-6 text-orange-500" />
                             )}
                             {!loading && teamInfo && !notFound && !teamInfo.scouted && (
-                                <CheckCircle className="w-6 h-6 text-green-500"/>
+                                <CheckCircle className="w-6 h-6 text-green-500" />
                             )}
-                            {!loading && notFound && <XCircle className="w-6 h-6 text-red-500"/>}
+                            {!loading && notFound && <XCircle className="w-6 h-6 text-red-500" />}
                         </div>
                     </div>
                 </div>
 
-                {/* --- Form Sections --- */}
+                {/* --- Dynamic Form Sections --- */}
                 <div className="space-y-6">
                     {pitQuestions.map((q, i) => {
                         if (q.section)
                             return (
                                 <div key={`section-${i}`} className="pt-6">
-                                    <div className="border-b border-white/10 my-4"></div>
-                                    <Label className="text-lg font-semibold">{q.section}</Label>
+                                    <div
+                                        className="border-b my-4"
+                                        style={{ borderColor: "var(--themed-border-color)" }}
+                                    ></div>
+                                    <Label
+                                        className="text-lg font-semibold"
+                                        style={{ color: "var(--themed-h1-color)" }}
+                                    >
+                                        {q.section}
+                                    </Label>
                                 </div>
-                            )
+                            );
 
                         if (q.type === "camera")
                             return (
@@ -258,22 +243,22 @@ export default function PitScoutingLayout() {
                                         jpegQuality={0.9}
                                         jpegMaxEdge={1920}
                                         onChange={(files) => {
-                                            const dataUrls: string[] = []
+                                            const dataUrls: string[] = [];
                                             for (const f of files) {
-                                                const reader = new FileReader()
+                                                const reader = new FileReader();
                                                 reader.onload = () => {
-                                                    const result = reader.result as string
-                                                    dataUrls.push(result)
+                                                    const result = reader.result as string;
+                                                    dataUrls.push(result);
                                                     if (dataUrls.length === files.length)
-                                                        setAnswers({...answers, [q.key]: dataUrls})
-                                                }
-                                                reader.readAsDataURL(f)
+                                                        setAnswers({ ...answers, [q.key]: dataUrls });
+                                                };
+                                                reader.readAsDataURL(f);
                                             }
                                         }}
                                         onError={(msg) => console.warn(msg)}
                                     />
                                 </div>
-                            )
+                            );
 
                         if (q.type === "text" || q.type === "number")
                             return (
@@ -283,10 +268,10 @@ export default function PitScoutingLayout() {
                                         type={q.type}
                                         placeholder={q.placeholder}
                                         value={answers[q.key] ?? ""}
-                                        onChange={(e) => setAnswers({...answers, [q.key]: e.target.value})}
+                                        onChange={(e) => setAnswers({ ...answers, [q.key]: e.target.value })}
                                     />
                                 </div>
-                            )
+                            );
 
                         if (q.type === "select")
                             return (
@@ -294,7 +279,7 @@ export default function PitScoutingLayout() {
                                     <Label>{q.label}</Label>
                                     <ThemedSelect
                                         value={answers[q.key]}
-                                        onValueChange={(val) => setAnswers({...answers, [q.key]: val})}
+                                        onValueChange={(val) => setAnswers({ ...answers, [q.key]: val })}
                                         placeholder="Select one"
                                     >
                                         {q.options?.map((opt) => (
@@ -304,7 +289,7 @@ export default function PitScoutingLayout() {
                                         ))}
                                     </ThemedSelect>
                                 </div>
-                            )
+                            );
 
                         if (q.type === "multi")
                             return (
@@ -315,20 +300,23 @@ export default function PitScoutingLayout() {
                                             <label key={opt.key || opt} className="flex items-center space-x-2">
                                                 <input
                                                     type="checkbox"
-                                                    checked={Array.isArray(answers[q.key]) && answers[q.key].includes(opt.key || opt)}
+                                                    checked={
+                                                        Array.isArray(answers[q.key]) &&
+                                                        answers[q.key].includes(opt.key || opt)
+                                                    }
                                                     onChange={(e) =>
                                                         handleMultiToggle(q.key, opt.key || opt, e.target.checked)
                                                     }
-                                                    className="h-4 w-4 accent-primary theme-2025:accent-[#4d75d9] theme-2026:accent-[#a28d46]"
+                                                    className="h-4 w-4 accent-[var(--themed-button-hover)]"
                                                 />
                                                 <span>{opt.label || opt}</span>
                                             </label>
                                         ))}
                                     </div>
                                 </div>
-                            )
+                            );
 
-                        return null
+                        return null;
                     })}
                 </div>
 
@@ -346,88 +334,90 @@ export default function PitScoutingLayout() {
 
                     <Button
                         type="submit"
-                        className="
-                            w-4/5 flex items-center justify-center space-x-2 transition
-                            theme-light:bg-blue-600 theme-light:hover:bg-blue-500 theme-light:text-white
-                            theme-dark:bg-blue-600 theme-dark:hover:bg-blue-500 theme-dark:text-white
-                            theme-2025:bg-[#2146a1] theme-2025:hover:bg-[#4d75d9] theme-2025:text-white
-                            theme-2026:bg-[#e3dcb4] theme-2026:hover:bg-[#d6ca8e] theme-2026:text-[#3b2d00]
-                        "
+                        className="w-4/5 flex items-center justify-center space-x-2 transition"
+                        style={{
+                            background: "var(--themed-button-bg)",
+                            color: "var(--themed-text-color)",
+                        }}
                         disabled={loading || submitting || notFound || !teamNumber}
                     >
                         {submitted ? (
                             <>
-                                <CheckCircle className="w-7 h-7 text-green-500"/>
+                                <CheckCircle className="w-7 h-7 text-green-500" />
                                 <span>Submitted!</span>
                             </>
+                        ) : loading ? (
+                            "Loading..."
+                        ) : submitting ? (
+                            "Submitting..."
+                        ) : notFound ? (
+                            "Team not found."
+                        ) : !teamNumber ? (
+                            "Enter a team number"
                         ) : (
-                            loading ? "Loading..." :
-                                submitting ? "Submitting..." :
-                                    notFound ? "Team not found." :
-                                        !teamNumber ? "Enter a team number" :
-                                            "Submit Pit Data"
+                            "Submit Pit Data"
                         )}
                     </Button>
                 </div>
             </form>
-        </div>
-    )
+        </ThemedWrapper>
+    );
 }
 
-function ThemedInput({
-                         className = "",
-                         ...props
-                     }: React.ComponentProps<typeof Input>) {
+function ThemedInput({ className = "", ...props }: React.ComponentProps<typeof Input>) {
     return (
         <Input
-            className={`
-        transition-colors duration-300
-        theme-light:bg-zinc-50 theme-light:border-zinc-300 theme-light:text-zinc-900 theme-light:placeholder-zinc-400
-        theme-dark:bg-zinc-800 theme-dark:border-zinc-700 theme-dark:text-white theme-dark:placeholder-zinc-500
-        theme-2025:bg-[#102b6a]/80 theme-2025:border-[#2146a1] theme-2025:text-white theme-2025:placeholder-zinc-300
-        theme-2026:bg-[#fff8e5] theme-2026:border-[#d7cfa3] theme-2026:text-[#3b2d00] theme-2026:placeholder-[#7b6a2f]
-        focus:ring-2 focus:ring-blue-600
-        ${className}
-      `}
+            className={`transition-colors duration-300 border rounded-md ${className}`}
+            style={{
+                background: "var(--themed-button-bg)",
+                borderColor: "var(--themed-border-color)",
+                color: "var(--themed-text-color)",
+            }}
             {...props}
         />
-    )
+    );
 }
 
 function ThemedSelect({
-                          children,
-                          placeholder,
-                          onValueChange,
-                          value,
-                      }: {
-    children: React.ReactNode
-    placeholder?: string
-    onValueChange?: (val: string) => void
-    value?: string
+    children,
+    placeholder,
+    onValueChange,
+    value,
+}: {
+    children: React.ReactNode;
+    placeholder?: string;
+    onValueChange?: (val: string) => void;
+    value?: string;
 }) {
     return (
         <Select value={value} onValueChange={onValueChange}>
             <SelectTrigger
-                className="
-          transition-colors duration-300
-          theme-light:bg-zinc-50 theme-light:border-zinc-300 theme-light:text-zinc-900
-          theme-dark:bg-zinc-800 theme-dark:border-zinc-700 theme-dark:text-white
-          theme-2025:bg-[#102b6a]/80 theme-2025:border-[#2146a1] theme-2025:text-white
-          theme-2026:bg-[#fff8e5] theme-2026:border-[#d7cfa3] theme-2026:text-[#3b2d00]
-        "
+                className="transition-colors duration-300 border rounded-md"
+                style={{
+                    background: "var(--themed-button-bg)",
+                    borderColor: "var(--themed-border-color)",
+                    color: "var(--themed-text-color)",
+                }}
             >
-                <SelectValue placeholder={placeholder}/>
+                <SelectValue placeholder={placeholder} />
             </SelectTrigger>
             <SelectContent
-                className="
-          theme-light:bg-zinc-50 theme-light:text-zinc-900
-          theme-dark:bg-zinc-800 theme-dark:text-white
-          theme-2025:bg-[#0b234f]/95 theme-2025:text-white
-          theme-2026:bg-[#fff8e5] theme-2026:text-[#3b2d00]
-        "
+                className="rounded-md shadow-lg border transition"
+                style={{
+                    background:
+                        document.documentElement.classList.contains("theme-2025")
+                            ? "#0b234f"
+                            : document.documentElement.classList.contains("theme-2026")
+                            ? "#fff8e5"
+                            : document.documentElement.classList.contains("theme-dark")
+                            ? "#18181b"
+                            : "#ffffff",
+                    borderColor: "var(--themed-border-color)",
+                    color: "var(--themed-text-color)",
+                }}
             >
                 {children}
             </SelectContent>
         </Select>
-    )
+    );
 }
