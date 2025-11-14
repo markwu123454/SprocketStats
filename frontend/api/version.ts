@@ -1,7 +1,3 @@
-export const config = {
-    runtime: "nodejs20.x",
-};
-
 export default function handler(_req: any, res: any) {
     const get = (key: string) => process.env[key] ?? "";
 
