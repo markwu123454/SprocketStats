@@ -1,5 +1,5 @@
-export default function handler(_req: any, res: any) {
-    const get = (key: string) => process.env[key] ?? "";
+export default function handler(_req, res) {
+    const get = () => process.env[key] ?? "";
 
     const VERCEL = get("VERCEL");
     const CI = get("CI");
