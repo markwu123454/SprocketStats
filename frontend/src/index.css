@@ -7,6 +7,7 @@
 @custom-variant theme-dark (&:is(.theme-dark *));
 @custom-variant theme-2025 (&:is(.theme-2025 *));
 @custom-variant theme-2026 (&:is(.theme-2026 *));
+@custom-variant theme-3473 (&:is(.theme-3473 *));
 
 /* TODO: delete later */
 @custom-variant dark (&:is(.dark *));

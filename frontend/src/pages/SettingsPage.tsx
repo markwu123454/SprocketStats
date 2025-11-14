@@ -4,11 +4,11 @@ import {ArrowLeft, RotateCcw, RotateCw} from "lucide-react"
 import {getSetting, getSettingSync, setSetting, type Settings} from "@/db/settingsDb.ts"
 import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from "@/components/ui/select"
 import {Label} from "@/components/ui/label"
-import ThemedWrapper from "@/components/wrappers/ThemedWrapper.tsx";
+import ThemedWrapper from "@/components/wrappers/ThemedWrapper.tsx"
 
 export default function SettingLayout() {
     const navigate = useNavigate()
-    const [theme, setThemeState] = useState<Settings["theme"]>(() => getSettingSync("theme", "2025"))
+    const [theme, setThemeState] = useState<Settings["theme"]>(() => getSettingSync("theme", "2026"))
     const [orientation, setOrientationState] = useState<Settings["field_orientation"]>(
         () => getSettingSync("field_orientation", "0")
     )
@@ -38,15 +38,15 @@ export default function SettingLayout() {
         void setSetting({field_orientation: orientation})
     }, [orientation])
 
-    // Apply theme to root HTML element
+    // Apply theme class to root
     useEffect(() => {
         const root = document.documentElement
-        root.classList.remove("theme-2026", "theme-2025", "theme-dark", "theme-light")
+        root.classList.remove("theme-2026", "theme-2025", "theme-dark", "theme-light", "theme-3473")
         root.classList.add(`theme-${theme}`)
     }, [theme])
 
     return (
-        <ThemedWrapper theme={theme??"2026"} showLogo={false}>
+        <ThemedWrapper theme={theme ?? "2026"} showLogo={false}>
             {/* Header */}
             <div className="flex items-center justify-between">
                 <h1
@@ -67,29 +67,24 @@ export default function SettingLayout() {
             <div className="space-y-4">
                 {/* Theme Selection */}
                 <div className="space-y-1">
-                    <Label style={{color: "var(--themed-subtext-color)"}}>
-                        Theme
-                    </Label>
+                    <Label style={{color: "var(--themed-subtext-color)"}}>Theme</Label>
                     <Select
                         value={theme}
                         onValueChange={(val) => setThemeState(val as Settings["theme"])}
                     >
                         <SelectTrigger
                             className="
-                                w-full border rounded-md transition
-                                bg-[var(--themed-button-bg)] border-[var(--themed-border-color)]
-                                text-[var(--themed-text-color)]
-                                hover:bg-[var(--themed-button-hover)]
-                            "
+            w-full border rounded-md transition
+            bg-[var(--themed-button-bg)] border-[var(--themed-border-color)]
+            text-[var(--themed-text-color)]
+            hover:bg-[var(--themed-button-hover)]
+        "
                         >
                             <SelectValue placeholder="Select Theme"/>
                         </SelectTrigger>
+
                         <SelectContent
-                            className={`
-        rounded-md shadow-lg border transition
-        border-[var(--themed-border-color)]
-        text-[var(--themed-text-color)]
-    `}
+                            className="rounded-md shadow-lg border transition"
                             style={{
                                 background:
                                     theme === "dark"
@@ -98,16 +93,40 @@ export default function SettingLayout() {
                                             ? "#ffffff"
                                             : theme === "2025"
                                                 ? "#0b234f"
-                                                : "#fff8e5", // solid non-transparent bg per theme
+                                                : theme === "2026"
+                                                    ? "#fff8e5"
+                                                    : "#4c1d95", // 3473 purple
+                                color:
+                                    theme === "dark"
+                                        ? "#e4e4e7"
+                                        : theme === "light"
+                                            ? "#111"
+                                            : theme === "2025"
+                                                ? "#e2e8f0"
+                                                : theme === "2026"
+                                                    ? "#1a1a1a"
+                                                    : "#e5deff",
+                                borderColor:
+                                    theme === "dark"
+                                        ? "#27272a"
+                                        : theme === "light"
+                                            ? "#d4d4d8"
+                                            : theme === "2025"
+                                                ? "#1e3a8a"
+                                                : theme === "2026"
+                                                    ? "#e5dec4"
+                                                    : "#6d28d9",
                             }}
                         >
-                            {["dark", "light", "2025", "2026"].map((val) => (
+                            {["dark", "light", "2025", "2026", "3473"].map((val) => (
                                 <SelectItem
                                     key={val}
                                     value={val}
                                     className="cursor-pointer transition hover:opacity-80"
                                 >
-                                    {val.charAt(0).toUpperCase() + val.slice(1)}
+                                    {val === "3473"
+                                        ? "Team 3473 (Sprocket)"
+                                        : val.charAt(0).toUpperCase() + val.slice(1)}
                                 </SelectItem>
                             ))}
                         </SelectContent>

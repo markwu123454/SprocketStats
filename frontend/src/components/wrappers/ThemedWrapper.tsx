@@ -1,40 +1,33 @@
 import React, {useEffect, useRef, useState} from "react";
 
 interface ThemedWrapperProps {
-    theme: "dark" | "light" | "2025" | "2026";
+    theme: "dark" | "light" | "2025" | "2026" | "3473";
     showLogo?: boolean;
+    overflow?: boolean;
     children: React.ReactNode;
 }
 
-export default function ThemedWrapper({theme, showLogo = true, children}: ThemedWrapperProps) {
+export default function ThemedWrapper({theme, showLogo = true, overflow = false, children}: ThemedWrapperProps) {
     const parallaxRef = useRef<HTMLDivElement>(null);
-    const contentRef = useRef<HTMLDivElement>(null);
     const [scale, setScale] = useState(1.1);
-    const [centerMode, setCenterMode] = useState(true);
 
-    // --- Measure card height + decide centering + scaling ---
+    // --- Scale based on content or overflow ---
     useEffect(() => {
-        const updateMetrics = () => {
-            const card = contentRef.current;
-            if (!card) return;
-            const contentHeight = card.scrollHeight + 300;
-            const viewportHeight = window.innerHeight;
-
-            const s = 1 + Math.min((contentHeight - viewportHeight) / viewportHeight * 0.4, 0.8);
-            setScale(Math.max(1.1, s));
-            setCenterMode(contentHeight <= viewportHeight * 0.9); // center if fits nicely
+        const updateScale = () => {
+            const vh = window.innerHeight;
+            const baseScale = 1.1;
+            const scaleFactor = overflow ? Math.min(1.1 + vh / 1500, 1.8) : baseScale;
+            setScale(scaleFactor);
         };
-
-        updateMetrics();
-        window.addEventListener("resize", updateMetrics);
-        return () => window.removeEventListener("resize", updateMetrics);
-    }, []);
+        updateScale();
+        window.addEventListener("resize", updateScale);
+        return () => window.removeEventListener("resize", updateScale);
+    }, [overflow]);
 
     // --- Parallax translation ---
     useEffect(() => {
         const bg = parallaxRef.current;
         if (!bg) return;
-
         let raf = 0;
         const onScroll = () => {
             if (raf) return;
@@ -44,7 +37,6 @@ export default function ThemedWrapper({theme, showLogo = true, children}: Themed
                 raf = 0;
             });
         };
-
         onScroll();
         window.addEventListener("scroll", onScroll, {passive: true});
         return () => {
@@ -53,7 +45,7 @@ export default function ThemedWrapper({theme, showLogo = true, children}: Themed
         };
     }, [scale]);
 
-    // --- Theme variables for content styling ---
+    // --- Theme variables ---
     const themeVars: Record<string, React.CSSProperties> = {
         dark: {
             "--themed-h1-color": "#ffffff",
@@ -91,6 +83,15 @@ export default function ThemedWrapper({theme, showLogo = true, children}: Themed
             "--themed-button-hover": "#f7edcc",
             "--themed-text-color": "#3b2d00",
         },
+        3473: {
+            "--themed-h1-color": "#ffffff",
+            "--themed-subtext-color": "#d4d4d8",
+            "--themed-border-color": "#6d28d9",
+            "--themed-bg": "rgba(76,29,149,0.75)",
+            "--themed-button-bg": "#7c3aed",
+            "--themed-button-hover": "#8b5cf6",
+            "--themed-text-color": "#ffffff",
+        },
     };
 
     const bgClass =
@@ -100,7 +101,9 @@ export default function ThemedWrapper({theme, showLogo = true, children}: Themed
                 ? "bg-white border-zinc-300"
                 : theme === "2025"
                     ? "bg-[#0b234f]/70 border-[#1b3d80]"
-                    : "bg-[#fef7dc]/80 border-[#e6ddae]";
+                    : theme === "2026"
+                        ? "bg-[#fef7dc]/80 border-[#e6ddae]"
+                        : "bg-[#4c1d95]/75 border-[#6d28d9]";
 
     const textClass =
         theme === "dark"
@@ -109,27 +112,29 @@ export default function ThemedWrapper({theme, showLogo = true, children}: Themed
                 ? "text-zinc-900"
                 : theme === "2025"
                     ? "text-white"
-                    : "text-[#3b2d00]";
+                    : theme === "2026"
+                        ? "text-[#3b2d00]"
+                        : "text-white";
 
     return (
         <div
             className={`relative min-h-screen w-full transition-colors duration-700 ease-in-out px-6 ${
-                centerMode
-                    ? "flex items-center justify-center"
-                    : "flex flex-col items-center overflow-y-auto"
+                overflow
+                    ? "flex flex-col items-center overflow-y-auto"
+                    : "flex items-center justify-center"
             }`}
             style={{
                 ...themeVars[theme],
                 overflowX: "hidden",
             }}
         >
-
             {/* Parallax Background */}
             <div
                 ref={parallaxRef}
                 className="fixed inset-0 z-0 will-change-transform"
                 style={{transformOrigin: "center top"}}
             >
+                {/* Base color layers */}
                 <div
                     className={`absolute inset-0 ${
                         theme === "light" ? "bg-zinc-100" : theme === "dark" ? "bg-zinc-950" : ""
@@ -145,9 +150,21 @@ export default function ThemedWrapper({theme, showLogo = true, children}: Themed
                         theme === "2026" ? "opacity-100" : "opacity-0"
                     } bg-[url('/seasons/2026/expanded.png')]`}
                 />
+                {theme === "3473" && (
+                    <div
+                        className="absolute inset-0 transition-opacity duration-700 ease-in-out opacity-100"
+                        style={{
+                            background: `
+                radial-gradient(80% 110% at 10% 10%, #4c2c7a, #1f0b46),
+                linear-gradient(135deg, #140a2a, #1f0b46)
+            `,
+                            backgroundAttachment: "fixed",
+                        }}
+                    />
+                )}
             </div>
 
-            {/* Logo */}
+            {/* Animated logos (if enabled) */}
             {showLogo && (theme === "2025" || theme === "2026") && (
                 <img
                     src={
@@ -160,9 +177,24 @@ export default function ThemedWrapper({theme, showLogo = true, children}: Themed
                 />
             )}
 
-            {/* Foreground card */}
+            {/* 3473 dual-rotating sprocket logo */}
+            {showLogo && theme === "3473" && (
+                <div className="fixed top-2 left-4 h-20 w-20 pointer-events-none z-10">
+                    <img
+                        src="/static/sprocket_logo_gear.png"
+                        alt="Sprocket gear"
+                        className="absolute inset-0 w-full h-full animate-[spin_18s_linear_infinite] [animation-direction:reverse]"
+                    />
+                    <img
+                        src="/static/sprocket_logo_ring.png"
+                        alt="Sprocket ring"
+                        className="absolute inset-0 w-full h-full animate-[spin_12s_linear_infinite]"
+                    />
+                </div>
+            )}
+
+            {/* Foreground Card */}
             <div
-                ref={contentRef}
                 className={`relative z-10 w-full max-w-md mx-4 my-12 p-6 rounded-lg shadow-lg space-y-6 border backdrop-blur-sm ${bgClass} ${textClass}`}
             >
                 {children}

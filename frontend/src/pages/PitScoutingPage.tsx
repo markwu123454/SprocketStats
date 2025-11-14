@@ -31,7 +31,7 @@ export default function PitScoutingLayout() {
     const [answers, setAnswers] = useState<Partial<Record<string, string>>>({});
     const [submitted, setSubmitted] = useState(false);
     const [teamNames, setTeamNames] = useState<Record<string, string>>({});
-    const [theme] = useState<Settings["theme"]>(() => getSettingSync("theme", "2025"));
+    const [theme] = useState<Settings["theme"]>(() => getSettingSync("theme", "2026"));
 
     // --- Load team names once ---
     useEffect(() => {
@@ -111,7 +111,7 @@ export default function PitScoutingLayout() {
     };
 
     return (
-        <ThemedWrapper theme={theme??"2026"} showLogo={false}>
+        <ThemedWrapper theme={theme??"2026"} showLogo={false} overflow={true}>
             <form
                 onSubmit={handleSubmit}
                 className="space-y-6 max-w-xl mx-auto"

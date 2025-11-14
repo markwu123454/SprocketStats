@@ -34,8 +34,8 @@ export default function HomePage() {
         void (async () => {
             const t = await getSetting("theme")
             setTheme(
-                ["dark", "light", "2025", "2026"].includes(t ?? "")
-                    ? (t as "dark" | "light" | "2025" | "2026")
+                ["dark", "light", "2025", "2026", "3473"].includes(t ?? "")
+                    ? (t as Settings["theme"])
                     : "2026"
             )
         })()
