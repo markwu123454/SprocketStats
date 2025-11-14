@@ -1,0 +1,68 @@
+export const config = {
+    runtime: "nodejs20.x",
+};
+
+export default function handler(_req: any, res: any) {
+    const get = (key: string) => process.env[key] ?? "";
+
+    const VERCEL = get("VERCEL");
+    const CI = get("CI");
+    const VERCEL_ENV = get("VERCEL_ENV");
+    const VERCEL_TARGET_ENV = get("VERCEL_TARGET_ENV");
+    const VERCEL_URL = get("VERCEL_URL");
+    const VERCEL_BRANCH_URL = get("VERCEL_BRANCH_URL");
+    const VERCEL_PROJECT_PRODUCTION_URL = get("VERCEL_PROJECT_PRODUCTION_URL");
+    const VERCEL_REGION = get("VERCEL_REGION");
+    const VERCEL_DEPLOYMENT_ID = get("VERCEL_DEPLOYMENT_ID");
+    const VERCEL_PROJECT_ID = get("VERCEL_PROJECT_ID");
+    const VERCEL_SKEW_PROTECTION_ENABLED = get("VERCEL_SKEW_PROTECTION_ENABLED");
+    // const VERCEL_AUTOMATION_BYPASS_SECRET = get("VERCEL_AUTOMATION_BYPASS_SECRET");
+    // const VERCEL_OIDC_TOKEN = get("VERCEL_OIDC_TOKEN");
+
+    const VERCEL_GIT_PROVIDER = get("VERCEL_GIT_PROVIDER");
+    const VERCEL_GIT_REPO_SLUG = get("VERCEL_GIT_REPO_SLUG");
+    const VERCEL_GIT_REPO_OWNER = get("VERCEL_GIT_REPO_OWNER");
+    const VERCEL_GIT_REPO_ID = get("VERCEL_GIT_REPO_ID");
+    const VERCEL_GIT_COMMIT_REF = get("VERCEL_GIT_COMMIT_REF");
+
+    const VERCEL_GIT_COMMIT_SHA_FULL = get("VERCEL_GIT_COMMIT_SHA");
+    const VERCEL_GIT_COMMIT_SHA_SHORT = VERCEL_GIT_COMMIT_SHA_FULL.slice(0, 7);
+
+    const VERCEL_GIT_COMMIT_MESSAGE = get("VERCEL_GIT_COMMIT_MESSAGE");
+    const VERCEL_GIT_COMMIT_AUTHOR_LOGIN = get("VERCEL_GIT_COMMIT_AUTHOR_LOGIN");
+    const VERCEL_GIT_COMMIT_AUTHOR_NAME = get("VERCEL_GIT_COMMIT_AUTHOR_NAME");
+    const VERCEL_GIT_PREVIOUS_SHA = get("VERCEL_GIT_PREVIOUS_SHA");
+    const VERCEL_GIT_PULL_REQUEST_ID = get("VERCEL_GIT_PULL_REQUEST_ID");
+
+    res.setHeader("Content-Type", "application/json");
+    res.status(200).send({
+        VERCEL,
+        CI,
+        VERCEL_ENV,
+        VERCEL_TARGET_ENV,
+        VERCEL_URL,
+        VERCEL_BRANCH_URL,
+        VERCEL_PROJECT_PRODUCTION_URL,
+        VERCEL_REGION,
+        VERCEL_DEPLOYMENT_ID,
+        VERCEL_PROJECT_ID,
+        VERCEL_SKEW_PROTECTION_ENABLED,
+        // VERCEL_AUTOMATION_BYPASS_SECRET,
+        // VERCEL_OIDC_TOKEN,
+
+        VERCEL_GIT_PROVIDER,
+        VERCEL_GIT_REPO_SLUG,
+        VERCEL_GIT_REPO_OWNER,
+        VERCEL_GIT_REPO_ID,
+
+        VERCEL_GIT_COMMIT_REF,
+        VERCEL_GIT_COMMIT_SHA_FULL,
+        VERCEL_GIT_COMMIT_SHA_SHORT,
+
+        VERCEL_GIT_COMMIT_MESSAGE,
+        VERCEL_GIT_COMMIT_AUTHOR_LOGIN,
+        VERCEL_GIT_COMMIT_AUTHOR_NAME,
+        VERCEL_GIT_PREVIOUS_SHA,
+        VERCEL_GIT_PULL_REQUEST_ID,
+    });
+}

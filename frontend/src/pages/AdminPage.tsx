@@ -41,6 +41,11 @@ const VERCEL_GIT_COMMIT_REF = (import.meta.env.VITE_GIT_COMMIT_REF || "-").slice
 export default function AdminPage() {
 
     // state
+    (async () => {
+        const res = await fetch("/api/version");
+        const {version} = await res.json();
+        console.log(version);
+    })()
 
     // refs
 
