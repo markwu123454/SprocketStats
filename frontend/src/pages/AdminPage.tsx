@@ -35,6 +35,8 @@
 // Imports
 
 // Global constants
+const VERCEL_GIT_COMMIT_SHA = import.meta.env.VITE_GIT_COMMIT_SHA ?? "-";
+const VERCEL_GIT_COMMIT_REF = (import.meta.env.VITE_GIT_COMMIT_REF || "-").slice(0, 7);
 
 export default function AdminPage() {
 
@@ -75,14 +77,16 @@ export default function AdminPage() {
                 {/* Header */}
                 <div
                     className={`
-                    pb-8 h-10
+                    pb-2 h-10
                     theme-light:bg-[#ffffff]/75
                     theme-dark:bg-[rgba(9,9,11,0.7)]/75
                     theme-2025:bg-[rgba(11,35,79,0.7)]/75
                     theme-2026:bg-[rgba(254,247,220,0.8)]/75
                     theme-3473:bg-[rgba(76,29,149,0.75)]/75
+                    text-xl
                 `}
                 >
+                    {VERCEL_GIT_COMMIT_SHA} &middot; {VERCEL_GIT_COMMIT_REF}
                     {/* Put header block here */}
                 </div>
 
@@ -102,7 +106,7 @@ export default function AdminPage() {
                 </div>
 
                 {/* Footer */}
-                <div className="pt-8 h-10 theme-light:bg-[#ffffff]/75
+                <div className="pt-2 h-10 theme-light:bg-[#ffffff]/75
                 theme-dark:bg-[rgba(9,9,11,0.7)]/75
                 theme-2025:bg-[rgba(11,35,79,0.7)]/75
                 theme-2026:bg-[rgba(254,247,220,0.8)]/75
