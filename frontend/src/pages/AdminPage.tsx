@@ -32,26 +32,30 @@
  *
  * **/
 
-// Imports
+// --- Imports ---
+import {useEffect, useState} from "react";
 
-// Global constants
-const VERCEL_GIT_COMMIT_SHA = import.meta.env.VITE_GIT_COMMIT_SHA ?? "-";
-const VERCEL_GIT_COMMIT_REF = (import.meta.env.VITE_GIT_COMMIT_REF || "-").slice(0, 7);
+
+// --- Global constants ---
+
 
 export default function AdminPage() {
 
-    // state
-    (async () => {
-        const res = await fetch("/api/version");
-        const {version} = await res.json();
-        console.log(version);
-    })()
+    // --- state ---
+    const [version, setVersion] = useState("");
 
-    // refs
+    // --- refs ---
 
-    // handlers
+    // --- handlers ---
 
-    // effects
+    // --- effects ---
+    useEffect(() => {
+        (async () => {
+            const res = await fetch("/api/version");
+            const data = await res.json();
+            setVersion(data.version);
+        })();
+    }, []);
 
     return (
         <div
@@ -91,7 +95,6 @@ export default function AdminPage() {
                     text-xl
                 `}
                 >
-                    {VERCEL_GIT_COMMIT_SHA} &middot; {VERCEL_GIT_COMMIT_REF}
                     {/* Put header block here */}
                 </div>
 
