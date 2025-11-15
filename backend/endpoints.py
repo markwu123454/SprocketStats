@@ -184,6 +184,10 @@ async def verify(session: enums.SessionInfo = Depends(db.require_session())):
 
 
 
+@router.get("/metadata")
+async def get_metadata(_: enums.SessionInfo = Depends(db.require_permission("admin"))):
+    return await db.get_metadata()
+
 
 @router.get("/admin/matches/filter")
 async def admin_filter_matches(

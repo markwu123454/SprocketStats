@@ -958,6 +958,17 @@ async def create_user_if_missing(email: str, name: str):
         await release_db_connection(DB_NAME, conn)
 
 
+async def get_metadata():
+    conn = await get_db_connection(DB_NAME)
+    try:
+        metadata = await conn.fetchrow("SELECT current_event FROM metadata LIMIT 1")
+        if metadata:
+            return {"current_event": metadata}
+    finally:
+        await release_db_connection(DB_NAME, conn)
+
+
+
 # =================== FastAPI dependencies ===================
 
 def require_session() -> Callable[..., enums.SessionInfo]:
@@ -981,4 +992,3 @@ def require_permission(required: str) -> Callable[..., enums.SessionInfo]:
             raise HTTPException(status_code=403, detail=f"Missing '{required}' permission")
         return session
     return dep
-

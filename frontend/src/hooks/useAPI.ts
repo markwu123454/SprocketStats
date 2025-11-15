@@ -1,4 +1,4 @@
-import type {TeamInfo, MatchScoutingData, MatchType, AllianceType} from '@/types'
+import type {AllianceType, MatchScoutingData, MatchType, TeamInfo} from '@/types'
 import {useCallback} from "react";
 
 const BASE_URL = import.meta.env.VITE_BACKEND_URL;
@@ -119,6 +119,24 @@ export function useAPI() {
             console.error("logout failed:", err)
         }
     }
+
+    // --- Endpoint: GET /metadata ---
+    const get_metadata = async (): Promise<Record<string, unknown>> => {
+        try {
+            const res = await fetch(`${BASE_URL}/metadata`, {
+                headers: getAuthHeaders(),
+            });
+
+            if (!res.ok) {
+                return {success: false};
+            }
+
+            return await res.json();
+        } catch (err) {
+            console.error("metadata fetch failed:", err);
+            return {success: false};
+        }
+    };
 
 
     // --- Endpoint: GET /auth/verify ---
@@ -640,6 +658,7 @@ export function useAPI() {
     return {
         login,
         logout,
+        get_metadata,
         verify,
         ping,
         claimTeam,
