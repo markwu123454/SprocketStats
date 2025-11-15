@@ -35,15 +35,20 @@
 // --- Imports ---
 import {useEffect, useState} from "react";
 import {useAPI} from "@/hooks/useAPI.ts";
-import {Button} from "@/components/ui/button.tsx";
+import {useNavigate} from "react-router-dom";
+import {ArrowLeft} from "lucide-react";
+import * as React from "react";
 
 // --- Global constants ---
 
 
 export default function AdminPage() {
+    const navigate = useNavigate();
+    const {get_metadata} = useAPI();
 
     // --- state ---
     const [version, setVersion] = useState("");
+    const [metadata, setMetadata] = useState("");
 
     // --- refs ---
 
@@ -54,6 +59,13 @@ export default function AdminPage() {
             const data = await res.json();
             setVersion(data.version);
         })();
+    }, []);
+
+    useEffect(() => {
+        void (async () => {
+            const current_event = (await get_metadata())["current_event"]
+            setMetadata(current_event as string)
+        })()
     }, []);
 
     // --- handlers ---
@@ -81,15 +93,26 @@ export default function AdminPage() {
             <div className="relative z-10 flex flex-col min-h-screen">
 
                 {/* Header */}
-                <div className="pb-2 h-10 text-xl
-                     theme-light:bg-[#ffffff]/75
-                     theme-dark:bg-[rgba(9,9,11,0.7)]/75
-                     theme-2025:bg-[rgba(11,35,79,0.7)]/75
-                     theme-2026:bg-[rgba(254,247,220,0.8)]/75
-                     theme-3473:bg-[rgba(76,29,149,0.75)]/75
-                     "
+                <div
+                    className="p-2 h-10 text-xl flex items-center
+        theme-light:bg-[#ffffff]/75
+        theme-dark:bg-[rgba(9,9,11,0.7)]/75
+        theme-2025:bg-[rgba(11,35,79,0.7)]/75
+        theme-2026:bg-[rgba(254,247,220,0.8)]/75
+        theme-3473:bg-[rgba(76,29,149,0.75)]/75
+    "
                 >
-                    {/* Put header block here */}
+                    <button
+                        onClick={() => navigate("/")}
+                        className="transition hover:opacity-80"
+                        title="Back to Home"
+                        type="button"
+                        style={{color: "var(--themed-subtext-color)"}}
+                    >
+                        <ArrowLeft className="ml-5 w-5 h-5 mr-5"/>
+                    </button>
+
+                    event: {metadata}
                 </div>
 
                 {/* Content (fills remaining space) */}
@@ -113,6 +136,8 @@ export default function AdminPage() {
                 theme-2026:bg-[rgba(254,247,220,0.8)]/75
                 theme-3473:bg-[rgba(76,29,149,0.75)]/75">
                     {/* Put footer block here */}
+
+                    <a href="https://neon.com/">Neon</a>
                 </div>
 
             </div>

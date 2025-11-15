@@ -963,7 +963,7 @@ async def get_metadata():
     try:
         metadata = await conn.fetchrow("SELECT current_event FROM metadata LIMIT 1")
         if metadata:
-            return {"current_event": metadata}
+            return metadata
     finally:
         await release_db_connection(DB_NAME, conn)
 
