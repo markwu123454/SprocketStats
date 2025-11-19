@@ -28,6 +28,7 @@
  * Footer
  *
  * Neon URL (clickable)
+ * Backend URL (clickable)
  * Branch + short commit (e.g., main • a1b2c3d)
  *
  * **/
@@ -36,11 +37,11 @@
 import {useEffect, useState} from "react";
 import {useAPI} from "@/hooks/useAPI.ts";
 import {useNavigate} from "react-router-dom";
-import {ArrowLeft} from "lucide-react";
+import {ArrowLeft, Link2} from "lucide-react";
 import * as React from "react";
 
 // --- Global constants ---
-
+const BASE_URL = import.meta.env.VITE_BACKEND_URL;
 
 export default function AdminPage() {
     const navigate = useNavigate();
@@ -137,11 +138,17 @@ export default function AdminPage() {
                 theme-3473:bg-[rgba(76,29,149,0.75)]/75">
                     {/* Put footer block here */}
 
-                    <a href="https://neon.com" target="_blank"> Neon Link </a>
+
+                        <Link2/>
+
+                        <a href="https://neon.com" target="_blank" className="text-inherit hover:text-zinc-400 text-xl">Neon
+                            Link</a>
+                        <a href={BASE_URL} target="_blank" className="text-inherit hover:text-zinc-400 text-xl"> Backend
+                            URL</a>
+                        <p className="text-shadow-lg ..."> text shadow test...</p>
+                    </div>
 
                 </div>
-
             </div>
-        </div>
-    );
-}
+            );
+            }
