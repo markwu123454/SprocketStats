@@ -73,9 +73,6 @@ export default function App() {
                             </AuthWrapper>
                         }/>
 
-                        {/* --- Guests not yet implemented --- */}
-                        <Route path="/guest" element={<NotFoundPage code={501}/>}/>
-
                         {/* --- Settings (always allowed) --- */}
                         <Route path="/setting" element={<SettingsPage/>}/>
 

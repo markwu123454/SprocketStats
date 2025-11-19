@@ -137,7 +137,8 @@ export default function AdminPage() {
                 theme-3473:bg-[rgba(76,29,149,0.75)]/75">
                     {/* Put footer block here */}
 
-                    <a href="https://neon.com/">Neon</a>
+                    <a href="https://neon.com" target="_blank"> Neon Link </a>
+
                 </div>
 
             </div>
