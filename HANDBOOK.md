@@ -171,7 +171,7 @@ Unlike the frontend and backend, it is **not deployed automatically** — releas
 
 ```bash
 cd analysis
-pyinstaller --onefile main.py --name scouting-analysis --add-data "seasons;seasons" --hidden-import pandas --hidden-import numpy --hidden-import asyncpg --hidden-import ttkbootstrap --hidden-import certifi --hidden-import sklearn --hidden-import sklearn.ensemble._forest --hidden-import sklearn.tree._classes --hidden-import sklearn.utils._joblib --hidden-import joblib
+pyinstaller build.spec
 ```
 > If you add new dependencies (e.g. `matplotlib`, `scipy`), update both `requirements.txt` and the above PyInstaller command.
 **Output:**
@@ -207,7 +207,7 @@ Before building:
    - Initial 2025 season model
    - Includes new ELO normalization and clustering improvements
    ```
-5. **Attach binaries** from the `dist/` folder (e.g. Windows `.exe`, optionally macOS/Linux builds).
+5. **Zip** the `dist/` folder and attach the zip to GitHub.
 6. Click **“Publish release.”**
 
 
