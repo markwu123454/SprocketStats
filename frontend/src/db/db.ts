@@ -28,15 +28,20 @@ export const db = new ScoutingAppDB()
 export async function saveScoutingData(data: ScoutingData, status: ScoutingStatus) {
     const { match, match_type, teamNumber } = data
     if (
-        match === null || match === undefined ||
+        match == null ||
         !match_type ||
-        teamNumber === null || teamNumber === undefined
+        teamNumber == null
     ) {
         throw new Error('match, match_type, and teamNumber must be set to generate a key')
     }
 
     const key = makeScoutingKey(match_type, match, teamNumber)
-    const entry: ScoutingDataWithKey = { ...data, key, status }
+    // Deep-clone the data to ensure all nested proxies are stripped
+    const entry: ScoutingDataWithKey = {
+        ...(structuredClone ? structuredClone(data) : JSON.parse(JSON.stringify(data))),
+        key,
+        status,
+    }
 
     try {
         await db.scouting.put(entry)
@@ -49,12 +54,17 @@ export async function saveScoutingData(data: ScoutingData, status: ScoutingStatu
 export async function getScoutingData(match_type: string, match: number, teamNumber: number) {
     const key = makeScoutingKey(match_type, match, teamNumber)
     try {
-        return await db.scouting.get(key)
+        const raw = await db.scouting.get(key)
+        // Always deep-clone when returning, so the caller gets a fresh object
+        return raw
+            ? (structuredClone ? structuredClone(raw) : JSON.parse(JSON.stringify(raw)))
+            : null
     } catch (err) {
         console.error('Failed to get scouting data:', err)
         throw err
     }
 }
+
 
 export async function getAllScoutingKeys(): Promise<string[]> {
     try {

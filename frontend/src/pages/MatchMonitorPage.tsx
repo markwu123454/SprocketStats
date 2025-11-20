@@ -18,13 +18,19 @@ export default function AdminMonitoringPage() {
     const [rows, setRows] = useState<MatchRow[]>([])
     const [loading, setLoading] = useState(true)
     const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
-    const [theme, setTheme] = useState<Settings["theme"]>(() => getSettingSync("theme", "2025"))
+    const [theme] = useState<Settings["theme"]>(() => getSettingSync("theme", "2025"))
 
     // --- Fetch every 5 seconds ---
     const loadData = async () => {
         try {
             const res = await getFilteredMatches(undefined, ["pre", "auto", "teleop", "post"])
-            setRows(res)
+            setRows(
+                res.map(r => ({
+                    ...r,
+                    alliance: r.alliance as "red" | "blue",
+                }))
+            )
+
             setLastUpdated(new Date())
         } finally {
             setLoading(false)
@@ -32,7 +38,7 @@ export default function AdminMonitoringPage() {
     }
 
     useEffect(() => {
-        loadData()
+        void loadData()
         const id = setInterval(loadData, 2000)
         return () => clearInterval(id)
     }, [])
@@ -43,7 +49,7 @@ export default function AdminMonitoringPage() {
         if (!acc[key]) acc[key] = {type: r.match_type, num: r.match, red: [], blue: []}
         acc[key][r.alliance].push(r)
         return acc
-    }, {} as Record<string, {type: string; num: number; red: MatchRow[]; blue: MatchRow[]}>)
+    }, {} as Record<string, { type: string; num: number; red: MatchRow[]; blue: MatchRow[] }>)
 
     // --- Sort: type order (qm → sf → f) then by number ---
     const typeOrder: Record<string, number> = {qm: 1, sf: 2, f: 3}
@@ -70,8 +76,8 @@ export default function AdminMonitoringPage() {
                     absolute inset-0 bg-top bg-cover transition-colors duration-500
                     ${theme === "light" ? "bg-zinc-100" : ""}
                     ${theme === "dark" ? "bg-zinc-950" : ""}
-                    ${theme === "2025" ? "bg-[url('@/assets/backgrounds/2025_expanded.png')]" : ""}
-                    ${theme === "2026" ? "bg-[url('@/assets/backgrounds/2026_expanded.png')]" : ""}
+                    ${theme === "2025" ? "bg-[url('/seasons/2025/expanded.png')]" : ""}
+                    ${theme === "2026" ? "bg-[url('/seasons/2026/expanded.png')]" : ""}
                 `}
             />
 
@@ -86,7 +92,7 @@ export default function AdminMonitoringPage() {
 
                 {loading ? (
                     <div className="flex justify-center py-10">
-                        <Loader2 className="animate-spin h-6 w-6 opacity-60" />
+                        <Loader2 className="animate-spin h-6 w-6 opacity-60"/>
                     </div>
                 ) : sortedMatches.length === 0 ? (
                     <div className="text-center opacity-70 py-10">

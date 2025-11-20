@@ -1,4 +1,5 @@
 import type {TeamInfo, MatchScoutingData, MatchType, AllianceType} from '@/types'
+import {useCallback} from "react";
 
 const BASE_URL = import.meta.env.VITE_BACKEND_URL;
 const UUID_COOKIE = "scouting_uuid"
@@ -37,22 +38,13 @@ export function getScouterName(): string | null {
 export function useAPI() {
     let cachedName: string | null = null
 
-    type SubmitPayload = {
-        match_type: MatchType;
-        alliance: AllianceType;
-        scouter: string;
-        data: Omit<MatchScoutingData,
-            'match' |
-            'alliance' |
-            'teamNumber' |
-            'scouter'
-        >;
-    }
-
     const getCachedName = (): string | null => cachedName
 
+
     // --- Endpoint: GET /ping ---
-    const ping = async (): Promise<boolean> => {
+    const ping = async (): Promise<
+        boolean
+    > => {
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), 4000);
 
@@ -73,6 +65,7 @@ export function useAPI() {
         }
     };
 
+    // --- Endpoint: POST /auth/login ---
     const login = async (credential: string): Promise<{
         success: boolean
         name?: string
@@ -83,7 +76,8 @@ export function useAPI() {
             match_scouting: boolean
             pit_scouting: boolean
         }
-    }> => {
+    }
+    > => {
         deleteCookie(UUID_COOKIE)
         deleteCookie(NAME_COOKIE)
 
@@ -115,8 +109,20 @@ export function useAPI() {
         }
     }
 
+    // --- Endpoint: Local logout ---
+    const logout = async (): Promise<void> => {
+        try {
+            deleteCookie(UUID_COOKIE)
+            deleteCookie(NAME_COOKIE)
+            cachedName = null
+        } catch (err) {
+            console.error("logout failed:", err)
+        }
+    }
+
+
     // --- Endpoint: GET /auth/verify ---
-    const verify = async (): Promise<{
+    const verify = useCallback(async (): Promise<{
         success: boolean
         name?: string
         permissions?: {
@@ -125,7 +131,8 @@ export function useAPI() {
             match_scouting: boolean
             pit_scouting: boolean
         }
-    }> => {
+    }
+    > => {
         try {
             const res = await fetch(`${BASE_URL}/auth/verify`, {
                 headers: getAuthHeaders(),
@@ -142,7 +149,8 @@ export function useAPI() {
         } catch {
             return {success: false}
         }
-    }
+    }, []) // <-- stable identity
+
 
     // --- Endpoint: GET /admin/matches/filter ---
     const getFilteredMatches = async (
@@ -192,15 +200,17 @@ export function useAPI() {
     };
 
 
-    // --- Endpoint: GET /team/{team} ---
+// --- Endpoint: GET /team/{team} ---
     const getTeamBasicInfo = async (
         team: number | string
-    ): Promise<{
-        number: number
-        nickname: string
-        rookie_year: number | null
-        scouted: boolean
-    } | null> => {
+    ): Promise<
+        {
+            number: number
+            nickname: string
+            rookie_year: number | null
+            scouted: boolean
+        } | null
+    > => {
         try {
             const res = await fetch(`${BASE_URL}/team/${team}`, {
                 headers: getAuthHeaders(),
@@ -232,12 +242,25 @@ export function useAPI() {
     };
 
 
-    // --- Endpoint: POST /scouting/{m_type}/{match}/{team}/submit ---
+// --- Endpoint: POST /scouting/{m_type}/{match}/{team}/submit ---
     const submitData = async (
         match: number,
         team: number,
-        fullData: SubmitPayload
-    ): Promise<boolean> => {
+        fullData: {
+            match_type: MatchType;
+            alliance: AllianceType;
+            scouter: string;
+            data: Omit<MatchScoutingData,
+                'match' |
+                'match_type' |
+                'alliance' |
+                'teamNumber' |
+                'scouter'
+            >;
+        }
+    ): Promise<
+        boolean
+    > => {
         try {
             const {match_type, alliance, scouter, data} = fullData;
             const body = {match_type, alliance, scouter, ...data};
@@ -264,7 +287,9 @@ export function useAPI() {
         team: number,
         match_type: MatchType,
         scouter: string
-    ): Promise<boolean> => {
+    ): Promise<
+        boolean
+    > => {
         try {
             const query = new URLSearchParams({scouter});
             const res = await fetch(
@@ -281,13 +306,16 @@ export function useAPI() {
         }
     };
 
+
     // --- Endpoint: PATCH /scouting/{m_type}/{match}/{team}/unclaim ---
     const unclaimTeam = async (
         match: number,
         team: number,
         match_type: MatchType,
         scouter: string
-    ): Promise<boolean> => {
+    ): Promise<
+        boolean
+    > => {
         try {
             const query = new URLSearchParams({scouter});
             const res = await fetch(
@@ -304,6 +332,21 @@ export function useAPI() {
         }
     };
 
+    const unclaimTeamBeacon = (
+        match: number,
+        team: number,
+        match_type: MatchType,
+        scouter: string
+    ) => {
+        try {
+            const url = `${BASE_URL}/scouting/${match_type}/${match}/${team}/unclaim-beacon?scouter=${encodeURIComponent(scouter)}`;
+            navigator.sendBeacon(url);
+        } catch (err) {
+            console.warn("unclaimTeamBeacon failed:", err);
+        }
+    };
+
+
     // --- Endpoint: PATCH /scouting/{m_type}/{match}/{team}/state ---
     const updateState = async (
         match: number,
@@ -311,7 +354,9 @@ export function useAPI() {
         match_type: MatchType,
         scouter: string,
         phase: "pre" | "auto" | "teleop" | "post" | "submitted"
-    ): Promise<boolean> => {
+    ): Promise<
+        boolean
+    > => {
         try {
             // Prevent updates from non-owners
             if (!scouter) {
@@ -348,12 +393,14 @@ export function useAPI() {
     };
 
 
-    // --- Endpoint: GET /match/{m_type}/{match}/{alliance} ---
+// --- Endpoint: GET /match/{m_type}/{match}/{alliance} ---
     const getTeamList = async (
         match: number,
         m_type: MatchType,
         alliance: 'red' | 'blue'
-    ): Promise<TeamInfo[]> => {
+    ): Promise<
+        TeamInfo[]
+    > => {
         try {
             const res = await fetch(`${BASE_URL}/match/${m_type}/${match}/${alliance}`, {
                 headers: getAuthHeaders(),
@@ -376,12 +423,15 @@ export function useAPI() {
         }
     }
 
+
     // --- Endpoint: GET /status/All/All ---
-    const getAllStatuses = async (): Promise<Record<string, Record<number, {
+    const getAllStatuses = async (): Promise<
+        Record<string, Record<number, {
             status: string;
             scouter: string | null
         }>>
-        | null> => {
+        | null
+    > => {
         try {
             const res = await fetch(`${BASE_URL}/status/All/All`, {
                 headers: getAuthHeaders(),
@@ -393,6 +443,7 @@ export function useAPI() {
         }
     }
 
+
     // --- Endpoint: GET /match/{m_type}/{match}/{alliance}/state ---
     const getScouterState = async (
         match: number,
@@ -401,7 +452,8 @@ export function useAPI() {
     ): Promise<{
         timestamp: string | null
         teams: Record<string, { scouter: string | null }>
-    } | null> => {
+    } | null
+    > => {
         try {
             const res = await fetch(`${BASE_URL}/match/${m_type}/${match}/${alliance}/state`, {
                 headers: getAuthHeaders(),
@@ -428,6 +480,7 @@ export function useAPI() {
             return null;
         }
     };
+
 
     // --- Endpoint: GET /pit/teams ---
     const getPitTeams = async (): Promise<
@@ -456,6 +509,7 @@ export function useAPI() {
         }
     };
 
+
     // --- Endpoint: GET /pit/{team} ---
     const getPitData = async (
         team: number | string
@@ -465,7 +519,8 @@ export function useAPI() {
         status: string;
         data: Record<string, any>;
         last_modified: number;
-    } | null> => {
+    } | null
+    > => {
         try {
             const res = await fetch(`${BASE_URL}/pit/${team}`, {
                 headers: getAuthHeaders(),
@@ -483,13 +538,15 @@ export function useAPI() {
         }
     };
 
-    // --- Endpoint: POST /pit/{team} ---
+// --- Endpoint: POST /pit/{team} ---
     const updatePitData = async (
         team: number | string,
         scouter: string,
         data: Record<string, any>,
         status: "pre" | "submitted" | "unclaimed" | "in_progress" = "pre"
-    ): Promise<boolean> => {
+    ): Promise<
+        boolean
+    > => {
         try {
             const body = {
                 scouter,
@@ -518,12 +575,15 @@ export function useAPI() {
         }
     };
 
+
     // --- Endpoint: POST /pit/{team}/submit ---
     const submitPitData = async (
         team: number | string,
         scouter: string,
         data: Record<string, any>
-    ): Promise<boolean> => {
+    ): Promise<
+        boolean
+    > => {
         try {
             const body = {
                 scouter,
@@ -551,13 +611,59 @@ export function useAPI() {
         }
     };
 
+// --- Endpoint: GET /data/processed ---
+    const getProcessedData = async (
+        event_key?: string
+    ): Promise<Record<string, any> | null> => {
+        try {
+            const url = new URL(`${BASE_URL}/data/processed`);
+            if (event_key) url.searchParams.set("event_key", event_key);
+
+            const res = await fetch(url.toString(), {
+                headers: getAuthHeaders(),
+            });
+
+            if (!res.ok) {
+                console.warn(`getProcessedData failed: ${res.status} ${res.statusText}`);
+                return null;
+            }
+
+            const json = await res.json();
+            return json.data ?? null;
+        } catch (err) {
+            console.error("getProcessedData failed:", err);
+            return null;
+        }
+    };
+
+    // --- Endpoint: GET /data/candy ---
+    const getCandyData = async (): Promise<Record<string, any> | null> => {
+        try {
+            const res = await fetch(`${BASE_URL}/data/candy`, {
+                headers: getAuthHeaders(),
+            });
+
+            if (!res.ok) {
+                console.warn(`getCandyData failed: ${res.status} ${res.statusText}`);
+                return null;
+            }
+
+            return await res.json();
+        } catch (err) {
+            console.error("getCandyData failed:", err);
+            return null;
+        }
+    };
+
 
     return {
         login,
+        logout,
         verify,
         ping,
         claimTeam,
         unclaimTeam,
+        unclaimTeamBeacon,
         updateState,
         submitData,
         getTeamList,
@@ -570,5 +676,7 @@ export function useAPI() {
         submitPitData,
         getTeamBasicInfo,
         getFilteredMatches,
+        getProcessedData,
+        getCandyData,
     };
 }

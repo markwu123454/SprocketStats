@@ -2,7 +2,7 @@ import Dexie, { type Table } from "dexie"
 
 // 1. Typed settings object
 export type Settings = {
-    theme?: "dark" | "light" | "2025" | "2026"
+    theme?: "dark" | "light" | "2025" | "2026" | "3473"
     field_orientation?: "0" | "90" | "180" | "270"
 } & Record<string, string | boolean | number | undefined>
 
@@ -41,17 +41,19 @@ export async function setSetting(patch: Partial<Settings>) {
         const updated = { ...current, ...patch }
         await settingsDB.settings.put({ key: GLOBAL_KEY, value: updated })
 
-        // Write each key to localStorage for instant retrieval
+        // Mirror to localStorage for instant sync access
         for (const [k, v] of Object.entries(patch)) {
             if (v !== undefined) localStorage.setItem(`setting_${k}`, String(v))
         }
     })
 }
 
-
 // 4. Clear all settings
 export async function clearSettings() {
     await settingsDB.settings.clear()
+    Object.keys(localStorage)
+        .filter(k => k.startsWith("setting_"))
+        .forEach(k => localStorage.removeItem(k))
 }
 
 // 5. Fast, synchronous read (for startup UI only)
@@ -60,14 +62,10 @@ export function getSettingSync<K extends keyof Settings>(
     fallback?: Settings[K]
 ): Settings[K] {
     try {
-        // Try from localStorage first (instant)
         const cached = localStorage.getItem(`setting_${key}`)
         if (cached !== null) return cached as Settings[K]
-
-        // Dexie is async by design; don't block on it.
-        // So this only works if you previously cached it via setSetting below.
-        return fallback ?? null as Settings[K]
+        return (fallback ?? null) as Settings[K]
     } catch {
-        return fallback ?? null as Settings[K]
+        return (fallback ?? null) as Settings[K]
     }
 }

@@ -11,6 +11,7 @@ This document serves as a concise guide for developers working on the FRC Scouti
 - [Infrastructure](#infrastructure)
 - [Branching Rules](#branching-rules)
 - [Analysis Releases](#analysis-releases)
+- [Season Rollover](#season-rollover)
 
 ---
 
@@ -19,8 +20,11 @@ This document serves as a concise guide for developers working on the FRC Scouti
 **Installation**
 Using Node.js v22 and Python v3.11
 ```bash
+cd frontend
 npm install
-pip install -r backend/requirements.txt
+cd ..
+cd backend
+pip install -r requirements.txt
 ````
 
 **Run Commands**
@@ -38,8 +42,8 @@ pip install -r backend/requirements.txt
 
 ```
 analysis/ → Standalone data processor and ELO/ML computation
-│ └── seasons/ → Year-specific scouting data and analysis configs
-│ └── main.py → Entry point for analysis executable
+│ ├── seasons/ → Year-specific scouting data and analysis configs
+│ ├── main.py → Entry point for analysis executable
 │ └── .env → Local environment for analysis module
 
 backend/ → FastAPI server and API logic
@@ -48,21 +52,20 @@ backend/ → FastAPI server and API logic
 │ ├── enums.py → Shared enums for data consistency
 │ ├── main.py → FastAPI app entry point
 │ ├── requirements.txt → Python dependencies
-│ ├── .env → Backend-specific environment
+│ └── .env → Backend-specific environment
 
 frontend/ → React + Vite web client
 │ ├── src/ → Main source directory
-│ │ ├── assets/ → Images, icons, and static frontend assets
 │ │ ├── components/ → Reusable UI components
 │ │ │ ├── seasons/ → Year-spesific scouting pages and types
-│ │ │ ├── ui/ → Pre-built ui elements for match and pit scouting
+│ │ │ └── ui/ → Pre-built ui elements for match and pit scouting
 │ │ ├── contexts/ → React contexts (e.g. telemetry, auth)
 │ │ ├── db/ → Local Dexie/IndexedDB interfaces
 │ │ ├── hooks/ → Reusable custom React hooks
 │ │ ├── lib/ → Utility functions and constants
 │ │ ├── pages/ → Top-level routed pages
-│ │ ├── types/ → TypeScript interfaces and type definitions
-│ ├── .env → Frontend-specific environment
+│ │ └── types/ → TypeScript interfaces and type definitions
+│ └── .env → Frontend-specific environment
 
 run.py → Unified runner for managing frontend + backend dev/prod modes
 ```
@@ -81,13 +84,15 @@ run.py → Unified runner for managing frontend + backend dev/prod modes
 Each developer must maintain a valid `.env` file at the project root.
 Sync with `.env.example` when new variables are added.
 
-| Variable                | Description                            | Used By            |
-|-------------------------|----------------------------------------|--------------------|
-| `TBA_KEY`               | The Blue Alliance API key              | Backend / Analysis |
-| `DATABASE_URL`          | Neon PostgreSQL connection URL         | Backend            |
-| `CORS_ORIGINS`          | Allowed CORS origins (comma-separated) | Backend            |
-| `VITE_GOOGLE_CLIENT_ID` | Google OAuth client ID                 | Frontend / Backend |
-| `VITE_BACKEND_URL`      | Backend URL                            | Frontend           |
+| Variable                         | Description                            | Used By            | Example Value                                                    |
+|----------------------------------|----------------------------------------|--------------------|------------------------------------------------------------------|
+| `TBA_KEY`                        | The Blue Alliance API key              | Backend / Analysis | `abc123def4567890`                                               |
+| `DATABASE_URL`                   | Neon PostgreSQL connection URL         | Backend            | `postgresql://user:pass@ep-xyz123.us-west1.aws.neon.tech/neondb` |
+| `CORS_ORIGINS`                   | Allowed CORS origins (comma-separated) | Backend            | `https://sprocketstats.com,https://localhost:5173`               |
+| `GOOGLE_APPLICATION_CREDENTIALS` | GCS key                                | Backend            | `/etc/secrets/gcs.json`                                          |
+| `VITE_GOOGLE_CLIENT_ID`          | Google OAuth client ID                 | Frontend / Backend | `1234567890-abcdefghi.apps.googleusercontent.com`                |
+| `VITE_BACKEND_URL`               | Backend URL                            | Frontend           | `https://api.sprocketstats.com`                                  |
+
 
 **Rules:**
 
@@ -101,12 +106,13 @@ Sync with `.env.example` when new variables are added.
 
 ## Infrastructure
 
-| Service                                                           | Purpose                        | Development                                     | Production                                                                              |
-|-------------------------------------------------------------------|--------------------------------|-------------------------------------------------|-----------------------------------------------------------------------------------------|
-| **[Neon](https://neon.com/)**                                     | PostgreSQL serverless database | —                                               | —                                                                                       |
-| **[Vercel](https://vercel.com/)**                                 | Frontend deployment (Vite)     | [http://localhost:5173](http://localhost:5173/) | [https://sprocket-scouting-demo.vercel.app](https://sprocket-scouting-demo.vercel.app/) |
-| **[Render](https://render.com/)**                                 | Backend deployment (FastAPI)   | [http://localhost:8000](http://localhost:8000/) | [https://sprocketscoutingdemo.onrender.com](https://sprocketscoutingdemo.onrender.com/) |
-| **[Google OAuth](https://console.cloud.google.com/auth/clients)** | User login & identity          | —                                               | —                                                                                       |
+| Service                                                                            | Purpose                        | Development           | Production                                | Cost |
+|------------------------------------------------------------------------------------|--------------------------------|-----------------------|-------------------------------------------|------|
+| **[Vercel](https://vercel.com/)**                                                  | Frontend deployment (Vite)     | http://localhost:5173 | https://sprocketstats.vercel.app          | $0   |
+| **[Render](https://render.com/)**                                                  | Backend deployment (FastAPI)   | http://localhost:8000 | https://sprocketscoutingdemo.onrender.com | $0   |
+| **[Google Identity Services(GIS)](https://console.cloud.google.com/auth/clients)** | User login & identity          | —                     | —                                         | $0   |
+| **[Neon](https://neon.com/)**                                                      | PostgreSQL serverless database | —                     | —                                         | $0   |
+| **[Google Cloud Storage(GCS)](https://console.cloud.google.com/storage)**          | Unstructured file storage      | —                     | —                                         | $0   |
 
 ---
 
@@ -167,8 +173,7 @@ Unlike the frontend and backend, it is **not deployed automatically** — releas
 cd analysis
 pyinstaller build.spec
 ```
-> If you add new dependencies (e.g. `matplotlib`, `scipy`), update both `requirements.txt` and build.spec.
-
+> If you add new dependencies (e.g. `matplotlib`, `scipy`), update both `requirements.txt` and the above PyInstaller command.
 **Output:**
 
 ```
@@ -214,3 +219,47 @@ Before building:
 * Test each uploaded binary before publishing.
 
 ---
+
+## Season Rollover
+
+The following files and directories need to be updated every new season:
+
+```analysis/ → Standalone data processor and ELO/ML computation
+│ ├── seasons/ → Add new folder with year number
+│ └── main.py → Change dynamic import to point to new year's folder, change major version to new year
+
+backend/ → FastAPI server and API logic
+│ ├── seasons/ → Add new folder with year number
+│ └── endpoints.py → Change dynamic import to point to new year's folder, change major version to new year
+
+frontend/ → React + Vite web client
+│ ├── public/
+│ │ ├── teams/
+│ │ │ └── populate_teams.py → Change year number
+│ ├── src/ → Main source directory
+│ │ ├── components/ 
+│ │ │ └── seasons/ → Add new folder with year number
+│ │ ├── contexts/
+│ │ │ └── themeProvider.tsx → Add new year theme
+│ │ ├── db/ → Local Dexie/IndexedDB interfaces
+│ │ │ └── settingsDb.ts → Add new year theme
+│ │ ├── pages/
+│ │ │ ├── HomePage.tsx → Add new year theme
+│ │ │ ├── MatchMonitorPage.tsx → Add new year theme
+│ │ │ ├── MatchScoutingPage.tsx → Update import
+│ │ │ ├── NotFoundPage.tsx → Add new year theme
+│ │ │ ├── NotFoundPage.tsx → Add new year theme
+│ │ │ └── Settings.tsx → Add new year theme
+│ │ ├── types/
+│ │ │ └── index.ts → Update import
+│ │ └── index.css → Add new tailwind variant
+```
+
+### Season Rollover Checklist
+
+| Tasks                            | Description                                                                                             | Status |
+|----------------------------------|---------------------------------------------------------------------------------------------------------|--------|
+| Add new season's theme           | in index.css add `@custom-variant theme-2027 (&:is(.theme-2027 *));`, and add theme for relevant files. |        |
+| Update pit scouting questions    | Decide on pit questions for the new season and implement them in the page.                              |        |
+| Update match scouting            | Decide on match scouting layout and questions, implement ui element, the each phase's page.             |        |
+| Add new data analysis calculator | Based on collected data make a new calculator for data analysis.                                        |        |

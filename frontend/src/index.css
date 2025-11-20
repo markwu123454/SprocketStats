@@ -7,6 +7,7 @@
 @custom-variant theme-dark (&:is(.theme-dark *));
 @custom-variant theme-2025 (&:is(.theme-2025 *));
 @custom-variant theme-2026 (&:is(.theme-2026 *));
+@custom-variant theme-3473 (&:is(.theme-3473 *));
 
 /* TODO: delete later */
 @custom-variant dark (&:is(.dark *));
@@ -130,35 +131,6 @@
 
 @theme {
     --font-roboto: "Roboto", sans-serif;
-}
-
-@layer utilities {
-  .bg-rainbow {
-    background-image: linear-gradient(
-      60deg,
-      #ff4d4d,
-      #ff4d4d,
-      #ff9900,
-      #ffee00,
-      #33cc33,
-      #00ccff,
-      #3366ff,
-      #cc33ff,
-      #ff4d4d,
-        #ff4d4d/* repeat first color to close the loop */
-    );
-    background-size: 800% 100%;
-    animation: rainbow-scroll 6s linear infinite;
-  }
-}
-
-@keyframes rainbow-scroll {
-  0% {
-    background-position-x: 0;
-  }
-  100% {
-    background-position-x: 100%;
-  }
 }
 
 

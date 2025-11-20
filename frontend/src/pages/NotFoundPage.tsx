@@ -5,16 +5,29 @@ interface NotFoundPageProps {
 }
 
 export default function NotFoundPage({ code = 404 }: NotFoundPageProps) {
-    const memeImages = useMemo(() => {
-        const allImports = import.meta.glob("@/assets/meme/*.{png,gif}", { eager: true })
-        return Object.values(allImports).map((mod: any) => mod.default)
-    }, [])
+    // --- Meme URLs (from /public/meme/) ---
+    const memeImages = useMemo(
+        () => [
+            "/meme/1.png",
+            "/meme/2.gif",
+            "/meme/3.png",
+            "/meme/4.png",
+            "/meme/5.png",
+            "/meme/6.png",
+            "/meme/7.png",
+            "/meme/8.png",
+            "/meme/9.png",
+            "/meme/Spot_the_cow.gif",
+            "/meme/frc-crescendo (1).gif",
+        ],
+        []
+    )
 
     const getRandomImage = () => memeImages[Math.floor(Math.random() * memeImages.length)]
     const [currentImage, setCurrentImage] = useState(getRandomImage)
 
     const paragraphRef = useRef<HTMLParagraphElement>(null)
-    const [paraWidth, setParaWidth] = useState<number | undefined>(undefined)
+    const [paraWidth, setParaWidth] = useState<number>()
 
     useLayoutEffect(() => {
         if (paragraphRef.current) setParaWidth(paragraphRef.current.offsetWidth)
@@ -58,11 +71,10 @@ export default function NotFoundPage({ code = 404 }: NotFoundPageProps) {
                 flex flex-col md:flex-row h-screen w-screen overflow-hidden bg-top bg-cover transition-colors duration-500
                 theme-light:bg-zinc-100
                 theme-dark:bg-zinc-950
-                theme-2025:bg-[url('@/assets/backgrounds/2025_expanded.png')]
-                theme-2026:bg-[url('@/assets/backgrounds/2026_expanded.png')]
+                theme-2025:bg-[url('/seasons/2025/expanded.png')]
+                theme-2026:bg-[url('/seasons/2026/expanded.png')]
             "
         >
-            {/* --- Text Section --- */}
             <div
                 className="
                     w-full md:w-1/2 flex flex-col justify-center items-start px-8 md:pl-20 py-10 gap-y-4
@@ -142,8 +154,7 @@ export default function NotFoundPage({ code = 404 }: NotFoundPageProps) {
                 </div>
             </div>
 
-            {/* --- Image Section --- */}
-            <div className="w-full md:w-1/2 flex-1 flex items-center justify-center h-full">
+            <div className="w-full md:w-1/2 flex items-center justify-center h-full">
                 <img
                     src={currentImage}
                     alt="Random meme"
