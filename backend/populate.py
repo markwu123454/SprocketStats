@@ -14,7 +14,7 @@ async def get_candy_data():
     # ---------------------------------------------------------
     # Step 1 – Fetch teams for the two target events
     # ---------------------------------------------------------
-    events = ["2026capoh", "2026casgv"]
+    events = ["2026capoh", "2026casgv", "2025caoc", "2025cafr"]
 
     event_team_map = {
         event: await tba.fetch(f"event/{event}/teams/keys", use_backoff=True) or []
@@ -143,7 +143,9 @@ async def get_candy_data():
     # ---------------------------------------------------------
     # Step 8 – Cache + return
     # ---------------------------------------------------------
+    print("Uploading...")
     await db.set_misc(cache_key, json.dumps(final_output))
+    print("Done.")
     return final_output
 
-print(asyncio.run(get_candy_data()))
+asyncio.run(get_candy_data())

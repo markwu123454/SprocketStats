@@ -93,20 +93,49 @@ export default function CandyDataPage() {
                     .reduce((sum, [, dp]: any) => sum + (dp.total ?? 0), 0);
             }
 
+            // Include Impact (0), EI (9), AND Impact Finalist (69)
             const awardsRaw = (record.awards || []).filter((a: any) =>
-                [0, 9].includes(a.award_type)
+                [0, 9, 69].includes(a.award_type)
             );
 
             let awardsValue = 0;
             const formattedAwards: Array<{ text: string; className: string }> = [];
+
             for (const a of awardsRaw) {
                 const isImpact = a.award_type === 0;
-                const label = isImpact ? "Impact" : "EI";
-                const score = a.year >= 2022 ? (isImpact ? 5 : 4) : 1;
+                const isEI = a.award_type === 9;
+                const isImpactFinalist = a.award_type === 69;
+
+                // Label
+                const label = isImpact
+                    ? "Impact"
+                    : isEI
+                        ? "EI"
+                        : "Impact Finalist";
+
+                // Score
+                let score = 1;
+                if (a.year >= 2022) {
+                    if (isImpact) score = 5;
+                    else if (isEI) score = 4;
+                    else if (isImpactFinalist) score = 5; // You can adjust if needed
+                }
                 awardsValue += score;
+
+                const shortName = eventNameMap[a.event_key]["short"];
+                const lowerShort = shortName.toLowerCase();
+
+                const isSpecialEvent =
+                    lowerShort.endsWith("division") || lowerShort.endsWith("field");
+
+                let className = a.year >= 2022 ? "font-bold" : "text-gray-500";
+                if (isSpecialEvent) {
+                    className += " text-yellow-500 font-extrabold";
+                }
+
                 formattedAwards.push({
-                    text: `${a.year}-${eventNameMap[a.event_key]["short"]}–${label}`,
-                    className: a.year >= 2022 ? "font-bold" : "text-gray-500"
+                    text: `${a.year}-${shortName}–${label}`,
+                    className
                 });
             }
 
@@ -121,6 +150,7 @@ export default function CandyDataPage() {
             };
         });
     }, [selectedEvent, teams, teamData]);
+
 
     return (
         <div
