@@ -84,13 +84,15 @@ run.py → Unified runner for managing frontend + backend dev/prod modes
 Each developer must maintain a valid `.env` file at the project root.
 Sync with `.env.example` when new variables are added.
 
-| Variable                | Description                            | Used By            |
-|-------------------------|----------------------------------------|--------------------|
-| `TBA_KEY`               | The Blue Alliance API key              | Backend / Analysis |
-| `DATABASE_URL`          | Neon PostgreSQL connection URL         | Backend            |
-| `CORS_ORIGINS`          | Allowed CORS origins (comma-separated) | Backend            |
-| `VITE_GOOGLE_CLIENT_ID` | Google OAuth client ID                 | Frontend / Backend |
-| `VITE_BACKEND_URL`      | Backend URL                            | Frontend           |
+| Variable                         | Description                            | Used By            | Example Value                                                    |
+|----------------------------------|----------------------------------------|--------------------|------------------------------------------------------------------|
+| `TBA_KEY`                        | The Blue Alliance API key              | Backend / Analysis | `abc123def4567890`                                               |
+| `DATABASE_URL`                   | Neon PostgreSQL connection URL         | Backend            | `postgresql://user:pass@ep-xyz123.us-west1.aws.neon.tech/neondb` |
+| `CORS_ORIGINS`                   | Allowed CORS origins (comma-separated) | Backend            | `https://sprocketstats.com,https://localhost:5173`               |
+| `GOOGLE_APPLICATION_CREDENTIALS` | GCS key                                | Backend            | `/etc/secrets/gcs.json`                                          |
+| `VITE_GOOGLE_CLIENT_ID`          | Google OAuth client ID                 | Frontend / Backend | `1234567890-abcdefghi.apps.googleusercontent.com`                |
+| `VITE_BACKEND_URL`               | Backend URL                            | Frontend           | `https://api.sprocketstats.com`                                  |
+
 
 **Rules:**
 
@@ -104,12 +106,13 @@ Sync with `.env.example` when new variables are added.
 
 ## Infrastructure
 
-| Service                                                           | Purpose                        | Development                                     | Production                                                                              |
-|-------------------------------------------------------------------|--------------------------------|-------------------------------------------------|-----------------------------------------------------------------------------------------|
-| **[Neon](https://neon.com/)**                                     | PostgreSQL serverless database | —                                               | —                                                                                       |
-| **[Vercel](https://vercel.com/)**                                 | Frontend deployment (Vite)     | [http://localhost:5173](http://localhost:5173/) | [https://sprocket-scouting-demo.vercel.app](https://sprocket-scouting-demo.vercel.app/) |
-| **[Render](https://render.com/)**                                 | Backend deployment (FastAPI)   | [http://localhost:8000](http://localhost:8000/) | [https://sprocketscoutingdemo.onrender.com](https://sprocketscoutingdemo.onrender.com/) |
-| **[Google OAuth](https://console.cloud.google.com/auth/clients)** | User login & identity          | —                                               | —                                                                                       |
+| Service                                                                            | Purpose                        | Development           | Production                                | Cost |
+|------------------------------------------------------------------------------------|--------------------------------|-----------------------|-------------------------------------------|------|
+| **[Vercel](https://vercel.com/)**                                                  | Frontend deployment (Vite)     | http://localhost:5173 | https://sprocketstats.vercel.app          | $0   |
+| **[Render](https://render.com/)**                                                  | Backend deployment (FastAPI)   | http://localhost:8000 | https://sprocketscoutingdemo.onrender.com | $0   |
+| **[Google Identity Services(GIS)](https://console.cloud.google.com/auth/clients)** | User login & identity          | —                     | —                                         | $0   |
+| **[Neon](https://neon.com/)**                                                      | PostgreSQL serverless database | —                     | —                                         | $0   |
+| **[Google Cloud Storage(GCS)](https://console.cloud.google.com/storage)**          | Unstructured file storage      | —                     | —                                         | $0   |
 
 ---
 

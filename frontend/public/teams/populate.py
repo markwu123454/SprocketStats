@@ -12,6 +12,7 @@ HEADERS = {"X-TBA-Auth-Key": TBA_KEY}
 BASE_URL = "https://www.thebluealliance.com/api/v3"
 OUT_DIR = "team_icons"
 TEAM_NAMES_JSON = "team_names.json"
+EVENT_NAMES_JSON = "event_names.json"
 MAX_SIZE = 65536  # bytes
 CURRENT_YEAR = 2025
 CONCURRENCY = 25
@@ -56,6 +57,52 @@ async def get_all_teams(session):
     return teams
 
 
+def shorten_event_name(name: str) -> str:
+    """
+    Produce a shortened event name:
+      - Remove 'Regional', 'Event'
+      - If the second word is 'District', remove both the first and second words
+      - Remove 'presented' and everything after
+    """
+    words = name.split()
+
+    # Rule 1: Remove 'Regional', 'Event'
+    filtered = [w for w in words if w not in ("Regional", "Event")]
+
+    # Rule 2: Remove first two words if second word is 'District' (checked in original)
+    if len(words) >= 2 and words[1] == "District":
+        filtered = filtered[2:] if len(filtered) > 2 else []
+
+    # Rule 3: Remove 'presented' and everything after
+    if "presented" in filtered:
+        idx = filtered.index("presented")
+        filtered = filtered[:idx]
+
+    result = " ".join(filtered).strip()
+    return result or name
+
+
+async def get_all_events(session):
+    """Fetch all events from TBA for all years up to CURRENT_YEAR."""
+    event_map = {}
+    for year in range(1992, CURRENT_YEAR + 2):
+        log.info(f"Fetching events for {year}...")
+        data = await fetch_json(session, f"{BASE_URL}/events/{year}")
+        if not data:
+            continue
+        for evt in data:
+            key = evt.get("key")
+            full = evt.get("name")
+            if key and full:
+                short = shorten_event_name(full)
+                event_map[key] = {
+                    "full": full,
+                    "short": short
+                }
+    log.info(f"Total events collected: {len(event_map)}")
+    return event_map
+
+
 async def get_team_image(session, team_key):
     """Fetch avatar or fallback image for one team."""
     media_url = f"{BASE_URL}/team/{team_key}/media/{CURRENT_YEAR}"
@@ -98,7 +145,7 @@ async def get_team_image(session, team_key):
 
 async def process_team(sem, session, team, existing_files):
     team_key = team["key"]
-    team_num = team_key[3:]
+    team_num = team_key[3:]  # "frcXXXX"
     out_path = os.path.join(OUT_DIR, f"{team_num}.png")
 
     if team_num in existing_files:
@@ -108,7 +155,6 @@ async def process_team(sem, session, team, existing_files):
     async with sem:
         img = await get_team_image(session, team_key)
         if not img:
-            log.info(f"{team_num} - No image found.")
             return False
 
         try:
@@ -131,13 +177,24 @@ async def main():
     log.info(f"Found {len(existing_files)} existing icons; skipping them.")
 
     async with aiohttp.ClientSession() as session:
+
+        # === Fetch teams ===
         teams = await get_all_teams(session)
 
-        # === NEW SECTION: extract and save team names ===
-        team_name_map = {str(t["team_number"]): t.get("nickname") or t.get("name") or "Unknown" for t in teams}
+        # === Save team names ===
+        team_name_map = {
+            str(t["team_number"]): t.get("nickname") or t.get("name") or "Unknown"
+            for t in teams
+        }
         with open(TEAM_NAMES_JSON, "w", encoding="utf-8") as f:
             json.dump(team_name_map, f, indent=2, ensure_ascii=False)
         log.info(f"Saved {len(team_name_map)} team names to {TEAM_NAMES_JSON}")
+
+        # === Fetch & save all event names ===
+        event_name_map = await get_all_events(session)
+        with open(EVENT_NAMES_JSON, "w", encoding="utf-8") as f:
+            json.dump(event_name_map, f, indent=2, ensure_ascii=False)
+        log.info(f"Saved {len(event_name_map)} event names to {EVENT_NAMES_JSON}")
 
         # === Download team icons ===
         sem = asyncio.Semaphore(CONCURRENCY)
@@ -147,10 +204,12 @@ async def main():
 
         # === Summary ===
         log.info("=== SUMMARY ===")
+
         log.info(f"Teams processed: {len(teams)}")
         log.info(f"Already present: {len(existing_files)}")
         log.info(f"Images saved:    {saved}")
         log.info(f"Images skipped:  {len(teams) - saved - len(existing_files)}")
+
 
 
 if __name__ == "__main__":
