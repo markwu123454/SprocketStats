@@ -1,3 +1,5 @@
+import asyncio
+import json
 import uuid
 from datetime import datetime, timezone, timedelta
 from typing import Optional, Dict, Any
@@ -7,6 +9,8 @@ from google.oauth2 import id_token
 from google.auth.transport import requests as g_requests
 import os
 import db
+import tba_db as tba
+import statbot_db as statbot
 import enums
 import importlib
 translator = importlib.import_module("seasons.2025.translator")
@@ -682,6 +686,141 @@ async def get_data_processed(
     result = await db.get_processed_data(event_key)
     result = translator.generate_sample_data(result)
     return {"event_key": event_key, "data": result}
+
+
+@router.get("/data/candy")
+async def get_candy_data():
+    cache_key = "candy_cache"
+
+    # ---------------------------------------------------------
+    # Step 0 – Read cache if it exists
+    # ---------------------------------------------------------
+    cached_raw = await db.get_misc(cache_key)
+    if cached_raw is not None:
+        try:
+            return json.loads(cached_raw)
+        except Exception:
+            pass  # corrupted cache → recompute from scratch
+
+    # ---------------------------------------------------------
+    # Step 1 – Fetch teams for the two target events
+    # ---------------------------------------------------------
+    events = ["2026capoh", "2026casgv"]
+
+    event_team_map = {
+        event: await tba.fetch(f"event/{event}/teams/keys", use_backoff=True) or []
+        for event in events
+    }
+
+    # Unique numeric team list
+    all_numeric = sorted(
+        {int(t[3:]) for team_list in event_team_map.values() for t in team_list}
+    )
+
+    # ---------------------------------------------------------
+    # Step 2 – Fetch past events for each team (parallel)
+    # ---------------------------------------------------------
+    past_event_tasks = {
+        num: tba.fetch(f"team/frc{num}/events", use_backoff=True)
+        for num in all_numeric
+    }
+
+    team_past_events = {
+        num: (await future) or []
+        for num, future in past_event_tasks.items()
+    }
+
+    # ---------------------------------------------------------
+    # Step 3 – Determine all district events that need DP fetches
+    # ---------------------------------------------------------
+    district_event_keys = set()
+
+    for num, ev_list in team_past_events.items():
+        for e in ev_list:
+            # event_type == 1 → district qualifier
+            if e.get("event_type") == 1 and e.get("key"):
+                district_event_keys.add(e["key"])
+
+    # ---------------------------------------------------------
+    # Step 4 – Fetch district points for all relevant past events
+    # ---------------------------------------------------------
+    dp_tasks = {
+        ev_key: tba.fetch(f"event/{ev_key}/district_points", use_backoff=True)
+        for ev_key in district_event_keys
+    }
+
+    full_dp_map = {}
+
+    for ev_key, fut in dp_tasks.items():
+        raw = await fut
+        if raw and isinstance(raw, dict):
+            full_dp_map[ev_key] = raw.get("points", {}) or {}
+        else:
+            full_dp_map[ev_key] = {}
+
+    # ---------------------------------------------------------
+    # Step 5 – Build per-team district point results
+    # ---------------------------------------------------------
+    # Structure: team_dp[num][event_key] = points
+    team_dp = {num: {} for num in all_numeric}
+
+    for event_key, points in full_dp_map.items():
+        for team_key, team_points in points.items():
+            try:
+                num = int(team_key[3:])
+            except:
+                continue
+            if num in team_dp:
+                team_dp[num][event_key] = team_points
+
+    # ---------------------------------------------------------
+    # Step 6 – Fetch awards + EPA for each team (parallel)
+    # ---------------------------------------------------------
+    team_tasks = {
+        num: asyncio.gather(
+            tba.fetch(f"team/frc{num}/awards", use_backoff=True),
+            statbot.get_team_epa_async(num),
+        )
+        for num in all_numeric
+    }
+
+    team_data = {}
+
+    for num, future in team_tasks.items():
+        awards, epa = await future
+
+        team_data[num] = {
+            "awards": awards or [],
+            "epa": epa,
+            "district_points": team_dp[num],  # uses expanded DP, not only 2 events
+        }
+
+    # ---------------------------------------------------------
+    # Step 7 – Build per-event output (same structure as before)
+    # ---------------------------------------------------------
+    per_event_output = []
+
+    for event in events:
+        team_keys = event_team_map[event]
+        numeric_teams = sorted(int(t[3:]) for t in team_keys)
+
+        per_event_output.append({
+            "event": event,
+            "team_count": len(numeric_teams),
+            "teams": numeric_teams,
+            "data": {num: team_data[num] for num in numeric_teams},
+        })
+
+    final_output = {
+        "events": events,
+        "by_event": per_event_output,
+    }
+
+    # ---------------------------------------------------------
+    # Step 8 – Cache + return
+    # ---------------------------------------------------------
+    await db.set_misc(cache_key, json.dumps(final_output))
+    return final_output
 
 
 '''
