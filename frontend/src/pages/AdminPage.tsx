@@ -151,7 +151,7 @@ export default function AdminPage() {
                         />
                         <button
                             disabled={!selectedMatch.trim()}
-                            onClick={() => navigate(`/admin/data/match?m=${selectedMatch.trim()}`)}
+                            onClick={() => navigate(`/admin/data/match/${selectedMatch.trim()}`)}
                             className="w-full mt-2 p-2 rounded-xl border transition disabled:opacity-40 hover:opacity-80"
                             type="button"
                         >
@@ -176,7 +176,7 @@ export default function AdminPage() {
                         />
                         <button
                             disabled={!selectedTeam.trim()}
-                            onClick={() => navigate(`/admin/data/team?t=${selectedTeam.trim()}`)}
+                            onClick={() => navigate(`/admin/data/team/${selectedTeam.trim()}`)}
                             className="w-full mt-2 p-2 rounded-xl border transition disabled:opacity-40 hover:opacity-80"
                             type="button"
                         >
