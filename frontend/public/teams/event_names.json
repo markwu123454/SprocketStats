@@ -1281,7 +1281,7 @@
   },
   "2009da": {
     "full": "Dallas Regional, Sponsored by JCPenney and the JCPenney Afterschool Fund",
-    "short": "Dallas Regional, Sponsored by JCPenney and the JCPenney Afterschool Fund"
+    "short": "Dallas ,"
   },
   "2009dc": {
     "full": "Washington DC  Regional",
@@ -1289,11 +1289,11 @@
   },
   "2009dt": {
     "full": "Detroit FIRST Robotics District Competition",
-    "short": "Detroit FIRST Robotics District Competition"
+    "short": "Detroit Districts"
   },
   "2009dt1": {
     "full": "Cass Tech FIRST Robotics District Competition",
-    "short": "Cass Tech FIRST Robotics District Competition"
+    "short": "Cass Tech Districts"
   },
   "2009fl": {
     "full": "Florida Regional",
@@ -1309,7 +1309,7 @@
   },
   "2009gg": {
     "full": "Kettering University FIRST Robotics District Competition",
-    "short": "Kettering University FIRST Robotics District Competition"
+    "short": "Kettering University Districts"
   },
   "2009gl": {
     "full": "Michigan FIRST Robotics Competition State Championship",
@@ -1321,11 +1321,11 @@
   },
   "2009grl": {
     "full": "Lansing FIRST Robotics District Competition",
-    "short": "Lansing FIRST Robotics District Competition"
+    "short": "Lansing Districts"
   },
   "2009gt": {
     "full": "Traverse City FIRST Robotics District Competition",
-    "short": "Traverse City FIRST Robotics District Competition"
+    "short": "Traverse City Districts"
   },
   "2009hi": {
     "full": "Hawaii Regional",
@@ -1369,7 +1369,7 @@
   },
   "2009mi": {
     "full": "West Michigan FIRST Robotics District Competition",
-    "short": "West Michigan FIRST Robotics District Competition"
+    "short": "West Michigan Districts"
   },
   "2009mn": {
     "full": "Minnesota 10000 Lakes Regional",
@@ -1405,7 +1405,7 @@
   },
   "2009oc": {
     "full": "Troy FIRST Robotics District Competition",
-    "short": "Troy FIRST Robotics District Competition"
+    "short": "Troy Districts"
   },
   "2009oh": {
     "full": "Buckeye Regional",
@@ -1505,7 +1505,7 @@
   },
   "2010da": {
     "full": "Dallas Regional sponsored by JCPenney and the JCPenney Afterschool Fund",
-    "short": "Dallas sponsored by JCPenney and the JCPenney Afterschool Fund"
+    "short": "Dallas"
   },
   "2010dc": {
     "full": "Washington DC  Regional",
@@ -1513,11 +1513,11 @@
   },
   "2010dt": {
     "full": "Detroit FIRST Robotics District Competition",
-    "short": "Detroit FIRST Robotics District Competition"
+    "short": "Detroit Districts"
   },
   "2010dt1": {
     "full": "Cass Tech FIRST Robotics District Competition",
-    "short": "Cass Tech FIRST Robotics District Competition"
+    "short": "Cass Tech Districts"
   },
   "2010fl": {
     "full": "Florida Regional",
@@ -1533,7 +1533,7 @@
   },
   "2010gg": {
     "full": "Kettering University FIRST Robotics District Competition",
-    "short": "Kettering University FIRST Robotics District Competition"
+    "short": "Kettering University Districts"
   },
   "2010gl": {
     "full": "Michigan FIRST Robotics Competition State Championship",
@@ -1541,11 +1541,11 @@
   },
   "2010gt": {
     "full": "Traverse City FIRST Robotics District Competition",
-    "short": "Traverse City FIRST Robotics District Competition"
+    "short": "Traverse City Districts"
   },
   "2010hi": {
     "full": "Hawaii Regional sponsored by BAE Systems",
-    "short": "Hawaii sponsored by BAE Systems"
+    "short": "Hawaii"
   },
   "2010il": {
     "full": "Midwest Regional",
@@ -1585,7 +1585,7 @@
   },
   "2010mi": {
     "full": "West Michigan FIRST Robotics District Competition",
-    "short": "West Michigan FIRST Robotics District Competition"
+    "short": "West Michigan Districts"
   },
   "2010mn": {
     "full": "Minnesota 10000 Lakes Regional",
@@ -1625,7 +1625,7 @@
   },
   "2010oc": {
     "full": "Troy FIRST Robotics District Competition",
-    "short": "Troy FIRST Robotics District Competition"
+    "short": "Troy Districts"
   },
   "2010oh": {
     "full": "Buckeye Regional",
@@ -1673,7 +1673,7 @@
   },
   "2010sj": {
     "full": "Silicon Valley Regional sponsored by Google and BAE Systems",
-    "short": "Silicon Valley sponsored by Google and BAE Systems"
+    "short": "Silicon Valley"
   },
   "2010tx": {
     "full": "Lone Star Regional",
@@ -1681,7 +1681,7 @@
   },
   "2010ut": {
     "full": "Utah Regional sponsored by NASA & Platt",
-    "short": "Utah sponsored by NASA & Platt"
+    "short": "Utah"
   },
   "2010va": {
     "full": "Virginia Regional",
@@ -1697,7 +1697,7 @@
   },
   "2010wc": {
     "full": "Ann Arbor FIRST Robotics District Competition",
-    "short": "Ann Arbor FIRST Robotics District Competition"
+    "short": "Ann Arbor Districts"
   },
   "2010wi": {
     "full": "Wisconsin Regional",
@@ -1745,7 +1745,7 @@
   },
   "2011da": {
     "full": "Dallas Regional sponsored by jcpenney",
-    "short": "Dallas sponsored by jcpenney"
+    "short": "Dallas"
   },
   "2011dc": {
     "full": "Washington DC  Regional",
@@ -1757,7 +1757,7 @@
   },
   "2011dt": {
     "full": "Detroit FIRST Robotics District Competition",
-    "short": "Detroit FIRST Robotics District Competition"
+    "short": "Detroit Districts"
   },
   "2011fl": {
     "full": "Florida Regional",
@@ -1773,19 +1773,19 @@
   },
   "2011gg": {
     "full": "Kettering University FIRST Robotics District Competition",
-    "short": "Kettering University FIRST Robotics District Competition"
+    "short": "Kettering University Districts"
   },
   "2011gl": {
     "full": "Michigan FIRST Robotics District Competition State Championship",
-    "short": "Michigan FIRST Robotics District Competition State Championship"
+    "short": "Michigan Districts State Championship"
   },
   "2011gt": {
     "full": "Traverse City FIRST Robotics District Competition",
-    "short": "Traverse City FIRST Robotics District Competition"
+    "short": "Traverse City Districts"
   },
   "2011hi": {
     "full": "Hawaii Regional sponsored by BAE Systems",
-    "short": "Hawaii sponsored by BAE Systems"
+    "short": "Hawaii"
   },
   "2011il": {
     "full": "Midwest Regional",
@@ -1825,7 +1825,7 @@
   },
   "2011mi": {
     "full": "West Michigan FIRST Robotics District Competition",
-    "short": "West Michigan FIRST Robotics District Competition"
+    "short": "West Michigan Districts"
   },
   "2011mn": {
     "full": "Minnesota 10000 Lakes Regional",
@@ -1869,11 +1869,11 @@
   },
   "2011oc": {
     "full": "Troy FIRST Robotics District Competition",
-    "short": "Troy FIRST Robotics District Competition"
+    "short": "Troy Districts"
   },
   "2011oc1": {
     "full": "Waterford FIRST Robotics District Competition",
-    "short": "Waterford FIRST Robotics District Competition"
+    "short": "Waterford Districts"
   },
   "2011oh": {
     "full": "Buckeye Regional",
@@ -1933,7 +1933,7 @@
   },
   "2011swm": {
     "full": "Niles FIRST Robotics District Competition",
-    "short": "Niles FIRST Robotics District Competition"
+    "short": "Niles Districts"
   },
   "2011tn": {
     "full": "Smoky Mountain Regional",
@@ -1945,7 +1945,7 @@
   },
   "2011ut": {
     "full": "Utah Regional co-sponsored by NASA and Platt",
-    "short": "Utah co-sponsored by NASA and Platt"
+    "short": "Utah"
   },
   "2011va": {
     "full": "Virginia Regional",
@@ -1965,7 +1965,7 @@
   },
   "2011wc": {
     "full": "Ann Arbor FIRST Robotics District Competition",
-    "short": "Ann Arbor FIRST Robotics District Competition"
+    "short": "Ann Arbor Districts"
   },
   "2011wi": {
     "full": "Wisconsin Regional",
@@ -1977,7 +1977,7 @@
   },
   "2011ww": {
     "full": "Livonia FIRST Robotics District Competition",
-    "short": "Livonia FIRST Robotics District Competition"
+    "short": "Livonia Districts"
   },
   "2012arc": {
     "full": "Archimedes Division",
@@ -2029,11 +2029,11 @@
   },
   "2012da": {
     "full": "Dallas East Regional sponsored by jcpenney",
-    "short": "Dallas East sponsored by jcpenney"
+    "short": "Dallas East"
   },
   "2012da2": {
     "full": "Dallas West Regional sponsored by jcpenney",
-    "short": "Dallas West sponsored by jcpenney"
+    "short": "Dallas West"
   },
   "2012dc": {
     "full": "Washington DC  Regional",
@@ -2045,7 +2045,7 @@
   },
   "2012dt": {
     "full": "Detroit FIRST Robotics District Competition",
-    "short": "Detroit FIRST Robotics District Competition"
+    "short": "Detroit Districts"
   },
   "2012fl": {
     "full": "Orlando Regional",
@@ -2061,7 +2061,7 @@
   },
   "2012gg": {
     "full": "Kettering University FIRST Robotics District Competition",
-    "short": "Kettering University FIRST Robotics District Competition"
+    "short": "Kettering University Districts"
   },
   "2012gl": {
     "full": "Michigan FRC State Championship",
@@ -2069,11 +2069,11 @@
   },
   "2012gt": {
     "full": "Traverse City FIRST Robotics District Competition",
-    "short": "Traverse City FIRST Robotics District Competition"
+    "short": "Traverse City Districts"
   },
   "2012hi": {
     "full": "Hawaii Regional sponsored by BAE Systems",
-    "short": "Hawaii sponsored by BAE Systems"
+    "short": "Hawaii"
   },
   "2012il": {
     "full": "Midwest Regional",
@@ -2113,11 +2113,11 @@
   },
   "2012mi": {
     "full": "West Michigan FIRST Robotics District Competition",
-    "short": "West Michigan FIRST Robotics District Competition"
+    "short": "West Michigan Districts"
   },
   "2012migl": {
     "full": "Gull Lake FIRST Robotics District Competition",
-    "short": "Gull Lake FIRST Robotics District Competition"
+    "short": "Gull Lake Districts"
   },
   "2012mn": {
     "full": "Minnesota 10000 Lakes Regional",
@@ -2149,15 +2149,15 @@
   },
   "2012nj": {
     "full": "Rutgers University FIRST Robotics District Competition",
-    "short": "Rutgers University FIRST Robotics District Competition"
+    "short": "Rutgers University Districts"
   },
   "2012njf": {
     "full": "Mount Olive FIRST Robotics District Competition",
-    "short": "Mount Olive FIRST Robotics District Competition"
+    "short": "Mount Olive Districts"
   },
   "2012njt": {
     "full": "Lenape FIRST Robotics District Competition",
-    "short": "Lenape FIRST Robotics District Competition"
+    "short": "Lenape Districts"
   },
   "2012nv": {
     "full": "Las Vegas Regional",
@@ -2169,11 +2169,11 @@
   },
   "2012oc": {
     "full": "Troy FIRST Robotics District Competition",
-    "short": "Troy FIRST Robotics District Competition"
+    "short": "Troy Districts"
   },
   "2012oc1": {
     "full": "Waterford FIRST Robotics District Competition",
-    "short": "Waterford FIRST Robotics District Competition"
+    "short": "Waterford Districts"
   },
   "2012oh": {
     "full": "Buckeye Regional",
@@ -2205,11 +2205,11 @@
   },
   "2012pah": {
     "full": "Hatboro-Horsham FIRST Robotics District Competition",
-    "short": "Hatboro-Horsham FIRST Robotics District Competition"
+    "short": "Hatboro-Horsham Districts"
   },
   "2012phl": {
     "full": "Chestnut Hill FIRST Robotics District Competition",
-    "short": "Chestnut Hill FIRST Robotics District Competition"
+    "short": "Chestnut Hill Districts"
   },
   "2012pit": {
     "full": "Pittsburgh Regional",
@@ -2257,7 +2257,7 @@
   },
   "2012swm": {
     "full": "Niles FIRST Robotics District Competition",
-    "short": "Niles FIRST Robotics District Competition"
+    "short": "Niles Districts"
   },
   "2012tn": {
     "full": "Smoky Mountains Regional",
@@ -2269,7 +2269,7 @@
   },
   "2012ut": {
     "full": "Utah Regional co-sponsored by NASA and Platt",
-    "short": "Utah co-sponsored by NASA and Platt"
+    "short": "Utah"
   },
   "2012va": {
     "full": "Virginia Regional",
@@ -2293,7 +2293,7 @@
   },
   "2012wca": {
     "full": "Northville FIRST Robotics District Competition",
-    "short": "Northville FIRST Robotics District Competition"
+    "short": "Northville Districts"
   },
   "2012wi": {
     "full": "Wisconsin Regional",
@@ -2305,7 +2305,7 @@
   },
   "2012ww": {
     "full": "Livonia FIRST Robotics District Competition",
-    "short": "Livonia FIRST Robotics District Competition"
+    "short": "Livonia Districts"
   },
   "2013abca": {
     "full": "Western Canadian FRC Regional",
@@ -2357,7 +2357,7 @@
   },
   "2013calb": {
     "full": "Los Angeles Regional sponsored by The Roddenberry Foundation",
-    "short": "Los Angeles sponsored by The Roddenberry Foundation"
+    "short": "Los Angeles"
   },
   "2013cama": {
     "full": "Central Valley Regional",
@@ -2393,7 +2393,7 @@
   },
   "2013ctha": {
     "full": "Connecticut Regional sponsored by UTC",
-    "short": "Connecticut sponsored by UTC"
+    "short": "Connecticut"
   },
   "2013ctsc": {
     "full": "CT State Championship",
@@ -2445,7 +2445,7 @@
   },
   "2013hiho": {
     "full": "Hawaii Regional sponsored by BAE Systems",
-    "short": "Hawaii sponsored by BAE Systems"
+    "short": "Hawaii"
   },
   "2013ilch": {
     "full": "Midwest Regional",
@@ -2505,7 +2505,7 @@
   },
   "2013mibed": {
     "full": "Bedford FIRST Robotics District Competition",
-    "short": "Bedford FIRST Robotics District Competition"
+    "short": "Bedford Districts"
   },
   "2013mibg": {
     "full": "Bloomfield Girls Robotics Competition",
@@ -2517,19 +2517,19 @@
   },
   "2013midet": {
     "full": "Detroit FIRST Robotics District Competition",
-    "short": "Detroit FIRST Robotics District Competition"
+    "short": "Detroit Districts"
   },
   "2013migbl": {
     "full": "Grand Blanc FIRST Robotics District Competition",
-    "short": "Grand Blanc FIRST Robotics District Competition"
+    "short": "Grand Blanc Districts"
   },
   "2013migul": {
     "full": "Gull Lake FIRST Robotics District Competition",
-    "short": "Gull Lake FIRST Robotics District Competition"
+    "short": "Gull Lake Districts"
   },
   "2013miket": {
     "full": "Kettering University FIRST Robotics District Competition",
-    "short": "Kettering University FIRST Robotics District Competition"
+    "short": "Kettering University Districts"
   },
   "2013mikk": {
     "full": "Kettering Kickoff",
@@ -2537,7 +2537,7 @@
   },
   "2013miliv": {
     "full": "Livonia FIRST Robotics District Competition",
-    "short": "Livonia FIRST Robotics District Competition"
+    "short": "Livonia Districts"
   },
   "2013miri": {
     "full": "W. MI Robotics Invt'l",
@@ -2545,23 +2545,23 @@
   },
   "2013misjo": {
     "full": "St Joseph FIRST Robotics District Competition",
-    "short": "St Joseph FIRST Robotics District Competition"
+    "short": "St Joseph Districts"
   },
   "2013mitry": {
     "full": "Troy FIRST Robotics District Competition",
-    "short": "Troy FIRST Robotics District Competition"
+    "short": "Troy Districts"
   },
   "2013mitvc": {
     "full": "Traverse City FIRST Robotics District Competition",
-    "short": "Traverse City FIRST Robotics District Competition"
+    "short": "Traverse City Districts"
   },
   "2013miwfd": {
     "full": "Waterford FIRST Robotics District Competition",
-    "short": "Waterford FIRST Robotics District Competition"
+    "short": "Waterford Districts"
   },
   "2013miwmi": {
     "full": "West Michigan FIRST Robotics District Competition",
-    "short": "West Michigan FIRST Robotics District Competition"
+    "short": "West Michigan Districts"
   },
   "2013mm": {
     "full": "Monty Madness",
@@ -2641,7 +2641,7 @@
   },
   "2013njbrg": {
     "full": "Bridgewater-Raritan FIRST Robotics District Competition",
-    "short": "Bridgewater-Raritan FIRST Robotics District Competition"
+    "short": "Bridgewater-Raritan Districts"
   },
   "2013njdd": {
     "full": "Duel on the Delaware",
@@ -2649,15 +2649,15 @@
   },
   "2013njewn": {
     "full": "TCNJ FIRST Robotics District Competition",
-    "short": "TCNJ FIRST Robotics District Competition"
+    "short": "TCNJ Districts"
   },
   "2013njfla": {
     "full": "Mount Olive FIRST Robotics District Competition",
-    "short": "Mount Olive FIRST Robotics District Competition"
+    "short": "Mount Olive Districts"
   },
   "2013njlen": {
     "full": "Lenape Seneca FIRST Robotics District Competition",
-    "short": "Lenape Seneca FIRST Robotics District Competition"
+    "short": "Lenape Seneca Districts"
   },
   "2013nvlv": {
     "full": "Las Vegas Regional",
@@ -2721,11 +2721,11 @@
   },
   "2013pahat": {
     "full": "Hatboro-Horsham FIRST Robotics District Competition",
-    "short": "Hatboro-Horsham FIRST Robotics District Competition"
+    "short": "Hatboro-Horsham Districts"
   },
   "2013paphi": {
     "full": "Springside - Chestnut Hill FIRST Robotics District Competition",
-    "short": "Springside - Chestnut Hill FIRST Robotics District Competition"
+    "short": "Springside - Chestnut Hill Districts"
   },
   "2013papi": {
     "full": "Pittsburgh Regional",
@@ -2785,11 +2785,11 @@
   },
   "2013txsa": {
     "full": "Alamo Regional sponsored by Rackspace Hosting",
-    "short": "Alamo sponsored by Rackspace Hosting"
+    "short": "Alamo"
   },
   "2013utwv": {
     "full": "Utah Regional co-sponsored by the Larry H. Miller Group & Platt",
-    "short": "Utah co-sponsored by the Larry H. Miller Group & Platt"
+    "short": "Utah"
   },
   "2013vari": {
     "full": "Virginia Regional",
@@ -2881,7 +2881,7 @@
   },
   "2014calb": {
     "full": "Los Angeles Regional sponsored by The Roddenberry Foundation",
-    "short": "Los Angeles sponsored by The Roddenberry Foundation"
+    "short": "Los Angeles"
   },
   "2014cama": {
     "full": "Central Valley Regional",
@@ -3061,7 +3061,7 @@
   },
   "2014mibed": {
     "full": "Bedford FIRST Robotics District Competition",
-    "short": "Bedford FIRST Robotics District Competition"
+    "short": "Bedford Districts"
   },
   "2014mibg": {
     "full": "Bloomfield Girls Robotics",
@@ -3069,7 +3069,7 @@
   },
   "2014micen": {
     "full": "Center Line FIRST Robotics District Competition",
-    "short": "Center Line FIRST Robotics District Competition"
+    "short": "Center Line Districts"
   },
   "2014micmp": {
     "full": "Michigan FRC State Championship",
@@ -3077,19 +3077,19 @@
   },
   "2014miesc": {
     "full": "Escanaba FIRST Robotics District Competition",
-    "short": "Escanaba FIRST Robotics District Competition"
+    "short": "Escanaba Districts"
   },
   "2014migul": {
     "full": "Gull Lake FIRST Robotics District Competition",
-    "short": "Gull Lake FIRST Robotics District Competition"
+    "short": "Gull Lake Districts"
   },
   "2014mihow": {
     "full": "Howell FIRST Robotics District Competition",
-    "short": "Howell FIRST Robotics District Competition"
+    "short": "Howell Districts"
   },
   "2014miket": {
     "full": "Kettering University FIRST Robotics District Competition",
-    "short": "Kettering University FIRST Robotics District Competition"
+    "short": "Kettering University Districts"
   },
   "2014mikk": {
     "full": "Kettering Kickoff",
@@ -3097,39 +3097,39 @@
   },
   "2014milan": {
     "full": "Lansing FIRST Robotics District Competition",
-    "short": "Lansing FIRST Robotics District Competition"
+    "short": "Lansing Districts"
   },
   "2014miliv": {
     "full": "Livonia FIRST Robotics District Competition",
-    "short": "Livonia FIRST Robotics District Competition"
+    "short": "Livonia Districts"
   },
   "2014mimid": {
     "full": "Great Lakes Bay Region FIRST Robotics District Competition",
-    "short": "Great Lakes Bay Region FIRST Robotics District Competition"
+    "short": "Great Lakes Bay Region Districts"
   },
   "2014misjo": {
     "full": "St. Joseph FIRST Robotics District Competition",
-    "short": "St. Joseph FIRST Robotics District Competition"
+    "short": "St. Joseph Districts"
   },
   "2014misou": {
     "full": "Southfield FIRST Robotics District Competition",
-    "short": "Southfield FIRST Robotics District Competition"
+    "short": "Southfield Districts"
   },
   "2014mitry": {
     "full": "Troy FIRST Robotics District Competition",
-    "short": "Troy FIRST Robotics District Competition"
+    "short": "Troy Districts"
   },
   "2014mitvc": {
     "full": "Traverse City FIRST Robotics District Competition",
-    "short": "Traverse City FIRST Robotics District Competition"
+    "short": "Traverse City Districts"
   },
   "2014miwat": {
     "full": "Waterford FIRST Robotics District Competition",
-    "short": "Waterford FIRST Robotics District Competition"
+    "short": "Waterford Districts"
   },
   "2014miwmi": {
     "full": "West Michigan FIRST Robotics District Competition",
-    "short": "West Michigan FIRST Robotics District Competition"
+    "short": "West Michigan Districts"
   },
   "2014mm": {
     "full": "Monty Madness",
@@ -3157,7 +3157,7 @@
   },
   "2014mnmmr": {
     "full": "Minne Mini-Regional",
-    "short": "Minne Mini-Regional"
+    "short": "Minne Mini-"
   },
   "2014mogw": {
     "full": "Gateway Robotics Challenge",
@@ -3421,7 +3421,7 @@
   },
   "2014txsa": {
     "full": "Alamo Regional sponsored by Rackspace Hosting",
-    "short": "Alamo sponsored by Rackspace Hosting"
+    "short": "Alamo"
   },
   "2014utwv": {
     "full": "Utah Regional",
@@ -3549,7 +3549,7 @@
   },
   "2015calb": {
     "full": "Los Angeles Regional sponsored by The Roddenberry Foundation",
-    "short": "Los Angeles sponsored by The Roddenberry Foundation"
+    "short": "Los Angeles"
   },
   "2015cama": {
     "full": "Central Valley Regional",
@@ -3577,7 +3577,7 @@
   },
   "2015casj": {
     "full": "Silicon Valley Regional sponsored by Google.org",
-    "short": "Silicon Valley sponsored by Google.org"
+    "short": "Silicon Valley"
   },
   "2015cave": {
     "full": "Ventura Regional",
@@ -3705,7 +3705,7 @@
   },
   "2015inkok": {
     "full": "IN District - Kokomo City of Firsts Event sponsored by AndyMark",
-    "short": "- Kokomo City of Firsts sponsored by AndyMark"
+    "short": "- Kokomo City of Firsts"
   },
   "2015inwla": {
     "full": "IN District - Purdue Event",
@@ -4153,7 +4153,7 @@
   },
   "2015txsa": {
     "full": "Alamo Regional sponsored by Rackspace Hosting",
-    "short": "Alamo sponsored by Rackspace Hosting"
+    "short": "Alamo"
   },
   "2015utwv": {
     "full": "Utah Regional",
@@ -4325,7 +4325,7 @@
   },
   "2016chcmp": {
     "full": "FIRST Chesapeake District Championship sponsored by Booz Allen Hamilton",
-    "short": "FIRST Chesapeake District Championship sponsored by Booz Allen Hamilton"
+    "short": "FIRST Chesapeake District Championship"
   },
   "2016cmp": {
     "full": "Einstein Field",
@@ -4881,7 +4881,7 @@
   },
   "2016pncmp": {
     "full": "Pacific Northwest District Championship sponsored by Autodesk",
-    "short": "Pacific Northwest District Championship sponsored by Autodesk"
+    "short": "Pacific Northwest District Championship"
   },
   "2016qcmo": {
     "full": "FRC Festival de Robotique - Montreal Regional",
@@ -4941,7 +4941,7 @@
   },
   "2016txsa": {
     "full": "Alamo Regional sponsored by Rackspace Hosting",
-    "short": "Alamo sponsored by Rackspace Hosting"
+    "short": "Alamo"
   },
   "2016utwv": {
     "full": "Utah Regional",
@@ -5141,7 +5141,7 @@
   },
   "2017chcmp": {
     "full": "FIRST Chesapeake District Championship sponsored by Booz Allen Hamilton",
-    "short": "FIRST Chesapeake District Championship sponsored by Booz Allen Hamilton"
+    "short": "FIRST Chesapeake District Championship"
   },
   "2017ckw0": {
     "full": "Centurion-Krawler Week Zero",
@@ -5381,11 +5381,11 @@
   },
   "2017mdbet": {
     "full": "CHS District - Greater DC Event sponsored by Accenture",
-    "short": "- Greater DC sponsored by Accenture"
+    "short": "- Greater DC"
   },
   "2017mdedg": {
     "full": "CHS District - Central Maryland Event sponsored by Leidos",
-    "short": "- Central Maryland sponsored by Leidos"
+    "short": "- Central Maryland"
   },
   "2017mdowi": {
     "full": "CHS District - Northern Maryland Event",
@@ -5593,7 +5593,7 @@
   },
   "2017mrcmp": {
     "full": "FIRST Mid-Atlantic District Championship sponsored by Johnson & Johnson",
-    "short": "FIRST Mid-Atlantic District Championship sponsored by Johnson & Johnson"
+    "short": "FIRST Mid-Atlantic District Championship"
   },
   "2017msbbb": {
     "full": "Beach Bot Battle",
@@ -5973,7 +5973,7 @@
   },
   "2017vahay": {
     "full": "CHS District - Northern Virginia Event sponsored by Bechtel",
-    "short": "- Northern Virginia sponsored by Bechtel"
+    "short": "- Northern Virginia"
   },
   "2017vamars": {
     "full": "Mid-Atlantic Robotics Showdown",
@@ -5981,7 +5981,7 @@
   },
   "2017vapor": {
     "full": "CHS District - Hampton Roads Event sponsored by Newport News Shipbuilding",
-    "short": "- Hampton Roads sponsored by Newport News Shipbuilding"
+    "short": "- Hampton Roads"
   },
   "2017varr": {
     "full": "Rumble in the Roads",
@@ -6349,7 +6349,7 @@
   },
   "2018inpla": {
     "full": "IN District Plainfield Event sponsored by Toyota",
-    "short": "Plainfield sponsored by Toyota"
+    "short": "Plainfield"
   },
   "2018inwla": {
     "full": "IN District Tippecanoe Event",
@@ -6433,7 +6433,7 @@
   },
   "2018mdedg": {
     "full": "CHS District Central Maryland Event sponsored by Leidos",
-    "short": "Central Maryland sponsored by Leidos"
+    "short": "Central Maryland"
   },
   "2018mdoxo": {
     "full": "CHS District Southern Maryland Event",
@@ -7065,15 +7065,15 @@
   },
   "2018vabla": {
     "full": "CHS District Southwest Virginia Event sponsored by Anton Paar",
-    "short": "Southwest Virginia sponsored by Anton Paar"
+    "short": "Southwest Virginia"
   },
   "2018vagdc": {
     "full": "CHS District Greater DC Event co-sponsored by Micron",
-    "short": "Greater DC co-sponsored by Micron"
+    "short": "Greater DC"
   },
   "2018vagle": {
     "full": "CHS District Central Virginia Event sponsored by Dominion Energy",
-    "short": "Central Virginia sponsored by Dominion Energy"
+    "short": "Central Virginia"
   },
   "2018vahay": {
     "full": "CHS District Northern Virginia Event",
@@ -7081,7 +7081,7 @@
   },
   "2018vapor": {
     "full": "CHS District Hampton Roads Event sponsored by Newport News Shipbuilding",
-    "short": "Hampton Roads sponsored by Newport News Shipbuilding"
+    "short": "Hampton Roads"
   },
   "2018varr": {
     "full": "Rumble in the Roads",
@@ -7469,7 +7469,7 @@
   },
   "2019ingre": {
     "full": "IN District Center Grove Event sponsored by Toyota",
-    "short": "Center Grove sponsored by Toyota"
+    "short": "Center Grove"
   },
   "2019inmis": {
     "full": "IN District St. Joseph Event",
@@ -7565,7 +7565,7 @@
   },
   "2019mdbet": {
     "full": "CHS District Bethesda MD Event sponsored by Bechtel",
-    "short": "Bethesda MD sponsored by Bechtel"
+    "short": "Bethesda MD"
   },
   "2019mdbn": {
     "full": "Bunnybots Chesapeake",
@@ -7573,7 +7573,7 @@
   },
   "2019mdowi": {
     "full": "CHS District Owings Mills MD Event sponsored by Leidos",
-    "short": "Owings Mills MD sponsored by Leidos"
+    "short": "Owings Mills MD"
   },
   "2019mdoxo": {
     "full": "CHS District Oxon Hill MD Event",
@@ -8277,7 +8277,7 @@
   },
   "2019vagle": {
     "full": "CHS District Richmond VA Event sponsored by Dominion Energy",
-    "short": "Richmond VA sponsored by Dominion Energy"
+    "short": "Richmond VA"
   },
   "2019vaha2": {
     "full": "IROC (ILITE Robotics Offseason Challenge)",
@@ -8285,11 +8285,11 @@
   },
   "2019vahay": {
     "full": "CHS District Haymarket VA Event sponsored by Booz Allen Hamilton",
-    "short": "Haymarket VA sponsored by Booz Allen Hamilton"
+    "short": "Haymarket VA"
   },
   "2019vapor": {
     "full": "CHS District Portsmouth VA Event sponsored by Newport News Shipbuilding",
-    "short": "Portsmouth VA sponsored by Newport News Shipbuilding"
+    "short": "Portsmouth VA"
   },
   "2019varr": {
     "full": "Rumble in the Roads",
@@ -8469,7 +8469,7 @@
   },
   "2020chcmp": {
     "full": "* FIRST Chesapeake District Championship sponsored by Newport News Shipbuilding (Cancelled)",
-    "short": "* FIRST Chesapeake District Championship sponsored by Newport News Shipbuilding (Cancelled)"
+    "short": "* FIRST Chesapeake District Championship"
   },
   "2020chta": {
     "full": "* Science Park Taichung Regional (Cancelled)",
@@ -8633,11 +8633,11 @@
   },
   "2020mdbet": {
     "full": "CHS District Bethesda MD Event sponsored by Accenture",
-    "short": "Bethesda MD sponsored by Accenture"
+    "short": "Bethesda MD"
   },
   "2020mdedg": {
     "full": "* CHS District Edgewater MD Event sponsored by Leidos (Cancelled)",
-    "short": "* CHS District Edgewater MD sponsored by Leidos (Cancelled)"
+    "short": "* CHS District Edgewater MD"
   },
   "2020mdowi": {
     "full": "* CHS District Owings Mills MD Event (Cancelled)",
@@ -8777,7 +8777,7 @@
   },
   "2020mnmi": {
     "full": "* Minnesota 10,000 Lakes Regional Presented by the Medtronic Foundation (Cancelled)",
-    "short": "* Minnesota 10,000 Lakes Presented by the Medtronic Foundation (Cancelled)"
+    "short": "* Minnesota 10,000 Lakes"
   },
   "2020mnmi2": {
     "full": "* Minnesota North Star Regional (Cancelled)",
@@ -9105,7 +9105,7 @@
   },
   "2020vagle": {
     "full": "CHS District Richmond VA Event sponsored by Dominion Energy",
-    "short": "Richmond VA sponsored by Dominion Energy"
+    "short": "Richmond VA"
   },
   "2020vahay": {
     "full": "CHS District Haymarket VA Event",
@@ -9153,7 +9153,7 @@
   },
   "2020wiss": {
     "full": "Sussex Mini-Regional",
-    "short": "Sussex Mini-Regional"
+    "short": "Sussex Mini-"
   },
   "202121chi": {
     "full": "2021 Season Participation for China Teams",
@@ -10317,7 +10317,7 @@
   },
   "2022chcmp": {
     "full": "FIRST Chesapeake District Championship sponsored by Newport News Shipbuilding",
-    "short": "FIRST Chesapeake District Championship sponsored by Newport News Shipbuilding"
+    "short": "FIRST Chesapeake District Championship"
   },
   "2022cmptx": {
     "full": "Einstein Field",
@@ -15035,6 +15035,10 @@
     "full": "Ümraniye Off-Season",
     "short": "Ümraniye Off-Season"
   },
+  "2025tryi": {
+    "full": "Yıldız Robot Yarışları",
+    "short": "Yıldız Robot Yarışları"
+  },
   "2025tuak": {
     "full": "Ankara Regional",
     "short": "Ankara"
@@ -15265,7 +15269,7 @@
   },
   "2025xxsan": {
     "full": "World Robot Contest Championships 2025 - Sanya FRC Program & China Off-Season Event Presented by TIMKEN",
-    "short": "World Robot Contest Championships 2025 - Sanya FRC Program & China Off-Season Presented by TIMKEN"
+    "short": "World Robot Contest Championships 2025 - Sanya FRC Program & China Off-Season"
   },
   "2026alhu": {
     "full": "Rocket City Regional",
@@ -15336,7 +15340,7 @@
     "short": "Orange County"
   },
   "2026capin": {
-    "full": "CA District Pinnacles Event",
+    "full": "CA District Pinnacles Event presented by Apple",
     "short": "Pinnacles"
   },
   "2026capoh": {
@@ -15364,7 +15368,7 @@
     "short": "San Francisco"
   },
   "2026casnv": {
-    "full": "CA District Silicon Valley Event",
+    "full": "CA District Silicon Valley Event presented by Apple",
     "short": "Silicon Valley"
   },
   "2026caven": {
@@ -15522,10 +15526,6 @@
   "2026lake": {
     "full": "Bayou Regional",
     "short": "Bayou"
-  },
-  "2026lmsuat": {
-    "full": "DO NOT APPLY - LMS TEST EVENT",
-    "short": "DO NOT APPLY - LMS TEST EVENT"
   },
   "2026mabil": {
     "full": "NE District Minuteman Event",
@@ -15960,7 +15960,7 @@
     "short": "URI"
   },
   "2026sccha": {
-    "full": "FSC District North Charleston Event",
+    "full": "FSC District North Charleston Event presented by SCDE & City of North Charleston Recreation",
     "short": "North Charleston"
   },
   "2026sccmp": {
@@ -15968,11 +15968,11 @@
     "short": "FIRST South Carolina State Championship"
   },
   "2026schar": {
-    "full": "FSC District Hartsville Event",
+    "full": "FSC District Hartsville Event presented by Honda",
     "short": "Hartsville"
   },
   "2026schop": {
-    "full": "FSC District Richland Event",
+    "full": "FSC District Richland Event presented by Aflac & RSCD1",
     "short": "Richland"
   },
   "2026tnkn": {

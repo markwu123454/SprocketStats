@@ -21,7 +21,7 @@ export default function CandyDataPage() {
 
     const columnDefs = [
         {headerName: "Team", field: "team", width: 100, sortable: true},
-        {headerName: "EPA (Current)", field: "epa", width: 140, sortable: true},
+        {headerName: "2025 EPA", field: "epa", width: 140, sortable: true},
         {headerName: "2025 District Points", field: "district2025", width: 170, sortable: true},
         {
             headerName: "Awards (Impact/EI)",

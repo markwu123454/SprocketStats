@@ -1,5 +1,9 @@
 import os
 import asyncio
+import re
+from itertools import takewhile
+from typing import Set
+
 import aiohttp
 import logging
 import base64
@@ -7,7 +11,7 @@ import json
 from tqdm.asyncio import tqdm_asyncio
 
 # === CONFIG ===
-TBA_KEY = ""
+TBA_KEY = "ldpsOPcknI172x94QFD4r8BLMopCk9Kq23qnWaZjcIBugxULh7uHPGPlX7xOOaaT"
 HEADERS = {"X-TBA-Auth-Key": TBA_KEY}
 BASE_URL = "https://www.thebluealliance.com/api/v3"
 OUT_DIR = "team_icons"
@@ -56,30 +60,48 @@ async def get_all_teams(session):
     log.info(f"Total teams fetched: {len(teams)}")
     return teams
 
+import re
 
 def shorten_event_name(name: str) -> str:
     """
-    Produce a shortened event name:
-      - Remove 'Regional', 'Event'
-      - If the second word is 'District', remove both the first and second words
-      - Remove 'presented' and everything after
+    Produce a shortened event name using only regex:
+      - FIRST Robotics District Competition / FIRST Robotics District → 'Districts'
+      - Remove 'Regional' and 'Event'
+      - If the second word is 'District', drop the first two words
+      - Remove: 'presented', 'sponsored', 'co-sponsored', 'co-sponsored',
+               '(Cancelled)' and everything after them
+      - If the outcome is empty, return the input unmodified
     """
-    words = name.split()
 
-    # Rule 1: Remove 'Regional', 'Event'
-    filtered = [w for w in words if w not in ("Regional", "Event")]
+    original = name  # for fallback
 
-    # Rule 2: Remove first two words if second word is 'District' (checked in original)
-    if len(words) >= 2 and words[1] == "District":
-        filtered = filtered[2:] if len(filtered) > 2 else []
+    # Tier collapse / exact replacement
+    name = re.sub(
+        r"(?i)\bFIRST\s+Robotics\s+District\s+Competition\b|\bFIRST\s+Robotics\s+District\b",
+        "Districts",
+        name,
+    )
 
-    # Rule 3: Remove 'presented' and everything after
-    if "presented" in filtered:
-        idx = filtered.index("presented")
-        filtered = filtered[:idx]
+    # Drop banned tokens (stand-alone words Regional, Event)
+    name = re.sub(r"\b(?:Regional|Event)\b", "", name)
 
-    result = " ".join(filtered).strip()
-    return result or name
+    # If 2nd word is 'District', drop first two words
+    name = re.sub(r"(?i)^(\S+\s+District\b\s*)", "", name, count=1)
+
+    # Truncate at sponsor/cancel keywords and drop the rest
+    name = re.sub(
+        r"(?i)\b(presented|sponsored|co-sponsored|\(Cancelled\)).*$",
+        "",
+        name,
+    )
+
+    # Collapse extra whitespace produced by removals
+    name = re.sub(r"\s{2,}", " ", name).strip()
+
+    # Fallback if empty
+    return name if name else original
+
+
 
 
 async def get_all_events(session):
@@ -179,6 +201,7 @@ async def main():
     async with aiohttp.ClientSession() as session:
 
         # === Fetch teams ===
+        '''
         teams = await get_all_teams(session)
 
         # === Save team names ===
@@ -188,7 +211,7 @@ async def main():
         }
         with open(TEAM_NAMES_JSON, "w", encoding="utf-8") as f:
             json.dump(team_name_map, f, indent=2, ensure_ascii=False)
-        log.info(f"Saved {len(team_name_map)} team names to {TEAM_NAMES_JSON}")
+        log.info(f"Saved {len(team_name_map)} team names to {TEAM_NAMES_JSON}")'''
 
         # === Fetch & save all event names ===
         event_name_map = await get_all_events(session)
@@ -197,20 +220,25 @@ async def main():
         log.info(f"Saved {len(event_name_map)} event names to {EVENT_NAMES_JSON}")
 
         # === Download team icons ===
+        '''
         sem = asyncio.Semaphore(CONCURRENCY)
         tasks = [process_team(sem, session, t, existing_files) for t in teams]
         results = await tqdm_asyncio.gather(*tasks, desc="Downloading icons")
         saved = sum(results)
-
+        '''
         # === Summary ===
         log.info("=== SUMMARY ===")
 
-        log.info(f"Teams processed: {len(teams)}")
-        log.info(f"Already present: {len(existing_files)}")
-        log.info(f"Images saved:    {saved}")
-        log.info(f"Images skipped:  {len(teams) - saved - len(existing_files)}")
+        v = locals()
+        log.info(f"Teams processed: {len(v.get('teams', []))}")
+        log.info(f"Already present: {len(v.get('existing_files', []))}")
+        log.info(f"Images saved:    {v.get('saved', 0)}")
+        log.info(f"Images skipped:  {len(v.get('teams', [])) - v.get('saved', 0) - len(v.get('existing_files', []))}")
 
 
 
 if __name__ == "__main__":
+    if not TBA_KEY:
+        raise ValueError(f"TBA key is empty")
+
     asyncio.run(main())
