@@ -11,7 +11,7 @@ import json
 from tqdm.asyncio import tqdm_asyncio
 
 # === CONFIG ===
-TBA_KEY = "ldpsOPcknI172x94QFD4r8BLMopCk9Kq23qnWaZjcIBugxULh7uHPGPlX7xOOaaT"
+TBA_KEY = ""
 HEADERS = {"X-TBA-Auth-Key": TBA_KEY}
 BASE_URL = "https://www.thebluealliance.com/api/v3"
 OUT_DIR = "team_icons"
