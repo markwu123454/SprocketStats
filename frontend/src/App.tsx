@@ -21,6 +21,7 @@ import MatchDataPostPage from "@/pages/data/MatchDataPostPage.tsx"
 import RankingDataPage from "@/pages/data/RankingDataPage.tsx"
 import TeamDataPage from "@/pages/data/TeamDataPage.tsx"
 import DeveloperPage from "@/pages/DeveloperPage.tsx";
+import CandyDataPage from "@/pages/CandyDataPage.tsx";
 
 export default function App() {
     return (
@@ -71,6 +72,13 @@ export default function App() {
                             <AuthWrapper permission="dev" device="desktop">
                                 <DeveloperPage/>
                             </AuthWrapper>
+                        }/>
+
+                        {/* --- Guests not yet implemented --- */}
+                        <Route path="/guest" element={<NotFoundPage code={501}/>}/>
+
+                        <Route path="/candy" element={
+                            <CandyDataPage/>
                         }/>
 
                         {/* --- Settings (always allowed) --- */}

@@ -654,6 +654,25 @@ export function useAPI() {
         }
     };
 
+    // --- Endpoint: GET /data/candy ---
+    const getCandyData = async (): Promise<Record<string, any> | null> => {
+        try {
+            const res = await fetch(`${BASE_URL}/data/candy`, {
+                headers: getAuthHeaders(),
+            });
+
+            if (!res.ok) {
+                console.warn(`getCandyData failed: ${res.status} ${res.statusText}`);
+                return null;
+            }
+
+            return await res.json();
+        } catch (err) {
+            console.error("getCandyData failed:", err);
+            return null;
+        }
+    };
+
 
     return {
         login,
@@ -677,5 +696,6 @@ export function useAPI() {
         getTeamBasicInfo,
         getFilteredMatches,
         getProcessedData,
+        getCandyData,
     };
 }

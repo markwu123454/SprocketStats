@@ -10,6 +10,7 @@ from starlette.middleware.cors import CORSMiddleware
 from starlette.staticfiles import StaticFiles
 
 import db
+import tba_db as tba
 import endpoints
 
 @asynccontextmanager
@@ -18,6 +19,7 @@ async def lifespan(app: FastAPI):
 
     # Initialize the databases
     await db.init_data_db()
+    await tba.get_db_pool()
     await db.init_session_db()
 
     yield

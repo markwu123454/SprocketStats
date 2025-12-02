@@ -992,3 +992,87 @@ def require_permission(required: str) -> Callable[..., enums.SessionInfo]:
             raise HTTPException(status_code=403, detail=f"Missing '{required}' permission")
         return session
     return dep
+
+
+async def set_misc(key: str, value: str):
+    """
+    Ensure a misc column exists for `key`, then store its value in row id=1.
+    Dynamically creates new TEXT columns as needed.
+    """
+    conn = await get_db_connection(DB_NAME)
+
+    # Basic validation: key must be a valid SQL identifier
+    if not key.isidentifier():
+        raise HTTPException(status_code=400, detail="Invalid key name")
+
+    try:
+        async with conn.transaction():
+
+            # 1. Check if column already exists
+            col_exists = await conn.fetchval("""
+                SELECT EXISTS (
+                    SELECT 1 FROM information_schema.columns
+                    WHERE table_name = 'misc'
+                      AND column_name = $1
+                )
+            """, key)
+
+            # 2. Create column if missing
+            if not col_exists:
+                await conn.execute(f'ALTER TABLE misc ADD COLUMN "{key}" TEXT')
+
+            # 3. Ensure row id=1 exists
+            await conn.execute("""
+                INSERT INTO misc (id) VALUES (1)
+                ON CONFLICT (id) DO NOTHING
+            """)
+
+            # 4. Update column
+            await conn.execute(
+                f'UPDATE misc SET "{key}" = $1 WHERE id = 1',
+                value
+            )
+
+    except PostgresError as e:
+        logger.error("Failed to write misc key: %s", e)
+        raise HTTPException(status_code=500, detail=f"Failed to write misc key: {e}")
+    finally:
+        await release_db_connection(DB_NAME, conn)
+
+
+async def get_misc(key: str) -> Optional[str]:
+    """
+    Retrieve the stored value for a dynamic misc key.
+    Returns None if the key or row is missing.
+    """
+    conn = await get_db_connection(DB_NAME)
+
+    if not key.isidentifier():
+        raise HTTPException(status_code=400, detail="Invalid key name")
+
+    try:
+        # 1. Confirm column exists
+        col_exists = await conn.fetchval("""
+            SELECT EXISTS (
+                SELECT 1 FROM information_schema.columns
+                WHERE table_name = 'misc'
+                  AND column_name = $1
+            )
+        """, key)
+
+        if not col_exists:
+            return None
+
+        # 2. Select the column dynamically
+        row = await conn.fetchrow(
+            f'SELECT "{key}" AS val FROM misc WHERE id = 1'
+        )
+
+        return row["val"] if row else None
+
+    except PostgresError as e:
+        logger.error("Failed to read misc key: %s", e)
+        raise HTTPException(status_code=500, detail=f"Failed to read misc key: {e}")
+    finally:
+        await release_db_connection(DB_NAME, conn)
+

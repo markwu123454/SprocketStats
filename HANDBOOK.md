@@ -84,13 +84,15 @@ run.py → Unified runner for managing frontend + backend dev/prod modes
 Each developer must maintain a valid `.env` file at the project root.
 Sync with `.env.example` when new variables are added.
 
-| Variable                | Description                            | Used By            |
-|-------------------------|----------------------------------------|--------------------|
-| `TBA_KEY`               | The Blue Alliance API key              | Backend / Analysis |
-| `DATABASE_URL`          | Neon PostgreSQL connection URL         | Backend            |
-| `CORS_ORIGINS`          | Allowed CORS origins (comma-separated) | Backend            |
-| `VITE_GOOGLE_CLIENT_ID` | Google OAuth client ID                 | Frontend / Backend |
-| `VITE_BACKEND_URL`      | Backend URL                            | Frontend           |
+| Variable                         | Description                            | Used By            | Example Value                                                    |
+|----------------------------------|----------------------------------------|--------------------|------------------------------------------------------------------|
+| `TBA_KEY`                        | The Blue Alliance API key              | Backend / Analysis | `abc123def4567890`                                               |
+| `DATABASE_URL`                   | Neon PostgreSQL connection URL         | Backend            | `postgresql://user:pass@ep-xyz123.us-west1.aws.neon.tech/neondb` |
+| `CORS_ORIGINS`                   | Allowed CORS origins (comma-separated) | Backend            | `https://sprocketstats.com,https://localhost:5173`               |
+| `GOOGLE_APPLICATION_CREDENTIALS` | GCS key                                | Backend            | `/etc/secrets/gcs.json`                                          |
+| `VITE_GOOGLE_CLIENT_ID`          | Google OAuth client ID                 | Frontend / Backend | `1234567890-abcdefghi.apps.googleusercontent.com`                |
+| `VITE_BACKEND_URL`               | Backend URL                            | Frontend           | `https://api.sprocketstats.com`                                  |
+
 
 **Rules:**
 
@@ -104,12 +106,13 @@ Sync with `.env.example` when new variables are added.
 
 ## Infrastructure
 
-| Service                                                           | Purpose                        | Development                                     | Production                                                                              |
-|-------------------------------------------------------------------|--------------------------------|-------------------------------------------------|-----------------------------------------------------------------------------------------|
-| **[Neon](https://neon.com/)**                                     | PostgreSQL serverless database | —                                               | —                                                                                       |
-| **[Vercel](https://vercel.com/)**                                 | Frontend deployment (Vite)     | [http://localhost:5173](http://localhost:5173/) | [https://sprocket-scouting-demo.vercel.app](https://sprocket-scouting-demo.vercel.app/) |
-| **[Render](https://render.com/)**                                 | Backend deployment (FastAPI)   | [http://localhost:8000](http://localhost:8000/) | [https://sprocketscoutingdemo.onrender.com](https://sprocketscoutingdemo.onrender.com/) |
-| **[Google OAuth](https://console.cloud.google.com/auth/clients)** | User login & identity          | —                                               | —                                                                                       |
+| Service                                                                            | Purpose                        | Development           | Production                                | Cost |
+|------------------------------------------------------------------------------------|--------------------------------|-----------------------|-------------------------------------------|------|
+| **[Vercel](https://vercel.com/)**                                                  | Frontend deployment (Vite)     | http://localhost:5173 | https://sprocketstats.vercel.app          | $0   |
+| **[Render](https://render.com/)**                                                  | Backend deployment (FastAPI)   | http://localhost:8000 | https://sprocketscoutingdemo.onrender.com | $0   |
+| **[Google Identity Services(GIS)](https://console.cloud.google.com/auth/clients)** | User login & identity          | —                     | —                                         | $0   |
+| **[Neon](https://neon.com/)**                                                      | PostgreSQL serverless database | —                     | —                                         | $0   |
+| **[Google Cloud Storage(GCS)](https://console.cloud.google.com/storage)**          | Unstructured file storage      | —                     | —                                         | $0   |
 
 ---
 
@@ -168,7 +171,7 @@ Unlike the frontend and backend, it is **not deployed automatically** — releas
 
 ```bash
 cd analysis
-pyinstaller --onefile main.py --name scouting-analysis --add-data "seasons;seasons" --hidden-import pandas --hidden-import numpy --hidden-import asyncpg --hidden-import ttkbootstrap --hidden-import certifi --hidden-import sklearn --hidden-import sklearn.ensemble._forest --hidden-import sklearn.tree._classes --hidden-import sklearn.utils._joblib --hidden-import joblib
+pyinstaller build.spec
 ```
 > If you add new dependencies (e.g. `matplotlib`, `scipy`), update both `requirements.txt` and the above PyInstaller command.
 **Output:**
@@ -204,7 +207,7 @@ Before building:
    - Initial 2025 season model
    - Includes new ELO normalization and clustering improvements
    ```
-5. **Attach binaries** from the `dist/` folder (e.g. Windows `.exe`, optionally macOS/Linux builds).
+5. **Zip** the `dist/` folder and attach the zip to GitHub.
 6. Click **“Publish release.”**
 
 

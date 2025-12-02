@@ -1,5 +1,9 @@
 import os
 import asyncio
+import re
+from itertools import takewhile
+from typing import Set
+
 import aiohttp
 import logging
 import base64
@@ -12,6 +16,7 @@ HEADERS = {"X-TBA-Auth-Key": TBA_KEY}
 BASE_URL = "https://www.thebluealliance.com/api/v3"
 OUT_DIR = "team_icons"
 TEAM_NAMES_JSON = "team_names.json"
+EVENT_NAMES_JSON = "event_names.json"
 MAX_SIZE = 65536  # bytes
 CURRENT_YEAR = 2025
 CONCURRENCY = 25
@@ -54,6 +59,70 @@ async def get_all_teams(session):
         page += 1
     log.info(f"Total teams fetched: {len(teams)}")
     return teams
+
+import re
+
+def shorten_event_name(name: str) -> str:
+    """
+    Produce a shortened event name using only regex:
+      - FIRST Robotics District Competition / FIRST Robotics District → 'Districts'
+      - Remove 'Regional' and 'Event'
+      - If the second word is 'District', drop the first two words
+      - Remove: 'presented', 'sponsored', 'co-sponsored', 'co-sponsored',
+               '(Cancelled)' and everything after them
+      - If the outcome is empty, return the input unmodified
+    """
+
+    original = name  # for fallback
+
+    # Tier collapse / exact replacement
+    name = re.sub(
+        r"(?i)\bFIRST\s+Robotics\s+District\s+Competition\b|\bFIRST\s+Robotics\s+District\b",
+        "Districts",
+        name,
+    )
+
+    # Drop banned tokens (stand-alone words Regional, Event)
+    name = re.sub(r"\b(?:Regional|Event)\b", "", name)
+
+    # If 2nd word is 'District', drop first two words
+    name = re.sub(r"(?i)^(\S+\s+District\b\s*)", "", name, count=1)
+
+    # Truncate at sponsor/cancel keywords and drop the rest
+    name = re.sub(
+        r"(?i)\b(presented|sponsored|co-sponsored|\(Cancelled\)).*$",
+        "",
+        name,
+    )
+
+    # Collapse extra whitespace produced by removals
+    name = re.sub(r"\s{2,}", " ", name).strip()
+
+    # Fallback if empty
+    return name if name else original
+
+
+
+
+async def get_all_events(session):
+    """Fetch all events from TBA for all years up to CURRENT_YEAR."""
+    event_map = {}
+    for year in range(1992, CURRENT_YEAR + 2):
+        log.info(f"Fetching events for {year}...")
+        data = await fetch_json(session, f"{BASE_URL}/events/{year}")
+        if not data:
+            continue
+        for evt in data:
+            key = evt.get("key")
+            full = evt.get("name")
+            if key and full:
+                short = shorten_event_name(full)
+                event_map[key] = {
+                    "full": full,
+                    "short": short
+                }
+    log.info(f"Total events collected: {len(event_map)}")
+    return event_map
 
 
 async def get_team_image(session, team_key):
@@ -98,7 +167,7 @@ async def get_team_image(session, team_key):
 
 async def process_team(sem, session, team, existing_files):
     team_key = team["key"]
-    team_num = team_key[3:]
+    team_num = team_key[3:]  # "frcXXXX"
     out_path = os.path.join(OUT_DIR, f"{team_num}.png")
 
     if team_num in existing_files:
@@ -108,7 +177,6 @@ async def process_team(sem, session, team, existing_files):
     async with sem:
         img = await get_team_image(session, team_key)
         if not img:
-            log.info(f"{team_num} - No image found.")
             return False
 
         try:
@@ -131,27 +199,46 @@ async def main():
     log.info(f"Found {len(existing_files)} existing icons; skipping them.")
 
     async with aiohttp.ClientSession() as session:
+
+        # === Fetch teams ===
+        '''
         teams = await get_all_teams(session)
 
-        # === NEW SECTION: extract and save team names ===
-        team_name_map = {str(t["team_number"]): t.get("nickname") or t.get("name") or "Unknown" for t in teams}
+        # === Save team names ===
+        team_name_map = {
+            str(t["team_number"]): t.get("nickname") or t.get("name") or "Unknown"
+            for t in teams
+        }
         with open(TEAM_NAMES_JSON, "w", encoding="utf-8") as f:
             json.dump(team_name_map, f, indent=2, ensure_ascii=False)
-        log.info(f"Saved {len(team_name_map)} team names to {TEAM_NAMES_JSON}")
+        log.info(f"Saved {len(team_name_map)} team names to {TEAM_NAMES_JSON}")'''
+
+        # === Fetch & save all event names ===
+        event_name_map = await get_all_events(session)
+        with open(EVENT_NAMES_JSON, "w", encoding="utf-8") as f:
+            json.dump(event_name_map, f, indent=2, ensure_ascii=False)
+        log.info(f"Saved {len(event_name_map)} event names to {EVENT_NAMES_JSON}")
 
         # === Download team icons ===
+        '''
         sem = asyncio.Semaphore(CONCURRENCY)
         tasks = [process_team(sem, session, t, existing_files) for t in teams]
         results = await tqdm_asyncio.gather(*tasks, desc="Downloading icons")
         saved = sum(results)
-
+        '''
         # === Summary ===
         log.info("=== SUMMARY ===")
-        log.info(f"Teams processed: {len(teams)}")
-        log.info(f"Already present: {len(existing_files)}")
-        log.info(f"Images saved:    {saved}")
-        log.info(f"Images skipped:  {len(teams) - saved - len(existing_files)}")
+
+        v = locals()
+        log.info(f"Teams processed: {len(v.get('teams', []))}")
+        log.info(f"Already present: {len(v.get('existing_files', []))}")
+        log.info(f"Images saved:    {v.get('saved', 0)}")
+        log.info(f"Images skipped:  {len(v.get('teams', [])) - v.get('saved', 0) - len(v.get('existing_files', []))}")
+
 
 
 if __name__ == "__main__":
+    if not TBA_KEY:
+        raise ValueError(f"TBA key is empty")
+
     asyncio.run(main())
