@@ -1,4 +1,5 @@
 import os
+import re
 import socket
 from datetime import timedelta
 from contextlib import asynccontextmanager
@@ -26,7 +27,6 @@ async def lifespan(app: FastAPI):
 
     print("Shutting down...")
 
-
 app = FastAPI(lifespan=lifespan)
 app.mount("/static", StaticFiles(directory=Path(__file__).parent), name="static")
 
@@ -35,17 +35,24 @@ with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
     local_ip = s.getsockname()[0]
 
 load_dotenv()
+
+regex_patterns = []
+for origin in [o.strip() for o in os.getenv("CORS_ORIGINS", "").split(",") if o.strip()]:
+    if "*" in origin:
+        escaped = re.escape(origin).replace(r"\*", ".*")
+        regex_patterns.append(rf"^{escaped}$")
+    else:
+        regex_patterns.append(rf"^{re.escape(origin)}$")
+
+combined_regex = "|".join(regex_patterns) if regex_patterns else None
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[o.strip() for o in os.getenv("CORS_ORIGINS", "").split(",") if o.strip()],
+    allow_origins=["*"],  # wildcard matching enabled (won't emit literal * due to credentials=True)
+    allow_origin_regex=combined_regex,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-
-
 app.include_router(endpoints.router)
-
-
-

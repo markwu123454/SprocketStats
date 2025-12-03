@@ -1,14 +1,14 @@
 import {useEffect, useState} from "react";
 import {useAPI} from "@/hooks/useAPI.ts";
 import {useNavigate} from "react-router-dom";
-import {ArrowLeft, Monitor, BarChart2, Users, Search, Activity, Server, Terminal} from "lucide-react";
+import {ArrowLeft, Monitor, BarChart2, Users, Search, Activity, Terminal, GitBranch} from "lucide-react";
 
 export default function AdminPage() {
     const navigate = useNavigate();
     const {get_metadata} = useAPI();
 
     // --- state ---
-    const [version, setVersion] = useState("");
+    const [version, setVersion] = useState<Record<string, any>>({});
     const [metadata, setMetadata] = useState<Record<string, any>>({});
     const [eventNames, setEventNames] = useState<Record<string, { full: string; short: string }>>({});
     const [selectedMatch, setSelectedMatch] = useState("");
@@ -26,7 +26,7 @@ export default function AdminPage() {
         (async () => {
             const res = await fetch("/api/version");
             const data = await res.json();
-            setVersion(data.version);
+            setVersion(data);
         })();
     }, []);
 
@@ -234,12 +234,12 @@ export default function AdminPage() {
                                        theme-2026:bg-[rgba(254,247,220,0.4)]
                                        theme-3473:bg-[rgba(60,20,120,0.2)]">
                             <div className="flex items-center gap-2 font-bold text-sm mb-2 opacity-80">
-                                <Server className="w-4 h-4"/> System Info
+                                <GitBranch className="w-4 h-4"/> Build Info
                             </div>
-                            <p className="text-xs opacity-70 mt-1">Branch: main</p>
-                            <p className="text-xs opacity-70">Commit: {version.slice(0, 7) || "—"}</p>
-                            <p className="text-xs opacity-70 mt-2">Env: {metadata.env ?? "unknown"}</p>
-                            <p className="text-xs opacity-70">Server Mode: {metadata.mode ?? "—"}</p>
+                            <p className="text-xs opacity-70 mt-1">Branch: {version.VERCEL_GIT_COMMIT_REF || "development"}</p>
+                            <p className="text-xs opacity-70">Commit: {version.VERCEL_GIT_COMMIT_SHA_SHORT || "—"}</p>
+                            <p className="text-xs opacity-70">Author: {version.VERCEL_GIT_COMMIT_AUTHOR_LOGIN ?? "—"}</p>
+                            <p className="text-xs opacity-70">Deploy time: {version.DEPLOY_TIME ?? "—"}</p>
                         </div>
 
                         <div
@@ -273,8 +273,8 @@ export default function AdminPage() {
                     </a>
 
                     <div className="opacity-70 text-right">
-                        <p>Branch: main</p>
-                        <p>Commit: {version.slice(0, 7) || "—"}</p>
+                        <p>Branch: {version.VERCEL_GIT_COMMIT_REF || "development"}</p>
+                        <p>Commit: {version.VERCEL_GIT_COMMIT_SHA_SHORT || "—"}</p>
                     </div>
                 </footer>
 
