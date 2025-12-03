@@ -54,7 +54,7 @@ export default function HomePage() {
         {label: "Admin Panel & Data", key: "admin", path: "/admin"},
         {label: "Match Scouting", key: "match_scouting", path: "/scouting/match"},
         {label: "Pit Scouting", key: "pit_scouting", path: "/scouting/pit"},
-        {label: "Settings", key: "settings", path: "/setting"},
+        {label: "Settings", key: "settings", path: "/settings"},
     ]
 
     const navigate = useNavigate()

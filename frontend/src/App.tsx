@@ -6,22 +6,22 @@ import ThemeProvider from "@/contexts/themeProvider.tsx"
 import AuthWrapper from "@/components/wrappers/AuthWrapper.tsx"
 import DataWrapper from "@/components/wrappers/DataWrapper.tsx";
 
-import HomePage from "./pages/HomePage.tsx"
 import AdminPage from "@/pages/AdminPage.tsx"
-import MatchMonitorPage from "./pages/MatchMonitorPage.tsx"
-import MatchScoutingPage from "./pages/MatchScoutingPage.tsx"
-import PitScoutingPage from "@/pages/PitScoutingPage.tsx"
-import NotFoundPage from "@/pages/NotFoundPage.tsx"
-import SettingsPage from "@/pages/SettingsPage.tsx"
-import PingPage from "@/pages/PingPage.tsx";
-import GuestPage from "@/pages/GuestPage.tsx";
-import GuestRedirectPage from "@/pages/GuestRedirectPage.tsx";
 import AllianceSimDataPage from "@/pages/data/AllianceSimDataPage.tsx"
+import CandyDataPage from "@/pages/CandyDataPage.tsx"
+import GuestPage from "@/pages/GuestPage.tsx"
+import GuestRedirectPage from "@/pages/GuestRedirectPage.tsx"
+import HomePage from "@/pages/HomePage.tsx"
+import DeveloperPage from "@/pages/DeveloperPage.tsx"
 import MatchDataPostPage from "@/pages/data/MatchDataPostPage.tsx"
+import MatchMonitorPage from "@/pages/MatchMonitorPage.tsx"
+import MatchScoutingPage from "@/pages/MatchScoutingPage.tsx"
+import NotFoundPage from "@/pages/NotFoundPage.tsx"
+import PingPage from "@/pages/PingPage.tsx"
+import PitScoutingPage from "@/pages/PitScoutingPage.tsx"
 import RankingDataPage from "@/pages/data/RankingDataPage.tsx"
+import SettingsPage from "@/pages/SettingsPage.tsx"
 import TeamDataPage from "@/pages/data/TeamDataPage.tsx"
-import DeveloperPage from "@/pages/DeveloperPage.tsx";
-import CandyDataPage from "@/pages/CandyDataPage.tsx";
 
 export default function App() {
     return (
@@ -29,30 +29,41 @@ export default function App() {
             <BrowserRouter>
                 <div className="h-screen flex flex-col min-h-0">
                     <Routes>
-                        <Route path="/" element={<HomePage/>}/>
+                        <Route path="/" element={
+                            <HomePage/>
+                        }/>
 
-                        <Route path="/guest" element={<GuestRedirectPage/>}/>
+                        <Route path="/guest" element={
+                            <GuestRedirectPage/>
+                        }/>
 
                         <Route path="/ping" element={
                             <PingPage/>
                         }/>
 
-                        {/* --- Scouting pages (mobile-locked, user permissions) --- */}
+                        <Route path="/candy" element={
+                            <CandyDataPage/>
+                        }/>
+
+                        <Route path="/settings" element={
+                            <SettingsPage/>
+                        }/>
+
                         <Route path="/scouting/match" element={
                             <AuthWrapper permission="match_scouting" device="mobile">
                                 <MatchScoutingPage/>
                             </AuthWrapper>
                         }/>
+
                         <Route path="/scouting/pit" element={
                             <AuthWrapper permission="pit_scouting" device="mobile">
                                 <PitScoutingPage/>
                             </AuthWrapper>
                         }/>
 
-                        {/* --- Admin pages (desktop-locked) --- */}
                         <Route path="/admin" element={<Outlet/>}>
 
-                            <Route element={<AuthWrapper permission="admin" device="desktop"/>}>
+                            <Route element={<AuthWrapper permission="admin" device="desktop" mode="optimistic"/>}>
                                 <Route index element={<AdminPage/>}/>
                                 <Route path="monitor/*" element={<MatchMonitorPage/>}/>
                             </Route>
@@ -67,25 +78,15 @@ export default function App() {
                             </Route>
                         </Route>
 
-                        {/* --- Developer-only section --- */}
                         <Route path="/dev" element={
                             <AuthWrapper permission="dev" device="desktop">
                                 <DeveloperPage/>
                             </AuthWrapper>
                         }/>
 
-                        {/* --- Guests not yet implemented --- */}
-                        <Route path="/guest" element={<NotFoundPage code={501}/>}/>
-
-                        <Route path="/candy" element={
-                            <CandyDataPage/>
+                        <Route path="*" element={
+                            <NotFoundPage/>
                         }/>
-
-                        {/* --- Settings (always allowed) --- */}
-                        <Route path="/setting" element={<SettingsPage/>}/>
-
-                        {/* --- Catch-all --- */}
-                        <Route path="*" element={<NotFoundPage/>}/>
                     </Routes>
                 </div>
             </BrowserRouter>
