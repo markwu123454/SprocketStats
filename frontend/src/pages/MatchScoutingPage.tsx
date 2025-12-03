@@ -12,8 +12,7 @@ import {Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter} from "@/
 import {Button} from '@/components/ui/button'
 import LoadButton from '@/components/ui/loadButton'
 
-import Pre from "@/pages/Pre.tsx"
-
+import PrePhase from "@/components/seasons/2025/Pre.tsx"
 import AutoPhase from "@/components/seasons/2025/Auto.tsx"
 import TeleopPhase from "@/components/seasons/2025/Teleop.tsx"
 import PostMatch from "@/components/seasons/2025/Post.tsx"
@@ -323,7 +322,7 @@ export default function MatchScoutingPage() {
                 {/* Middle Section (Phases) */}
                 <div className="flex-1 min-h-0 overflow-hidden text-4xl h-full">
                     {phase === 'pre' && (
-                        <Pre key="pre" data={scoutingData} setData={setScoutingData}/>
+                        <PrePhase key="pre" data={scoutingData} setData={setScoutingData}/>
                     )}
                     {phase === 'auto' && (
                         <AutoPhase key="auto" data={scoutingData} setData={setScoutingData}/>

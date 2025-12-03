@@ -4,7 +4,7 @@ import {useEffect, useRef, useState} from "react"
 import {getScouterName, useAPI} from "@/hooks/useAPI.ts"
 import {useClientEnvironment} from "@/hooks/useClientEnvironment.ts";
 
-export default function Pre({
+export default function PrePhase({
     data,
     setData,
 }: {
