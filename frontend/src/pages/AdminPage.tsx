@@ -5,7 +5,7 @@ import {ArrowLeft, Monitor, BarChart2, Users, Search, Activity, Terminal, GitBra
 
 export default function AdminPage() {
     const navigate = useNavigate();
-    const {get_metadata} = useAPI();
+    const {getMetadata} = useAPI();
 
     // --- state ---
     const [version, setVersion] = useState<Record<string, any>>({});
@@ -32,7 +32,7 @@ export default function AdminPage() {
 
     useEffect(() => {
         void (async () => {
-            const meta = await get_metadata();
+            const meta = await getMetadata();
             setMetadata(meta);
 
             const nameRes = await fetch("/teams/event_names.json");

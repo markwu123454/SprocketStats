@@ -3,20 +3,13 @@ import {useAPI} from "@/hooks/useAPI.ts";
 import {useNavigate} from "react-router-dom";
 import {ArrowLeft} from "lucide-react";
 import ReactJsonView from "@microlink/react-json-view";
+import {getSetting, getSettingSync, type Settings} from "@/db/settingsDb.ts";
 
 export default function DevPage() {
     const navigate = useNavigate();
-    const {get_metadata, getLatency} = useAPI();
+    const {getMetadata, getLatency} = useAPI();
 
     const PLACEHOLDER = "—";
-
-    const [backendInfo, setBackendInfo] = useState<Record<string, any>>({
-        branch: PLACEHOLDER,
-        commit: PLACEHOLDER,
-        message: PLACEHOLDER,
-        deployTime: PLACEHOLDER,
-        env: PLACEHOLDER,
-    });
 
     const [storage, setStorage] = useState({
         local: {} as Record<string, string>,
@@ -33,8 +26,9 @@ export default function DevPage() {
     });
 
     const [version, setVersion] = useState<Record<string, any>>({});
-    const [selectedLocalKey, setSelectedLocalKey] = useState("");
     const [devMetadata, setDevMetadata] = useState<Record<string, any>>({});
+    const [eventNames, setEventNames] = useState<Record<string, { full: string; short: string }>>({});
+    const [theme, setThemeState] = useState<Settings["theme"]>(() => getSettingSync("theme", "2026"))
 
     const clearLocalKey = (key: string) => {
         window.localStorage.removeItem(key);
@@ -43,10 +37,6 @@ export default function DevPage() {
             delete next[key];
             return {...prev, local: next};
         });
-    };
-
-    const inspectStore = async (storeKey: string) => {
-        setSelectedLocalKey(storeKey);
     };
 
     const inspectIndexedDB = async () => {
@@ -154,21 +144,15 @@ export default function DevPage() {
     }, []);
 
     useEffect(() => {
+        const load = async () => {
+            const t = await getSetting("theme")
+            if (t) setThemeState(t)
+        }
+        void load()
+    }, [])
+
+    useEffect(() => {
         (async () => {
-
-            try {
-                const verRes = await window.fetch("/api/version");
-                const verData = await verRes.json();
-                setBackendInfo({
-                    branch: verData.branch ?? PLACEHOLDER,
-                    commit: verData.commit ?? PLACEHOLDER,
-                    message: verData.commit_message ?? PLACEHOLDER,
-                    deployTime: verData.deploy_time ?? PLACEHOLDER,
-                    env: verData.environment ?? PLACEHOLDER,
-                });
-            } catch {
-            }
-
             const local: Record<string, string> = {};
             for (let i = 0; i < window.localStorage.length; i++) {
                 const key = window.localStorage.key(i)!;
@@ -184,16 +168,16 @@ export default function DevPage() {
             setStorage(prev => ({...prev, local, cookies}));
 
             try {
-                const meta = await get_metadata();
+                const meta = await getMetadata();
                 setDevMetadata(meta);
-                setStorage(prev => ({
-                    ...prev,
-                    tables: meta.kpis ?? {},
-                    dexiePreview: meta,
-                }));
+                setStorage(prev => ({...prev, tables: meta.kpis ?? {},}));
             } catch {
             }
 
+            const nameRes = await fetch("/teams/event_names.json");
+            setEventNames(await nameRes.json());
+
+            void inspectIndexedDB();
         })();
     }, []);
 
@@ -232,7 +216,7 @@ export default function DevPage() {
                     <div className="flex-1 text-center min-w-0">
                         <p className="text-lg font-bold">Developer Info Dashboard</p>
                         <p className="text-xs opacity-70 truncate">
-                            Active Event: {devMetadata.current_event ?? PLACEHOLDER}
+                            Active Event: {eventNames?.[devMetadata["current_event"]]?.full ?? "-"}
                         </p>
                     </div>
 
@@ -268,7 +252,11 @@ export default function DevPage() {
                                     <p className="opacity-60">No LocalStorage keys found.</p>}
 
                                 {Object.entries(storage.local).map(([k, v]) => (
-                                    <div key={k} className="flex justify-between border-b py-1 truncate min-w-0">
+                                    <div key={k}
+                                         className="flex justify-between border-b py-1 truncate min-w-0
+                                         theme-light:border-zinc-300 theme-dark:border-zinc-800
+                                         theme-2025:border-[#1b3d80] theme-2026:border-[#e6ddae]
+                                         theme-3473:border-[#6d28d9]">
                                         <span className="truncate max-w-[75%]">{k}: {v}</span>
                                         <button onClick={() => clearLocalKey(k)}
                                                 className="flex-shrink-0 whitespace-nowrap opacity-60 hover:opacity-100 transition">
@@ -282,7 +270,7 @@ export default function DevPage() {
                         {/* COOKIES CARD (COLORS PRESERVED) */}
                         <div className="border rounded-xl p-4
               theme-light:bg-white/70 theme-light:border-zinc-300
-              theme-dark:bg-zinc-900/50 theme-dark:border-zink-800
+              theme-dark:bg-zinc-900/50 theme-dark:border-zinc-800
               theme-2025:bg-[rgba(11,35,79,0.6)] theme-2025:border-[#1b3d80]
               theme-2026:bg-[rgba(254,247,220,0.6)] theme-2026:border-[#e6ddae]
               theme-3473:bg-[rgba(76,29,149,0.6)] theme-3473:border-[#6d28d9]">
@@ -300,7 +288,10 @@ export default function DevPage() {
                                     <p className="opacity-60">No cookies found.</p>}
 
                                 {Object.entries(storage.cookies).map(([k, v]) => (
-                                    <div key={k} className="border-b py-1 truncate max-w-full min-w-0">{k}: {v}</div>
+                                    <div key={k} className="border-b py-1 truncate max-w-full min-w-0
+                                         theme-light:border-zinc-300 theme-dark:border-zinc-800
+                                         theme-2025:border-[#1b3d80] theme-2026:border-[#e6ddae]
+                                         theme-3473:border-[#6d28d9]">{k}: {v}</div>
                                 ))}
                             </div>
                         </div>
@@ -313,42 +304,44 @@ export default function DevPage() {
               theme-2026:bg-[rgba(254,247,220,0.6)] theme-2026:border-[#e6ddae]
               theme-3473:bg-[rgba(76,29,149,0.6)] theme-3473:border-[#6d28d9]">
 
-                            <h3 className="text-xs font-semibold uppercase opacity-70">IndexedDB</h3>
+                            <h3 className="text-xs font-semibold uppercase opacity-70">Indexed DB(Dexie DB)</h3>
 
-                            <div className="max-h-48 overflow-auto border rounded-xl p-2 my-2 text-xs
-                theme-light:bg-white/70 theme-light:border-zinc-300
-                theme-dark:bg-zinc-900/50 theme-dark:border-zinc-800
-                theme-2025:bg-[rgba(11,35,79,0.6)] theme-2025:border-[#1b3d80]
-                theme-2026:bg-[rgba(254,247,220,0.6)] theme-2026:border-[#e6ddae]
-                theme-3473:bg-[rgba(76,29,149,0.6)] theme-3473:border-[#6d28d9]">
+                            <div className="border rounded-xl p-4 min-h-32 overflow-auto text-xs my-2 backdrop-blur-sm
+  theme-light:bg-white/70 theme-light:border-zinc-300
+  theme-dark:bg-zinc-900/50 theme-dark:border-zinc-800
+  theme-2025:bg-[rgba(11,35,79,0.6)] theme-2025:border-[#1b3d80]
+  theme-2026:bg-[rgba(254,247,220,0.6)] theme-2026:border-[#e6ddae]
+  theme-3473:bg-[rgba(76,29,149,0.6)] theme-3473:border-[#6d28d9]"
+                            >
 
-                                {Object.keys(storage.tables).length === 0 &&
-                                    <p className="opacity-60">No IndexedDB databases inspected yet.</p>}
+                                {Object.keys(storage.dexiePreview).length > 0 ? (
+                                    <ReactJsonView
+                                        src={storage.dexiePreview}
+                                        collapsed={2}
+                                        theme={theme === "2025" || theme === "3473" || theme === "dark" ? "harmonic" : "rjv-default"}
+                                        style={{
+                                            backgroundColor: "transparent",
+                                            fontSize: "0.75rem",
+                                            lineHeight: 1.4,
+                                            color: theme === "2025" || theme === "3473" || theme === "dark" ? "#fafafa" : "#18181b",
+                                        }}
+                                        iconStyle="circle"
+                                        displayDataTypes={false}
+                                        indentWidth={2}
+                                        enableClipboard={false}
+                                    />
+                                ) : (
+                                    <p className="opacity-60">No JSON storage preview available.</p>
+                                )}
 
-                                {Object.entries(storage.tables).map(([k, count]) => (
-                                    <div key={k} className="flex justify-between border-b py-1 truncate min-w-0"
-                                         onClick={() => inspectStore(k)}>
-                                        <span className="truncate max-w-[70%]">{k}</span>
-                                        <span className="flex-shrink-0 whitespace-nowrap">{count} records</span>
-                                    </div>
-                                ))}
                             </div>
 
-                            <div className="border rounded-xl p-4 min-h-32 overflow-auto text-xs
-                backdrop-blur-sm
-                theme-light:bg-white/70 theme-light:border-zinc-300
-                theme-dark:bg-zinc-900/50 theme-dark:border-zinc-800
-                theme-2025:bg-[rgba(11,35,79,0.6)] theme-2025:border-[#1b3d80]
-                theme-2026:bg-[rgba(254,247,220,0.6)] theme-2026:border-[#e6ddae]
-                theme-3473:bg-[rgba(76,29,149,0.6)] theme-3473:border-[#6d28d9]">
-
-                                {Object.keys(storage.dexiePreview).length > 0
-                                    ? <ReactJsonView src={storage.dexiePreview} collapsed={2}/>
-                                    : <p className="opacity-60">No JSON storage preview available.</p>}
-                            </div>
 
                             <button onClick={inspectIndexedDB}
-                                    className="mt-2 w-full p-4 border rounded-xl text-xs transition hover:bg-white/10">
+                                    className="mt-2 w-full p-4 border rounded-xl text-xs transition hover:bg-white/10
+                                         theme-light:border-zinc-300 theme-dark:border-zinc-800
+                                         theme-2025:border-[#1b3d80] theme-2026:border-[#e6ddae]
+                                         theme-3473:border-[#6d28d9]">
                                 Inspect IndexedDB
                             </button>
                         </div>
@@ -371,47 +364,40 @@ export default function DevPage() {
                             </div>
 
                             <button onClick={testLatency}
-                                    className="w-full p-4 border rounded-xl text-xs transition hover:bg-white/10">
+                                    className="w-full p-4 border rounded-xl text-xs transition hover:bg-white/10
+                                         theme-light:border-zinc-300 theme-dark:border-zinc-800
+                                         theme-2025:border-[#1b3d80] theme-2026:border-[#e6ddae]
+                                         theme-3473:border-[#6d28d9]">
                                 Test Latency
                             </button>
                         </div>
 
-                        <div className="p-4 rounded-xl border shadow backdrop-blur-sm
-  theme-light:bg-white/40
-  theme-dark:bg-zinc-900/30
-  theme-2025:bg-[rgba(11,35,79,0.25)]
-  theme-2026:bg-[rgba(254,247,220,0.4)]
-  theme-3473:bg-[rgba(60,20,120,0.2)]">
+                        <div className="p-4 rounded-xl border
+  theme-light:bg-white/70 theme-light:border-zinc-300
+    theme-dark:bg-zinc-900/50 theme-dark:border-zinc-800
+    theme-2025:bg-[rgba(11,35,79,0.6)] theme-2025:border-[#1b3d80]
+    theme-2026:bg-[rgba(254,247,220,0.6)] theme-2026:border-[#e6ddae]
+    theme-3473:bg-[rgba(76,29,149,0.6)] theme-3473:border-[#6d28d9]">
 
                             <h3 className="text-xs font-semibold uppercase opacity-70 mb-2">
                                 Deployment Overview
                             </h3>
 
-                            {/* Raw dump (collapsible) for full visibility */}
-                            <div className="max-h-36 overflow-auto border rounded-xl p-2 mb-3 text-[10px] opacity-80
-    theme-light:bg-white/30
-    theme-dark:bg-black/20
-    theme-2025:bg-[rgba(11,35,79,0.3)]
-    theme-2026:bg-[rgba(254,247,220,0.5)]
-    theme-3473:bg-[rgba(60,20,120,0.3)]">
-                                <ReactJsonView src={version} collapsed={3} enableClipboard={false}/>
-                            </div>
-
                             {/* Compact multi-column grid for curated fields */}
-                            <div className="grid grid-cols-2 md:grid-cols-6 gap-2 text-[11px] font-medium">
+                            <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-[11px] font-medium">
                                 <div>Environment: {version.NODE_ENV ?? PLACEHOLDER}</div>
                                 <div>Vercel Env: {version.VERCEL_ENV ?? PLACEHOLDER}</div>
-                                <div>Region: {version.VERCEL_REGION ?? version.VERCEL_REGION_CACHE ?? PLACEHOLDER}</div>
+                                <div>Region: {version.VERCEL_REGION ?? PLACEHOLDER}</div>
                                 <div>URL: {version.VERCEL_URL ?? PLACEHOLDER}</div>
                                 <div>Preview: {String(version.VERCEL_IS_PREVIEW ?? false)}</div>
-                                <div>Branch: {version.VERCEL_GIT_BRANCH ?? version.VERCEL_GIT_COMMIT_REF ?? PLACEHOLDER}</div>
-                                <div>Commit: {version.VERCEL_GIT_COMMIT_SHA_SHORT ?? version.VERCEL_GIT_COMMIT_SHA_FULL ?? PLACEHOLDER}</div>
-                                <div>Author: {version.VERCEL_GIT_COMMIT_AUTHOR_NAME ?? version.VERCEL_GIT_COMMIT_AUTHOR_LOGIN ?? PLACEHOLDER}</div>
+                                <div>Branch: {version.VERCEL_GIT_COMMIT_REF ?? PLACEHOLDER}</div>
+                                <div>Commit: {version.VERCEL_GIT_COMMIT_SHA_SHORT ?? PLACEHOLDER}</div>
+                                <div>Author: {version.VERCEL_GIT_COMMIT_AUTHOR_NAME ?? PLACEHOLDER}</div>
                                 <div>Repo Owner: {version.VERCEL_GIT_REPO_OWNER ?? PLACEHOLDER}</div>
                                 <div>Repo Slug: {version.VERCEL_GIT_REPO_SLUG ?? PLACEHOLDER}</div>
                                 <div>Project ID: {version.VERCEL_PROJECT_ID ?? PLACEHOLDER}</div>
                                 <div>Deployment ID: {version.VERCEL_DEPLOYMENT_ID ?? PLACEHOLDER}</div>
-                                <div>Provider: {version.VERCEL_GIT_PROVIDER ?? version.PROVIDER_LABEL ?? PLACEHOLDER}</div>
+                                <div>Provider: {version.VERCEL_GIT_PROVIDER ?? PLACEHOLDER}</div>
                                 <div>Build time: {version.BUILD_TIME ?? PLACEHOLDER}</div>
                                 <div>Deploy time: {version.DEPLOY_TIME ?? PLACEHOLDER}</div>
                                 <div>Runtime: {version.VERCEL_RUNTIME ?? PLACEHOLDER}</div>
@@ -437,8 +423,8 @@ export default function DevPage() {
                     </a>
 
                     <div className="text-right opacity-70 whitespace-nowrap overflow-hidden flex-shrink-0">
-                        <p>Branch: {backendInfo.branch}</p>
-                        <p>Commit: {backendInfo.commit}</p>
+                        <p>Branch: {version.VERCEL_GIT_COMMIT_REF ?? PLACEHOLDER}</p>
+                        <p>Commit: {version.VERCEL_GIT_COMMIT_SHA_SHORT ?? PLACEHOLDER}</p>
                     </div>
                 </footer>
 

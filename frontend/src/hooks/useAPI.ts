@@ -121,7 +121,7 @@ export function useAPI() {
     }
 
     // --- Endpoint: GET /metadata ---
-    const get_metadata = async (): Promise<Record<string, any>> => {
+    const getMetadata = async (): Promise<Record<string, any>> => {
         try {
             const res = await fetch(`${BASE_URL}/metadata`, {
                 headers: getAuthHeaders(),
@@ -729,7 +729,7 @@ export function useAPI() {
     return {
         login,
         logout,
-        get_metadata,
+        getMetadata,
         verify,
         ping,
         claimTeam,
