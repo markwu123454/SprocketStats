@@ -210,18 +210,6 @@ export default function AdminPage() {
                                 Alliance Simulator
                             </div>
                         </div>
-
-                        <div onClick={() => navigate("/admin/assign")}
-                             className="p-4 rounded-xl border cursor-pointer shadow-md transition hover:scale-[1.02] active:scale-[0.98] backdrop-blur-sm
-                                        theme-light:bg-white/40 theme-dark:bg-zinc-900/30
-                                        theme-2025:bg-[rgba(11,35,79,0.25)]
-                                        theme-2026:bg-[rgba(254,247,220,0.4)]
-                                        theme-3473:bg-[rgba(60,20,120,0.2)]">
-                            <div className="flex items-center gap-3 font-semibold">
-                                <Users className="w-5 h-5"/>
-                                Scouter Assignment
-                            </div>
-                        </div>
                     </section>
 
                     {/* RIGHT SIDEBAR: TECHNICAL DEBUG PANEL */}

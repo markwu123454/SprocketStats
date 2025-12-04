@@ -1,5 +1,6 @@
 import asyncio
 import json
+import time
 import uuid
 from datetime import datetime, timezone, timedelta
 from typing import Optional, Dict, Any
@@ -825,6 +826,37 @@ async def get_candy_data():
     # ---------------------------------------------------------
     await db.set_misc(cache_key, json.dumps(final_output))
     return final_output
+
+@router.get("/latency")
+async def get_latency(request: Request) -> Dict[str, Any]:
+
+    # t2 — timestamp when request arrives at server
+    server_receive_ns = time.time_ns()
+
+    # ✅ Parse the header into THIS variable
+    client_request_sent_ns = request.headers.get("client-sent-ns")
+    if client_request_sent_ns is None:
+        raise HTTPException(status_code=400, detail="Missing client-sent-ns header")
+
+    try:
+        client_request_sent_ns = int(client_request_sent_ns)
+    except:
+        raise HTTPException(status_code=400, detail="Invalid client-sent-ns value")
+
+    # DB latency measurement
+    latency = await db.measure_db_latency()
+
+    # t3 — timestamp right before server sends response
+    server_finish_ns = time.time_ns()
+
+    # ✅ Echo back EXACTLY what we parsed + our own timestamps
+    return {
+        "client_request_sent_ns": client_request_sent_ns,
+        "server_receive_ns": server_receive_ns,
+        "server_finish_ns": server_finish_ns,
+        "latency": latency,
+    }
+
 
 
 '''

@@ -46,13 +46,13 @@ To add a new database function to this module, follow these steps:
    - Call it from a temporary FastAPI route or REPL with a live database connection.
    - Confirm it correctly handles both success and error conditions.
 """
-
-
+import socket
 import asyncpg
 import json
 import time
 import logging
 from typing import Dict, Any, Optional, Callable, Annotated
+import dotenv
 from fastapi import HTTPException, Header, Depends
 from datetime import datetime, timezone
 import uuid
@@ -67,6 +67,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # ---------- PostgreSQL settings (single DB) ----------
+dotenv.load_dotenv()
 DB_DSN = os.getenv("DATABASE_URL")
 _pools: dict[str, asyncpg.Pool] = {}
 DB_NAME = "data"
@@ -1076,3 +1077,64 @@ async def get_misc(key: str) -> Optional[str]:
     finally:
         await release_db_connection(DB_NAME, conn)
 
+
+async def measure_db_latency() -> Dict[str, Any]:
+    """
+    Measure:
+      - network latency (TCP handshake RTT to host:5432)
+      - database query latency (SELECT 1)
+    Returns nanoseconds.
+    """
+
+    conn = await get_db_connection(DB_NAME)
+    dsn = DB_DSN  # now correctly loaded via :contentReference[oaicite:0]{index=0}
+    host = None
+
+    # Parse DSN host
+    try:
+        if "@" in dsn:
+            host_part = dsn.split("@")[-1].split("/")[0]
+            if ":" in host_part:
+                host, _ = host_part.split(":", 1)
+            else:
+                host = host_part
+    except Exception:
+        host = None
+
+    tcp_latency_ns: Optional[int] = None
+    db_query_latency_ns: Optional[int] = None
+
+    try:
+        # 1. Network latency via raw TCP RTT (forced 5432 for accuracy)
+        if host:
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.settimeout(2)
+            t0 = time.perf_counter_ns()
+            try:
+                sock.connect((host, 5432))
+                tcp_latency_ns = time.perf_counter_ns() - t0
+            except Exception:
+                tcp_latency_ns = None
+            finally:
+                sock.close()
+
+        # 2. Database query latency
+        t1 = time.perf_counter_ns()
+        await conn.execute("SELECT 1;")
+        db_query_latency_ns = time.perf_counter_ns() - t1
+
+        # 3. Combined metric if both layers succeeded
+        roundtrip_ns = (tcp_latency_ns + db_query_latency_ns) \
+                       if tcp_latency_ns is not None and db_query_latency_ns is not None else None
+
+        return {
+            "tcp_latency_ns": tcp_latency_ns,
+            "db_query_latency_ns": db_query_latency_ns,
+            "db_roundtrip_ns": roundtrip_ns,
+        }
+
+    except Exception as e:
+        logger.error("Latency measurement failed: %s", e)
+        raise HTTPException(status_code=500, detail="Failed to measure database latency")
+    finally:
+        await release_db_connection(DB_NAME, conn)
