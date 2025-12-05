@@ -1,11 +1,11 @@
 import {useEffect, useState} from "react";
 import {useAPI} from "@/hooks/useAPI.ts";
 import {useNavigate} from "react-router-dom";
-import {ArrowLeft, Monitor, BarChart2, Users, Search, Activity, Terminal, GitBranch} from "lucide-react";
+import {ArrowLeft, Monitor, BarChart2, Users, Search, Activity, Terminal, GitBranch, UsersRound} from "lucide-react";
 
 export default function AdminPage() {
     const navigate = useNavigate();
-    const {get_metadata} = useAPI();
+    const {getMetadata} = useAPI();
 
     // --- state ---
     const [version, setVersion] = useState<Record<string, any>>({});
@@ -32,7 +32,7 @@ export default function AdminPage() {
 
     useEffect(() => {
         void (async () => {
-            const meta = await get_metadata();
+            const meta = await getMetadata();
             setMetadata(meta);
 
             const nameRes = await fetch("/teams/event_names.json");
@@ -86,7 +86,7 @@ export default function AdminPage() {
                     </button>
 
                     <div className="flex-1 text-center">
-                        <p className="text-lg font-bold">Admin Control Hub</p>
+                        <p className="text-lg font-bold">Admin Hub</p>
                         <p className="text-xs opacity-70">
                             Event: {eventNames?.[metadata["current_event"]]?.full ?? "-"}
                         </p>
@@ -211,15 +211,15 @@ export default function AdminPage() {
                             </div>
                         </div>
 
-                        <div onClick={() => navigate("/admin/assign")}
+                        <div onClick={() => navigate("/admin/assignment")}
                              className="p-4 rounded-xl border cursor-pointer shadow-md transition hover:scale-[1.02] active:scale-[0.98] backdrop-blur-sm
                                         theme-light:bg-white/40 theme-dark:bg-zinc-900/30
                                         theme-2025:bg-[rgba(11,35,79,0.25)]
                                         theme-2026:bg-[rgba(254,247,220,0.4)]
                                         theme-3473:bg-[rgba(60,20,120,0.2)]">
                             <div className="flex items-center gap-3 font-semibold">
-                                <Users className="w-5 h-5"/>
-                                Scouter Assignment
+                                <UsersRound className="w-5 h-5"/>
+                                Match assignment
                             </div>
                         </div>
                     </section>

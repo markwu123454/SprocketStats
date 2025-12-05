@@ -121,8 +121,20 @@ async def get_all_events(session):
                     "full": full,
                     "short": short
                 }
+
+    # Inject test events before returning
+    event_map["2025test"] = {
+        "full": "2025 Test Event",
+        "short": "Test"
+    }
+    event_map["2026test"] = {
+        "full": "2026 Test Event",
+        "short": "Test"
+    }
+
     log.info(f"Total events collected: {len(event_map)}")
     return event_map
+
 
 
 async def get_team_image(session, team_key):

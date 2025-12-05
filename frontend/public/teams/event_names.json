@@ -15269,7 +15269,7 @@
   },
   "2025xxsan": {
     "full": "World Robot Contest Championships 2025 - Sanya FRC Program & China Off-Season Event Presented by TIMKEN",
-    "short": "World Robot Contest Championships 2025 - Sanya FRC Program & China Off-Season"
+    "short": "Sanya FRC Program & China Off-Season"
   },
   "2026alhu": {
     "full": "Rocket City Regional",
@@ -15297,11 +15297,11 @@
   },
   "2026brba": {
     "full": "Regional Brazil - Festival SESI de Educação",
-    "short": "Brazil - Festival SESI de Educação"
+    "short": "Festival SESI de Educação"
   },
   "2026brsp": {
     "full": "Regional Brazil - SESI Vila Leopoldina",
-    "short": "Brazil - SESI Vila Leopoldina"
+    "short": "SESI Vila Leopoldina"
   },
   "2026caasv": {
     "full": "CA District Aerospace Valley Event",
@@ -15333,7 +15333,7 @@
   },
   "2026cancmp": {
     "full": "FIRST California Northern State Championship",
-    "short": "FIRST California Northern State Championship"
+    "short": "California Northern State Championship"
   },
   "2026caoec": {
     "full": "CA District Orange County Event",
@@ -15353,7 +15353,7 @@
   },
   "2026cascmp": {
     "full": "FIRST California Southern State Championship presented by Qualcomm",
-    "short": "FIRST California Southern State Championship"
+    "short": "California Southern State Championship"
   },
   "2026casgv": {
     "full": "CA District San Gabriel Valley Event",
@@ -16138,5 +16138,13 @@
   "2026wiply": {
     "full": "WIN District Lakeland Event",
     "short": "Lakeland"
+  },
+  "2025test": {
+    "full": "2025 Test Event",
+    "short": "Test"
+  },
+  "2026test": {
+    "full": "2026 Test Event",
+    "short": "Test"
   }
 }

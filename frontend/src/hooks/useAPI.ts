@@ -121,7 +121,7 @@ export function useAPI() {
     }
 
     // --- Endpoint: GET /metadata ---
-    const get_metadata = async (): Promise<Record<string, any>> => {
+    const getMetadata = async (): Promise<Record<string, any>> => {
         try {
             const res = await fetch(`${BASE_URL}/metadata`, {
                 headers: getAuthHeaders(),
@@ -673,11 +673,63 @@ export function useAPI() {
         }
     };
 
+    const getLatency = async (): Promise<{
+        client_to_server_ns: number | null,
+        server_to_client_ns: number | null,
+        roundtrip_ns: number | null,
+        db_latency: Record<string, any> | null
+    }> => {
+        try {
+            const url = `${BASE_URL}/latency`;
+
+            const clientRequestSentNs = performance.timeOrigin
+                ? BigInt(Math.floor((performance.timeOrigin + performance.now()) * 1e6))
+                : BigInt(Date.now()) * 1_000_000n;
+
+
+            const res = await fetch(url, {
+                headers: {
+                    "client-sent-ns": clientRequestSentNs.toString()
+                }
+            });
+
+            const clientReceivedNs = performance.timeOrigin
+                ? BigInt(Math.floor((performance.timeOrigin + performance.now()) * 1e6))
+                : BigInt(Date.now()) * 1_000_000n;
+
+            if (!res.ok) {
+                console.warn(`measure latency failed: ${res.status} ${res.statusText}`);
+                return {client_to_server_ns: null, server_to_client_ns: null, roundtrip_ns: null, db_latency: null};
+            }
+
+            const json = await res.json();
+
+            const serverReceiveNs = BigInt(json.server_receive_ns);
+            const serverFinishNs = BigInt(json.server_finish_ns);
+
+            const clientToServerNs = serverReceiveNs - clientRequestSentNs;
+
+            const serverToClientNs = clientReceivedNs - serverFinishNs;
+
+            const roundTripNs = clientReceivedNs - clientRequestSentNs;
+
+            return {
+                client_to_server_ns: clientToServerNs > 0n ? Number(clientToServerNs) : null,
+                server_to_client_ns: serverToClientNs > 0n ? Number(serverToClientNs) : null,
+                roundtrip_ns: roundTripNs > 0n ? Number(roundTripNs) : null,
+                db_latency: json.latency ?? null,
+            };
+        } catch (err) {
+            console.error("measureServerLatency failed:", err);
+            return {client_to_server_ns: null, server_to_client_ns: null, roundtrip_ns: null, db_latency: null};
+        }
+    };
+
 
     return {
         login,
         logout,
-        get_metadata,
+        getMetadata,
         verify,
         ping,
         claimTeam,
@@ -697,5 +749,6 @@ export function useAPI() {
         getFilteredMatches,
         getProcessedData,
         getCandyData,
+        getLatency,
     };
 }

@@ -66,6 +66,7 @@ export default function App() {
                             <Route element={<AuthWrapper permission="admin" device="desktop" mode="optimistic"/>}>
                                 <Route index element={<AdminPage/>}/>
                                 <Route path="monitor/*" element={<MatchMonitorPage/>}/>
+                                <Route path="assignment" element={<NotFoundPage code={501}/>}/>
                             </Route>
 
                             <Route path="data" element={<DataWrapper/>}>
