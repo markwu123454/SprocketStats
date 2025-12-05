@@ -37,6 +37,8 @@ export default function MatchScoutingPage() {
     const [submitStatus, setSubmitStatus] = useState<'idle' | 'loading' | 'success' | 'local' | 'error' | 'warning'>('idle')
     const [showResumeDialog, setShowResumeDialog] = useState(false)
     const [resumeList, setResumeList] = useState<ScoutingDataWithKey[]>([]);
+    const [resumeLock, setResumeLock] = useState<Record<number, boolean>>({});
+    const [resumeWarning, setResumeWarning] = useState<Record<number, boolean>>({});
 
     // 3. Derived constants
     const phase = PHASE_ORDER[phaseIndex]
@@ -240,11 +242,20 @@ export default function MatchScoutingPage() {
                                     </Button>
                                     <Button
                                         size="sm"
-                                        className="bg-zinc-600"
+                                        className={
+                                            resumeWarning[entry.key]
+                                                ? "bg-red-600 hover:bg-red-700"
+                                                : "bg-zinc-600"
+                                        }
                                         onClick={async () => {
+                                            // Prevent spamming while in-flight
+                                            if (resumeLock[entry.key]) return;
+
+                                            setResumeLock(prev => ({...prev, [entry.key]: true}));
+                                            setResumeWarning(prev => ({...prev, [entry.key]: false}));
+
                                             try {
                                                 if (isOnline && serverOnline) {
-                                                    // Step 1: try to claim again before resuming
                                                     const success = await claimTeam(
                                                         entry.match!,
                                                         entry.teamNumber!,
@@ -253,11 +264,13 @@ export default function MatchScoutingPage() {
                                                     );
 
                                                     if (!success) {
-                                                        alert("This team is already being scouted by someone else.");
+                                                        // Trigger non-blocking visual warning and unlock button
+                                                        setResumeWarning(prev => ({...prev, [entry.key]: true}));
+                                                        setResumeLock(prev => ({...prev, [entry.key]: false}));
+
                                                         return;
                                                     }
 
-                                                    // Step 2: mark server state to resume at previous phase
                                                     await updateState(
                                                         entry.match!,
                                                         entry.teamNumber!,
@@ -266,22 +279,33 @@ export default function MatchScoutingPage() {
                                                         entry.status as Phase
                                                     );
                                                 }
+
+                                                const restored = normalizeScoutingData(entry, {
+                                                    ...createDefaultScoutingData(),
+                                                    scouter: scouterName
+                                                });
+
+                                                setScoutingData(restored);
+                                                setPhaseIndex(PHASE_ORDER.indexOf(entry.status as Phase));
+                                                setShowResumeDialog(false);
+
                                             } catch (err) {
                                                 console.warn("Failed to resume team:", err);
-                                                return;
-                                            }
 
-                                            // Step 3: restore local data
-                                            const restored = normalizeScoutingData(entry, {
-                                                ...createDefaultScoutingData(),
-                                                scouter: scouterName
-                                            })
-                                            setScoutingData(restored)
-                                            setPhaseIndex(PHASE_ORDER.indexOf(entry.status as Phase));
-                                            setShowResumeDialog(false);
+                                                // Unlock button on failure
+                                                setResumeLock(prev => ({...prev, [entry.key]: false}));
+
+                                            } finally {
+                                                // If it succeeded, the dialog closes and lock clears naturally.
+                                                // If not succeeded, lock already reset above.
+                                            }
                                         }}
                                     >
-                                        Continue
+                                        {resumeWarning[entry.key]
+                                            ? "Unavailable"
+                                            : resumeLock[entry.key]
+                                                ? "Loading..."
+                                                : "Continue"}
                                     </Button>
                                 </div>
                             </div>
@@ -320,19 +344,22 @@ export default function MatchScoutingPage() {
                 </div>
 
                 {/* Middle Section (Phases) */}
-                <div className="flex-1 min-h-0 overflow-hidden text-4xl h-full">
-                    {phase === 'pre' && (
-                        <PrePhase key="pre" data={scoutingData} setData={setScoutingData}/>
-                    )}
-                    {phase === 'auto' && (
-                        <AutoPhase key="auto" data={scoutingData} setData={setScoutingData}/>
-                    )}
-                    {phase === 'teleop' && (
-                        <TeleopPhase key="teleop" data={scoutingData} setData={setScoutingData}/>
-                    )}
-                    {phase === 'post' && (
-                        <PostMatch key="post" data={scoutingData} setData={setScoutingData}/>
-                    )}
+                <div
+                    className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain touch-auto no-scrollbar">
+                    <div className="text-4xl">
+                        {phase === 'pre' && (
+                            <PrePhase key="pre" data={scoutingData} setData={setScoutingData}/>
+                        )}
+                        {phase === 'auto' && (
+                            <AutoPhase key="auto" data={scoutingData} setData={setScoutingData}/>
+                        )}
+                        {phase === 'teleop' && (
+                            <TeleopPhase key="teleop" data={scoutingData} setData={setScoutingData}/>
+                        )}
+                        {phase === 'post' && (
+                            <PostMatch key="post" data={scoutingData} setData={setScoutingData}/>
+                        )}
+                    </div>
                 </div>
 
                 {/* Bottom Bar */}

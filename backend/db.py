@@ -51,7 +51,7 @@ import asyncpg
 import json
 import time
 import logging
-from typing import Dict, Any, Optional, Callable, Annotated
+from typing import Dict, Any, Optional, Callable, Annotated, Awaitable
 import dotenv
 from fastapi import HTTPException, Header, Depends
 from datetime import datetime, timezone
@@ -130,19 +130,19 @@ def _from_db_scouter(s: str) -> Optional[str]:
 
 # =================== Schema Init ===================
 
-async def init_data_db():
+async def init_db():
     """
-    Initialize tables in the 'data' database:
-      - match_scouting
-      - pit_scouting
-      - processed_data
-      - users
-    Creates indices if missing.
+    Initialize all required tables in the 'data' database
+    using the updated schema.
     """
+
     conn = await get_db_connection(DB_NAME)
     try:
         async with conn.transaction():
-            # --- match_scouting table ---
+
+            # ---------------------------------------------------
+            # match_scouting
+            # ---------------------------------------------------
             await conn.execute("""
                 CREATE TABLE IF NOT EXISTS match_scouting (
                     event_key TEXT NOT NULL,
@@ -155,15 +155,17 @@ async def init_data_db():
                     data JSONB NOT NULL,
                     last_modified BIGINT NOT NULL,
                     PRIMARY KEY (match, match_type, team, scouter)
-                )
+                );
             """)
             await conn.execute("CREATE INDEX IF NOT EXISTS idx_match_scouting_team ON match_scouting (team)")
             await conn.execute("""
                 CREATE INDEX IF NOT EXISTS idx_ms_lookup
-                ON match_scouting (match, match_type, team, scouter)
+                ON match_scouting (match, match_type, team, scouter);
             """)
 
-            # --- pit_scouting table ---
+            # ---------------------------------------------------
+            # pit_scouting
+            # ---------------------------------------------------
             await conn.execute("""
                 CREATE TABLE IF NOT EXISTS pit_scouting (
                     event_key TEXT NOT NULL,
@@ -173,84 +175,145 @@ async def init_data_db():
                     data JSONB NOT NULL,
                     last_modified BIGINT NOT NULL,
                     PRIMARY KEY (event_key, team, scouter)
-                )
+                );
             """)
             await conn.execute("CREATE INDEX IF NOT EXISTS idx_pit_scouting_team ON pit_scouting (team)")
             await conn.execute("""
                 CREATE INDEX IF NOT EXISTS idx_pit_lookup
-                ON pit_scouting (event_key, team, scouter)
+                ON pit_scouting (event_key, team, scouter);
             """)
 
-            # --- processed_data table ---
-            await conn.execute("CREATE TABLE IF NOT EXISTS processed_data (data TEXT)")
-
-            # --- tba table ---
+            # ---------------------------------------------------
+            # processed_data
+            # ---------------------------------------------------
             await conn.execute("""
-                               CREATE TABLE IF NOT EXISTS tba_matches
-                               (
-                                   match_key           TEXT PRIMARY KEY,
-                                   event_key           TEXT   NOT NULL,
-                                   comp_level          TEXT   NOT NULL,
-                                   set_number          INTEGER,
-                                   match_number        INTEGER,
-                                   time                BIGINT,
-                                   actual_time         BIGINT,
-                                   predicted_time      BIGINT,
-                                   post_result_time    BIGINT,
-                                   winning_alliance    TEXT,
-                                   red_teams           TEXT[] NOT NULL,
-                                   blue_teams          TEXT[] NOT NULL,
-                                   red_score           INTEGER,
-                                   blue_score          INTEGER,
-                                   red_rp              INTEGER,
-                                   blue_rp             INTEGER,
-                                   red_auto_points     INTEGER,
-                                   blue_auto_points    INTEGER,
-                                   red_teleop_points   INTEGER,
-                                   blue_teleop_points  INTEGER,
-                                   red_endgame_points  INTEGER,
-                                   blue_endgame_points INTEGER,
-                                   score_breakdown     JSONB,
-                                   videos              JSONB,
-                                   last_update         TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                               );
-                               """)
-
-            # --- users table ---
-            await conn.execute("""
-                CREATE TABLE IF NOT EXISTS users(
-                    name TEXT PRIMARY KEY,
-                    passcode_hash TEXT NOT NULL,
-                    dev BOOLEAN NOT NULL DEFAULT FALSE,
-                    admin BOOLEAN NOT NULL DEFAULT FALSE,
-                    match_scouting BOOLEAN NOT NULL DEFAULT FALSE,
-                    pit_scouting BOOLEAN NOT NULL DEFAULT FALSE,
-                    match_access JSONB NOT NULL DEFAULT '[]'::jsonb
+                CREATE TABLE IF NOT EXISTS processed_data (
+                    event_key TEXT NOT NULL,
+                    time_added TIMESTAMPTZ NOT NULL,
+                    data JSONB NOT NULL
                 );
             """)
-    except PostgresError as e:
-        logger.error("Failed to initialize data schema: %s", e)
-        raise HTTPException(status_code=500, detail=f"Failed to initialize database: {e}")
-    finally:
-        await release_db_connection(DB_NAME, conn)
 
+            # ---------------------------------------------------
+            # matches
+            # ---------------------------------------------------
+            await conn.execute("""
+                CREATE TABLE IF NOT EXISTS matches (
+                    key TEXT PRIMARY KEY,
+                    event_key TEXT NOT NULL,
+                    match_type TEXT NOT NULL,
+                    match_number INTEGER,
+                    set_number INTEGER,
+                    scheduled_time TIMESTAMPTZ,
+                    actual_time TIMESTAMPTZ,
+                    red1 INTEGER, red2 INTEGER, red3 INTEGER,
+                    blue1 INTEGER, blue2 INTEGER, blue3 INTEGER,
+                    red1_scouter TEXT, red2_scouter TEXT, red3_scouter TEXT,
+                    blue1_scouter TEXT, blue2_scouter TEXT, blue3_scouter TEXT
+                );
+            """)
 
-async def init_session_db():
-    """Initialize the 'sessions' table in the 'data' database if it does not exist."""
-    conn = await get_db_connection(DB_NAME)
-    try:
-        async with conn.transaction():
+            # ---------------------------------------------------
+            # matches_tba
+            # ---------------------------------------------------
+            await conn.execute("""
+                CREATE TABLE IF NOT EXISTS matches_tba (
+                    match_key TEXT PRIMARY KEY,
+                    event_key TEXT NOT NULL,
+                    comp_level TEXT NOT NULL,
+                    set_number INTEGER,
+                    match_number INTEGER,
+                    time BIGINT,
+                    actual_time BIGINT,
+                    predicted_time BIGINT,
+                    post_result_time BIGINT,
+                    winning_alliance TEXT,
+                    red_teams TEXT[] NOT NULL,
+                    blue_teams TEXT[] NOT NULL,
+                    red_score INTEGER,
+                    blue_score INTEGER,
+                    red_rp INTEGER,
+                    blue_rp INTEGER,
+                    red_auto_points INTEGER,
+                    blue_auto_points INTEGER,
+                    red_teleop_points INTEGER,
+                    blue_teleop_points INTEGER,
+                    red_endgame_points INTEGER,
+                    blue_endgame_points INTEGER,
+                    score_breakdown JSONB,
+                    videos JSONB,
+                    last_update TIMESTAMP,
+                    red_coopertition_criteria BOOLEAN,
+                    blue_coopertition_criteria BOOLEAN
+                );
+            """)
+
+            # ---------------------------------------------------
+            # metadata
+            # ---------------------------------------------------
+            await conn.execute("""
+                CREATE TABLE IF NOT EXISTS metadata (
+                    current_event TEXT
+                );
+            """)
+
+            # ---------------------------------------------------
+            # teams
+            # ---------------------------------------------------
+            await conn.execute("""
+                CREATE TABLE IF NOT EXISTS teams (
+                    team_number INTEGER PRIMARY KEY,
+                    nickname TEXT,
+                    rookie_year INTEGER,
+                    last_updated TIMESTAMP
+                );
+            """)
+
+            # ---------------------------------------------------
+            # misc
+            # ---------------------------------------------------
+            await conn.execute("""
+                CREATE TABLE IF NOT EXISTS misc (
+                    id INTEGER PRIMARY KEY,
+                    candy_cache TEXT
+                );
+            """)
+
+            # ---------------------------------------------------
+            # users
+            # ---------------------------------------------------
+            await conn.execute("""
+                CREATE TABLE IF NOT EXISTS users (
+                    email TEXT PRIMARY KEY,
+                    name TEXT NOT NULL,
+                    approval TEXT,
+                    perm_dev BOOLEAN NOT NULL DEFAULT FALSE,
+                    perm_admin BOOLEAN NOT NULL DEFAULT FALSE,
+                    perm_match_scout BOOLEAN NOT NULL DEFAULT FALSE,
+                    perm_pit_scout BOOLEAN NOT NULL DEFAULT FALSE,
+                    perm_guest_access JSONB NOT NULL DEFAULT '[]'::jsonb,
+                    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+                );
+            """)
+
+            # ---------------------------------------------------
+            # sessions
+            # ---------------------------------------------------
             await conn.execute("""
                 CREATE TABLE IF NOT EXISTS sessions (
                     uuid TEXT PRIMARY KEY,
                     data JSONB NOT NULL,
-                    expires TIMESTAMP WITH TIME ZONE NOT NULL
+                    expires TIMESTAMPTZ NOT NULL
                 );
             """)
-            await conn.execute("CREATE INDEX IF NOT EXISTS idx_sessions_expires ON sessions (expires);")
-    except PostgresError as e:
-        logger.error("Failed to initialize sessions schema: %s", e)
-        raise HTTPException(status_code=500, detail=f"Failed to initialize sessions schema: {e}")
+            await conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_sessions_expires
+                ON sessions (expires);
+            """)
+
+    except Exception as e:
+        logger.error("Failed to initialize schema: %s", e)
+        raise HTTPException(status_code=500, detail=f"Failed to initialize schema: {e}")
     finally:
         await release_db_connection(DB_NAME, conn)
 
@@ -386,9 +449,9 @@ async def update_match_scouting(
                 SELECT data, status
                 FROM match_scouting
                 WHERE event_key = (SELECT current_event FROM metadata LIMIT 1)
-                  AND match = $1 AND match_type = $2 AND team = $3 AND scouter = $4
+                  AND match = $1 AND match_type = $2 AND team = $3 AND (scouter = $4 OR scouter = $5)
                 FOR UPDATE
-            """, match, m_type.value, str(team), _to_db_scouter(scouter))
+            """, match, m_type.value, str(team), _to_db_scouter(scouter), _to_db_scouter(scouter_new))
             if not row:
                 raise HTTPException(status_code=404, detail="Match scouting entry not found")
 
@@ -969,32 +1032,6 @@ async def get_metadata():
         await release_db_connection(DB_NAME, conn)
 
 
-
-# =================== FastAPI dependencies ===================
-
-def require_session() -> Callable[..., enums.SessionInfo]:
-    async def dep(x_uuid: Annotated[str, Header(alias="x-uuid")]) -> enums.SessionInfo:
-        s = await verify_uuid(x_uuid)
-        return enums.SessionInfo(
-            email=s["email"],
-            name=s["name"],
-            permissions=enums.SessionPermissions(**s["permissions"]),
-        )
-    return dep
-
-
-def require_permission(required: str) -> Callable[..., enums.SessionInfo]:
-    """
-    FastAPI dependency: validates an existing session and ensures
-    the user has a given permission flag (e.g. 'admin' or 'dev').
-    """
-    async def dep(session: enums.SessionInfo = Depends(require_session())) -> enums.SessionInfo:
-        if not getattr(session.permissions, required, False):
-            raise HTTPException(status_code=403, detail=f"Missing '{required}' permission")
-        return session
-    return dep
-
-
 async def set_misc(key: str, value: str):
     """
     Ensure a misc column exists for `key`, then store its value in row id=1.
@@ -1138,3 +1175,28 @@ async def measure_db_latency() -> Dict[str, Any]:
         raise HTTPException(status_code=500, detail="Failed to measure database latency")
     finally:
         await release_db_connection(DB_NAME, conn)
+
+
+# =================== FastAPI dependencies ===================
+
+def require_session() -> Callable[..., Awaitable[enums.SessionInfo]]:
+    async def dep(x_uuid: Annotated[str, Header(alias="x-uuid")]) -> enums.SessionInfo:
+        s = await verify_uuid(x_uuid)
+        return enums.SessionInfo(
+            email=s["email"],
+            name=s["name"],
+            permissions=enums.SessionPermissions(**s["permissions"]),
+        )
+    return dep
+
+
+def require_permission(required: str) -> Callable[..., Awaitable[enums.SessionInfo]]:
+    """
+    FastAPI dependency: validates an existing session and ensures
+    the user has a given permission flag (e.g. 'admin' or 'dev').
+    """
+    async def dep(session: enums.SessionInfo = Depends(require_session())) -> enums.SessionInfo:
+        if not getattr(session.permissions, required, False):
+            raise HTTPException(status_code=403, detail=f"Missing '{required}' permission")
+        return session
+    return dep

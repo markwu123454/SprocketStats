@@ -20,6 +20,8 @@ translator = importlib.import_module("seasons.2025.translator")
 router = APIRouter()
 
 
+# === General ===
+
 @router.get("/", response_class=HTMLResponse)
 def root():
     return """
@@ -120,6 +122,8 @@ def ping():
     return {"ping": "pong"}
 
 
+# === Auth ===
+
 @router.post("/auth/login")
 async def login(request: Request, body: dict):
     """
@@ -188,6 +192,7 @@ async def verify(session: enums.SessionInfo = Depends(db.require_session())):
     }
 
 
+# === Admin ===
 
 @router.get("/metadata")
 async def get_metadata(_: enums.SessionInfo = Depends(db.require_permission("admin"))):
@@ -249,6 +254,38 @@ async def get_team_basic_info(team: int):
     }
 
 
+@router.get("/latency")
+async def get_latency(request: Request) -> Dict[str, Any]:
+
+    # t2 — timestamp when request arrives at server
+    server_receive_ns = time.time_ns()
+
+    # ✅ Parse the header into THIS variable
+    client_request_sent_ns = request.headers.get("client-sent-ns")
+    if client_request_sent_ns is None:
+        raise HTTPException(status_code=400, detail="Missing client-sent-ns header")
+
+    try:
+        client_request_sent_ns = int(client_request_sent_ns)
+    except:
+        raise HTTPException(status_code=400, detail="Invalid client-sent-ns value")
+
+    # DB latency measurement
+    latency = await db.measure_db_latency()
+
+    # t3 — timestamp right before server sends response
+    server_finish_ns = time.time_ns()
+
+    # ✅ Echo back EXACTLY what we parsed + our own timestamps
+    return {
+        "client_request_sent_ns": client_request_sent_ns,
+        "server_receive_ns": server_receive_ns,
+        "server_finish_ns": server_finish_ns,
+        "latency": latency,
+    }
+
+
+# === Match scouting ===
 
 @router.patch("/scouting/{m_type}/{match}/{team}/claim")
 async def claim_team(
@@ -581,6 +618,8 @@ async def get_scouter_state(
     }
 
 
+# === Pit scouting ===
+
 @router.get("/pit/teams")
 async def list_pit_teams(
     _: enums.SessionInfo = Depends(db.require_permission("pit_scouting")),
@@ -682,6 +721,8 @@ async def submit_pit_data(
 
     return {"status": "submitted", "team": team}
 
+
+# === Data ===
 
 @router.get("/data/processed")
 async def get_data_processed(
@@ -827,163 +868,3 @@ async def get_candy_data():
     await db.set_misc(cache_key, json.dumps(final_output))
     return final_output
 
-@router.get("/latency")
-async def get_latency(request: Request) -> Dict[str, Any]:
-
-    # t2 — timestamp when request arrives at server
-    server_receive_ns = time.time_ns()
-
-    # ✅ Parse the header into THIS variable
-    client_request_sent_ns = request.headers.get("client-sent-ns")
-    if client_request_sent_ns is None:
-        raise HTTPException(status_code=400, detail="Missing client-sent-ns header")
-
-    try:
-        client_request_sent_ns = int(client_request_sent_ns)
-    except:
-        raise HTTPException(status_code=400, detail="Invalid client-sent-ns value")
-
-    # DB latency measurement
-    latency = await db.measure_db_latency()
-
-    # t3 — timestamp right before server sends response
-    server_finish_ns = time.time_ns()
-
-    # ✅ Echo back EXACTLY what we parsed + our own timestamps
-    return {
-        "client_request_sent_ns": client_request_sent_ns,
-        "server_receive_ns": server_receive_ns,
-        "server_finish_ns": server_finish_ns,
-        "latency": latency,
-    }
-
-
-
-'''
-@router.post("/auth/login/guest")
-async def guest_login(request: Request, body: enums.PasscodeBody):
-    """
-    Guest login: limited permissions; passcode still verified in users table.
-    """
-    user = await db.get_user_by_passcode(body.passcode)
-    if not user:
-        raise HTTPException(status_code=401, detail="Invalid passcode")
-
-    session_id = str(uuid.uuid4())
-    expires_dt = datetime.now(timezone.utc) + request.app.state.config.get("SESSION_DURATION", timedelta(hours=2))
-
-    session_data = {
-        "name": user["name"],
-        "permissions": {
-            "dev": False,
-            "admin": False,
-            "match_scouting": False,
-            "pit_scouting": False,
-            "match_access": user["match_access"]
-        },
-        "expires": expires_dt.isoformat()
-    }
-
-    await db.add_session(session_id, session_data, expires_dt)
-
-    return {
-        "uuid": session_id,
-        "name": session_data["name"],
-        "expires": session_data["expires"],
-        "permissions": session_data["permissions"]
-    }
-    
-    
-@router.post("/admin/expire/{session_id}")
-async def expire_uuid(session_id: str, _: enums.SessionInfo = Depends(db.require_permission("admin"))):
-    """
-    Expires a single UUID session.
-    """
-    await db.delete_session(session_id)
-    return {"status": "expired"}
-
-
-@router.post("/admin/expire_all")
-async def expire_all(_: enums.SessionInfo = Depends(db.require_permission("admin"))):
-    """
-    Expires all UUID sessions.
-    """
-    await db.delete_all_sessions()
-    return {"status": "all expired"}
-
-
-@router.post("/admin/set_event")
-async def set_event(event: str, _: enums.SessionInfo = Depends(db.require_permission("admin"))):
-    """
-    Admin-only: Initializes the scouting database for a given event key.
-    Pulls data from TBA and creates empty records for each team in each match.
-    """
-    try:
-        matches = tba_fetcher.get_event_data(event)["matches"]
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Failed to fetch event data: {str(e)}")
-
-    # Insert match data into the database using async calls
-    for match in matches:
-        match_key = match["key"].split("_")[-1]  # e.g., qm1
-        for alliance in enums.AllianceType:
-            for team_key in match["alliances"][alliance.value]["team_keys"]:
-                team_number = int(team_key[3:])
-                # Use db.py to insert match scouting data asynchronously
-                await db.add_match_scouting(
-                    match=match_key,
-                    m_type=enums.MatchType.QUALIFIER,  # Assuming match type is "qm" for simplicity
-                    team=team_number,
-                    alliance=alliance,  # Directly using the Enum value
-                    scouter=None,
-                    status=enums.StatusType.UNCLAIMED,
-                    data={}
-                )
-
-    return {"status": "event initialized", "matches": len(matches)}
-
-
-
-@router.get("/poll/admin_match/{match}/{match_type}")
-async def poll_admin_match_changes(
-        match: int,
-        match_type: str,
-        client_ts: str = "",
-        _: enums.SessionInfo = Depends(db.require_permission("admin"))
-):
-    timeout_ns = 10 * 1_000_000_000  # 10 seconds
-    check_interval = 0.2  # seconds
-
-    def parse_ts(ts: str) -> int:
-        try:
-            return int(ts)
-        except Exception:
-            return 0
-
-    client_ns = parse_ts(client_ts)
-
-    async def get_current_state():
-        entries = await db.get_match_scouting(match=match)
-        relevant = [e for e in entries if e["match_type"] == match_type]
-        latest_ns = max((e["last_modified"] for e in relevant if e["last_modified"]), default=0)
-        return relevant, latest_ns
-
-    start = time.time_ns()
-    while True:
-        current_state, latest_ns = await get_current_state()
-        if latest_ns > client_ns:
-            await asyncio.sleep(0.3)
-            current_state, latest_ns = await get_current_state()
-            return {
-                "timestamp": str(latest_ns),
-                "entries": current_state  # full list of match_scouting dicts
-            }
-
-        if time.time_ns() - start > timeout_ns:
-            return {
-                "timestamp": str(latest_ns) if latest_ns else None,
-                "entries": current_state
-            }
-
-        await asyncio.sleep(check_interval)
-'''

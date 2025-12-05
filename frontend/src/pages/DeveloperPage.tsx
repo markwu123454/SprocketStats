@@ -214,7 +214,7 @@ export default function DevPage() {
                     </button>
 
                     <div className="flex-1 text-center min-w-0">
-                        <p className="text-lg font-bold">Developer Info Dashboard</p>
+                        <p className="text-lg font-bold">Developer Dashboard</p>
                         <p className="text-xs opacity-70 truncate">
                             Active Event: {eventNames?.[devMetadata["current_event"]]?.full ?? "-"}
                         </p>
