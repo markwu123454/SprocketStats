@@ -3,42 +3,14 @@ import {useAPI} from "@/hooks/useAPI.ts";
 import {useNavigate} from "react-router-dom";
 import {ArrowLeft, Monitor, BarChart2, Users, Search, Activity, Terminal, GitBranch, UsersRound} from "lucide-react";
 
-// --- Type Definitions ---
-interface VersionInfo {
-    VERCEL_GIT_COMMIT_REF?: string;
-    VERCEL_GIT_COMMIT_SHA_SHORT?: string;
-    VERCEL_GIT_COMMIT_AUTHOR_LOGIN?: string;
-    DEPLOY_TIME?: string;
-    [key: string]: unknown;
-}
-
-interface Metadata {
-    current_event?: string;
-    scouting_status?: string;
-    kpis?: {
-        total_matches?: number;
-        scouted?: number;
-        pending?: number;
-        current_match?: string;
-    };
-    [key: string]: unknown;
-}
-
-interface EventNames {
-    [key: string]: {
-        full: string;
-        short: string;
-    };
-}
-
-function Themed2Wrapper() {
+export default function AdminPage() {
     const navigate = useNavigate();
     const {getMetadata} = useAPI();
 
-    //state
-    const [version, setVersion] = useState<VersionInfo>({});
-    const [metadata, setMetadata] = useState<Metadata>({});
-    const [eventNames, setEventNames] = useState<EventNames>({});
+    // --- state ---
+    const [version, setVersion] = useState<Record<string, any>>({});
+    const [metadata, setMetadata] = useState<Record<string, any>>({});
+    const [eventNames, setEventNames] = useState<Record<string, { full: string; short: string }>>({});
     const [selectedMatch, setSelectedMatch] = useState("");
     const [selectedTeam, setSelectedTeam] = useState("");
 
@@ -49,11 +21,11 @@ function Themed2Wrapper() {
         currentMatch: "—",
     });
 
-    //usefunctions
+    // --- effects ---
     useEffect(() => {
         (async () => {
             const res = await fetch("/api/version");
-            const data: VersionInfo = await res.json();
+            const data = await res.json();
             setVersion(data);
         })();
     }, []);
@@ -116,20 +88,22 @@ function Themed2Wrapper() {
                     <div className="flex-1 text-center">
                         <p className="text-lg font-bold">Admin Hub</p>
                         <p className="text-xs opacity-70">
-                            Event: {metadata.current_event ? eventNames?.[metadata.current_event]?.full ?? "-" : "-"}
+                            Event: {eventNames?.[metadata["current_event"]]?.full ?? "-"}
                         </p>
                     </div>
 
                     <div className="text-xs opacity-70 text-right">
-                        Event Key: {metadata.current_event ?? "-"}
+                        Event Key: {metadata["current_event"] ?? "-"}
                     </div>
                 </header>
 
                 {/* BODY */}
                 <main className="flex-1 p-6 grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-6">
 
+                    {/* LEFT: ROUTING HUB */}
                     <section className="space-y-4">
 
+                        {/* Status Cards */}
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                             {[
                                 {label: "Total Matches", value: kpis.totalMatches, icon: Activity},
@@ -152,6 +126,7 @@ function Themed2Wrapper() {
                             ))}
                         </div>
 
+                        {/* Navigation Cards */}
                         <div onClick={() => navigate("/admin/monitor")}
                              className="p-4 rounded-xl border cursor-pointer shadow-md transition hover:scale-[1.02] active:scale-[0.98] backdrop-blur-sm
                                         theme-light:bg-white/40 theme-dark:bg-zinc-900/30
@@ -164,6 +139,7 @@ function Themed2Wrapper() {
                             </div>
                         </div>
 
+                        {/* Data by Match */}
                         <div className="p-4 rounded-xl border shadow-md backdrop-blur-sm
                                         theme-light:bg-white/40 theme-dark:bg-zinc-900/30
                                         theme-2025:bg-[rgba(11,35,79,0.25)]
@@ -187,6 +163,7 @@ function Themed2Wrapper() {
                             </button>
                         </div>
 
+                        {/* Data by Team */}
                         <div className="p-4 rounded-xl border shadow-md backdrop-blur-sm
                                         theme-light:bg-white/40 theme-dark:bg-zinc-900/30
                                         theme-2025:bg-[rgba(11,35,79,0.25)]
@@ -247,6 +224,7 @@ function Themed2Wrapper() {
                         </div>
                     </section>
 
+                    {/* RIGHT SIDEBAR: TECHNICAL DEBUG PANEL */}
                     <aside className="space-y-4">
 
                         <div
@@ -281,6 +259,7 @@ function Themed2Wrapper() {
                     </aside>
                 </main>
 
+                {/* FOOTER */}
                 <footer
                     className="h-16 border-t px-6 flex items-center justify-between backdrop-blur-md text-xs font-semibold tracking-wide
                                theme-light:bg-white/70 theme-light:border-zinc-300
@@ -304,6 +283,3 @@ function Themed2Wrapper() {
     );
 }
 
-export default function AdminPage() {
-    return <Themed2Wrapper />;
-}
