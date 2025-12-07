@@ -50,14 +50,13 @@ export default function SettingLayout() {
             {/* Header */}
             <div className="flex items-center justify-between">
                 <h1
-                    className="text-2xl font-bold"
-                    style={{color: "var(--themed-h1-color)"}}
+                    className="text-2xl font-bold theme-h1-color"
                 >
                     Settings
                 </h1>
                 <button
                     onClick={() => navigate("/")}
-                    className="transition text-[var(--themed-subtext-color)] hover:text-[var(--themed-text-color)]"
+                    className="transition theme-subtext-color hover:theme-text-color"
                     title="Back to Home"
                 >
                     <ArrowLeft className="w-5 h-5"/>
@@ -67,18 +66,13 @@ export default function SettingLayout() {
             <div className="space-y-4">
                 {/* Theme Selection */}
                 <div className="space-y-1">
-                    <Label style={{color: "var(--themed-subtext-color)"}}>Theme</Label>
+                    <Label className="theme-subtext-color">Theme</Label>
                     <Select
                         value={theme}
                         onValueChange={(val) => setThemeState(val as Settings["theme"])}
                     >
                         <SelectTrigger
-                            className="
-            w-full border rounded-md transition
-            bg-[var(--themed-button-bg)] border-[var(--themed-border-color)]
-            text-[var(--themed-text-color)]
-            hover:bg-[var(--themed-button-hover)]
-        "
+                            className="w-full border rounded-md transition theme-button-bg theme-border theme-text theme-button-hover "
                         >
                             <SelectValue placeholder="Select Theme"/>
                         </SelectTrigger>
@@ -135,12 +129,11 @@ export default function SettingLayout() {
 
                 {/* Field Orientation */}
                 <div className="space-y-2">
-                    <Label style={{color: "var(--themed-subtext-color)"}}>
+                    <Label className="theme-subtext-color">
                         Field Orientation
                     </Label>
                     <p
-                        className="text-sm italic mb-2"
-                        style={{color: "var(--themed-subtext-color)"}}
+                        className="text-sm italic mb-2 theme-subtext-color"
                     >
                         Rotate until the field image matches what you see from your current location.
                     </p>
@@ -148,13 +141,13 @@ export default function SettingLayout() {
                     <div className="flex flex-col items-center gap-3">
                         <div
                             className="
-                                relative w-64 h-64 border rounded-lg overflow-hidden shadow-md
-                                transition-transform duration-700 ease-in-out will-change-transform
-                            "
+        relative w-64 h-64 border rounded-lg overflow-hidden
+        shadow-[0_0_12px_rgba(0,0,0,0.25)] theme-border
+        transition-transform duration-700 ease-in-out will-change-transform
+    "
                             style={{
                                 transform: `rotate(${angle}deg)`,
                                 transformOrigin: "50% 50%",
-                                borderColor: "var(--themed-border-color)",
                             }}
                         >
                             <img
@@ -171,16 +164,11 @@ export default function SettingLayout() {
                                     setAngle((a) => a - 180)
                                     setOrientationState((o) => (o === "0" ? "180" : "0"))
                                 }}
-                                className="
-                                    p-2 rounded-full border transition
-                                    hover:bg-[var(--themed-button-hover)]
-                                "
-                                style={{borderColor: "var(--themed-border-color)"}}
+                                className="p-2 rounded-full border transition hover:theme-button-hover theme-border"
                                 title="Rotate Counterclockwise"
                             >
                                 <RotateCcw
-                                    className="w-5 h-5"
-                                    style={{color: "var(--themed-text-color)"}}
+                                    className="w-5 h-5 theme-text"
                                 />
                             </button>
 
@@ -190,16 +178,11 @@ export default function SettingLayout() {
                                     setAngle((a) => a + 180)
                                     setOrientationState((o) => (o === "0" ? "180" : "0"))
                                 }}
-                                className="
-                                    p-2 rounded-full border transition
-                                    hover:bg-[var(--themed-button-hover)]
-                                "
-                                style={{borderColor: "var(--themed-border-color)"}}
+                                className="p-2 rounded-full border transition hover:theme-button-hover theme-border"
                                 title="Rotate Clockwise"
                             >
                                 <RotateCw
-                                    className="w-5 h-5"
-                                    style={{color: "var(--themed-text-color)"}}
+                                    className="w-5 h-5 theme-text"
                                 />
                             </button>
                         </div>

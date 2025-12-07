@@ -51,31 +51,16 @@ export default function AdminPage() {
 
     return (
         <div
-            className="min-h-screen relative text-sm
-                       theme-light:text-zinc-900
-                       theme-dark:text-white
-                       theme-2025:text-white
-                       theme-2026:text-[#3b2d00]
-                       theme-3473:text-white">
+            className="min-h-screen relative text-sm theme-text">
 
             {/* Background */}
-            <div className="absolute inset-0 bg-top bg-cover
-                 theme-light:bg-zinc-100
-                 theme-dark:bg-zinc-950
-                 theme-2025:bg-[url('/seasons/2025/expanded.png')]
-                 theme-2026:bg-[url('/seasons/2026/expanded.png')]
-                 theme-3473:bg-[radial-gradient(80%_110%_at_10%_10%,#4c2c7a,#1f0b46),linear-gradient(135deg,#140a2a,#1f0b46)]"/>
+            <div className="absolute inset-0 bg-top bg-cover theme-bg-page"/>
 
             <div className="relative z-10 flex flex-col min-h-screen">
 
                 {/* HEADER */}
                 <header
-                    className="h-16 px-6 flex items-center border-b backdrop-blur-md
-                               theme-light:bg-white/70 theme-light:border-zinc-300
-                               theme-dark:bg-zinc-900/50 theme-dark:border-zinc-800
-                               theme-2025:bg-[rgba(11,35,79,0.6)]/60 theme-2025:border-[#1b3d80]
-                               theme-2026:bg-[rgba(254,247,220,0.6)]/60 theme-2026:border-[#e6ddae]
-                               theme-3473:bg-[rgba(76,29,149,0.6)]/60 theme-3473:border-[#6d28d9]">
+                    className="h-16 px-6 flex items-center border-b backdrop-blur-md theme-bg theme-border">
 
                     <button
                         onClick={() => navigate("/")}
@@ -112,11 +97,7 @@ export default function AdminPage() {
                                 {label: "Current Match", value: kpis.currentMatch, icon: Monitor},
                             ].map((item, i) => (
                                 <div key={i}
-                                     className="p-3 rounded-xl border shadow backdrop-blur-sm
-                                                theme-light:bg-white/40 theme-dark:bg-zinc-900/30
-                                                theme-2025:bg-[rgba(11,35,79,0.25)]
-                                                theme-2026:bg-[rgba(254,247,220,0.4)]
-                                                theme-3473:bg-[rgba(60,20,120,0.2)]">
+                                     className="p-3 rounded-xl border shadow backdrop-blur-sm theme-bg theme-border">
                                     <div className="flex items-center gap-2 opacity-80 text-xs">
                                         <item.icon className="w-4 h-4"/>
                                         {item.label}
@@ -128,11 +109,7 @@ export default function AdminPage() {
 
                         {/* Navigation Cards */}
                         <div onClick={() => navigate("/admin/monitor")}
-                             className="p-4 rounded-xl border cursor-pointer shadow-md transition hover:scale-[1.02] active:scale-[0.98] backdrop-blur-sm
-                                        theme-light:bg-white/40 theme-dark:bg-zinc-900/30
-                                        theme-2025:bg-[rgba(11,35,79,0.25)]
-                                        theme-2026:bg-[rgba(254,247,220,0.4)]
-                                        theme-3473:bg-[rgba(60,20,120,0.2)]">
+                             className="p-4 rounded-xl border cursor-pointer shadow-md transition hover:scale-[1.02] active:scale-[0.98] backdrop-blur-sm theme-bg theme-border">
                             <div className="flex items-center gap-3 font-semibold">
                                 <Monitor className="w-5 h-5"/>
                                 Match Monitoring
@@ -140,11 +117,7 @@ export default function AdminPage() {
                         </div>
 
                         {/* Data by Match */}
-                        <div className="p-4 rounded-xl border shadow-md backdrop-blur-sm
-                                        theme-light:bg-white/40 theme-dark:bg-zinc-900/30
-                                        theme-2025:bg-[rgba(11,35,79,0.25)]
-                                        theme-2026:bg-[rgba(254,247,220,0.4)]
-                                        theme-3473:bg-[rgba(60,20,120,0.2)]">
+                        <div className="p-4 rounded-xl border shadow-md backdrop-blur-sm theme-bg theme-border">
                             <div className="font-bold uppercase opacity-80 mb-2 flex items-center gap-2 text-sm">
                                 <Search className="w-4 h-4"/> Data by Match
                             </div>
@@ -152,23 +125,19 @@ export default function AdminPage() {
                                 placeholder="Enter match"
                                 value={selectedMatch}
                                 onChange={(e) => setSelectedMatch(e.target.value)}
-                                className="w-full p-2 rounded-xl border bg-transparent focus:ring-2"
+                                className="w-full p-2 rounded-xl border bg-transparent focus:ring-2 theme-border"
                             />
                             <button
                                 disabled={!selectedMatch.trim()}
                                 onClick={() => navigate(`/admin/data/match/${selectedMatch.trim()}`)}
-                                className="w-full mt-2 p-2 rounded-xl border transition hover:bg-white/10 disabled:opacity-40"
+                                className="w-full mt-2 p-2 rounded-xl border transition hover:bg-white/10 disabled:opacity-40 theme-border"
                                 type="button">
                                 View Match
                             </button>
                         </div>
 
                         {/* Data by Team */}
-                        <div className="p-4 rounded-xl border shadow-md backdrop-blur-sm
-                                        theme-light:bg-white/40 theme-dark:bg-zinc-900/30
-                                        theme-2025:bg-[rgba(11,35,79,0.25)]
-                                        theme-2026:bg-[rgba(254,247,220,0.4)]
-                                        theme-3473:bg-[rgba(60,20,120,0.2)]">
+                        <div className="p-4 rounded-xl border shadow-md backdrop-blur-sm theme-bg theme-border">
                             <div className="font-bold uppercase opacity-80 mb-2 flex items-center gap-2 text-sm">
                                 <Users className="w-4 h-4"/> Data by Team
                             </div>
@@ -176,23 +145,19 @@ export default function AdminPage() {
                                 placeholder="Enter team"
                                 value={selectedTeam}
                                 onChange={(e) => setSelectedTeam(e.target.value)}
-                                className="w-full p-2 rounded-xl border bg-transparent focus:ring-2"
+                                className="w-full p-2 rounded-xl border bg-transparent focus:ring-2 theme-border"
                             />
                             <button
                                 disabled={!selectedTeam.trim()}
                                 onClick={() => navigate(`/admin/data/team/${selectedTeam.trim()}`)}
-                                className="w-full mt-2 p-2 rounded-xl border transition hover:bg-white/10 disabled:opacity-40"
+                                className="w-full mt-2 p-2 rounded-xl border transition hover:bg-white/10 disabled:opacity-40 theme-border"
                                 type="button">
                                 View Team
                             </button>
                         </div>
 
                         <div onClick={() => navigate("/admin/data/ranking")}
-                             className="p-4 rounded-xl border cursor-pointer shadow-md transition hover:scale-[1.02] active:scale-[0.98] backdrop-blur-sm
-                                        theme-light:bg-white/40 theme-dark:bg-zinc-900/30
-                                        theme-2025:bg-[rgba(11,35,79,0.25)]
-                                        theme-2026:bg-[rgba(254,247,220,0.4)]
-                                        theme-3473:bg-[rgba(60,20,120,0.2)]">
+                             className="p-4 rounded-xl border cursor-pointer shadow-md transition hover:scale-[1.02] active:scale-[0.98] backdrop-blur-sm theme-bg theme-border">
                             <div className="flex items-center gap-3 font-semibold">
                                 <BarChart2 className="w-5 h-5"/>
                                 Rankings
@@ -200,11 +165,7 @@ export default function AdminPage() {
                         </div>
 
                         <div onClick={() => navigate("/admin/data/alliance-sim")}
-                             className="p-4 rounded-xl border cursor-pointer shadow-md transition hover:scale-[1.02] active:scale-[0.98] backdrop-blur-sm
-                                        theme-light:bg-white/40 theme-dark:bg-zinc-900/30
-                                        theme-2025:bg-[rgba(11,35,79,0.25)]
-                                        theme-2026:bg-[rgba(254,247,220,0.4)]
-                                        theme-3473:bg-[rgba(60,20,120,0.2)]">
+                             className="p-4 rounded-xl border cursor-pointer shadow-md transition hover:scale-[1.02] active:scale-[0.98] backdrop-blur-sm theme-bg theme-border">
                             <div className="flex items-center gap-3 font-semibold">
                                 <Activity className="w-5 h-5"/>
                                 Alliance Simulator
@@ -212,11 +173,7 @@ export default function AdminPage() {
                         </div>
 
                         <div onClick={() => navigate("/admin/assignment")}
-                             className="p-4 rounded-xl border cursor-pointer shadow-md transition hover:scale-[1.02] active:scale-[0.98] backdrop-blur-sm
-                                        theme-light:bg-white/40 theme-dark:bg-zinc-900/30
-                                        theme-2025:bg-[rgba(11,35,79,0.25)]
-                                        theme-2026:bg-[rgba(254,247,220,0.4)]
-                                        theme-3473:bg-[rgba(60,20,120,0.2)]">
+                             className="p-4 rounded-xl border cursor-pointer shadow-md transition hover:scale-[1.02] active:scale-[0.98] backdrop-blur-sm theme-bg theme-border">
                             <div className="flex items-center gap-3 font-semibold">
                                 <UsersRound className="w-5 h-5"/>
                                 Match assignment
@@ -228,11 +185,7 @@ export default function AdminPage() {
                     <aside className="space-y-4">
 
                         <div
-                            className="p-4 rounded-xl border shadow backdrop-blur-sm
-                                       theme-light:bg-white/40 theme-dark:bg-zinc-900/30
-                                       theme-2025:bg-[rgba(11,35,79,0.25)]
-                                       theme-2026:bg-[rgba(254,247,220,0.4)]
-                                       theme-3473:bg-[rgba(60,20,120,0.2)]">
+                            className="p-4 rounded-xl border shadow backdrop-blur-sm theme-bg theme-border">
                             <div className="flex items-center gap-2 font-bold text-sm mb-2 opacity-80">
                                 <GitBranch className="w-4 h-4"/> Build Info
                             </div>
@@ -243,11 +196,7 @@ export default function AdminPage() {
                         </div>
 
                         <div
-                            className="p-4 rounded-xl border shadow backdrop-blur-sm
-                                       theme-light:bg-white/40 theme-dark:bg-zinc-900/30
-                                       theme-2025:bg-[rgba(11,35,79,0.25)]
-                                       theme-2026:bg-[rgba(254,247,220,0.4)]
-                                       theme-3473:bg-[rgba(60,20,120,0.2)]">
+                            className="p-4 rounded-xl border shadow backdrop-blur-sm theme-bg theme-border">
                             <div className="flex items-center gap-2 font-bold text-sm mb-2 opacity-80">
                                 <Terminal className="w-4 h-4"/> Debug Values
                             </div>
@@ -261,14 +210,9 @@ export default function AdminPage() {
 
                 {/* FOOTER */}
                 <footer
-                    className="h-16 border-t px-6 flex items-center justify-between backdrop-blur-md text-xs font-semibold tracking-wide
-                               theme-light:bg-white/70 theme-light:border-zinc-300
-                               theme-dark:bg-zinc-900/50 theme-dark:border-zinc-800
-                               theme-2025:bg-[rgba(11,35,79,0.6)]/60 theme-2025:border-[#1b3d80]
-                               theme-2026:bg-[rgba(254,247,220,0.6)]/60 theme-2026:border-[#e6ddae]
-                               theme-3473:bg-[rgba(76,29,149,0.6)]/60 theme-3473:border-[#6d28d9]">
+                    className="h-16 border-t px-6 flex items-center justify-between backdrop-blur-md text-xs font-semibold tracking-wide theme-bg theme-border">
 
-                    <a href="https://neon.com" target="_blank" className="hover:opacity-70 transition text-inherit">
+                    <a href="https://console.neon.tech" target="_blank" className="hover:opacity-70 transition text-inherit">
                         Neon URL
                     </a>
 

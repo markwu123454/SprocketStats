@@ -1,30 +1,52 @@
-import { useMemo, useState, useRef, useLayoutEffect } from "react"
+import {useMemo, useState, useRef, useLayoutEffect} from "react"
 
 interface NotFoundPageProps {
     code?: 403 | 404 | 501 | 503
 }
 
-export default function NotFoundPage({ code = 404 }: NotFoundPageProps) {
+export default function NotFoundPage({code = 404}: NotFoundPageProps) {
     // --- Meme URLs (from /public/meme/) ---
     const memeImages = useMemo(
         () => [
+            "/meme/1.gif",
             "/meme/1.png",
             "/meme/2.gif",
+            "/meme/2.gif",
             "/meme/3.png",
-            "/meme/4.png",
             "/meme/5.png",
             "/meme/6.png",
             "/meme/7.png",
             "/meme/8.png",
             "/meme/9.png",
+            "/meme/img.png",
+            "/meme/img_1.png",
+            "/meme/img_2.png",
+            "/meme/img_3.png",
+            "/meme/img_4.png",
+            "/meme/img_5.png",
+            "/meme/img_6.png",
+            "/meme/img_7.png",
+            "/meme/img_8.png",
+            "/meme/img_9.png",
+            "/meme/img_10.png",
             "/meme/Spot_the_cow.gif",
             "/meme/frc-crescendo (1).gif",
         ],
         []
     )
 
-    const getRandomImage = () => memeImages[Math.floor(Math.random() * memeImages.length)]
+    const getRandomImage = () => {
+        // Filter out recent images
+        const available = memeImages.filter(img => !recentImages.includes(img))
+
+        // If nothing remains (rare), fallback to full list
+        const pool = available.length > 0 ? available : memeImages
+
+        return pool[Math.floor(Math.random() * pool.length)]
+    }
+
     const [currentImage, setCurrentImage] = useState(getRandomImage)
+    const [recentImages, setRecentImages] = useState<string[]>([])
 
     const paragraphRef = useRef<HTMLParagraphElement>(null)
     const [paraWidth, setParaWidth] = useState<number>()
@@ -37,120 +59,87 @@ export default function NotFoundPage({ code = 404 }: NotFoundPageProps) {
         code === 501
             ? "Not implemented"
             : code === 403
-            ? "Access denied"
-            : code === 503
-            ? "No Internet"
-            : "Page not found"
+                ? "Access denied"
+                : code === 503
+                    ? "No Internet"
+                    : "Page not found"
 
     const message =
         code === 501 ? (
             <>
-                This page or feature hasn’t been implemented yet.<br />
+                This page or feature hasn’t been implemented yet.<br/>
                 Please contact a captain or lead if you believe this is an error.
             </>
         ) : code === 403 ? (
             <>
-                You don’t have permission to access this page.<br />
+                You don’t have permission to access this page.<br/>
                 Nice try.
             </>
         ) : code === 503 ? (
             <>
-                This page requires internet to access.<br />
+                This page requires internet to access.<br/>
                 Try mobile data.
             </>
         ) : (
             <>
-                Sorry, we couldn’t find the page you’re looking for.<br />
+                Sorry, we couldn’t find the page you’re looking for.<br/>
                 Womp, womp.
             </>
         )
 
     return (
         <div
-            className="
-                flex flex-col md:flex-row h-screen w-screen overflow-hidden bg-top bg-cover transition-colors duration-500
-                theme-light:bg-zinc-100
-                theme-dark:bg-zinc-950
-                theme-2025:bg-[url('/seasons/2025/expanded.png')]
-                theme-2026:bg-[url('/seasons/2026/expanded.png')]
-            "
+            className="flex flex-col md:flex-row h-screen w-screen overflow-hidden bg-top bg-cover transition-colors duration-500 theme-bg-page"
         >
             <div
-                className="
-                    w-full md:w-1/2 flex flex-col justify-center items-start px-8 md:pl-20 py-10 gap-y-4
-                    transition-colors duration-300
-                    theme-light:text-zinc-900
-                    theme-dark:text-white
-                    theme-2025:text-white
-                    theme-2026:text-[#3b2d00]
-                "
+                className="w-full md:w-1/2 flex flex-col justify-center items-start px-8 md:pl-20 py-10 gap-y-4 transition-colors duration-300 theme-text"
             >
                 <div
-                    className="
-                        text-md sm:text-lg font-semibold
-                        theme-light:text-orange-600
-                        theme-dark:text-amber-400
-                        theme-2025:text-blue-300
-                        theme-2026:text-[#a28d46]
-                    "
+                    className="text-md sm:text-lg font-semibold theme-text-contrast"
                 >
                     {code}
                 </div>
 
                 <h1
-                    className="
-                        text-5xl sm:text-6xl font-bold
-                        theme-light:text-zinc-900
-                        theme-dark:text-white
-                        theme-2025:text-white
-                        theme-2026:text-[#3b2d00]
-                    "
+                    className="text-5xl sm:text-6xl font-bold theme-text"
                 >
                     {title}
                 </h1>
 
                 <p
                     ref={paragraphRef}
-                    className="
-                        text-lg sm:text-xl
-                        theme-light:text-zinc-700
-                        theme-dark:text-zinc-300
-                        theme-2025:text-zinc-100
-                        theme-2026:text-[#5a4800]
-                    "
+                    className="text-lg sm:text-xl theme-text"
                 >
                     {message}
                 </p>
 
                 <div
                     className="flex flex-col md:flex-row justify-between items-start md:items-center gap-y-2 mt-2"
-                    style={paraWidth ? { width: paraWidth } : {}}
+                    style={paraWidth ? {width: paraWidth} : {}}
                 >
                     <a
                         href="/"
-                        className="
-                            text-base sm:text-lg font-medium transition-colors duration-200
-                            theme-light:text-orange-700 theme-light:hover:underline
-                            theme-dark:text-amber-400 theme-dark:hover:underline
-                            theme-2025:text-blue-300 theme-2025:hover:text-blue-200
-                            theme-2026:text-[#7a651e] theme-2026:hover:underline
-                        "
+                        className="text-base sm:text-lg font-medium transition-colors duration-200 hover:underline theme-text-contrast"
                     >
                         ← Back to home
                     </a>
 
                     <button
-                        onClick={() => setCurrentImage(getRandomImage())}
-                        className="
-                            text-base sm:text-lg font-medium transition-colors duration-200
-                            theme-light:text-orange-700 theme-light:hover:underline
-                            theme-dark:text-amber-400 theme-dark:hover:underline
-                            theme-2025:text-blue-300 theme-2025:hover:text-blue-200
-                            theme-2026:text-[#7a651e] theme-2026:hover:underline
-                        "
+                        onClick={() => {
+                            const next = getRandomImage()
+                            setCurrentImage(next)
+
+                            setRecentImages(prev => {
+                                const updated = [...prev, next]
+                                // Keep only the last 10 images
+                                return updated.slice(-10)
+                            })
+                        }}
+                        className="text-base sm:text-lg font-medium transition-colors duration-200 hover:underline theme-text-contrast"
                     >
                         See another meme →
                     </button>
+
                 </div>
             </div>
 
@@ -158,13 +147,7 @@ export default function NotFoundPage({ code = 404 }: NotFoundPageProps) {
                 <img
                     src={currentImage}
                     alt="Random meme"
-                    className="
-                        max-h-full w-auto object-contain transition-all duration-300
-                        theme-light:brightness-100
-                        theme-dark:brightness-95
-                        theme-2025:brightness-110
-                        theme-2026:brightness-100
-                    "
+                    className="max-h-full w-auto object-contain transition-all duration-300"
                 />
             </div>
         </div>

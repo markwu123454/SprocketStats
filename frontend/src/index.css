@@ -1,6 +1,6 @@
-@import url("https://fonts.googleapis.com/css2?family=Roboto&display=swap");
 @import "tailwindcss";
 @import "tw-animate-css";
+
 @plugin 'tailwind-scrollbar';
 
 @custom-variant theme-light (&:is(.theme-light *));
@@ -9,7 +9,6 @@
 @custom-variant theme-2026 (&:is(.theme-2026 *));
 @custom-variant theme-3473 (&:is(.theme-3473 *));
 
-/* TODO: delete later */
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
@@ -129,8 +128,104 @@
     }
 }
 
-@theme {
-    --font-roboto: "Roboto", sans-serif;
+
+:root.theme-light {
+    --theme-bg: rgb(255 255 255 / 0.70);
+    --theme-border: #d4d4d8;
+    --theme-text: #18181b;
+    --theme-bg-page: #f4f4f5;
+    --theme-h1-color: #18181b;
+    --theme-subtext-color: #52525b;
+    --theme-button-bg: #f4f4f5;
+    --theme-button-hover: #e4e4e7;
+    --theme-text-contrast: #c2410c;
+}
+
+:root.theme-dark {
+    --theme-bg: rgb(24 24 27 / 0.50);
+    --theme-border: #27272a;
+    --theme-text: #ffffff;
+    --theme-bg-page: #09090b;
+    --theme-h1-color: #ffffff;
+    --theme-subtext-color: #a1a1aa;
+    --theme-button-bg: #3f3f46;
+    --theme-button-hover: #52525b;
+    --theme-text-contrast: #fbbf24;
+}
+
+:root.theme-2025 {
+    --theme-bg: rgba(11, 35, 79, 0.6);
+    --theme-border: #1b3d80;
+    --theme-text: #ffffff;
+    --theme-bg-page: url('/seasons/2025/expanded.png');
+    --theme-h1-color: #ffffff;
+    --theme-subtext-color: #d4d4d8;
+    --theme-button-bg: rgba(16, 43, 106, 0.8);
+    --theme-button-hover: #1d3d7d;
+    --theme-text-contrast: #93c5fd;
+}
+
+:root.theme-2026 {
+    --theme-bg: rgba(254, 247, 220, 0.6);
+    --theme-border: #e6ddae;
+    --theme-text: #3b2d00;
+    --theme-bg-page: url('/seasons/2026/expanded.png');
+    --theme-h1-color: #3b2d00;
+    --theme-subtext-color: #5a4800;
+    --theme-button-bg: #fff8e5;
+    --theme-button-hover: #f7edcc;
+    --theme-text-contrast: #7a651e;
+}
+
+:root.theme-3473 {
+    --theme-bg: rgba(76, 29, 149, 0.6);
+    --theme-border: #6d28d9;
+    --theme-text: #ffffff;
+    --theme-bg-page: radial-gradient(80% 110% at 10% 10%, #4c2c7a, #1f0b46),
+    linear-gradient(135deg, #140a2a, #1f0b46);
+    --theme-h1-color: #ffffff;
+    --theme-subtext-color: #d4d4d8;
+    --theme-button-bg: #7c3aed;
+    --theme-button-hover: #8b5cf6;
+    --theme-text-contrast: #d8b4fe;
 }
 
 
+@layer utilities {
+    .theme-bg {
+        background-color: var(--theme-bg);
+    }
+
+    .theme-border {
+        border-color: var(--theme-border);
+    }
+
+    .theme-text {
+        color: var(--theme-text);
+    }
+
+    .theme-bg-page {
+        background: var(--theme-bg-page);
+        background-size: cover;
+    }
+
+    .theme-h1-color {
+        border-color: var(--theme-h1-color);
+    }
+
+    .theme-subtext-color {
+        color: var(--theme-subtext-color);
+    }
+
+    .theme-button-bg {
+        background: var(--theme-button-bg);
+    }
+
+    .theme-button-hover {
+        background: var(--theme-button-hover);
+    }
+
+    .theme-text-contrast {
+        color: var(--theme-text-contrast);
+    }
+}
