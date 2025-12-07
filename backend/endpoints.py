@@ -233,23 +233,14 @@ async def admin_filter_matches(
 
 
 @router.get("/team/{team}")
-async def get_team_basic_info(team: int):
+async def get_pit_scout_status(team: int):
     """
-    Returns team number, nickname, rookie year, and whether the team
-    has already been pit-scouted for the current event.
+    Returns whether the team has already been pit-scouted for the current event.
     """
-    info = await db.get_team_info(team)
-    if not info:
-        raise HTTPException(status_code=404, detail="Team not found")
-
-    # --- Check if team already scouted ---
     pit_records = await db.get_pit_scouting(team=team)
     scouted = len(pit_records) > 0
 
     return {
-        "number": int(team),
-        "nickname": info.get("nickname", f"Team {team}"),
-        "rookie_year": info.get("rookie_year", None),
         "scouted": scouted
     }
 

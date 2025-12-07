@@ -16,7 +16,7 @@ import ThemedWrapper from "@/components/wrappers/ThemedWrapper.tsx";
 
 export default function PitScoutingLayout() {
     const navigate = useNavigate();
-    const { getTeamBasicInfo, submitPitData } = useAPI();
+    const { getPitScoutStatus, submitPitData } = useAPI();
 
     const [teamNumber, setTeamNumber] = useState("");
     const [teamInfo, setTeamInfo] = useState<{
@@ -58,13 +58,10 @@ export default function PitScoutingLayout() {
 
         setLoading(true);
         const timeout = setTimeout(async () => {
-            const info = await getTeamBasicInfo(teamNumber);
-            const scouted = info?.scouted ?? false;
-
             setTeamInfo({
                 number: parseInt(teamNumber),
                 nickname,
-                scouted,
+                scouted: (await getPitScoutStatus(teamNumber)).scouted,
             });
             setLoading(false);
             setNotFound(false);
@@ -121,17 +118,15 @@ export default function PitScoutingLayout() {
                     <div className="flex items-center justify-between">
                         <Label
                             htmlFor="teamNumber"
-                            className="text-lg font-semibold"
-                            style={{ color: "var(--themed-h1-color)" }}
+                            className="text-lg font-semibold theme-h1-color"
                         >
                             Enter Team Number
                         </Label>
                         <button
                             onClick={() => navigate("/")}
-                            className="transition hover:opacity-80"
+                            className="transition hover:opacity-80 theme-subtext-color"
                             title="Back to Home"
                             type="button"
-                            style={{ color: "var(--themed-subtext-color)" }}
                         >
                             <ArrowLeft className="w-5 h-5" />
                         </button>
@@ -148,18 +143,12 @@ export default function PitScoutingLayout() {
                             const val = e.target.value;
                             if (val === "" || /^\d{0,5}$/.test(val)) setTeamNumber(val);
                         }}
-                        className="w-40 mt-1 border rounded-md transition-colors duration-300"
-                        style={{
-                            background: "var(--themed-button-bg)",
-                            borderColor: "var(--themed-border-color)",
-                            color: "var(--themed-text-color)",
-                        }}
+                        className="w-40 mt-1 border rounded-md transition-colors duration-300 theme-border theme-text theme-button"
                     />
 
                     {/* Inline team info display */}
                     <div
-                        className="mt-3 flex items-center justify-between p-2 border rounded-lg min-h-[60px] transition-colors duration-500"
-                        style={{ borderColor: "var(--themed-border-color)" }}
+                        className="mt-3 flex items-center justify-between p-2 border rounded-lg min-h-[60px] transition-colors duration-500 theme-border"
                     >
                         <div className="flex items-center space-x-3">
                             {teamNumber && teamNames[teamNumber] && (
@@ -218,12 +207,10 @@ export default function PitScoutingLayout() {
                             return (
                                 <div key={`section-${i}`} className="pt-6">
                                     <div
-                                        className="border-b my-4"
-                                        style={{ borderColor: "var(--themed-border-color)" }}
+                                        className="border-b my-4 theme-border"
                                     ></div>
                                     <Label
-                                        className="text-lg font-semibold"
-                                        style={{ color: "var(--themed-h1-color)" }}
+                                        className="text-lg font-semibold theme-h1-color"
                                     >
                                         {q.section}
                                     </Label>
@@ -307,7 +294,7 @@ export default function PitScoutingLayout() {
                                                     onChange={(e) =>
                                                         handleMultiToggle(q.key, opt.key || opt, e.target.checked)
                                                     }
-                                                    className="h-4 w-4 accent-[var(--themed-button-hover)]"
+                                                    className="h-4 w-4 hover:themed-button-hover"
                                                 />
                                                 <span>{opt.label || opt}</span>
                                             </label>
@@ -334,11 +321,7 @@ export default function PitScoutingLayout() {
 
                     <Button
                         type="submit"
-                        className="w-4/5 flex items-center justify-center space-x-2 transition"
-                        style={{
-                            background: "var(--themed-button-bg)",
-                            color: "var(--themed-text-color)",
-                        }}
+                        className="w-4/5 flex items-center justify-center space-x-2 transition theme-button-bg theme-text"
                         disabled={loading || submitting || notFound || !teamNumber}
                     >
                         {submitted ? (
@@ -367,12 +350,7 @@ export default function PitScoutingLayout() {
 function ThemedInput({ className = "", ...props }: React.ComponentProps<typeof Input>) {
     return (
         <Input
-            className={`transition-colors duration-300 border rounded-md ${className}`}
-            style={{
-                background: "var(--themed-button-bg)",
-                borderColor: "var(--themed-border-color)",
-                color: "var(--themed-text-color)",
-            }}
+            className={`transition-colors duration-300 border rounded-md ${className} theme-text theme-border theme-button-bg`}
             {...props}
         />
     );
@@ -392,17 +370,12 @@ function ThemedSelect({
     return (
         <Select value={value} onValueChange={onValueChange}>
             <SelectTrigger
-                className="transition-colors duration-300 border rounded-md"
-                style={{
-                    background: "var(--themed-button-bg)",
-                    borderColor: "var(--themed-border-color)",
-                    color: "var(--themed-text-color)",
-                }}
+                className="transition-colors duration-300 border rounded-md theme-text theme-border theme-button-bg"
             >
                 <SelectValue placeholder={placeholder} />
             </SelectTrigger>
             <SelectContent
-                className="rounded-md shadow-lg border transition"
+                className="rounded-md shadow-lg border transition theme-text theme-border theme-button-bg"
                 style={{
                     background:
                         document.documentElement.classList.contains("theme-2025")
@@ -412,8 +385,6 @@ function ThemedSelect({
                             : document.documentElement.classList.contains("theme-dark")
                             ? "#18181b"
                             : "#ffffff",
-                    borderColor: "var(--themed-border-color)",
-                    color: "var(--themed-text-color)",
                 }}
             >
                 {children}

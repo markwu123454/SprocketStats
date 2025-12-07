@@ -143,7 +143,7 @@ export default function HomePage() {
     return (
         <ThemedWrapper theme={theme ?? "2026"} showLogo={true}>
             <div className="space-y-1">
-                <h1 className="text-2xl font-bold" style={{color: "var(--themed-h1-color)"}}>
+                <h1 className="text-2xl font-bold theme-h1-color">
                     Login
                 </h1>
             </div>
@@ -152,19 +152,19 @@ export default function HomePage() {
                 {wakingUp ? (
                     <div className="flex flex-col items-center space-y-2">
                         <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-zinc-400"/>
-                        <p className="text-sm" style={{color: "var(--themed-subtext-color)"}}>
+                        <p className="text-sm theme-subtext-color">
                             Waking up backend service...
                         </p>
                     </div>
                 ) : name && permissions ? (
                     <>
-                        <p className="text-sm" style={{color: "var(--themed-subtext-color)"}}>
+                        <p className="text-sm theme-subtext-color">
                             {greetings[messageIndex!]}
                         </p>
                     </>
                 ) : (
                     <>
-                        <p className="text-sm" style={{color: "var(--themed-subtext-color)"}}>
+                        <p className="text-sm theme-subtext-color">
                             Sign in with your Google account
                         </p>
                         <div id="googleSignInDiv" ref={googleDivRef}></div>
@@ -174,32 +174,18 @@ export default function HomePage() {
             </div>
 
             <div
-                className="space-y-2 pt-2 border-t transition-colors duration-500"
-                style={{borderColor: "var(--themed-border-color)"}}
+                className="space-y-2 pt-2 border-t transition-colors duration-500 theme-border"
             >
-                <p className="text-sm" style={{color: "var(--themed-subtext-color)"}}>
+                <p className="text-sm theme-subtext-color">
                     Available Options
                 </p>
 
                 <div className="grid grid-cols-1 gap-3">
                     {privilegeButtons.map(({label, key, path}) => {
-                        if (key === "settings") {
-                            return (
-                                <TooltipButton
-                                    key={key}
-                                    label={label}
-                                    tooltip="Open app settings."
-                                    onClick={() => handleNavigate(path)}
-                                    disabled={false}
-                                    className="bg-[var(--themed-button-bg)] hover:bg-[var(--themed-button-hover)] text-[var(--themed-text-color)]"
-                                    overrideClass
-                                />
-                            )
-                        }
-
-                        const isScoutingPage = key === "match_scouting" || key === "pit_scouting"
-                        const isRestrictedOffline = key === "dev" || key === "admin"
-                        const offline = !isOnline || !serverOnline
+                        const isScoutingPage =
+                            key === "match_scouting" || key === "pit_scouting";
+                        const isRestrictedOffline = key === "dev" || key === "admin";
+                        const offline = !isOnline || !serverOnline;
 
                         const tooltips: Record<string, string> = {
                             dev_allow: "Developer tools and control systems are available.",
@@ -214,21 +200,34 @@ export default function HomePage() {
                             pit_scouting_allow: "Pit scouting is available.",
                             pit_scouting_forbid: "Pit scouting is not permitted for this account.",
                             pit_scouting_offline: "Pit scouting is available in offline mode.",
+                            settings_allow: "Open app settings."
+                        };
+
+                        let tooltipKey: string;
+                        let enabled: boolean;
+
+                        // Settings ALWAYS enabled
+                        if (key === "settings") {
+                            tooltipKey = "settings_allow";
+                            enabled = true;
                         }
-
-                        let tooltipKey: string
-                        let enabled: boolean
-
-                        if (isScoutingPage && offline) {
-                            tooltipKey = `${key}_offline`
-                            enabled = true
-                        } else if (isRestrictedOffline && offline) {
-                            tooltipKey = `${key}_offline`
-                            enabled = false
-                        } else {
-                            const hasPermission = Boolean(permissions?.[key as keyof typeof permissions])
-                            tooltipKey = `${key}_${hasPermission ? "allow" : "forbid"}`
-                            enabled = hasPermission
+                        // Scouting pages: offline OK
+                        else if (isScoutingPage && offline) {
+                            tooltipKey = `${key}_offline`;
+                            enabled = true;
+                        }
+                        // Restricted pages (dev/admin): offline forbidden
+                        else if (isRestrictedOffline && offline) {
+                            tooltipKey = `${key}_offline`;
+                            enabled = false;
+                        }
+                        // Normal permission logic
+                        else {
+                            const hasPermission = Boolean(
+                                permissions?.[key as keyof typeof permissions]
+                            );
+                            tooltipKey = `${key}_${hasPermission ? "allow" : "forbid"}`;
+                            enabled = hasPermission;
                         }
 
                         return (
@@ -240,17 +239,16 @@ export default function HomePage() {
                                 onClick={() => handleNavigate(path)}
                                 className={`${
                                     enabled
-                                        ? "bg-[var(--themed-button-bg)] hover:bg-[var(--themed-button-hover)] text-[var(--themed-text-color)]"
-                                        : "opacity-50 bg-[var(--themed-button-bg)] cursor-not-allowed"
+                                        ? "theme-button-bg hover:theme-button-hover theme-text"
+                                        : "opacity-50 theme-button-bg cursor-not-allowed"
                                 }`}
                                 overrideClass
                             />
-                        )
+                        );
                     })}
                 </div>
 
-
-                <div className="pt-4 border-t border-[var(--themed-border-color)] text-center">
+                <div className="pt-4 border-t theme-border text-center">
                     {name && permissions && (<p className="text-xs text-zinc-500">
                         Logged in as <span className="text-zinc-400">{name}</span>.{" "}
                         <button

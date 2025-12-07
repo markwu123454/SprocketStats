@@ -33,6 +33,52 @@ export function getScouterName(): string | null {
     return getCookie(NAME_COOKIE)
 }
 
+// --- General utilities ---
+
+async function apiRequest<T>(
+    path: string,
+    options: {
+        method?: string;
+        query?: Record<string, string | number | null | undefined>;
+        body?: any;
+        headers?: HeadersInit;
+    } = {}
+): Promise<T | null> {
+    try {
+        // Build query string
+        let url = `${BASE_URL}${path}`;
+        if (options.query) {
+            const qs = new URLSearchParams();
+            for (const [k, v] of Object.entries(options.query)) {
+                if (v !== undefined && v !== null) qs.append(k, String(v));
+            }
+            url += `?${qs.toString()}`;
+        }
+
+        const res = await fetch(url, {
+            method: options.method ?? "GET",
+            headers: {
+                ...getAuthHeaders(),
+                ...(options.headers ?? {}),
+                ...(options.body ? {"Content-Type": "application/json"} : {}),
+            },
+            body: options.body ? JSON.stringify(options.body) : undefined,
+        });
+
+        if (!res.ok) {
+            console.warn(`API ${options.method ?? "GET"} ${url} failed: ${res.status}`);
+            return null;
+        }
+
+        // If response has JSON, return it; otherwise return null
+        const text = await res.text();
+        return text ? (JSON.parse(text) as T) : (null as T);
+    } catch (err) {
+        console.error(`API error for ${path}:`, err);
+        return null;
+    }
+}
+
 
 // --- Hook ---
 export function useAPI() {
@@ -64,6 +110,7 @@ export function useAPI() {
             return false;
         }
     };
+
 
     // --- Endpoint: POST /auth/login ---
     const login = async (credential: string): Promise<{
@@ -109,6 +156,7 @@ export function useAPI() {
         }
     }
 
+
     // --- Endpoint: Local logout ---
     const logout = async (): Promise<void> => {
         try {
@@ -120,22 +168,10 @@ export function useAPI() {
         }
     }
 
+
     // --- Endpoint: GET /metadata ---
     const getMetadata = async (): Promise<Record<string, any>> => {
-        try {
-            const res = await fetch(`${BASE_URL}/metadata`, {
-                headers: getAuthHeaders(),
-            });
-
-            if (!res.ok) {
-                return {success: false};
-            }
-
-            return await res.json();
-        } catch (err) {
-            console.error("metadata fetch failed:", err);
-            return {success: false};
-        }
+        return (await apiRequest<Record<string, any>>("/metadata") ?? {});
     };
 
 
@@ -185,82 +221,34 @@ export function useAPI() {
             last_modified: number;
         }[]
     > => {
-        try {
-            const params = new URLSearchParams();
-            if (scouters)
-                for (const s of scouters)
-                    params.append("scouters", s);
-            if (statuses)
-                for (const st of statuses)
-                    params.append("statuses", st);
+        const query: Record<string, string> = {};
 
-            const res = await fetch(
-                `${BASE_URL}/admin/matches/filter?${params.toString()}`,
-                {headers: getAuthHeaders()}
-            );
+        scouters?.forEach((s, i) => (query[`scouters[${i}]`] = s));
+        statuses?.forEach((s, i) => (query[`statuses[${i}]`] = s));
 
-            if (!res.ok) {
-                console.warn(`getFilteredMatches failed: ${res.status} ${res.statusText}`);
-                return [];
-            }
+        const res = await apiRequest<{ matches: any[] }>("/admin/matches/filter", {
+            query,
+        });
 
-            const json = await res.json();
-            if (!json || !Array.isArray(json.matches)) {
-                console.error("getFilteredMatches: malformed response", json);
-                return [];
-            }
-
-            return json.matches;
-        } catch (err) {
-            console.error("getFilteredMatches failed:", err);
-            return [];
-        }
+        return res?.matches ?? [];
     };
 
 
-// --- Endpoint: GET /team/{team} ---
-    const getTeamBasicInfo = async (
+    // --- Endpoint: GET /team/{team} ---
+    const getPitScoutStatus = async (
         team: number | string
     ): Promise<
         {
-            number: number
-            nickname: string
-            rookie_year: number | null
             scouted: boolean
-        } | null
-    > => {
-        try {
-            const res = await fetch(`${BASE_URL}/team/${team}`, {
-                headers: getAuthHeaders(),
-            });
-
-            if (!res.ok) {
-                console.warn(`getTeamBasicInfo failed: ${res.status} ${res.statusText}`);
-                return null;
-            }
-
-            const json = await res.json();
-
-            // --- Strict shape validation ---
-            if (
-                typeof json.number !== "number" ||
-                typeof json.nickname !== "string" ||
-                !("rookie_year" in json) ||
-                typeof json.scouted !== "boolean"
-            ) {
-                console.error("getTeamBasicInfo: malformed response", json);
-                return null;
-            }
-
-            return json;
-        } catch (err) {
-            console.error("getTeamBasicInfo failed:", err);
-            return null;
         }
+    > => {
+        const response = await apiRequest<{ scouted?: boolean }>(`/team/${team}`);
+
+        return {scouted: response?.scouted ?? false};
     };
 
 
-// --- Endpoint: POST /scouting/{m_type}/{match}/{team}/submit ---
+    // --- Endpoint: POST /scouting/{m_type}/{match}/{team}/submit ---
     const submitData = async (
         match: number,
         team: number,
@@ -298,6 +286,7 @@ export function useAPI() {
             return false;
         }
     };
+
 
     // --- Endpoint: PATCH /scouting/{m_type}/{match}/{team}/claim ---
     const claimTeam = async (
@@ -349,6 +338,7 @@ export function useAPI() {
             return false;
         }
     };
+
 
     const unclaimTeamBeacon = (
         match: number,
@@ -411,7 +401,7 @@ export function useAPI() {
     };
 
 
-// --- Endpoint: GET /match/{m_type}/{match}/{alliance} ---
+    // --- Endpoint: GET /match/{m_type}/{match}/{alliance} ---
     const getTeamList = async (
         match: number,
         m_type: MatchType,
@@ -419,26 +409,8 @@ export function useAPI() {
     ): Promise<
         TeamInfo[]
     > => {
-        try {
-            const res = await fetch(`${BASE_URL}/match/${m_type}/${match}/${alliance}`, {
-                headers: getAuthHeaders(),
-            })
-            if (!res.ok) {
-                console.warn(`getTeamList: ${res.status} ${res.statusText}`)
-                return []
-            }
-
-            const json = await res.json()
-            if (!json || !Array.isArray(json.teams)) {
-                console.error("getTeamList: Malformed response", json)
-                return []
-            }
-
-            return json.teams
-        } catch (err) {
-            console.error('getTeamList failed:', err)
-            return []
-        }
+        const res = await apiRequest<{ teams: TeamInfo[] }>(`/match/${m_type}/${match}/${alliance}`);
+        return res?.teams ?? [];
     }
 
 
@@ -450,15 +422,10 @@ export function useAPI() {
         }>>
         | null
     > => {
-        try {
-            const res = await fetch(`${BASE_URL}/status/All/All`, {
-                headers: getAuthHeaders(),
-            })
-            return res.ok ? await res.json() : null
-        } catch (err) {
-            console.error('getAllStatuses failed:', err)
-            return null
-        }
+        return await apiRequest<Record<string, Record<number, {
+            status: string;
+            scouter: string | null
+        }>>>("/status/All/All");
     }
 
 
@@ -472,31 +439,10 @@ export function useAPI() {
         teams: Record<string, { scouter: string | null }>
     } | null
     > => {
-        try {
-            const res = await fetch(`${BASE_URL}/match/${m_type}/${match}/${alliance}/state`, {
-                headers: getAuthHeaders(),
-            });
-
-            if (!res.ok) {
-                console.warn(`getScouterState: ${res.status} ${res.statusText}`);
-                return null;
-            }
-
-            const json = await res.json();
-
-            if (!json || typeof json !== 'object' || !json.teams) {
-                console.error('getScouterState: malformed response', json);
-                return null;
-            }
-
-            return {
-                timestamp: json.timestamp ?? null,
-                teams: json.teams,
-            };
-        } catch (err) {
-            console.error('getScouterState failed:', err);
-            return null;
-        }
+        return await apiRequest<{
+            timestamp: string | null;
+            teams: Record<string, { scouter: string | null }>
+        }>(`/match/${m_type}/${match}/${alliance}/state`);
     };
 
 
@@ -504,27 +450,8 @@ export function useAPI() {
     const getPitTeams = async (): Promise<
         { team: number | string; scouter: string | null; status: string; last_modified: number }[]
     > => {
-        try {
-            const res = await fetch(`${BASE_URL}/pit/teams`, {
-                headers: getAuthHeaders(),
-            });
-
-            if (!res.ok) {
-                console.warn(`getPitTeams failed: ${res.statusText}`);
-                return [];
-            }
-
-            const json = await res.json();
-            if (!Array.isArray(json.teams)) {
-                console.error("getPitTeams: malformed response", json);
-                return [];
-            }
-
-            return json.teams;
-        } catch (err) {
-            console.error("getPitTeams failed:", err);
-            return [];
-        }
+        const res = await apiRequest<{ teams: any[] }>("/pit/teams");
+        return res?.teams ?? [];
     };
 
 
@@ -539,21 +466,13 @@ export function useAPI() {
         last_modified: number;
     } | null
     > => {
-        try {
-            const res = await fetch(`${BASE_URL}/pit/${team}`, {
-                headers: getAuthHeaders(),
-            });
-
-            if (!res.ok) {
-                console.warn(`getPitData failed: ${res.statusText}`);
-                return null;
-            }
-
-            return await res.json();
-        } catch (err) {
-            console.error("getPitData failed:", err);
-            return null;
-        }
+        return await apiRequest<{
+            team: number | string;
+            scouter: string | null;
+            status: string;
+            data: Record<string, any>;
+            last_modified: number;
+        }>(`/pit/${team}`);
     };
 
 // --- Endpoint: POST /pit/{team} ---
@@ -565,32 +484,10 @@ export function useAPI() {
     ): Promise<
         boolean
     > => {
-        try {
-            const body = {
-                scouter,
-                status,
-                data,
-            };
-
-            const res = await fetch(`${BASE_URL}/pit/${team}`, {
-                method: "POST",
-                headers: {
-                    ...getAuthHeaders(),
-                    "Content-Type": "application/json",
-                },
-                body: JSON.stringify(body),
-            });
-
-            if (!res.ok) {
-                console.warn(`updatePitData failed: ${res.status} ${res.statusText}`);
-                return false;
-            }
-
-            return true;
-        } catch (err) {
-            console.error("updatePitData failed:", err);
-            return false;
-        }
+        return (await apiRequest(`/pit/${team}`, {
+            method: "POST",
+            body: {scouter, data, status},
+        })) !== null;
     };
 
 
@@ -602,83 +499,36 @@ export function useAPI() {
     ): Promise<
         boolean
     > => {
-        try {
-            const body = {
-                scouter,
-                data,
-            };
-
-            const res = await fetch(`${BASE_URL}/pit/${team}/submit`, {
-                method: "POST",
-                headers: {
-                    ...getAuthHeaders(),
-                    "Content-Type": "application/json",
-                },
-                body: JSON.stringify(body),
-            });
-
-            if (!res.ok) {
-                console.warn(`submitPitData failed: ${res.status} ${res.statusText}`);
-                return false;
-            }
-
-            return true;
-        } catch (err) {
-            console.error("submitPitData failed:", err);
-            return false;
-        }
+        return (await apiRequest(`/pit/${team}/submit`, {
+            method: "POST",
+            body: {scouter, data},
+        })) !== null;
     };
 
-// --- Endpoint: GET /data/processed ---
+
+    // --- Endpoint: GET /data/processed ---
     const getProcessedData = async (
         event_key?: string
     ): Promise<Record<string, any> | null> => {
-        try {
-            const url = new URL(`${BASE_URL}/data/processed`);
-            if (event_key) url.searchParams.set("event_key", event_key);
+        const res = await apiRequest<{ data: any }>("/data/processed", {
+            query: event_key ? {event_key} : undefined,
+        });
 
-            const res = await fetch(url.toString(), {
-                headers: getAuthHeaders(),
-            });
-
-            if (!res.ok) {
-                console.warn(`getProcessedData failed: ${res.status} ${res.statusText}`);
-                return null;
-            }
-
-            const json = await res.json();
-            return json.data ?? null;
-        } catch (err) {
-            console.error("getProcessedData failed:", err);
-            return null;
-        }
+        return res?.data ?? null;
     };
+
 
     // --- Endpoint: GET /data/candy ---
     const getCandyData = async (): Promise<Record<string, any> | null> => {
-        try {
-            const res = await fetch(`${BASE_URL}/data/candy`, {
-                headers: getAuthHeaders(),
-            });
-
-            if (!res.ok) {
-                console.warn(`getCandyData failed: ${res.status} ${res.statusText}`);
-                return null;
-            }
-
-            return await res.json();
-        } catch (err) {
-            console.error("getCandyData failed:", err);
-            return null;
-        }
+        return await apiRequest<Record<string, any>>("/data/candy");
     };
 
     const getLatency = async (): Promise<{
         client_to_server_ns: number | null,
         server_to_client_ns: number | null,
         roundtrip_ns: number | null,
-        db_latency: Record<string, any> | null
-    }> => {
+        db_latency: Record<string, any> | null}
+    > => {
         try {
             const url = `${BASE_URL}/latency`;
 
@@ -745,7 +595,7 @@ export function useAPI() {
         getPitData,
         updatePitData,
         submitPitData,
-        getTeamBasicInfo,
+        getPitScoutStatus,
         getFilteredMatches,
         getProcessedData,
         getCandyData,

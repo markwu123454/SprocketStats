@@ -182,30 +182,15 @@ export default function DevPage() {
     }, []);
 
     return (
-        <div className="min-h-screen relative text-sm max-w-full overflow-hidden
-      theme-light:text-zinc-900
-      theme-dark:text-white
-      theme-2025:text-white
-      theme-2026:text-[#3b2d00]
-      theme-3473:text-white">
+        <div className="min-h-screen relative text-sm max-w-full overflow-hidden theme-text">
 
             {/* BACKGROUND LAYER (STYLING PRESERVED) */}
-            <div className="absolute inset-0 bg-top bg-cover
-        theme-light:bg-zinc-100
-        theme-dark:bg-zinc-950
-        theme-2025:bg-[url('/seasons/2025/expanded.png')]
-        theme-2026:bg-[url('/seasons/2026/expanded.png')]
-        theme-3473:bg-[radial-gradient(80%_110%_at_10%_10%,#4c2c7a,#1f0b46),linear-gradient(135deg,#140a2a,#1f0b46)]"/>
+            <div className="absolute inset-0 bg-top bg-cover theme-bg-page"/>
 
             <div className="h-screen flex flex-col min-h-0 relative text-sm max-w-full overflow-hidden">
 
                 {/* HEADER (STYLING 100% PRESERVED) */}
-                <header className="h-16 px-6 flex items-center border-b backdrop-blur-md
-          theme-light:bg-white/70 theme-light:border-zinc-300
-          theme-dark:bg-zinc-900/50 theme-dark:border-zinc-800
-          theme-2025:bg-[rgba(11,35,79,0.6)] theme-2025:border-[#1b3d80]
-          theme-2026:bg-[rgba(254,247,220,0.6)] theme-2026:border-[#e6ddae]
-          theme-3473:bg-[rgba(76,29,149,0.6)] theme-3473:border-[#6d28d9]">
+                <header className="h-16 px-6 flex items-center border-b backdrop-blur-md theme-bg theme-border">
 
                     <button onClick={() => navigate("/")}
                             className="flex items-center gap-2 hover:opacity-80 transition">
@@ -232,31 +217,18 @@ export default function DevPage() {
                     <section className="space-y-4 min-w-0">
 
                         {/* LOCAL STORAGE CARD (COLORS PRESERVED) */}
-                        <div className="border rounded-xl p-4
-              theme-light:bg-white/70 theme-light:border-zinc-300
-              theme-dark:bg-zinc-900/50 theme-dark:border-zinc-800
-              theme-2025:bg-[rgba(11,35,79,0.6)] theme-2025:border-[#1b3d80]
-              theme-2026:bg-[rgba(254,247,220,0.6)] theme-2026:border-[#e6ddae]
-              theme-3473:bg-[rgba(76,29,149,0.6)] theme-3473:border-[#6d28d9]">
+                        <div className="border rounded-xl p-4 theme-bg theme-border">
 
                             <h3 className="text-xs font-semibold uppercase opacity-70">Local Storage</h3>
 
-                            <div className="max-h-32 overflow-auto border rounded-xl p-2 my-2 text-xs
-                theme-light:bg-white/70 theme-light:border-zinc-300
-                theme-dark:bg-zinc-900/50 theme-dark:border-zinc-800
-                theme-2025:bg-[rgba(11,35,79,0.6)] theme-2025:border-[#1b3d80]
-                theme-2026:bg-[rgba(254,247,220,0.6)] theme-2026:border-[#e6ddae]
-                theme-3473:bg-[rgba(76,29,149,0.6)] theme-3473:border-[#6d28d9]">
+                            <div className="max-h-32 overflow-auto border rounded-xl p-2 my-2 text-xs theme-bg theme-border">
 
                                 {Object.keys(storage.local).length === 0 &&
                                     <p className="opacity-60">No LocalStorage keys found.</p>}
 
                                 {Object.entries(storage.local).map(([k, v]) => (
                                     <div key={k}
-                                         className="flex justify-between border-b py-1 truncate min-w-0
-                                         theme-light:border-zinc-300 theme-dark:border-zinc-800
-                                         theme-2025:border-[#1b3d80] theme-2026:border-[#e6ddae]
-                                         theme-3473:border-[#6d28d9]">
+                                         className="flex justify-between border-b py-1 truncate min-w-0 theme-border">
                                         <span className="truncate max-w-[75%]">{k}: {v}</span>
                                         <button onClick={() => clearLocalKey(k)}
                                                 className="flex-shrink-0 whitespace-nowrap opacity-60 hover:opacity-100 transition">
@@ -268,50 +240,27 @@ export default function DevPage() {
                         </div>
 
                         {/* COOKIES CARD (COLORS PRESERVED) */}
-                        <div className="border rounded-xl p-4
-              theme-light:bg-white/70 theme-light:border-zinc-300
-              theme-dark:bg-zinc-900/50 theme-dark:border-zinc-800
-              theme-2025:bg-[rgba(11,35,79,0.6)] theme-2025:border-[#1b3d80]
-              theme-2026:bg-[rgba(254,247,220,0.6)] theme-2026:border-[#e6ddae]
-              theme-3473:bg-[rgba(76,29,149,0.6)] theme-3473:border-[#6d28d9]">
+                        <div className="border rounded-xl p-4 theme-bg theme-border">
 
                             <h3 className="text-xs font-semibold uppercase opacity-70">Cookies</h3>
 
-                            <div className="max-h-32 overflow-auto border rounded-xl p-2 my-2 text-xs
-                theme-light:bg-white/70 theme-light:border-zinc-300
-                theme-dark:bg-zinc-900/50 theme-dark:border-zinc-800
-                theme-2025:bg-[rgba(11,35,79,0.6)] theme-2025:border-[#1b3d80]
-                theme-2026:bg-[rgba(254,247,220,0.6)] theme-2026:border-[#e6ddae]
-                theme-3473:bg-[rgba(76,29,149,0.6)] theme-3473:border-[#6d28d9]">
+                            <div className="max-h-32 overflow-auto border rounded-xl p-2 my-2 text-xs theme-bg theme-border">
 
                                 {Object.keys(storage.cookies).length === 0 &&
                                     <p className="opacity-60">No cookies found.</p>}
 
                                 {Object.entries(storage.cookies).map(([k, v]) => (
-                                    <div key={k} className="border-b py-1 truncate max-w-full min-w-0
-                                         theme-light:border-zinc-300 theme-dark:border-zinc-800
-                                         theme-2025:border-[#1b3d80] theme-2026:border-[#e6ddae]
-                                         theme-3473:border-[#6d28d9]">{k}: {v}</div>
+                                    <div key={k} className="border-b py-1 truncate max-w-full min-w-0 theme-border">{k}: {v}</div>
                                 ))}
                             </div>
                         </div>
 
                         {/* INDEXED DB CARD (COLORS PRESERVED) */}
-                        <div className="border rounded-xl p-4
-              theme-light:bg-white/70 theme-light:border-zinc-300
-              theme-dark:bg-zinc-900/50 theme-dark:border-zinc-800
-              theme-2025:bg-[rgba(11,35,79,0.6)] theme-2025:border-[#1b3d80]
-              theme-2026:bg-[rgba(254,247,220,0.6)] theme-2026:border-[#e6ddae]
-              theme-3473:bg-[rgba(76,29,149,0.6)] theme-3473:border-[#6d28d9]">
+                        <div className="border rounded-xl p-4 theme-bg theme-border">
 
                             <h3 className="text-xs font-semibold uppercase opacity-70">Indexed DB(Dexie DB)</h3>
 
-                            <div className="border rounded-xl p-4 min-h-32 overflow-auto text-xs my-2 backdrop-blur-sm
-  theme-light:bg-white/70 theme-light:border-zinc-300
-  theme-dark:bg-zinc-900/50 theme-dark:border-zinc-800
-  theme-2025:bg-[rgba(11,35,79,0.6)] theme-2025:border-[#1b3d80]
-  theme-2026:bg-[rgba(254,247,220,0.6)] theme-2026:border-[#e6ddae]
-  theme-3473:bg-[rgba(76,29,149,0.6)] theme-3473:border-[#6d28d9]"
+                            <div className="border rounded-xl p-4 min-h-32 overflow-auto text-xs my-2 backdrop-blur-sm theme-bg theme-border"
                             >
 
                                 {Object.keys(storage.dexiePreview).length > 0 ? (
@@ -335,24 +284,10 @@ export default function DevPage() {
                                 )}
 
                             </div>
-
-
-                            <button onClick={inspectIndexedDB}
-                                    className="mt-2 w-full p-4 border rounded-xl text-xs transition hover:bg-white/10
-                                         theme-light:border-zinc-300 theme-dark:border-zinc-800
-                                         theme-2025:border-[#1b3d80] theme-2026:border-[#e6ddae]
-                                         theme-3473:border-[#6d28d9]">
-                                Inspect IndexedDB
-                            </button>
                         </div>
 
                         {/* NETWORK LATENCY CARD (COLORS PRESERVED) */}
-                        <div className="border rounded-xl p-4
-    theme-light:bg-white/70 theme-light:border-zinc-300
-    theme-dark:bg-zinc-900/50 theme-dark:border-zinc-800
-    theme-2025:bg-[rgba(11,35,79,0.6)] theme-2025:border-[#1b3d80]
-    theme-2026:bg-[rgba(254,247,220,0.6)] theme-2026:border-[#e6ddae]
-    theme-3473:bg-[rgba(76,29,149,0.6)] theme-3473:border-[#6d28d9]">
+                        <div className="border rounded-xl p-4 theme-bg theme-border">
 
                             <h3 className="text-xs font-semibold uppercase opacity-70">Database & Network Latency</h3>
 
@@ -364,20 +299,12 @@ export default function DevPage() {
                             </div>
 
                             <button onClick={testLatency}
-                                    className="w-full p-4 border rounded-xl text-xs transition hover:bg-white/10
-                                         theme-light:border-zinc-300 theme-dark:border-zinc-800
-                                         theme-2025:border-[#1b3d80] theme-2026:border-[#e6ddae]
-                                         theme-3473:border-[#6d28d9]">
+                                    className="w-full p-4 border rounded-xl text-xs transition hover:bg-white/10 theme-border">
                                 Test Latency
                             </button>
                         </div>
 
-                        <div className="p-4 rounded-xl border
-  theme-light:bg-white/70 theme-light:border-zinc-300
-    theme-dark:bg-zinc-900/50 theme-dark:border-zinc-800
-    theme-2025:bg-[rgba(11,35,79,0.6)] theme-2025:border-[#1b3d80]
-    theme-2026:bg-[rgba(254,247,220,0.6)] theme-2026:border-[#e6ddae]
-    theme-3473:bg-[rgba(76,29,149,0.6)] theme-3473:border-[#6d28d9]">
+                        <div className="p-4 rounded-xl border theme-bg theme-border">
 
                             <h3 className="text-xs font-semibold uppercase opacity-70 mb-2">
                                 Deployment Overview
@@ -411,12 +338,7 @@ export default function DevPage() {
                 </main>
 
                 {/* FOOTER (STYLING 100% PRESERVED) */}
-                <footer className="h-16 border-t px-6 flex items-center justify-between backdrop-blur-md text-xs font-semibold tracking-wide
-          theme-light:bg-white/70 theme-light:border-zinc-300
-          theme-dark:bg-zink-900/50 theme-dark:border-zinc-800
-          theme-2025:bg-[rgba(11,35,79,0.6)]/60 theme-2025:border-[#1b3d00]
-          theme-2026:bg-[rgba(254,247,220,0.6)]/60 theme-2026:border-[#e6dd00]
-          theme-3473:bg-[rgba(76,29,149,0.6)]/60 theme-3473:border-[#6d28d00]">
+                <footer className="h-16 border-t px-6 flex items-center justify-between backdrop-blur-md text-xs font-semibold tracking-wide theme-bg theme-border">
 
                     <a href="/" className="truncate min-w-0 underline max-w-[40%]">
                         Frontend URL
