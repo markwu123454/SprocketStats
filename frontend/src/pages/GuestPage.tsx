@@ -1,7 +1,10 @@
-import {useEffect, useState} from "react"
-import {useNavigate, useSearchParams} from "react-router-dom"
+import {useMemo} from "react"
+import {useNavigate} from "react-router-dom"
 import {ExternalLink, ChevronDown} from "lucide-react"
 
+import {useAuthSuccess, useGuestName, usePermissions} from "@/components/wrappers/DataWrapper"
+
+// If this is the format of pages required by the UI:
 interface PageLink {
     title: string
     href: string
@@ -10,58 +13,84 @@ interface PageLink {
 
 export default function GuestDataPage() {
     const navigate = useNavigate()
-    const [searchParams] = useSearchParams()
-    const [loading, setLoading] = useState(true)
-    const [error, setError] = useState<string | null>(null)
-    const [name, setName] = useState("")
-    const [accessiblePages, setAccessiblePages] = useState<PageLink[]>([])
 
-    useEffect(() => {
-        const errorParam = searchParams.get("error")
-        if (errorParam === "missing") {
-            setError("Missing access link.")
-            setLoading(false)
-            return
+    // Pull values from your new DataContext
+    const authSuccess = useAuthSuccess()
+    const name = useGuestName()
+    const permissions = usePermissions()
+
+    // Convert permissions → PageLink[]
+    // Adjust this logic based on the actual structure of the permissions array.
+    const accessiblePages = useMemo<PageLink[]>(() => {
+        if (!permissions) return [];
+
+        const pages: PageLink[] = [];
+
+        //
+        // 1. Ranking page (if allowed)
+        //
+        if (permissions.ranking) {
+            pages.push({
+                title: "Event Rankings",
+                href: "/admin/data/ranking",
+                type: "ranking",
+            } as PageLink);
         }
 
-        const token = localStorage.getItem("guest_pw_token")
-        const expiry = Number(localStorage.getItem("guest_pw_expiry"))
-
-        if (!token || !expiry || Date.now() > expiry) {
-            localStorage.removeItem("guest_pw_token")
-            localStorage.removeItem("guest_pw_expiry")
-            setError("Access expired or not found. Please reopen your guest link.")
-            setLoading(false)
-            return
+        //
+        // 2. Alliance Simulator page (if allowed)
+        //
+        if (permissions.alliance) {
+            pages.push({
+                title: "Alliance Simulator",
+                href: "/admin/data/alliance-sim",
+                type: "alliance",
+            } as PageLink);
         }
 
-        async function authenticate() {
-            try {
-                const res = await fakeGuestAuth(token)
-                setName(res.name)
-                setAccessiblePages(res.pages)
-            } catch {
-                setError("Invalid or expired guest link.")
-            } finally {
-                setLoading(false)
+        //
+        // 3. Match pages
+        //
+        if (Array.isArray(permissions.match)) {
+            for (const matchId of permissions.match) {
+                pages.push({
+                    title: `Match ${matchId}`,
+                    href: `/admin/data/match/${matchId}`,
+                    type: "match",
+                });
             }
         }
 
-        void authenticate()
-    }, [searchParams])
+        //
+        // 4. Team pages
+        //
+        if (Array.isArray(permissions.team)) {
+            for (const teamNumber of permissions.team) {
+                pages.push({
+                    title: `Team ${teamNumber}`,
+                    href: `/admin/data/team/${teamNumber}`,
+                    type: "team",
+                });
+            }
+        }
+
+        return pages;
+    }, [permissions]);
+
 
     return (
         <div
             className="min-h-screen flex flex-col bg-gradient-to-b from-purple-950 via-purple-900 to-purple-950 text-purple-100 overflow-x-hidden"
-            aria-label="Accessible data grid scroll area">
-            {loading ? (
-                <div className="flex-grow flex items-center justify-center">
-                    <p>Loading guest access...</p>
-                </div>
-            ) : error ? (
+            aria-label="Accessible data grid scroll area"
+        >
+            {/* AUTH CHECK (display error if DataWrapper says auth failed) */}
+            {!authSuccess ? (
                 <div className="flex-grow flex flex-col items-center justify-center text-center">
                     <h1 className="text-3xl font-bold mb-4">Access Denied</h1>
-                    <p className="text-purple-300 mb-10">{error}</p>
+                    <p className="text-purple-300 mb-10">
+                        You do not have valid guest access.
+                        Please reopen your guest link or contact a Team 3473's scouting member.
+                    </p>
                 </div>
             ) : (
                 <>
@@ -80,23 +109,27 @@ export default function GuestDataPage() {
                                     className="absolute inset-0 w-full h-full"
                                 />
                             </div>
+
                             <h1 className="text-3xl sm:text-4xl font-bold tracking-tight">
                                 Welcome {name}
                             </h1>
+
                             <p className="text-purple-300 mt-3 max-w-2xl text-center text-sm sm:text-base">
                                 You’ve been granted guest access as an alliance partner for upcoming matches.
                                 This portal provides synchronized scouting data to aid strategy planning.
                             </p>
+
                             <p className="text-purple-400 mt-1 text-xs sm:text-sm text-center">
-                                Data is collected live and validated through Team Sprocket’s internal analytics network.
+                                Data is processed live through Team Sprocket’s internal analytics systems.
                             </p>
                         </header>
 
-                        {/* SECTION 2 – Scrollable Grid fits on screen */}
+                        {/* SECTION 2 – Scrollable Data Grid */}
                         <main
-                            className="flex-grow flex flex-col items-center justify-start max-w-6xl mx-auto px-4 sm:px-6 w-full pb-8">
+                            className="flex-grow flex flex-col items-center justify-start max-w-6xl mx-auto px-4 sm:px-6 w-full pb-8"
+                        >
                             <h2 className="text-xl sm:text-2xl font-semibold mb-4 border-b border-purple-700 pb-2 w-full text-left">
-                                Accessible Data
+                                Available Data
                             </h2>
 
                             <div
@@ -105,8 +138,9 @@ export default function GuestDataPage() {
                                 aria-label="Accessible data grid scroll area"
                             >
                                 {accessiblePages.length === 0 ? (
-                                    <p className="text-purple-300">No scouting data available for your alliance
-                                        slot.</p>
+                                    <p className="text-purple-300">
+                                        Unfortunately no scouting data have been made available to you. :(
+                                    </p>
                                 ) : (
                                     <ul className="grid gap-5 grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4">
                                         {accessiblePages.map((p, i) => (
@@ -117,13 +151,20 @@ export default function GuestDataPage() {
                                             >
                                                 <div className="flex items-center justify-between">
                                                     <div>
-                                                        <h3 className="font-semibold text-lg">{p.title}</h3>
+                                                        <h3 className="font-semibold text-lg">
+                                                            {p.title}
+                                                        </h3>
                                                         <p className="text-sm text-purple-300">
-                                                            {p.type === "match" ? "Match Data" : "Team Overview"}
+                                                            {p.type === "match"
+                                                                ? "Match Data"
+                                                                : p.type === "team"
+                                                                    ? "Team Overview"
+                                                                    : p.type === "ranking"
+                                                                        ? "Ranking Overview"
+                                                                        : "Alliance Simulator"}
                                                         </p>
                                                     </div>
-                                                    <ExternalLink
-                                                        className="w-5 h-5 text-purple-300 group-hover:text-purple-400"/>
+                                                    <ExternalLink className="w-5 h-5 text-purple-300"/>
                                                 </div>
                                             </li>
                                         ))}
@@ -131,11 +172,11 @@ export default function GuestDataPage() {
                                 )}
                             </div>
 
-                            {/* Chevron below grid */}
-                            <div className="mt-6 sm:mt-10 animate-bounce flex justify-center">
-                                <ChevronDown className="w-6 h-6 sm:w-8 sm:h-8 text-purple-400 opacity-70"/>
-                            </div>
                         </main>
+                        {/* Chevron */}
+                        <div className="pb-6 animate-bounce flex justify-center mt-auto">
+                            <ChevronDown className="w-6 h-6 sm:w-8 sm:h-8 text-purple-400 opacity-70"/>
+                        </div>
                     </div>
 
                     {/* SECTION 3 – Overview */}
@@ -200,35 +241,21 @@ export default function GuestDataPage() {
 
             <style>
                 {`
-          @keyframes spin-slow { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-          .animate-spin-slow { animation: spin-slow 10s linear infinite; }
-          [aria-label="Accessible data grid scroll area"] {
-            scrollbar-gutter: stable;
-          }
-          [aria-label="Accessible data grid scroll area"]::-webkit-scrollbar { width: 8px; }
-          [aria-label="Accessible data grid scroll area"]::-webkit-scrollbar-thumb {
-            background-color: rgba(180, 100, 255, 0.4);
-            border-radius: 4px;
-          }
-        `}
+                @keyframes spin-slow {
+                    from { transform: rotate(0deg); }
+                    to { transform: rotate(360deg); }
+                }
+                .animate-spin-slow { animation: spin-slow 10s linear infinite; }
+                [aria-label="Accessible data grid scroll area"] {
+                    scrollbar-gutter: stable;
+                }
+                [aria-label="Accessible data grid scroll area"]::-webkit-scrollbar { width: 8px; }
+                [aria-label="Accessible data grid scroll area"]::-webkit-scrollbar-thumb {
+                    background-color: rgba(180, 100, 255, 0.4);
+                    border-radius: 4px;
+                }
+            `}
             </style>
         </div>
     )
 }
-
-async function fakeGuestAuth(token: string | null): Promise<{ name: string; pages: PageLink[] }> {
-    await new Promise((r) => setTimeout(r, 500))
-    if (token !== "validdemo") throw new Error("invalid")
-    return {
-        name: "Guest User",
-        pages: Array.from({length: 30}, (_, i) => ({
-            title: i % 2 === 0 ? `Qualification ${12 + i}` : `Team ${3400 + i * 10}`,
-            href: i % 2 === 0 ? "/admin/data/match/qm12" : "/admin/data/team/3473",
-            type: i % 2 === 0 ? "match" : "team",
-        })),
-    }
-}
-
-
-
-

@@ -722,14 +722,87 @@ async def submit_pit_data(
 
 # === Data ===
 
+def filter_processed_data(data: dict, perms: dict) -> dict:
+    """
+    Filters the processed data according to the permission structure:
+      - ranking: True/False
+      - alliance: True/False
+      - match: list of allowed match IDs
+      - team: list of allowed team numbers
+    """
+
+    filtered = {}
+
+    # Ranking
+    if perms.get("ranking"):
+        filtered["ranking"] = data.get("ranking", {})
+    else:
+        filtered["ranking"] = {}
+
+    # Alliance
+    if perms.get("alliance"):
+        filtered["alliance"] = data.get("alliance", {})
+    else:
+        filtered["alliance"] = {}
+
+    # Match
+    allowed_matches = perms.get("match")
+    if isinstance(allowed_matches, list):
+        # include only whitelisted matches
+        filtered["match"] = {
+            mid: mdata
+            for mid, mdata in data.get("match", {}).items()
+            if mid in allowed_matches
+        }
+    elif allowed_matches is True:   # allow all matches
+        filtered["match"] = data.get("match", {})
+    else:
+        filtered["match"] = {}
+
+    # Team
+    allowed_teams = perms.get("team")
+    if isinstance(allowed_teams, list):
+        # Teams in data may use ints or strings; normalize
+        allowed_team_set = {str(t) for t in allowed_teams}
+
+        filtered["team"] = {
+            str(tid): tdata
+            for tid, tdata in data.get("team", {}).items()
+            if str(tid) in allowed_team_set
+        }
+    elif allowed_teams is True:  # allow all teams
+        filtered["team"] = data.get("team", {})
+    else:
+        filtered["team"] = {}
+
+    return filtered
+
+
 @router.get("/data/processed")
 async def get_data_processed(
-    _: enums.SessionInfo = Depends(db.require_permission("admin")),
+    guest: dict = Depends(db.require_guest_password()),
     event_key: Optional[str] = None,
 ):
+    """
+    Returns processed event data with guest permissions applied.
+    Guest credentials come from the x-guest-password header.
+    """
+
+    perms = guest["perms"]
+
+    # Fetch raw processed data
     result = await db.get_processed_data(event_key)
     result = translator.generate_sample_data(result)
-    return {"event_key": event_key, "data": result}
+
+    # Apply permission filters
+    filtered = filter_processed_data(result, perms)
+
+    return {
+        "event_key": event_key,
+        "raw_data": filtered,
+        "guest_name": guest["name"],
+        "permissions": perms,
+    }
 
 
 @router.get("/data/candy")

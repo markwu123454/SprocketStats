@@ -4,7 +4,7 @@ import {Link, useParams} from "react-router-dom"
 import {ResponsiveSunburst} from "@nivo/sunburst"
 import {ResponsiveBar} from "@nivo/bar"
 import {AgGridReact} from "ag-grid-react"
-import {useTeamData} from "@/components/wrappers/DataWrapper.tsx"
+import {useTeamData, usePermissions} from "@/components/wrappers/DataWrapper.tsx"
 import {SquareCheckBig, SquareX} from "lucide-react";
 
 type BreakdownNode = {
@@ -22,6 +22,7 @@ export default function TeamData() {
     const {team} = useParams<{ team: string }>()
     const teamNum = team ? parseInt(team, 10) : NaN
     const data = useTeamData(teamNum)
+    const permissions = usePermissions()
     const [teamName, setTeamName] = useState("Unknown Team")
 
     // ---- Load team nickname from /teams/team_names.json ----
@@ -48,14 +49,7 @@ export default function TeamData() {
     const logoPath = `/teams/team_icons/${teamNum}.png`
 
     // ---- Table data and columns ----
-    const rowData = data.matches.map((m: any) => ({
-        ...m,
-        match: (
-            <Link to={`/admin/data/match/${m.match}`} className="text-blue-600 hover:underline">
-                {m.match}
-            </Link>
-        ),
-    }))
+    const rowData = data.matches
 
     const colDefs = useMemo(() => {
         if (!data || !data.matches?.length) return []
@@ -69,14 +63,7 @@ export default function TeamData() {
                     field: key,
                     headerName: header,
                     width: 100,
-                    cellRenderer: (params: any) => (
-                        <Link
-                            to={`/admin/data/match/${params.value}`}
-                            className="text-blue-600 hover:underline"
-                        >
-                            {params.value}
-                        </Link>
-                    ),
+                    cellRenderer: (params: any) => renderMatchLink(params.value),
                 }
             }
 
@@ -88,13 +75,9 @@ export default function TeamData() {
                     cellRenderer: (params: any) => (
                         <div className="flex flex-wrap gap-1">
                             {params.value.map((team: number) => (
-                                <Link
-                                    key={team}
-                                    to={`/admin/data/team/${team}`}
-                                    className="text-blue-600 hover:underline"
-                                >
-                                    {team}
-                                </Link>
+                                <span key={team}>
+                                    {renderTeamLink(team)}
+                                </span>
                             ))}
                         </div>
                     ),
@@ -110,6 +93,49 @@ export default function TeamData() {
         () => (data.timeline?.length ? Object.keys(data.timeline[0]).filter((k) => k !== "match") : []),
         [data]
     )
+
+    function normalizeMatchId(raw: any): string {
+        // If already like "qm1", return as is
+        if (typeof raw === "string" && raw.toLowerCase().startsWith("qm")) return raw.toLowerCase()
+
+        // If raw is a number, convert to "qmX"
+        return `qm${String(raw).toLowerCase()}`
+    }
+
+
+    function renderMatchLink(matchId: any) {
+        const norm = normalizeMatchId(matchId)
+        console.log(matchId, norm, !permissions?.match?.includes(norm))
+        if (!permissions?.match?.includes(norm)) {
+            return <span className="text-gray-400">{matchId}</span>
+        }
+
+        return (
+            <Link
+                to={`/admin/data/match/${matchId}`}
+                className="text-blue-600 hover:underline"
+            >
+                {matchId}
+            </Link>
+        )
+    }
+
+
+    function renderTeamLink(teamNum: number) {
+        if (!permissions?.team?.includes(String(teamNum))) {
+            return <span className="text-gray-400">{teamNum}</span>
+        }
+
+        return (
+            <Link
+                to={`/admin/data/team/${teamNum}`}
+                className="text-blue-600 hover:underline"
+            >
+                {teamNum}
+            </Link>
+        )
+    }
+
 
     // ============================================================
     // Render

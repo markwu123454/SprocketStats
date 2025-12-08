@@ -5,48 +5,46 @@ interface NotFoundPageProps {
 }
 
 export default function NotFoundPage({code = 404}: NotFoundPageProps) {
-    // --- Meme URLs (from /public/meme/) ---
-    const memeImages = useMemo(
-        () => [
-            "/meme/1.gif",
-            "/meme/1.png",
-            "/meme/2.gif",
-            "/meme/2.gif",
-            "/meme/3.png",
-            "/meme/5.png",
-            "/meme/6.png",
-            "/meme/7.png",
-            "/meme/8.png",
-            "/meme/9.png",
-            "/meme/img.png",
-            "/meme/img_1.png",
-            "/meme/img_2.png",
-            "/meme/img_3.png",
-            "/meme/img_4.png",
-            "/meme/img_5.png",
-            "/meme/img_6.png",
-            "/meme/img_7.png",
-            "/meme/img_8.png",
-            "/meme/img_9.png",
-            "/meme/img_10.png",
-            "/meme/Spot_the_cow.gif",
-            "/meme/frc-crescendo (1).gif",
-        ],
-        []
-    )
+    // Meme URLs
+    const memeImages = useMemo(() => [
+        "/meme/1.gif",
+        "/meme/1.png",
+        "/meme/2.gif",
+        "/meme/2.gif",
+        "/meme/3.png",
+        "/meme/5.png",
+        "/meme/6.png",
+        "/meme/7.png",
+        "/meme/8.png",
+        "/meme/9.png",
+        "/meme/img.png",
+        "/meme/img_1.png",
+        "/meme/img_2.png",
+        "/meme/img_3.png",
+        "/meme/img_4.png",
+        "/meme/img_5.png",
+        "/meme/img_6.png",
+        "/meme/img_7.png",
+        "/meme/img_8.png",
+        "/meme/img_9.png",
+        "/meme/img_10.png",
+        "/meme/Spot_the_cow.gif",
+        "/meme/frc-crescendo (1).gif",
+    ], [])
+
+    const [recentImages, setRecentImages] = useState<string[]>([])
 
     const getRandomImage = () => {
-        // Filter out recent images
         const available = memeImages.filter(img => !recentImages.includes(img))
-
-        // If nothing remains (rare), fallback to full list
         const pool = available.length > 0 ? available : memeImages
-
         return pool[Math.floor(Math.random() * pool.length)]
     }
 
-    const [currentImage, setCurrentImage] = useState(getRandomImage)
-    const [recentImages, setRecentImages] = useState<string[]>([])
+    const [currentImage, setCurrentImage] = useState(() => {
+        // safe: recentImages now initialized
+        const pool = memeImages
+        return pool[Math.floor(Math.random() * pool.length)]
+    })
 
     const paragraphRef = useRef<HTMLParagraphElement>(null)
     const [paraWidth, setParaWidth] = useState<number>()
@@ -56,36 +54,22 @@ export default function NotFoundPage({code = 404}: NotFoundPageProps) {
     }, [])
 
     const title =
-        code === 501
-            ? "Not implemented"
-            : code === 403
-                ? "Access denied"
-                : code === 503
-                    ? "No Internet"
-                    : "Page not found"
+        code === 501 ? "Not implemented"
+        : code === 403 ? "Access denied"
+        : code === 503 ? "No Internet"
+        : "Page not found"
 
     const message =
         code === 501 ? (
-            <>
-                This page or feature hasn’t been implemented yet.<br/>
-                Please contact a captain or lead if you believe this is an error.
-            </>
+            <>This page or feature hasn’t been implemented yet.<br/>Please contact a captain or lead if you believe this is an error.</>
         ) : code === 403 ? (
-            <>
-                You don’t have permission to access this page.<br/>
-                Nice try.
-            </>
+            <>You don’t have permission to access this page.<br/>Nice try.</>
         ) : code === 503 ? (
-            <>
-                This page requires internet to access.<br/>
-                Try mobile data.
-            </>
+            <>This page requires internet to access.<br/>Try mobile data.</>
         ) : (
-            <>
-                Sorry, we couldn’t find the page you’re looking for.<br/>
-                Womp, womp.
-            </>
+            <>Sorry, we couldn’t find the page you’re looking for.<br/>Womp, womp.</>
         )
+
 
     return (
         <div

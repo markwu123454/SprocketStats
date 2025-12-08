@@ -512,15 +512,24 @@ export function useAPI() {
 
     // --- Endpoint: GET /data/processed ---
     const getProcessedData = async (
+        token: string,
         event_key?: string
     ): Promise<Record<string, any> | null> => {
-        const res = await apiRequest<{ data: any }>("/data/processed", {
-            query: event_key ? {event_key} : undefined,
+
+        const headers: HeadersInit = {
+            "x-guest-password": token,
+        };
+
+        const query: Record<string, string> = {};
+        if (event_key) query.event_key = event_key;
+
+        const res = await apiRequest<Record<string, any>>("/data/processed", {
+            query,
+            headers,
         });
 
-        return res?.data ?? null;
+        return res ?? null;
     };
-
 
     // --- Endpoint: GET /data/candy ---
     const getCandyData = async (): Promise<Record<string, any> | null> => {
@@ -531,7 +540,8 @@ export function useAPI() {
         client_to_server_ns: number | null,
         server_to_client_ns: number | null,
         roundtrip_ns: number | null,
-        db_latency: Record<string, any> | null}
+        db_latency: Record<string, any> | null
+    }
     > => {
         try {
             const url = `${BASE_URL}/latency`;
