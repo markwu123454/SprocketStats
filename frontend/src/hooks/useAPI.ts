@@ -4,6 +4,7 @@ import {useCallback} from "react";
 const BASE_URL = import.meta.env.VITE_BACKEND_URL;
 const UUID_COOKIE = "scouting_uuid"
 const NAME_COOKIE = "scouting_name"
+const EMAIL_COOKIE = "scouting_email"
 
 // --- Cookie utilities ---
 function setCookie(name: string, value: string, days: number) {
@@ -31,6 +32,10 @@ export function getAuthHeaders(): HeadersInit {
 
 export function getScouterName(): string | null {
     return getCookie(NAME_COOKIE)
+}
+
+export function getScouterEmail(): string | null {
+    return getCookie(EMAIL_COOKIE)
 }
 
 // --- General utilities ---
@@ -82,10 +87,6 @@ async function apiRequest<T>(
 
 // --- Hook ---
 export function useAPI() {
-    let cachedName: string | null = null
-
-    const getCachedName = (): string | null => cachedName
-
 
     // --- Endpoint: GET /ping ---
     const ping = async (): Promise<
@@ -127,6 +128,7 @@ export function useAPI() {
     > => {
         deleteCookie(UUID_COOKIE)
         deleteCookie(NAME_COOKIE)
+        deleteCookie(EMAIL_COOKIE)
 
         try {
             // Send credential (Google ID token) to backend
@@ -142,9 +144,10 @@ export function useAPI() {
             }
 
             const json = await res.json()
-            setCookie(UUID_COOKIE, json.uuid, 1)
-            setCookie(NAME_COOKIE, json.name, 1)
-            cachedName = json.name
+            setCookie(UUID_COOKIE, json.uuid, 3)
+            setCookie(NAME_COOKIE, json.name, 3)
+            setCookie(EMAIL_COOKIE, json.email, 3)
+
             return {
                 success: true,
                 name: json.name,
@@ -162,7 +165,8 @@ export function useAPI() {
         try {
             deleteCookie(UUID_COOKIE)
             deleteCookie(NAME_COOKIE)
-            cachedName = null
+            deleteCookie(EMAIL_COOKIE)
+
         } catch (err) {
             console.error("logout failed:", err)
         }
@@ -194,7 +198,7 @@ export function useAPI() {
             if (!res.ok) return {success: false}
 
             const json = await res.json()
-            cachedName = json.name
+
             return {
                 success: true,
                 name: json.name,
@@ -589,7 +593,6 @@ export function useAPI() {
         submitData,
         getTeamList,
         getAllStatuses,
-        getCachedName,
         getScouterState,
         getPitTeams,
         getPitData,

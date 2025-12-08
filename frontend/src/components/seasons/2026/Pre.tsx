@@ -1,8 +1,9 @@
 import * as React from "react"
 import {useEffect, useRef, useState} from "react"
-import {getScouterName, useAPI} from "@/hooks/useAPI.ts"
+import {useAPI, getScouterEmail} from "@/hooks/useAPI.ts"
 import {useClientEnvironment} from "@/hooks/useClientEnvironment.ts";
 import type {MatchScoutingData, TeamInfo} from "@/types"
+import {ImageOff} from "lucide-react";
 
 export default function PrePhase({data, setData}: {
     data: MatchScoutingData
@@ -20,10 +21,12 @@ export default function PrePhase({data, setData}: {
     const [manualTeam, setManualTeam] = useState<string>("") // input value in manual mode
     const [iconSrc, setIconSrc] = useState<string | null>(null) // live preview of team icon
     const [lastClaimedTeam, setLastClaimedTeam] = useState<number | null>(null) // backup to restore if user leaves manual entry
+    const [imageErrors, setImageErrors] = useState<Record<number, boolean>>({});
+    const [teamNames, setTeamNames] = useState<Record<string, string>>({});
 
     // === Derived constants ===
     const {match, alliance, match_type, teamNumber} = data
-    const scouter = getScouterName()! // logged-in scouter name
+    const scouterEmail = getScouterEmail()!
     const inputRef = useRef<HTMLInputElement>(null)
 
     // === Load team list from server ===
@@ -48,6 +51,25 @@ export default function PrePhase({data, setData}: {
             alive = false
         }
     }, [match, alliance, match_type, isOnline, serverOnline])
+
+    useEffect(() => {
+        let alive = true;
+
+        (async () => {
+            try {
+                const res = await fetch("/teams/team_names.json");
+                const json = await res.json();
+                if (alive) setTeamNames(json);
+            } catch (e) {
+                console.error("Failed to load team names", e);
+            }
+        })();
+
+        return () => {
+            alive = false
+        };
+    }, []);
+
 
     // === Live refresh of scouter claim state ===
     useEffect(() => {
@@ -116,7 +138,7 @@ export default function PrePhase({data, setData}: {
 
         void (async () => {
             try {
-                await unclaimTeam(match, teamNumber, match_type, scouter)
+                await unclaimTeam(match, teamNumber, match_type, scouterEmail)
             } finally {
                 setData(d => ({...d, teamNumber: null}))
             }
@@ -141,7 +163,7 @@ export default function PrePhase({data, setData}: {
                         t.number === oldTeamNumber ? {...t, scouter: null} : t
                     ) ?? null
                 )
-                await unclaimTeam(match, oldTeamNumber, match_type, scouter)
+                await unclaimTeam(match, oldTeamNumber, match_type, scouterEmail)
             }
 
             // update selected team locally
@@ -149,7 +171,7 @@ export default function PrePhase({data, setData}: {
 
             // claim team on server
             if (match && newTeamNumber !== null) {
-                await claimTeam(match, newTeamNumber, match_type, scouter)
+                await claimTeam(match, newTeamNumber, match_type, scouterEmail)
             }
         } finally {
             setClaiming(false)
@@ -176,7 +198,7 @@ export default function PrePhase({data, setData}: {
                             onClick={() => {
                                 // unclaim before switching type
                                 if ((isOnline && serverOnline) && match && teamNumber !== null) {
-                                    void unclaimTeam(match, teamNumber, match_type, scouter)
+                                    void unclaimTeam(match, teamNumber, match_type, scouterEmail)
                                 }
                                 // update match type; clear team if changed
                                 setData(d => ({
@@ -230,7 +252,7 @@ export default function PrePhase({data, setData}: {
                             disabled={claiming}
                             onClick={() => {
                                 if ((isOnline && serverOnline) && match && teamNumber !== null) {
-                                    void unclaimTeam(match, teamNumber, match_type, scouter)
+                                    void unclaimTeam(match, teamNumber, match_type, scouterEmail)
                                 }
                                 // update alliance; clear team if switching sides
                                 setData(d => ({
@@ -259,14 +281,14 @@ export default function PrePhase({data, setData}: {
                                     // entering manual mode — unclaim current
                                     if ((isOnline && serverOnline) && match && teamNumber !== null) {
                                         setLastClaimedTeam(teamNumber)
-                                        await unclaimTeam(match, teamNumber, match_type, scouter)
+                                        await unclaimTeam(match, teamNumber, match_type, scouterEmail)
                                         setData(d => ({...d, teamNumber: null}))
                                     }
                                     setManualEntry(true)
                                 } else {
                                     // leaving manual mode — restore last claim
                                     if ((isOnline && serverOnline) && match && lastClaimedTeam !== null) {
-                                        await claimTeam(match, lastClaimedTeam, match_type, scouter)
+                                        await claimTeam(match, lastClaimedTeam, match_type, scouterEmail)
                                         setData(d => ({...d, teamNumber: lastClaimedTeam}))
                                     }
                                     setManualEntry(false)
@@ -333,10 +355,10 @@ export default function PrePhase({data, setData}: {
                         ) : (
                             // team list or fallback placeholders
                             (teamList === null
-                                ? Array(3).fill(null)
-                                : teamList.length > 0
-                                    ? teamList
-                                    : Array(3).fill(undefined)
+                                    ? Array(3).fill(null)
+                                    : teamList.length > 0
+                                        ? teamList
+                                        : Array(3).fill(undefined)
                             ).map((team, i) => {
                                 if (!team) {
                                     // placeholder rows when no data
@@ -365,33 +387,41 @@ export default function PrePhase({data, setData}: {
                                             isSelected ? 'bg-zinc-500' : 'bg-zinc-700'
                                         } ${(isClaimed || claiming) ? 'opacity-50 cursor-not-allowed' : ''}`}
                                     >
+
                                         {/* team color bubble */}
-                                        <div className={`w-10 h-10 rounded flex items-center justify-center ${
-                                            alliance === 'red'
-                                                ? 'bg-red-700'
-                                                : alliance === 'blue'
-                                                    ? 'bg-blue-700'
-                                                    : 'bg-zinc-600'
-                                        }`}>
-                                            <img
-                                                src={localIcon}
-                                                onError={(e) => {
-                                                    (e.target as HTMLImageElement).src =
-                                                        team.logo ?? '/placeholder.png'
-                                                }}
-                                                alt={team.name}
-                                                className="w-8 h-8 rounded object-contain"
-                                            />
+                                        <div
+                                            className={`w-10 h-10 rounded flex items-center justify-center ${
+                                                alliance === "red"
+                                                    ? "bg-red-700"
+                                                    : alliance === "blue"
+                                                        ? "bg-blue-700"
+                                                        : "bg-zinc-600"
+                                            }`}
+                                        >
+                                            {imageErrors[team.number] ? (
+                                                <ImageOff className="w-6 h-6 text-zinc-200"/>
+                                            ) : (
+                                                <img
+                                                    src={localIcon}
+                                                    alt={team.name}
+                                                    className="w-8 h-8 rounded object-contain"
+                                                    onError={() =>
+                                                        setImageErrors((prev) => ({...prev, [team.number]: true}))
+                                                    }
+                                                />
+                                            )}
                                         </div>
+
                                         {/* team name and number */}
                                         <div className="text-xl flex items-center gap-1 max-w-full">
-                                            <span>{team.nickname}</span>
+                                            <span>{teamNames[team.number] ?? "Unknown Team: "}</span>
                                             <span>{team.number}</span>
                                         </div>
+
                                         {/* show claim info */}
                                         {isClaimed && (
                                             <span className="text-sm">
-                                                {`Scouting by ${team.scouter === scouter ? 'you' : team.scouter}`}
+                                                {team.scouter === scouterEmail ? "Scouting by you" : `Scouting by ${team.scouter}`}
                                             </span>
                                         )}
                                     </button>

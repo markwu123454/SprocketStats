@@ -153,7 +153,7 @@ async def init_db():
                     scouter TEXT NOT NULL,
                     status TEXT NOT NULL,
                     data JSONB NOT NULL,
-                    last_modified BIGINT NOT NULL,
+                    last_modified TIMESTAMPTZ DEFAULT now(),
                     PRIMARY KEY (match, match_type, team, scouter)
                 );
             """)
@@ -173,7 +173,7 @@ async def init_db():
                     scouter TEXT,
                     status TEXT NOT NULL,
                     data JSONB NOT NULL,
-                    last_modified BIGINT NOT NULL,
+                    last_modified TIMESTAMPTZ DEFAULT now(),
                     PRIMARY KEY (event_key, team, scouter)
                 );
             """)
@@ -318,44 +318,6 @@ async def init_db():
         await release_db_connection(DB_NAME, conn)
 
 
-# =================== General Scouting ===================
-
-async def get_team_info(team_number: int) -> Optional[dict]:
-    """
-    Fetches a single team record from the `teams` table.
-
-    Args:
-        team_number: The team number (e.g., 254, 1678, etc.)
-
-    Returns:
-        dict with team information, or None if not found.
-    """
-    conn = await get_db_connection(DB_NAME)
-    try:
-        row = await conn.fetchrow("""
-            SELECT team_number, nickname, rookie_year, last_updated
-            FROM teams
-            WHERE team_number = $1
-            LIMIT 1
-        """, team_number)
-
-        if not row:
-            return None
-
-        return {
-            "team_number": row["team_number"],
-            "nickname": row["nickname"],
-            "rookie_year": row["rookie_year"],
-            "last_updated": row["last_updated"].isoformat() if row["last_updated"] else None,
-        }
-
-    except PostgresError as e:
-        logger.error("Failed to fetch team info: %s", e)
-        raise HTTPException(status_code=500, detail=f"Failed to fetch team info: {e}")
-    finally:
-        await release_db_connection(DB_NAME, conn)
-
-
 # =================== Match Scouting ===================
 
 async def get_match_info(match_type: str, match_number: int, set_number: int = 1) -> Optional[dict]:
@@ -418,7 +380,7 @@ async def add_match_scouting(
                 $1, $2, $3, $4, $5, $6, $7, $8
             )
         """, match, m_type.value, str(team), alliance.value,
-             _to_db_scouter(scouter), status.value, data, time.time_ns())
+             _to_db_scouter(scouter), status.value, data, datetime.now(timezone.utc))
     except UniqueViolationError:
         raise HTTPException(status_code=409, detail="Match scouting entry already exists")
     except PostgresError as e:
@@ -467,7 +429,7 @@ async def update_match_scouting(
                     SET data=$1, status=$2, last_modified=$3, scouter=$4
                     WHERE event_key = (SELECT current_event FROM metadata LIMIT 1)
                       AND match = $5 AND match_type = $6 AND team = $7 AND scouter = $8
-                """, current_data, new_status, time.time_ns(), new_scouter_db,
+                """, current_data, new_status, datetime.now(timezone.utc), new_scouter_db,
                      match, m_type.value, str(team), _to_db_scouter(scouter))
             except UniqueViolationError:
                 raise HTTPException(status_code=409, detail="Target scouter row already exists")
@@ -528,30 +490,6 @@ async def get_match_scouting(
         await release_db_connection(DB_NAME, conn)
 
 
-async def get_processed_data(event_key: Optional[str] = None) -> Optional[dict]:
-    """
-    Retrieve the most recent processed_data JSONB entry.
-    If event_key is not provided, uses current_event from metadata directly in SQL.
-    """
-    conn = await get_db_connection(DB_NAME)
-    try:
-        row = await conn.fetchrow("""
-            SELECT data
-            FROM processed_data
-            WHERE event_key = COALESCE($1, (SELECT current_event FROM metadata LIMIT 1))
-            ORDER BY time_added DESC
-            LIMIT 1
-        """, event_key)
-
-        return row["data"] if row else None
-
-    except PostgresError as e:
-        logger.error("Failed to fetch processed data: %s", e)
-        raise HTTPException(status_code=500, detail=f"Failed to fetch processed data: {e}")
-    finally:
-        await release_db_connection(DB_NAME, conn)
-
-
 # =================== Pit Scouting ===================
 
 async def add_pit_scouting(
@@ -571,7 +509,7 @@ async def add_pit_scouting(
                 (SELECT current_event FROM metadata LIMIT 1),
                 $1, $2, $3, $4, $5
             )
-        """, str(team), _to_db_scouter(scouter), status.value, data, time.time_ns())
+        """, str(team), _to_db_scouter(scouter), status.value, data, datetime.now(timezone.utc))
     except UniqueViolationError:
         raise HTTPException(status_code=409, detail="Pit scouting entry already exists")
     except PostgresError as e:
@@ -618,7 +556,7 @@ async def update_pit_scouting(
                     SET data=$1, status=$2, last_modified=$3, scouter=$4
                     WHERE event_key = (SELECT current_event FROM metadata LIMIT 1)
                       AND team = $5 AND scouter = $6
-                """, current_data, new_status, time.time_ns(), new_scouter_db,
+                """, current_data, new_status, datetime.now(timezone.utc), new_scouter_db,
                      str(team), _to_db_scouter(scouter))
             except UniqueViolationError:
                 raise HTTPException(status_code=409, detail="Target scouter row already exists")
@@ -1173,6 +1111,141 @@ async def measure_db_latency() -> Dict[str, Any]:
     except Exception as e:
         logger.error("Latency measurement failed: %s", e)
         raise HTTPException(status_code=500, detail="Failed to measure database latency")
+    finally:
+        await release_db_connection(DB_NAME, conn)
+
+
+async def get_person_sessions(
+    name: Optional[str] = None,
+    email: Optional[str] = None,
+    session_id: Optional[str] = None,
+) -> Dict[str, Any]:
+    """
+    Resolve a person using optional filters (name, email, session_id).
+    Returns:
+        {
+            "name": str,
+            "email": str,
+            "sessions": [uuid1, uuid2, ...]  # newest → oldest
+        }
+    Or:
+        {}  # if person cannot be uniquely resolved OR anything mismatches
+
+    This version:
+      - Never raises HTTPException for lookup/mismatch conditions.
+      - Returns {} for all ambiguous or invalid cases.
+    """
+
+    conn = await get_db_connection(DB_NAME)
+    try:
+        resolved_email = None
+        resolved_name = None
+
+        # ------------------------------------------------------
+        # 1. Resolve using session_id if provided
+        # ------------------------------------------------------
+        if session_id:
+            # Validate UUID, but silently fail by returning {}
+            try:
+                uuid.UUID(session_id)
+            except ValueError:
+                return {}
+
+            session_row = await conn.fetchrow(
+                "SELECT data, expires FROM sessions WHERE uuid = $1",
+                session_id,
+            )
+            if not session_row:
+                return {}
+
+            sd = session_row["data"]
+            resolved_email = sd.get("email")
+            resolved_name = sd.get("name")
+
+            if not resolved_email or not resolved_name:
+                return {}
+
+            # Mismatch checks (silently fail)
+            if email and email != resolved_email:
+                return {}
+            if name and name != resolved_name:
+                return {}
+
+        # ------------------------------------------------------
+        # 2. If no session_id, resolve via email/name
+        # ------------------------------------------------------
+        else:
+            # If nothing given, cannot resolve → empty dict
+            if not email and not name:
+                return {}
+
+            # Build dynamic query
+            query = "SELECT * FROM users WHERE 1=1"
+            params = []
+            idx = 1
+
+            if email:
+                query += f" AND email = ${idx}"; params.append(email); idx += 1
+            if name:
+                query += f" AND name = ${idx}"; params.append(name); idx += 1
+
+            rows = await conn.fetch(query, *params)
+
+            # None found or multiple name matches → ambiguous → {}
+            if len(rows) != 1:
+                return {}
+
+            user = rows[0]
+            resolved_email = user["email"]
+            resolved_name = user["name"]
+
+        # ------------------------------------------------------
+        # 3. Fetch all sessions for the resolved email
+        # ------------------------------------------------------
+        session_rows = await conn.fetch("""
+            SELECT uuid, expires
+            FROM sessions
+            WHERE data->>'email' = $1
+            ORDER BY expires DESC
+        """, resolved_email)
+
+        ordered_session_ids = [r["uuid"] for r in session_rows]
+
+        return {
+            "name": resolved_name,
+            "email": resolved_email,
+            "sessions": ordered_session_ids,
+        }
+
+    except Exception:
+        # On *any* unexpected failure, return empty dict safely
+        return {}
+    finally:
+        await release_db_connection(DB_NAME, conn)
+
+
+# =================== Data ===================
+
+async def get_processed_data(event_key: Optional[str] = None) -> Optional[dict]:
+    """
+    Retrieve the most recent processed_data JSONB entry.
+    If event_key is not provided, uses current_event from metadata directly in SQL.
+    """
+    conn = await get_db_connection(DB_NAME)
+    try:
+        row = await conn.fetchrow("""
+            SELECT data
+            FROM processed_data
+            WHERE event_key = COALESCE($1, (SELECT current_event FROM metadata LIMIT 1))
+            ORDER BY time_added DESC
+            LIMIT 1
+        """, event_key)
+
+        return row["data"] if row else None
+
+    except PostgresError as e:
+        logger.error("Failed to fetch processed data: %s", e)
+        raise HTTPException(status_code=500, detail=f"Failed to fetch processed data: {e}")
     finally:
         await release_db_connection(DB_NAME, conn)
 
