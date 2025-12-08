@@ -561,7 +561,7 @@ async def get_match_info(
     # Extract alliance teams
     if alliance == enums.AllianceType.RED:
         team_numbers = [t for t in match_row["red"] if t is not None]
-    elif alliance == enums.AllianceType.BLUE:
+    else: # guaranteed alliance == enums.AllianceType.BLUE
         team_numbers = [t for t in match_row["blue"] if t is not None]
 
     # Ensure each team has a match_scouting entry
@@ -583,8 +583,7 @@ async def get_match_info(
             {
                 "number": int(t),
                 "name": f"Team {t}",
-                "scouter": (await db.get_match_scouting(match=match, m_type=m_type, team=t))[0].get("scouter"),
-                "nickname": (await db.get_team_info(t))["nickname"]
+                "scouter": (await db.get_match_scouting(match=match, m_type=m_type, team=t))[0].get("scouter")
             }
             for t in team_numbers
         ]
@@ -601,12 +600,20 @@ async def get_scouter_state(
     entries = await db.get_match_scouting(match=match, m_type=m_type)
     relevant = [e for e in entries if e["alliance"] == alliance.value]
 
-    return {
-        "teams": {
-            str(e["team"]): {"scouter": e.get("scouter")}
-            for e in relevant
+    teams = {}
+    for e in relevant:
+        scouter = e.get("scouter")
+
+        # Call your safe lookup: returns {} if no person
+        person = await db.get_person_sessions(email=scouter) if scouter else {}
+
+        teams[str(e["team"])] = {
+            "scouter": scouter,
+            "name": person.get("name"),   # None if not found
         }
-    }
+
+    return {"teams": teams}
+
 
 
 # === Pit scouting ===

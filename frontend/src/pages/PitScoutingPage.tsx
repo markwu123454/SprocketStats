@@ -1,9 +1,13 @@
-import { useAPI } from "@/hooks/useAPI.ts";
 import * as React from "react";
 import { useEffect, useState } from "react";
+
+import { AlertCircle, ArrowLeft, CheckCircle, XCircle } from "lucide-react";
+
+import { useAPI, getScouterEmail } from "@/hooks/useAPI.ts";
+
 import { Label } from "@/components/ui/label.tsx";
 import { Input } from "@/components/ui/input.tsx";
-import { AlertCircle, ArrowLeft, CheckCircle, XCircle } from "lucide-react";
+
 import { useNavigate } from "react-router-dom";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select.tsx";
 import { Button } from "@/components/ui/button.tsx";
@@ -76,11 +80,8 @@ export default function PitScoutingLayout() {
         if (!teamNumber || notFound) return;
 
         setSubmitting(true);
-        const scouter =
-            document.cookie
-                .split("; ")
-                .find((r) => r.startsWith("scouting_name="))
-                ?.split("=")[1] || "unknown";
+
+        const scouter = getScouterEmail()!;
 
         const success = await submitPitData(teamNumber, scouter, answers);
         setSubmitting(false);
