@@ -212,7 +212,7 @@ class Data(TypedDict, total=False):
 def generate_sample_data(entry: RawData) -> Data:
         teams = [3473, 3476, 118, 10118, 2910, 1690, 1323, 4414, 5199, 4415, 2056, 148, 1678, 254, 6995, 6800, 4481,
                  968]
-        matches = ["QM1", "QM2", "QM3", "QM4"]
+        matches = ["qm1", "qm2", "qm3", "qm4"]
         climb_types = ["None", "Park", "Shallow", "Deep"]
 
         data: Data = {

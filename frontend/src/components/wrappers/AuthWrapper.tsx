@@ -14,56 +14,93 @@ export default function AuthGate({
     permission,
     device,
     dialogTheme = "dark",
-    mode = "pessimistic",
+    mode = "auto",
     children,
 }: {
     permission: "dev" | "admin" | "match_scouting" | "pit_scouting"
     device?: "mobile" | "desktop"
     dialogTheme?: "light" | "dark"
-    mode?: "pessimistic" | "optimistic"
+    mode?: "pessimistic" | "optimistic" | "auto"
     children?: React.ReactNode
 }) {
-    const [authorized, setAuthorized] = useState<boolean | null>(mode === "pessimistic" ? null : true)
-    const [verifying, setVerifying] = useState(true)
-    const [deviceWarning, setDeviceWarning] = useState(false)
-    const [ignoredWarning, setIgnoredWarning] = useState(false)
     const navigate = useNavigate()
     const {verify} = useAPI()
     const {isOnline, serverOnline, deviceType} = useClientEnvironment()
 
+    // Read cached permissions
+    const cachedPerms = useRef<Record<string, boolean>>(
+        JSON.parse(localStorage.getItem("perms") ?? "{}")
+    )
+
+    // Decide whether to start optimistic or pessimistic
+    const effectiveOptimistic = (() => {
+        if (mode === "optimistic") return true
+        if (mode === "pessimistic") return false
+        // auto-mode: check cache
+        return !!cachedPerms.current[permission]
+    })()
+
+    // Initial auth state based on mode
+    const [authorized, setAuthorized] = useState<boolean | null>(
+        effectiveOptimistic ? true : null
+    )
+
+    // "verifying" only affects loading display for pessimistic mode
+    const [verifying, setVerifying] = useState(true)
+
+    const [deviceWarning, setDeviceWarning] = useState(false)
+    const [ignoredWarning, setIgnoredWarning] = useState(false)
+    const dialogRef = useRef<HTMLDivElement | null>(null)
+
     const memoizedVerify = useCallback(async () => {
         setVerifying(true)
-        if ((!isOnline || !serverOnline) && (permission === "match_scouting" || permission === "pit_scouting")) {
+
+        // Special offline logic for scouting routes
+        if ((!isOnline || !serverOnline) &&
+            (permission === "match_scouting" || permission === "pit_scouting")) {
             setAuthorized(true)
             setVerifying(false)
             return
         }
+
         const result = await verify()
         const perms = result.permissions as Partial<Record<typeof permission, boolean>>
         const success = result.success && !!perms[permission]
+
         setAuthorized(success)
         setVerifying(false)
+
+        // Update cache if verify succeeded
+        if (result.success) {
+            localStorage.setItem("perms", JSON.stringify(perms))
+        }
     }, [isOnline, serverOnline, verify, permission])
 
+    // Trigger verification on mount
     useEffect(() => {
         void memoizedVerify()
     }, [memoizedVerify])
 
+    // Device mismatch alert
     useEffect(() => {
-        if (authorized === true && device && deviceType !== device) setDeviceWarning(true)
+        if (authorized === true && device && deviceType !== device) {
+            setDeviceWarning(true)
+        }
     }, [authorized, device, deviceType])
+
+    // Focus modal for accessibility
+    useEffect(() => {
+        if (deviceWarning && !ignoredWarning && dialogRef.current) {
+            dialogRef.current.focus()
+        }
+    }, [deviceWarning, ignoredWarning])
 
     const isLight = dialogTheme === "light"
     const overlayBg = isLight ? "bg-white text-black" : "bg-zinc-800 text-white"
     const border = isLight ? "border border-gray-300 shadow-lg" : "border border-zinc-700 shadow-xl"
-    const dialogRef = useRef<HTMLDivElement | null>(null)
 
-    useEffect(() => {
-        if (deviceWarning && !ignoredWarning && dialogRef.current) dialogRef.current.focus()
-    }, [deviceWarning, ignoredWarning])
-
-    // Spinner only in block_first mode or while verifying
-    if (verifying && mode === "pessimistic") {
+    // Show spinner only if pessimistic & verifying
+    if (verifying && !effectiveOptimistic) {
         return (
             <div className={`w-screen h-screen flex flex-col items-center justify-center ${isLight ? "bg-zinc-100 text-black" : "bg-zinc-950 text-white"}`}>
                 <div className="flex flex-col items-center gap-4">
@@ -76,6 +113,7 @@ export default function AuthGate({
         )
     }
 
+    // Final denial screen
     if (!verifying && authorized === false) {
         return (
             <div className="w-screen h-screen bg-zinc-950 text-white flex flex-col items-center justify-center">

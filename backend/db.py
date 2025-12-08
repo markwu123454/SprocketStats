@@ -291,10 +291,19 @@ async def init_db():
                     perm_admin BOOLEAN NOT NULL DEFAULT FALSE,
                     perm_match_scout BOOLEAN NOT NULL DEFAULT FALSE,
                     perm_pit_scout BOOLEAN NOT NULL DEFAULT FALSE,
-                    perm_guest_access JSONB NOT NULL DEFAULT '[]'::jsonb,
-                    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+                    created_at TIMESTAMPTZ DEFAULT now()
                 );
             """)
+
+            await conn.execute("""
+                               CREATE TABLE IF NOT EXISTS guests
+                               (
+                                   password         TEXT PRIMARY KEY,
+                                   name             TEXT    NOT NULL,
+                                   perms            JSONB NOT NULL,
+                                   created_at       TIMESTAMPTZ DEFAULT now()
+                               );
+                               """)
 
             # ---------------------------------------------------
             # sessions
@@ -1272,4 +1281,51 @@ def require_permission(required: str) -> Callable[..., Awaitable[enums.SessionIn
         if not getattr(session.permissions, required, False):
             raise HTTPException(status_code=403, detail=f"Missing '{required}' permission")
         return session
+    return dep
+
+
+async def get_guest(password: str) -> Optional[dict]:
+    """
+    Retrieve a guest record by password.
+    Returns dict {password, name, perms, created_at} or None.
+    """
+    conn = await get_db_connection(DB_NAME)
+    try:
+        row = await conn.fetchrow(
+            "SELECT password, name, permissions, expire_date FROM guests WHERE password = $1",
+            password
+        )
+        return dict(row) if row else None
+    except PostgresError as e:
+        logger.error("Failed to fetch guest: %s", e)
+        raise HTTPException(status_code=500, detail="Database error retrieving guest")
+    finally:
+        await release_db_connection(DB_NAME, conn)
+
+
+def require_guest_password() -> Callable[..., Awaitable[dict]]:
+    """
+    FastAPI dependency:
+    - Reads x-guest-password header
+    - Validates password exists in guests table
+    - Returns { name: str, perms: dict }
+    """
+    async def dep(x_guest_password: Annotated[str, Header(alias="x-guest-password")]) -> dict:
+        if not x_guest_password:
+            raise HTTPException(status_code=401, detail="Guest password required")
+
+        guest = await get_guest(x_guest_password)
+        if not guest:
+            raise HTTPException(status_code=401, detail="Invalid guest password")
+
+        # If you later add an expiration policy, insert the check here.
+        # Example:
+        # if guest["expires"] <= datetime.now(timezone.utc):
+        #     raise HTTPException(status_code=403, detail="Guest access expired")
+
+        return {
+            "name": guest["name"],
+            "perms": guest["permissions"],  # already JSONB decoded
+        }
+
     return dep

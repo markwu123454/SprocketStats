@@ -21,6 +21,7 @@ export default function DevPage() {
     const [latency, setLatency] = useState({
         upload: PLACEHOLDER,
         download: PLACEHOLDER,
+        roundTrip: PLACEHOLDER,
         dbUpload: PLACEHOLDER,
         dbDownload: PLACEHOLDER,
     });
@@ -29,15 +30,6 @@ export default function DevPage() {
     const [devMetadata, setDevMetadata] = useState<Record<string, any>>({});
     const [eventNames, setEventNames] = useState<Record<string, { full: string; short: string }>>({});
     const [theme, setThemeState] = useState<Settings["theme"]>(() => getSettingSync("theme", "2026"))
-
-    const clearLocalKey = (key: string) => {
-        window.localStorage.removeItem(key);
-        setStorage(prev => {
-            const next = {...prev.local};
-            delete next[key];
-            return {...prev, local: next};
-        });
-    };
 
     const inspectIndexedDB = async () => {
         const dbs = await indexedDB.databases();
@@ -119,6 +111,7 @@ export default function DevPage() {
             setLatency({
                 upload: avg(c2s) !== null ? `${avg(c2s)?.toFixed(0)} ms` : PLACEHOLDER,
                 download: avg(s2c) !== null ? `${avg(s2c)?.toFixed(0)} ms` : PLACEHOLDER,
+                roundTrip: avg(dbq) !== null ? `${avg(rtt)?.toFixed(0)} ms` : PLACEHOLDER,
                 dbUpload: avg(tcp) !== null ? `${avg(tcp)?.toFixed(0)} ms` : PLACEHOLDER,
                 dbDownload: avg(dbq) !== null ? `${avg(dbq)?.toFixed(0)} ms` : PLACEHOLDER,
             });
@@ -128,6 +121,7 @@ export default function DevPage() {
             setLatency({
                 upload: PLACEHOLDER,
                 download: PLACEHOLDER,
+                roundTrip: PLACEHOLDER,
                 dbUpload: PLACEHOLDER,
                 dbDownload: PLACEHOLDER,
             });
@@ -230,10 +224,6 @@ export default function DevPage() {
                                     <div key={k}
                                          className="flex justify-between border-b py-1 truncate min-w-0 theme-border">
                                         <span className="truncate max-w-[75%]">{k}: {v}</span>
-                                        <button onClick={() => clearLocalKey(k)}
-                                                className="flex-shrink-0 whitespace-nowrap opacity-60 hover:opacity-100 transition">
-                                            Clear
-                                        </button>
                                     </div>
                                 ))}
                             </div>
@@ -296,6 +286,7 @@ export default function DevPage() {
                                 <p className="opacity-70">Server → Client (Download): {latency.download}</p>
                                 <p className="opacity-70">DB TCP Handshake: {latency.dbUpload}</p>
                                 <p className="opacity-70">DB Query Time: {latency.dbDownload}</p>
+                                <p className="opacity-70">Round Trip time: {latency.roundTrip}</p>
                             </div>
 
                             <button onClick={testLatency}
