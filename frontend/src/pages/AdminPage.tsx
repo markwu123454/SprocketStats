@@ -1,7 +1,7 @@
 import {useEffect, useState} from "react";
 import {useAPI} from "@/hooks/useAPI.ts";
 import {useNavigate} from "react-router-dom";
-import {ArrowLeft, Monitor, BarChart2, Users, Search, Activity, Terminal, GitBranch, UsersRound} from "lucide-react";
+import {ArrowLeft, Monitor, BarChart2, Users, Search, Activity, Terminal, GitBranch, UsersRound, Share} from "lucide-react";
 
 export default function AdminPage() {
     const navigate = useNavigate();
@@ -177,6 +177,14 @@ export default function AdminPage() {
                             <div className="flex items-center gap-3 font-semibold">
                                 <UsersRound className="w-5 h-5"/>
                                 Match assignment
+                            </div>
+                        </div>
+
+                        <div onClick={() => navigate("/admin/share")}
+                             className="p-4 rounded-xl border cursor-pointer shadow-md transition hover:scale-[1.02] active:scale-[0.98] backdrop-blur-sm theme-bg theme-border">
+                            <div className="flex items-center gap-3 font-semibold">
+                                <Share className="w-5 h-5"/>
+                                Share data
                             </div>
                         </div>
                     </section>
