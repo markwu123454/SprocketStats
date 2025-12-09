@@ -1,6 +1,7 @@
 import {createContext, useContext, useEffect, useState, useMemo} from "react"
-import {Outlet} from "react-router-dom"
+import {Outlet, useLocation} from "react-router-dom"
 import {useAPI} from "@/hooks/useAPI.ts"
+
 
 export interface RankingData {
     [key: string]: any
@@ -56,6 +57,9 @@ let CACHE: {
 
 export default function DataWrapper() {
     const {getProcessedData} = useAPI()
+    const location = useLocation();
+
+    const isGuestAdminPage = location.pathname.startsWith("/admin/data/guest");
 
     const [state, setState] = useState<DataContextType>({
         processedData: null,
@@ -145,11 +149,8 @@ export default function DataWrapper() {
 
     return (
         <DataContext.Provider value={value}>
-            {state.loading && !state.processedData ? (
-                <div className="flex h-screen w-screen items-center justify-center text-gray-500 text-sm">
-                    Loading event data…
-                </div>
-            ) : (
+            {/* NEW: If on admin/data/guest → NEVER block UI with loading */}
+            {isGuestAdminPage ? (
                 <>
                     <Outlet/>
                     {issues.length > 0 && (
@@ -165,9 +166,34 @@ export default function DataWrapper() {
                         </div>
                     )}
                 </>
+            ) : (
+                // Old behavior for normal pages
+                <>
+                    {state.loading && !state.processedData ? (
+                        <div className="flex h-screen w-screen items-center justify-center text-gray-500 text-sm">
+                            Loading event data…
+                        </div>
+                    ) : (
+                        <>
+                            <Outlet/>
+                            {issues.length > 0 && (
+                                <div className="fixed bottom-4 right-4 flex flex-col gap-2 z-50">
+                                    {issues.map((msg, i) => (
+                                        <div
+                                            key={i}
+                                            className="bg-red-600 text-white text-sm px-4 py-2 rounded-lg shadow-lg animate-fade-in"
+                                        >
+                                            {msg}
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </>
+                    )}
+                </>
             )}
         </DataContext.Provider>
-    )
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -206,4 +232,8 @@ export function useGuestName(): string | null {
 
 export function usePermissions(): GuestPermissions | null {
     return useDataContext().permissions
+}
+
+export function useLoading(): boolean {
+    return useDataContext().loading
 }

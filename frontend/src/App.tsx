@@ -22,6 +22,7 @@ import PitScoutingPage from "@/pages/PitScoutingPage.tsx"
 import RankingDataPage from "@/pages/data/RankingDataPage.tsx"
 import SettingsPage from "@/pages/SettingsPage.tsx"
 import TeamDataPage from "@/pages/data/TeamDataPage.tsx"
+import AdminSharePage from "@/pages/AdminSharePage.tsx";
 
 export default function App() {
     return (
@@ -67,6 +68,7 @@ export default function App() {
                                 <Route index element={<AdminPage/>}/>
                                 <Route path="monitor/*" element={<MatchMonitorPage/>}/>
                                 <Route path="assignment" element={<NotFoundPage code={501}/>}/>
+                                <Route path="share" element={<AdminSharePage/>}/>
                             </Route>
 
                                 <Route path="data" element={<DataWrapper/>}>

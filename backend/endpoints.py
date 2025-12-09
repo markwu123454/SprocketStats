@@ -4,7 +4,7 @@ import time
 import uuid
 from datetime import datetime, timezone, timedelta
 from typing import Optional, Dict, Any
-from fastapi import Depends, HTTPException, Body, APIRouter, Request, Query
+from fastapi import Depends, HTTPException, Body, APIRouter, Request, Query, status
 from starlette.responses import HTMLResponse
 from google.oauth2 import id_token
 from google.auth.transport import requests as g_requests
@@ -14,8 +14,8 @@ import tba_db as tba
 import statbot_db as statbot
 import enums
 import importlib
-translator = importlib.import_module("seasons.2025.translator")
 
+translator = importlib.import_module("seasons.2026.translator")
 
 router = APIRouter()
 
@@ -201,9 +201,9 @@ async def get_metadata(_: enums.SessionInfo = Depends(db.require_permission("adm
 
 @router.get("/admin/matches/filter")
 async def admin_filter_matches(
-    scouters: Optional[list[str]] = Query(None, description="List of scouter names to include"),
-    statuses: Optional[list[enums.StatusType]] = Query(None, description="List of statuses to include"),
-    _: enums.SessionInfo = Depends(db.require_permission("admin")),
+        scouters: Optional[list[str]] = Query(None, description="List of scouter names to include"),
+        statuses: Optional[list[enums.StatusType]] = Query(None, description="List of statuses to include"),
+        _: enums.SessionInfo = Depends(db.require_permission("admin")),
 ):
     """
     Returns match entries (no data field) filtered by lists of scouters and/or statuses.
@@ -231,7 +231,6 @@ async def admin_filter_matches(
     return {"count": len(filtered), "matches": filtered}
 
 
-
 @router.get("/team/{team}")
 async def get_pit_scout_status(team: int):
     """
@@ -247,7 +246,6 @@ async def get_pit_scout_status(team: int):
 
 @router.get("/latency")
 async def get_latency(request: Request) -> Dict[str, Any]:
-
     # t2 — timestamp when request arrives at server
     server_receive_ns = time.time_ns()
 
@@ -315,12 +313,12 @@ async def claim_team(
 
 @router.patch("/scouting/{m_type}/{match}/{team}/unclaim")
 async def unclaim_team(
-    m_type: enums.MatchType,
-    match: int,
-    team: int,
-    scouter: str = Query(...),
-    _: enums.SessionInfo = Depends(db.require_permission("match_scouting")),
-    _body: str | None = Body(None)  # ← add this line
+        m_type: enums.MatchType,
+        match: int,
+        team: int,
+        scouter: str = Query(...),
+        _: enums.SessionInfo = Depends(db.require_permission("match_scouting")),
+        _body: str | None = Body(None)  # ← add this line
 ):
     """
     Unclaims a team if the requester currently owns it.
@@ -352,10 +350,10 @@ async def unclaim_team(
 
 @router.post("/scouting/{m_type}/{match}/{team}/unclaim-beacon")
 async def unclaim_team_beacon(
-    m_type: enums.MatchType,
-    match: int,
-    team: int,
-    scouter: str = Query(...),
+        m_type: enums.MatchType,
+        match: int,
+        team: int,
+        scouter: str = Query(...),
 ):
     """
     Beacon-compatible unclaim: skips auth and only unclaims if scouter matches current owner.
@@ -378,7 +376,6 @@ async def unclaim_team_beacon(
         data=None,
     )
     return {"status": "unclaimed", "team": team}
-
 
 
 @router.patch("/scouting/{m_type}/{match}/{team}/state")
@@ -561,7 +558,7 @@ async def get_match_info(
     # Extract alliance teams
     if alliance == enums.AllianceType.RED:
         team_numbers = [t for t in match_row["red"] if t is not None]
-    else: # guaranteed alliance == enums.AllianceType.BLUE
+    else:  # guaranteed alliance == enums.AllianceType.BLUE
         team_numbers = [t for t in match_row["blue"] if t is not None]
 
     # Ensure each team has a match_scouting entry
@@ -609,18 +606,17 @@ async def get_scouter_state(
 
         teams[str(e["team"])] = {
             "scouter": scouter,
-            "name": person.get("name"),   # None if not found
+            "name": person.get("name"),  # None if not found
         }
 
     return {"teams": teams}
-
 
 
 # === Pit scouting ===
 
 @router.get("/pit/teams")
 async def list_pit_teams(
-    _: enums.SessionInfo = Depends(db.require_permission("pit_scouting")),
+        _: enums.SessionInfo = Depends(db.require_permission("pit_scouting")),
 ):
     """
     Lists all teams with pit scouting data for the current event.
@@ -639,8 +635,8 @@ async def list_pit_teams(
 
 @router.get("/pit/{team}")
 async def get_pit_team(
-    team: int,
-    _: enums.SessionInfo = Depends(db.require_permission("pit_scouting")),
+        team: int,
+        _: enums.SessionInfo = Depends(db.require_permission("pit_scouting")),
 ):
     """
     Fetches a single team's pit scouting data.
@@ -660,9 +656,9 @@ async def get_pit_team(
 
 @router.post("/pit/{team}")
 async def update_pit_team(
-    team: int,
-    body: Dict[str, Any] = Body(...),
-    _: enums.SessionInfo = Depends(db.require_permission("pit_scouting")),
+        team: int,
+        body: Dict[str, Any] = Body(...),
+        _: enums.SessionInfo = Depends(db.require_permission("pit_scouting")),
 ):
     """
     Creates or updates pit scouting data for a team.
@@ -693,9 +689,9 @@ async def update_pit_team(
 
 @router.post("/pit/{team}/submit")
 async def submit_pit_data(
-    team: int,
-    full_data: Dict[str, Any] = Body(...),
-    _: enums.SessionInfo = Depends(db.require_permission("pit_scouting")),
+        team: int,
+        full_data: Dict[str, Any] = Body(...),
+        _: enums.SessionInfo = Depends(db.require_permission("pit_scouting")),
 ):
     """
     Finalizes pit scouting data for a team and marks it as SUBMITTED.
@@ -754,7 +750,7 @@ def filter_processed_data(data: dict, perms: dict) -> dict:
             for mid, mdata in data.get("match", {}).items()
             if mid in allowed_matches
         }
-    elif allowed_matches is True:   # allow all matches
+    elif allowed_matches is True:  # allow all matches
         filtered["match"] = data.get("match", {})
     else:
         filtered["match"] = {}
@@ -778,23 +774,40 @@ def filter_processed_data(data: dict, perms: dict) -> dict:
     return filtered
 
 
-@router.get("/data/processed")
-async def get_data_processed(
-    guest: dict = Depends(db.require_guest_password()),
+@router.get("/data/processed/admin")
+async def get_data_processed_admin(
     event_key: Optional[str] = None,
+    _: enums.SessionInfo = Depends(db.require_permission("admin")),
 ):
-    """
-    Returns processed event data with guest permissions applied.
-    Guest credentials come from the x-guest-password header.
-    """
-
-    perms = guest["perms"]
-
-    # Fetch raw processed data
+    # Load data
     result = await db.get_processed_data(event_key)
     result = translator.generate_sample_data(result)
 
-    # Apply permission filters
+    full_perms = {
+        "ranking": True,
+        "alliance": True,
+        "match": list(result.get("match", {}).keys()),
+        "team": list(result.get("team", {}).keys()),
+    }
+
+    return {
+        "event_key": event_key,
+        "raw_data": result,
+        "guest_name": "admin",
+        "permissions": full_perms,
+    }
+
+
+@router.get("/data/processed/guest")
+async def get_data_processed_guest(
+    event_key: Optional[str] = None,
+    guest=Depends(db.require_guest_password()),
+):
+    # Load data
+    result = await db.get_processed_data(event_key)
+    result = translator.generate_sample_data(result)
+
+    perms = guest["perms"]
     filtered = filter_processed_data(result, perms)
 
     return {
@@ -803,7 +816,6 @@ async def get_data_processed(
         "guest_name": guest["name"],
         "permissions": perms,
     }
-
 
 @router.get("/data/candy")
 async def get_candy_data():
@@ -938,4 +950,3 @@ async def get_candy_data():
     # ---------------------------------------------------------
     await db.set_misc(cache_key, json.dumps(final_output))
     return final_output
-

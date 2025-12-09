@@ -1,8 +1,13 @@
-__version__ = "v25.0.2"
+__version__ = "v26.0.0"
 
-import importlib, threading, asyncio, dotenv, ttkbootstrap as tb
+import importlib
+import threading
+import asyncio
+import dotenv
+import ttkbootstrap as tb
 from ttkbootstrap.constants import *
 import asyncpg, ssl, json, certifi, os, re
+
 
 
 # ================== Database Config ==================
@@ -88,10 +93,10 @@ main_pane.pack(fill="both", expand=True, padx=15, pady=15)
 # ---- Left Pane (Logs + Progress) ----
 left = tb.Frame(main_pane, padding=10)
 main_pane.add(left, weight=2)
-
+#noinspection PyArgumentList
 progress_bar = tb.Progressbar(left, orient="horizontal", length=600, mode="determinate", bootstyle="striped-info")
 progress_bar.pack(pady=10, fill="x")
-
+#noinspection PyArgumentList
 log_frame = tb.Labelframe(left, text="Logs", padding=10, bootstyle="info")
 log_frame.pack(fill="both", expand=True)
 log_text = tb.ScrolledText(log_frame, wrap="word", height=18)
@@ -103,6 +108,7 @@ cmd_frame = tb.Frame(log_frame)
 cmd_frame.pack(fill="x", pady=(5, 0))
 
 cmd_var = tb.StringVar()
+#noinspection PyArgumentList
 cmd_entry = tb.Entry(cmd_frame, textvariable=cmd_var, bootstyle="dark")
 cmd_entry.pack(fill="x")
 
@@ -149,17 +155,20 @@ cmd_entry.bind("<Return>", run_command)
 # ---- Right Pane (Settings + Buttons) ----
 right = tb.Frame(main_pane, padding=10)
 main_pane.add(right, weight=1)
-
+#noinspection PyArgumentList
 settings_frame = tb.Labelframe(right, text="Settings", padding=10, bootstyle="secondary")
 settings_frame.pack(fill="both", expand=True, pady=5)
 settings_vars = {}
-
+#noinspection PyArgumentList
 btn_frame = tb.Labelframe(right, text="Controls", padding=10, bootstyle="info")
 btn_frame.pack(fill="x", pady=10)
-
+#noinspection PyArgumentList
 btn_download = tb.Button(btn_frame, text="Download", bootstyle="info")
+#noinspection PyArgumentList
 btn_run = tb.Button(btn_frame, text="Run", bootstyle="primary")
+#noinspection PyArgumentList
 btn_upload = tb.Button(btn_frame, text="Upload", bootstyle="success")
+#noinspection PyArgumentList
 btn_exit = tb.Button(btn_frame, text="Exit", bootstyle="danger", command=root.destroy)
 
 for b in (btn_download, btn_run, btn_upload, btn_exit):
@@ -287,7 +296,7 @@ def unlock_ui():
 
 
 # ================== Load Calculator ==================
-calc = importlib.import_module("seasons.2025.calculator")
+calc = importlib.import_module("seasons.2026.calculator")
 
 
 def load_settings():

@@ -2,8 +2,6 @@ import {ArrowLeft} from "lucide-react";
 import {useEffect, useState, useMemo} from "react";
 import {useAPI} from "@/hooks/useAPI.ts";
 import {AgGridReact} from "ag-grid-react";
-
-// Import legacy CSS (since we opt into legacy theme)
 import {themeQuartz} from "ag-grid-community";
 
 export default function CandyDataPage() {
@@ -218,7 +216,7 @@ export default function CandyDataPage() {
                         theme-2025:border-[#1b3d80]
                         theme-2026:border-[#e6ddae]
                         theme-3473:border-[#6d28d9]">
-                        <div className="ag-theme-alpine w-full h-[87.5vh] rounded-md shadow opacity-90">
+                        <div className="w-full h-[87.5vh] rounded-md shadow opacity-90">
                             {loading ? (
                                 <div className="p-4">Loading teams...</div>
                             ) : (

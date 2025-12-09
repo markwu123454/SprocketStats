@@ -160,7 +160,7 @@ class AllianceMatchInfo(TypedDict, total=False):
     result: str                        # "W" | "L" | "T"
     rp_earned: List[int]               # list of RP types earned (e.g., [1,3])
     played: bool                       # True if actual match completed
-    match_type: str                    # "QM", "QF", "SF", "F"
+    match_type: str                    # "qm", "QF", "SF", "F"
     match_number: int
 
 
@@ -185,7 +185,7 @@ class AllianceData(TypedDict, total=False):
     consistency: float
     fault_rate: float
 
-    # Keyed by match identifier, e.g. "QM1", "QM2"
+    # Keyed by match identifier, e.g. "qm1", "qm2"
     qm_matches: Dict[str, AllianceMatchInfo]
 
     # Most recently played match number, and partition of matches
@@ -226,8 +226,8 @@ def generate_sample_data(entry: RawData) -> Data:
                 "fault_rate": round(random.uniform(0, 10), 2),
                 "qm_matches": {},
                 "last_played": random.choice(matches),
-                "past_matches": ["QM1"],
-                "predicted_matches": ["QM2"],
+                "past_matches": ["qm1"],
+                "predicted_matches": ["qm2"],
                 "model_analysis": {
                     "model_type": "RandomForest",
                     "win_probability": round(random.uniform(0.4, 0.9), 2),
@@ -368,9 +368,9 @@ def generate_sample_data(entry: RawData) -> Data:
                 "opp_score": random.randint(70, 120),
                 "result": random.choice(["W", "L"]),
                 "rp_earned": [random.randint(0, 1) for _ in range(3)],
-                "played": match == "QM1",
-                "match_type": "QM",
-                "match_number": int(match.replace("QM", "")),
+                "played": match == "qm1",
+                "match_type": "qm",
+                "match_number": int(match.replace("qm", "")),
             }
 
         return data

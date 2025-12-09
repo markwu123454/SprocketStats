@@ -6,6 +6,7 @@ import {ResponsiveBar} from "@nivo/bar"
 import {AgGridReact} from "ag-grid-react"
 import {useTeamData, usePermissions} from "@/components/wrappers/DataWrapper.tsx"
 import {SquareCheckBig, SquareX} from "lucide-react";
+import {themeQuartz} from "ag-grid-community";
 
 type BreakdownNode = {
     id: string
@@ -105,7 +106,6 @@ export default function TeamData() {
 
     function renderMatchLink(matchId: any) {
         const norm = normalizeMatchId(matchId)
-        console.log(matchId, norm, !permissions?.match?.includes(norm))
         if (!permissions?.match?.includes(norm)) {
             return <span className="text-gray-400">{matchId}</span>
         }
@@ -122,7 +122,7 @@ export default function TeamData() {
 
 
     function renderTeamLink(teamNum: number) {
-        if (!permissions?.team?.includes(String(teamNum))) {
+        if (!permissions?.team?.map(String).includes(String(teamNum))) {
             return <span className="text-gray-400">{teamNum}</span>
         }
 
@@ -217,7 +217,7 @@ export default function TeamData() {
                 </Quadrant>
 
                 <Quadrant title="RP Criteria">
-                    <div className="h-full w-full ag-theme-quartz">
+                    <div className="h-full w-full">
                         <DynamicAgGrid
                             data={Object.entries(data.rp || {}).map(([match, rpData]) => ({
                                 Match: match,
@@ -228,8 +228,9 @@ export default function TeamData() {
                 </Quadrant>
 
                 <Quadrant title="Match History">
-                    <div className="h-full w-full ag-theme-quartz">
+                    <div className="h-full w-full">
                         <AgGridReact
+                            theme={themeQuartz}
                             rowData={rowData}
                             columnDefs={colDefs}
                             domLayout="autoHeight"
