@@ -5,7 +5,7 @@ interface NotFoundPageProps {
 }
 
 export default function NotFoundPage({code = 404}: NotFoundPageProps) {
-    // Meme URLs
+    // Meme URLs in /public
     const memeImages = useMemo(() => [
         "/meme/1.gif",
         "/meme/1.png",
@@ -34,6 +34,7 @@ export default function NotFoundPage({code = 404}: NotFoundPageProps) {
 
     const [recentImages, setRecentImages] = useState<string[]>([])
 
+    // Code below is used to randomly select an image out of a collection of memes
     const getRandomImage = () => {
         const available = memeImages.filter(img => !recentImages.includes(img))
         const pool = available.length > 0 ? available : memeImages
@@ -53,12 +54,14 @@ export default function NotFoundPage({code = 404}: NotFoundPageProps) {
         if (paragraphRef.current) setParaWidth(paragraphRef.current.offsetWidth)
     }, [])
 
+    // Title that pops up based on the http code
     const title =
         code === 501 ? "Not implemented"
         : code === 403 ? "Access denied"
         : code === 503 ? "No Internet"
         : "Page not found"
 
+    // Used to create a message to explain why they couldn’t access the page based on the type of error
     const message =
         code === 501 ? (
             <>This page or feature hasn’t been implemented yet.<br/>Please contact a captain or lead if you believe this is an error.</>
@@ -78,6 +81,7 @@ export default function NotFoundPage({code = 404}: NotFoundPageProps) {
             <div
                 className="w-full md:w-1/2 flex flex-col justify-center items-start px-8 md:pl-20 py-10 gap-y-4 transition-colors duration-300 theme-text"
             >
+                {/* Displays http status code */}
                 <div
                     className="text-md sm:text-lg font-semibold theme-text-contrast"
                 >
@@ -97,6 +101,7 @@ export default function NotFoundPage({code = 404}: NotFoundPageProps) {
                     {message}
                 </p>
 
+                {/* stacks items and spaces them evenly */}
                 <div
                     className="flex flex-col md:flex-row justify-between items-start md:items-center gap-y-2 mt-2"
                     style={paraWidth ? {width: paraWidth} : {}}
@@ -108,6 +113,7 @@ export default function NotFoundPage({code = 404}: NotFoundPageProps) {
                         ← Back to home
                     </a>
 
+                    {/* button that randomizes what meme you'll get */}
                     <button
                         onClick={() => {
                             const next = getRandomImage()
@@ -127,6 +133,7 @@ export default function NotFoundPage({code = 404}: NotFoundPageProps) {
                 </div>
             </div>
 
+            {/* shows the image */}
             <div className="w-full md:w-1/2 flex items-center justify-center h-full">
                 <img
                     src={currentImage}
