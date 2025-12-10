@@ -30,6 +30,7 @@ export default function HomePage() {
     const [theme, setTheme] = useState<Settings["theme"]>(() => getSettingSync("theme", "2026"))
     const wakingUp = isOnline && !serverOnline
 
+    // Fetches theme from settings
     useEffect(() => {
         void (async () => {
             const t = await getSetting("theme")
@@ -123,6 +124,7 @@ export default function HomePage() {
         renderGoogleButton()
     }, [])
 
+    // Configure google signin state
     useEffect(() => {
         if (!window.google) return
         if (!name && !permissions) window.google.accounts.id.prompt()
@@ -131,6 +133,7 @@ export default function HomePage() {
 
     const handleNavigate = (path: string | null) => path && navigate(path)
 
+    // Deletes stored data which effectively logs out, and redisplay google button
     const handleLogout = async () => {
         await logout?.()
         setName(null)
