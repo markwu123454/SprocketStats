@@ -178,12 +178,12 @@ export default function DevPage() {
     return (
         <div className="min-h-screen relative text-sm max-w-full overflow-hidden theme-text">
 
-            {/* BACKGROUND LAYER (STYLING PRESERVED) */}
+            {/* BACKGROUND LAYER */}
             <div className="absolute inset-0 bg-top bg-cover theme-bg-page"/>
 
             <div className="h-screen flex flex-col min-h-0 relative text-sm max-w-full overflow-hidden">
 
-                {/* HEADER (STYLING 100% PRESERVED) */}
+                {/* HEADER */}
                 <header className="h-16 px-6 flex items-center border-b backdrop-blur-md theme-bg theme-border">
 
                     <button onClick={() => navigate("/")}
@@ -204,13 +204,12 @@ export default function DevPage() {
                     </div>
                 </header>
 
-                {/* MAIN CONTENT AREA (LAYOUT SAFEGUARDS ADDED, COLORS NOT TOUCHED) */}
-                <main className="flex-1 p-6 gap-6
-          max-w-full overflow-auto">
+                {/* MAIN CONTENT AREA */}
+                <main className="flex-1 p-6 gap-6 max-w-full overflow-auto">
 
                     <section className="space-y-4 min-w-0">
 
-                        {/* LOCAL STORAGE CARD (COLORS PRESERVED) */}
+                        {/* LOCAL STORAGE CARD */}
                         <div className="border rounded-xl p-4 theme-bg theme-border">
 
                             <h3 className="text-xs font-semibold uppercase opacity-70">Local Storage</h3>
@@ -229,7 +228,7 @@ export default function DevPage() {
                             </div>
                         </div>
 
-                        {/* COOKIES CARD (COLORS PRESERVED) */}
+                        {/* COOKIES CARD */}
                         <div className="border rounded-xl p-4 theme-bg theme-border">
 
                             <h3 className="text-xs font-semibold uppercase opacity-70">Cookies</h3>
@@ -245,7 +244,7 @@ export default function DevPage() {
                             </div>
                         </div>
 
-                        {/* INDEXED DB CARD (COLORS PRESERVED) */}
+                        {/* INDEXED DB CARD */}
                         <div className="border rounded-xl p-4 theme-bg theme-border">
 
                             <h3 className="text-xs font-semibold uppercase opacity-70">Indexed DB(Dexie DB)</h3>
@@ -276,7 +275,7 @@ export default function DevPage() {
                             </div>
                         </div>
 
-                        {/* NETWORK LATENCY CARD (COLORS PRESERVED) */}
+                        {/* NETWORK LATENCY CARD */}
                         <div className="border rounded-xl p-4 theme-bg theme-border">
 
                             <h3 className="text-xs font-semibold uppercase opacity-70">Database & Network Latency</h3>
@@ -295,6 +294,7 @@ export default function DevPage() {
                             </button>
                         </div>
 
+                        {/* DEPLOYMENT OVERVIEW CARD */}
                         <div className="p-4 rounded-xl border theme-bg theme-border">
 
                             <h3 className="text-xs font-semibold uppercase opacity-70 mb-2">
@@ -328,7 +328,7 @@ export default function DevPage() {
                     </section>
                 </main>
 
-                {/* FOOTER (STYLING 100% PRESERVED) */}
+                {/* FOOTER */}
                 <footer className="h-16 border-t px-6 flex items-center justify-between backdrop-blur-md text-xs font-semibold tracking-wide theme-bg theme-border">
 
                     <a href="/" className="truncate min-w-0 underline max-w-[40%]">
