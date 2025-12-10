@@ -31,7 +31,7 @@ export default function NotFoundPage({code = 404}: NotFoundPageProps) {
         "/meme/Spot_the_cow.gif",
         "/meme/frc-crescendo (1).gif",
     ], [])
-
+    // Code below is used to randomly select an image out of a collection of memes
     const [recentImages, setRecentImages] = useState<string[]>([])
 
     const getRandomImage = () => {
@@ -53,12 +53,14 @@ export default function NotFoundPage({code = 404}: NotFoundPageProps) {
         if (paragraphRef.current) setParaWidth(paragraphRef.current.offsetWidth)
     }, [])
 
+    //title that pops up based on your situation or how you were trying to find a page
     const title =
         code === 501 ? "Not implemented"
         : code === 403 ? "Access denied"
         : code === 503 ? "No Internet"
         : "Page not found"
 
+    //Code below is used to create a message to explain why they couldn’t access the page based on the type of error
     const message =
         code === 501 ? (
             <>This page or feature hasn’t been implemented yet.<br/>Please contact a captain or lead if you believe this is an error.</>
@@ -96,7 +98,7 @@ export default function NotFoundPage({code = 404}: NotFoundPageProps) {
                 >
                     {message}
                 </p>
-
+                {/* stacks items and spaces them evenly */}
                 <div
                     className="flex flex-col md:flex-row justify-between items-start md:items-center gap-y-2 mt-2"
                     style={paraWidth ? {width: paraWidth} : {}}
@@ -107,8 +109,8 @@ export default function NotFoundPage({code = 404}: NotFoundPageProps) {
                     >
                         ← Back to home
                     </a>
-
-                    <button
+                    {/*  */}
+                    <button  //button that randomizes what meme youll get
                         onClick={() => {
                             const next = getRandomImage()
                             setCurrentImage(next)
@@ -118,7 +120,7 @@ export default function NotFoundPage({code = 404}: NotFoundPageProps) {
                                 // Keep only the last 10 images
                                 return updated.slice(-10)
                             })
-                        }}
+                        }}  //shows what color the “See another meme” text is going to be and underlines it
                         className="text-base sm:text-lg font-medium transition-colors duration-200 hover:underline theme-text-contrast"
                     >
                         See another meme →
