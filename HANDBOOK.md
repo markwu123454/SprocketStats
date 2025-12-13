@@ -12,6 +12,7 @@ This document serves as a concise guide for developers working on the FRC Scouti
 - [Branching Rules](#branching-rules)
 - [Analysis Releases](#analysis-releases)
 - [Season Rollover](#season-rollover)
+- [Database](#database)
 
 ---
 
@@ -207,7 +208,7 @@ Before building:
    - Initial 2025 season model
    - Includes new ELO normalization and clustering improvements
    ```
-5. **Zip** the `dist/` folder and attach the zip to GitHub.
+5. Upload `dist/sprocketstat-engine.exe` to GitHub.
 6. Click **“Publish release.”**
 
 
@@ -224,7 +225,8 @@ Before building:
 
 The following files and directories need to be updated every new season:
 
-```analysis/ → Standalone data processor and ELO/ML computation
+```
+analysis/ → Standalone data processor and ELO/ML computation
 │ ├── seasons/ → Add new folder with year number
 │ └── main.py → Change dynamic import to point to new year's folder, change major version to new year
 
@@ -257,9 +259,26 @@ frontend/ → React + Vite web client
 
 ### Season Rollover Checklist
 
-| Tasks                            | Description                                                                                             | Status |
-|----------------------------------|---------------------------------------------------------------------------------------------------------|--------|
-| Add new season's theme           | in index.css add `@custom-variant theme-2027 (&:is(.theme-2027 *));`, and add theme for relevant files. |        |
-| Update pit scouting questions    | Decide on pit questions for the new season and implement them in the page.                              |        |
-| Update match scouting            | Decide on match scouting layout and questions, implement ui element, the each phase's page.             |        |
-| Add new data analysis calculator | Based on collected data make a new calculator for data analysis.                                        |        |
+| Tasks                            | Description                                                                                 | Status |
+|----------------------------------|---------------------------------------------------------------------------------------------|--------|
+| Add new season's theme           | in index.css add the new theme definition, and in settingsPage.tsx update dropdown.         |        |
+| Update pit scouting questions    | Decide on pit questions for the new season and implement them in the page.                  |        |
+| Update match scouting            | Decide on match scouting layout and questions, implement ui element, the each phase's page. |        |
+| Add new data analysis calculator | Based on collected data make a new calculator for data analysis.                            |        |
+
+## Database
+
+### All Tables
+
+- guests: stores guest password and available data, used to share data with alliance partners.
+- match_scouting: store match scouting data
+- matches: tba fetched match schedule
+- matches_tba: tba fetched match data(for cross checking with our data)
+- metadata: stores metadata(currently only current event)
+- misc: temporary/random data storing
+- pit_scouting: store pit scouting data
+- processed_data: stores analysis output
+- sessions: active user sessions
+- tba_matches: unused
+- teams: unused
+- users: stores google login creds

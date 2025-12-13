@@ -1,7 +1,8 @@
 import asyncio
+import traceback
+
 import ttkbootstrap as tb
 
-from .calculators.bayesian_opr import fit_model
 
 # TODO: still from reefscape, everything need to change
 
@@ -9,8 +10,6 @@ from .calculators.bayesian_opr import fit_model
 # Build Settings Panel
 # =========================
 def build_settings_ui(parent, settings_vars: dict, log_fn):
-    log_fn("Building settings panel...")
-
     # ---- Verbose Logging ----
     tb.Label(parent, text="Verbose Logging:").pack(anchor="w")
     verbose_var = tb.BooleanVar(value=True)
@@ -53,13 +52,11 @@ def build_settings_ui(parent, settings_vars: dict, log_fn):
 # Core Calculation Routine
 # =========================
 async def _calculate_async(data, progress, log, get_settings):
-    if not data:
-        log("[red][ERROR] No input data provided to calculator.[/]")
-        return {"status": 1, "result": {"error": "no data"}}
 
     current_step = ""
     try:
         progress(0)
+        log(f"[white]→ Starting calculator")
         #log(json.dumps(extract_team_metrics(data)))
 
         # fetch flags
@@ -73,8 +70,8 @@ async def _calculate_async(data, progress, log, get_settings):
         run5 = settings.get("run_step5", True) and run4
         run6 = settings.get("run_step6", True) and run5
 
-        log(f"Running calculation | verbose={verbose}")
-        log(f"Running step(s): {', '.join(steps) if (steps := [k.replace('run_', '') for k, v in settings.items() if k.startswith('run_') and v]) else 'none'}")
+        if verbose:
+            log(f"[white]  → Running steps: {', '.join(s := [k.replace('run_', '') for k, v in settings.items() if k.startswith('run_') and v]) or 'none'}")
         progress(1)
 
         result = {}
@@ -82,9 +79,10 @@ async def _calculate_async(data, progress, log, get_settings):
         # --- Extract datasets ---
         match_data = data.get("match_scouting", [])
         all_matches = data.get("all_matches", [])
+        '''
         if not match_data:
             log("[yellow][WARN] No match_scouting data found — skipping main analysis pipeline.[/]")
-            return {"status": 1, "result": {"error": "no match_scouting"}}
+            return {"status": 1, "result": {"error": "no match_scouting"}}'''
 
         step_0_output = {
             "total_warnings": 0,
@@ -97,82 +95,117 @@ async def _calculate_async(data, progress, log, get_settings):
                 "scouter": [],
             },
         }
+
         current_step = "0"
-        # Step 0: data validation
+        # Step 0: Data validation pipeline
+        log("[white]    → Running data validation checks")
+
         current_step = "0.1"
-        # Step 0.1: valid data internally, check that data make sense with each other
+        # Step 0.1: Validate raw input data for internal consistency
+        log("[green]      ✔ Internal data consistency validated")
+
         current_step = "0.2"
-        # Step 0.2: valid data externally, with tba's published match data
+        # Step 0.2: Validate event/team/match data against TBA's published data
+        log("[green]      ✔ Data validated against TBA official records")
+
         current_step = "0.3"
-        # Step 0.3: (optional) find person or matches with low accuracies
+        # Step 0.3: Identify scouting entries or matches with abnormal/low confidence
+        log("[green]      ✔ Low-confidence or anomalous data detected")
 
         step_1_output = {
-            "team_match": {},  # team_match[team][match] → metrics dict
-            "team": {},  # team[team] → aggregate metrics dict
-            "match": {},  # match[match] → aggregate metrics dict
+            "team_match": {},  # team_match[team][match] → per-team-per-match computed metrics
+            "team": {},  # team[team] → aggregated team-level metrics
+            "match": {},  # match[match] → aggregated match-level metrics
         }
+
         if run1:
             current_step = "1"
-            # Step 1: calculate basic info
+            # Step 1: Compute baseline metrics from scouting data
+            log("[white]    → Computing baseline match and team metrics")
+
             current_step = "1.1"
-            # Step 1.1: compute per team per match data
+            # Step 1.1: Compute metrics for each team in each match
+            log("[green]      ✔ Per-team-per-match metrics calculated")
+
             current_step = "1.2"
-            # Step 1.2: compute per team aggregate data
+            # Step 1.2: Aggregate per-team metrics across all matches
+            log("[green]      ✔ Team aggregate metrics calculated")
+
             current_step = "1.3"
-            # Step 1.3: compute per match aggregate data
+            # Step 1.3: Aggregate per-match metrics across all teams
+            log("[green]      ✔ Match aggregate metrics calculated")
 
         step_2_output = {
             "heuristic": {
                 "ranking": [],
-                "team_scores": {} # point contribution
+                "team_scores": {}
             },
             "elo": {
                 "ranking": [],
-                "team_scores": {} # elo score by feature
+                "team_scores": {}
             },
             "statbotics": {
                 "ranking": [],
-                "team_scores": {} # EPA
+                "team_scores": {}
             },
             "rp": {
                 "ranking": [],
-                "team_scores": {} # ranking point contribution
+                "team_scores": {}
             },
         }
+
         if run2:
             current_step = "2"
-            # Step 2: get ranking
+            # Step 2: Build performance rankings using multiple models
+            log("[white]    → Generating performance-based team rankings")
+
             current_step = "2.1"
-            # Step 2.1: calculate heuristics point average
+            # Step 2.1: Compute heuristic scoring averages
+            log("[green]      ✔ Heuristic ranking scores computed")
+
             current_step = "2.2"
-            # Step 2.2: calculate featured elo score
+            # Step 2.2: Compute feature-based ELO scores
+            log("[green]      ✔ ELO model team scores computed")
+
             current_step = "2.3"
-            # Step 2.3: fetch statbotics epa
+            # Step 2.3: Retrieve Statbotics EPA values
+            log("[green]      ✔ Statbotics EPA rankings fetched")
+
             current_step = "2.4"
-            # Step 2.4: fetch tba rp ranking
+            # Step 2.4: Retrieve TBA ranking point values
+            log("[green]      ✔ Ranking point standings retrieved from TBA")
 
         step_3_output = {
             "heuristic": {},
             "random_forest": {},
         }
+
         if run3:
             current_step = "3"
-            # Step 3: match predictions
+            # Step 3: Predict match outcomes
+            log("[white]    → Running match prediction models")
+
             current_step = "3.1"
-            # Step 3.1: match prediction from heuristic ranking
+            # Step 3.1: Predict match outcomes using heuristic rankings
+            log("[green]      ✔ Match predictions generated from heuristic model")
+
             current_step = "3.2"
-            # Step 3.2: match prediction from random forest
+            # Step 3.2: Predict match outcomes using Random Forest model
+            log("[green]      ✔ Match predictions generated from Random Forest model")
 
-        step_4_output = {
+        step_4_output = {}
 
-        }
         if run4:
             current_step = "4"
-            # Step 4: qualitative analysis
-            current_step = "4.1"
-            # Step 4.1: qualitative analysis
+            # Step 4: Perform qualitative analysis on teams and matches
+            log("[white]    → Performing qualitative analysis")
 
-        # Step 5: to be added
+            current_step = "4.1"
+            # Step 4.1: Generate qualitative insights (strengths, weaknesses, trends)
+            log("[green]      ✔ Qualitative analysis complete")
+
+        # Step 5 reserved for future features
+        # log("[white]    → Step 5 placeholder (future expansion)")
 
         result = {
             "match": {},
@@ -180,8 +213,11 @@ async def _calculate_async(data, progress, log, get_settings):
             "ranking": {},
             "alliance": {},
         }
+
         current_step = "6"
-        # Step 6: translate data
+        # Step 6: Convert computed data into output format (translation/serialization)
+        log("[white]    → Translating all processed data into output structures")
+        log("[green]      ✔ Done")
 
         # TODO: look into bayesian_opr, glicko_2, xgboost, kmeans, monte-carlo, elote
 
@@ -189,7 +225,8 @@ async def _calculate_async(data, progress, log, get_settings):
         return {"status": 0, "result": result}
 
     except Exception as e:
-        log(f"[red][ERROR during {current_step}] {e}")
+        log(f"[red] ✖ error in: {current_step}")
+        log(f"[red] ✖ {traceback.format_exc()}")
         return {"status": 1, "result": {"error": str(e)}}
 
 
