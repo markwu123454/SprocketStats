@@ -2,6 +2,8 @@ import {useEffect, useState} from "react"
 import {useNavigate, useSearchParams} from "react-router-dom"
 import {KeyRound, Eye, EyeOff} from "lucide-react"
 
+import {useAuthSuccess, usePermissions, useLoading} from "@/components/wrappers/DataWrapper"
+
 export default function GuestRedirect() {
     const [searchParams] = useSearchParams()
     const navigate = useNavigate()
