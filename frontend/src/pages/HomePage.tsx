@@ -51,7 +51,7 @@ export default function HomePage() {
     ]
 
     const privilegeButtons = [
-        {label: "Control", key: "dev", path: "/dev"},
+        {label: "Dev", key: "dev", path: "/dev"},
         {label: "Admin Panel & Data", key: "admin", path: "/admin"},
         {label: "Match Scouting", key: "match_scouting", path: "/scouting/match"},
         {label: "Pit Scouting", key: "pit_scouting", path: "/scouting/pit"},
@@ -121,8 +121,8 @@ export default function HomePage() {
     }
 
     useEffect(() => {
-        renderGoogleButton()
-    }, [])
+            renderGoogleButton()
+    }, [serverOnline])
 
     // Configure google signin state
     useEffect(() => {
@@ -190,63 +190,40 @@ export default function HomePage() {
                         const isRestrictedOffline = key === "dev" || key === "admin";
                         const offline = !isOnline || !serverOnline;
 
-                        const tooltips: Record<string, string> = {
-                            dev_allow: "Developer tools and control systems are available.",
-                            dev_forbid: "Developer tools are not available for this account.",
-                            dev_offline: "Developer tools are unavailable in offline mode.",
-                            admin_allow: "Admin panel and full scouting data are available.",
-                            admin_forbid: "Admin access is not enabled for this account.",
-                            admin_offline: "Admin panel is unavailable in offline mode.",
-                            match_scouting_allow: "Match scouting is available.",
-                            match_scouting_forbid: "Match scouting is not permitted for this account.",
-                            match_scouting_offline: "Match scouting is available in offline mode.",
-                            pit_scouting_allow: "Pit scouting is available.",
-                            pit_scouting_forbid: "Pit scouting is not permitted for this account.",
-                            pit_scouting_offline: "Pit scouting is available in offline mode.",
-                            settings_allow: "Open app settings."
-                        };
-
-                        let tooltipKey: string;
                         let enabled: boolean;
 
                         // Settings ALWAYS enabled
                         if (key === "settings") {
-                            tooltipKey = "settings_allow";
                             enabled = true;
                         }
                         // Scouting pages: offline OK
                         else if (isScoutingPage && offline) {
-                            tooltipKey = `${key}_offline`;
                             enabled = true;
                         }
                         // Restricted pages (dev/admin): offline forbidden
                         else if (isRestrictedOffline && offline) {
-                            tooltipKey = `${key}_offline`;
                             enabled = false;
                         }
                         // Normal permission logic
                         else {
-                            const hasPermission = Boolean(
+                            enabled = Boolean(
                                 permissions?.[key as keyof typeof permissions]
-                            );
-                            tooltipKey = `${key}_${hasPermission ? "allow" : "forbid"}`;
-                            enabled = hasPermission;
+                            );;
                         }
 
                         return (
-                            <TooltipButton
+                            <button
                                 key={key}
-                                label={label}
                                 disabled={!enabled}
-                                tooltip={tooltips[tooltipKey]}
                                 onClick={() => handleNavigate(path)}
                                 className={`${
                                     enabled
-                                        ? "theme-button-bg hover:theme-button-hover theme-text"
-                                        : "opacity-50 theme-button-bg cursor-not-allowed"
+                                        ? "theme-button-bg hover:theme-button-hover theme-text w-full flex items-center justify-between px-3 py-3 rounded transition text-sm"
+                                        : "opacity-50 theme-button-bg cursor-not-allowed w-full flex items-center justify-between px-3 py-3 rounded transition text-sm"
                                 }`}
-                                overrideClass
-                            />
+                            >
+                                {label}
+                            </button>
                         );
                     })}
                 </div>

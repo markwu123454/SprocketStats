@@ -152,6 +152,8 @@ export default function PitScoutingLayout() {
                         className="mt-3 flex items-center justify-between p-2 border rounded-lg min-h-[60px] transition-colors duration-500 theme-border"
                     >
                         <div className="flex items-center space-x-3">
+                            {/* TODO: update logic, !teamNames[teamNumber] && teamNumber && !loading evaluate to null if updated before fetch finishes */}
+
                             {teamNumber && teamNames[teamNumber] && (
                                 <img
                                     key={teamNumber}
@@ -173,7 +175,7 @@ export default function PitScoutingLayout() {
                                     </>
                                 )}
                                 {!teamNumber && (
-                                    <span className="text-sm opacity-60">Enter a team number</span>
+                                    <span className="text-sm opacity-60">Enter a team number in the box above</span>
                                 )}
                                 {!teamNames[teamNumber] && teamNumber && !loading && (
                                     <span className="text-sm text-red-500">Team not found.</span>
