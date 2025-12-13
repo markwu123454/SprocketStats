@@ -219,7 +219,7 @@ async def _calculate_async(data, progress, log, get_settings):
         log("[white]    → Translating all processed data into output structures")
         log("[green]      ✔ Done")
 
-        # TODO: look into bayesian_opr, glicko_2, xgboost, kmeans, monte-carlo, elote
+        # TODO: look into bayesian_opr, glicko_2, xgboost(predict trends for wins/losses), kmeans useful!!, monte-carlo, elote
 
 
         return {"status": 0, "result": result}
