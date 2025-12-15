@@ -305,7 +305,7 @@ def load_settings():
     settings_vars["event_key"] = event_var
 
     try:
-        calc.build_settings_ui(settings_frame, settings_vars, append_log)
+        calc.build_settings_ui(settings_frame, settings_vars)
     except Exception as e:
         append_log(f"[red]✖ {e}")
 
