@@ -9,7 +9,7 @@ import ttkbootstrap as tb
 # =========================
 # Build Settings Panel
 # =========================
-def build_settings_ui(parent, settings_vars: dict, log_fn):
+def build_settings_ui(parent, settings_vars: dict):
     # ---- Verbose Logging ----
     tb.Label(parent, text="Verbose Logging:").pack(anchor="w")
     verbose_var = tb.BooleanVar(value=True)
@@ -43,21 +43,17 @@ def build_settings_ui(parent, settings_vars: dict, log_fn):
 # =========================
 # Calculation Helper functions
 # =========================
-''''''
-''''''
-''''''
-''''''
+
 
 # =========================
 # Core Calculation Routine
 # =========================
 async def _calculate_async(data, progress, log, get_settings):
-
     current_step = ""
     try:
         progress(0)
         log(f"[white]→ Starting calculator")
-        #log(json.dumps(extract_team_metrics(data)))
+        # log(json.dumps(extract_team_metrics(data)))
 
         # fetch flags
         settings = get_settings()
@@ -71,7 +67,13 @@ async def _calculate_async(data, progress, log, get_settings):
         run6 = settings.get("run_step6", True) and run5
 
         if verbose:
-            log(f"[white]  → Running steps: {', '.join(s := [k.replace('run_', '') for k, v in settings.items() if k.startswith('run_') and v]) or 'none'}")
+            steps = [
+                k.removeprefix("run_")
+                for k, v in settings.items()
+                if k.startswith("run_") and v
+            ]
+
+            log(f"[white]  → Running steps: {', '.join(steps) or 'none'}")
         progress(1)
 
         result = {}
@@ -220,7 +222,6 @@ async def _calculate_async(data, progress, log, get_settings):
         log("[green]      ✔ Done")
 
         # TODO: look into bayesian_opr, glicko_2, xgboost, kmeans, monte-carlo, elote
-
 
         return {"status": 0, "result": result}
 

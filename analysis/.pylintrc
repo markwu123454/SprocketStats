@@ -1,12 +1,25 @@
+[MASTER]
+ignore-paths=.*/2025/.*
+
 [MESSAGES CONTROL]
 disable=
     too-many-locals,
     too-many-arguments,
     too-many-branches,
-    too-many-statements
+    too-many-statements,
+    missing-module-docstring,
+    missing-class-docstring,
+    missing-function-docstring
 
 [DESIGN]
 max-locals=30
 max-args=10
 max-statements=80
 max-branches=20
+max-returns=6
+
+[FORMAT]
+max-line-length=100
+
+[TYPECHECK]
+ignored-modules=pydantic

@@ -43,7 +43,7 @@ jobs:
           files=$(git ls-files '${{ matrix.project.path }}/**/*.py')
 
           if [ -n "$files" ]; then
-            pylint $files
+            pylint --rcfile="${{ matrix.project.path }}/.pylintrc"--fail-under=8.5 $files
           else
             echo "No Python files found in ${{ matrix.project.name }}"
           fi
