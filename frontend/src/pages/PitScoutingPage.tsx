@@ -12,9 +12,9 @@ import { useNavigate } from "react-router-dom";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select.tsx";
 import { Button } from "@/components/ui/button.tsx";
 import PhotoCaptureCard from "@/components/ui/cameraCapture";
-import { pitQuestions } from "@/components/seasons/2025/yearConfig.ts";
+import { pitQuestions } from "@/components/seasons/2026/yearConfig.ts";
 import { getSettingSync, type Settings } from "@/db/settingsDb.ts";
-import ThemedWrapper from "@/components/wrappers/ThemedWrapper.tsx";
+import CardLayoutWrapper from "@/components/wrappers/CardLayoutWrapper.tsx";
 
 // TODO: add questions for human factor(openness, approachability, etc)
 
@@ -109,7 +109,7 @@ export default function PitScoutingLayout() {
     };
 
     return (
-        <ThemedWrapper theme={theme??"2026"} showLogo={false} overflow={true}>
+        <CardLayoutWrapper theme={theme??"2026"} showLogo={false} overflow={true}>
             <form
                 onSubmit={handleSubmit}
                 className="space-y-6 max-w-xl mx-auto"
@@ -346,7 +346,7 @@ export default function PitScoutingLayout() {
                     </Button>
                 </div>
             </form>
-        </ThemedWrapper>
+        </CardLayoutWrapper>
     );
 }
 

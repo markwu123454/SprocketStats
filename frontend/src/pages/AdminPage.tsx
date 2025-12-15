@@ -1,7 +1,19 @@
 import {useEffect, useState} from "react";
 import {useAPI} from "@/hooks/useAPI.ts";
 import {useNavigate} from "react-router-dom";
-import {ArrowLeft, Monitor, BarChart2, Users, Search, Activity, Terminal, GitBranch, UsersRound, Share} from "lucide-react";
+import {
+    ArrowLeft,
+    Monitor,
+    BarChart2,
+    Users,
+    Search,
+    Activity,
+    Terminal,
+    GitBranch,
+    UsersRound,
+    Share
+} from "lucide-react";
+import {HeaderFooterLayoutWrapper} from "@/components/wrappers/HeaderFooterLayoutWrapper.tsx";
 
 export default function AdminPage() {
     const navigate = useNavigate();
@@ -50,22 +62,13 @@ export default function AdminPage() {
     }, []);
 
     return (
-        <div
-            className="min-h-screen relative text-sm theme-text">
-
-            {/* Background */}
-            <div className="absolute inset-0 bg-top bg-cover theme-bg-page"/>
-
-            <div className="relative z-10 flex flex-col min-h-screen">
-
-                {/* HEADER */}
-                <header
-                    className="h-16 px-6 flex items-center border-b backdrop-blur-md theme-bg theme-border">
-
+        <HeaderFooterLayoutWrapper
+            header={
+                <>
                     <button
                         onClick={() => navigate("/")}
-                        className="flex items-center gap-2 hover:opacity-80 transition"
-                        style={{color: "var(--themed-subtext-color)"}}>
+                        className="flex items-center gap-2 hover:opacity-80 transition theme-subtext-color"
+                    >
                         <ArrowLeft className="w-5 h-5"/>
                         <span className="text-sm font-medium">Back</span>
                     </button>
@@ -80,10 +83,10 @@ export default function AdminPage() {
                     <div className="text-xs opacity-70 text-right">
                         Event Key: {metadata["current_event"] ?? "-"}
                     </div>
-                </header>
-
-                {/* BODY */}
-                <main className="flex-1 p-6 grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-6">
+                </>
+            }
+            body={
+                <main className="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-6">
 
                     {/* LEFT: ROUTING HUB */}
                     <section className="space-y-4">
@@ -96,8 +99,10 @@ export default function AdminPage() {
                                 {label: "Pending", value: kpis.pending, icon: Search},
                                 {label: "Current Match", value: kpis.currentMatch, icon: Monitor},
                             ].map((item, i) => (
-                                <div key={i}
-                                     className="p-3 rounded-xl border shadow backdrop-blur-sm theme-bg theme-border">
+                                <div
+                                    key={i}
+                                    className="p-3 rounded-xl border shadow backdrop-blur-sm theme-bg theme-border"
+                                >
                                     <div className="flex items-center gap-2 opacity-80 text-xs">
                                         <item.icon className="w-4 h-4"/>
                                         {item.label}
@@ -129,7 +134,7 @@ export default function AdminPage() {
                             />
                             <button
                                 disabled={!selectedMatch.trim()}
-                                onClick={() => navigate(`/admin/data/match/${selectedMatch.trim()}`)}
+                                onClick={() => navigate(`/data/match/${selectedMatch.trim()}`)}
                                 className="w-full mt-2 p-2 rounded-xl border transition hover:bg-white/10 disabled:opacity-40 theme-border"
                                 type="button">
                                 View Match
@@ -149,14 +154,14 @@ export default function AdminPage() {
                             />
                             <button
                                 disabled={!selectedTeam.trim()}
-                                onClick={() => navigate(`/admin/data/team/${selectedTeam.trim()}`)}
+                                onClick={() => navigate(`/data/team/${selectedTeam.trim()}`)}
                                 className="w-full mt-2 p-2 rounded-xl border transition hover:bg-white/10 disabled:opacity-40 theme-border"
                                 type="button">
                                 View Team
                             </button>
                         </div>
 
-                        <div onClick={() => navigate("/admin/data/ranking")}
+                        <div onClick={() => navigate("/data/ranking")}
                              className="p-4 rounded-xl border cursor-pointer shadow-md transition hover:scale-[1.02] active:scale-[0.98] backdrop-blur-sm theme-bg theme-border">
                             <div className="flex items-center gap-3 font-semibold">
                                 <BarChart2 className="w-5 h-5"/>
@@ -164,7 +169,7 @@ export default function AdminPage() {
                             </div>
                         </div>
 
-                        <div onClick={() => navigate("/admin/data/alliance-sim")}
+                        <div onClick={() => navigate("/data/alliance-sim")}
                              className="p-4 rounded-xl border cursor-pointer shadow-md transition hover:scale-[1.02] active:scale-[0.98] backdrop-blur-sm theme-bg theme-border">
                             <div className="flex items-center gap-3 font-semibold">
                                 <Activity className="w-5 h-5"/>
@@ -189,22 +194,19 @@ export default function AdminPage() {
                         </div>
                     </section>
 
-                    {/* RIGHT SIDEBAR: TECHNICAL DEBUG PANEL */}
+                    {/* RIGHT SIDEBAR */}
                     <aside className="space-y-4">
-
-                        <div
-                            className="p-4 rounded-xl border shadow backdrop-blur-sm theme-bg theme-border">
+                        <div className="p-4 rounded-xl border shadow backdrop-blur-sm theme-bg theme-border">
                             <div className="flex items-center gap-2 font-bold text-sm mb-2 opacity-80">
                                 <GitBranch className="w-4 h-4"/> Build Info
                             </div>
-                            <p className="text-xs opacity-70 mt-1">Branch: {version.VERCEL_GIT_COMMIT_REF || "development"}</p>
+                            <p className="text-xs opacity-70">Branch: {version.VERCEL_GIT_COMMIT_REF || "development"}</p>
                             <p className="text-xs opacity-70">Commit: {version.VERCEL_GIT_COMMIT_SHA_SHORT || "—"}</p>
                             <p className="text-xs opacity-70">Author: {version.VERCEL_GIT_COMMIT_AUTHOR_LOGIN ?? "—"}</p>
                             <p className="text-xs opacity-70">Deploy time: {version.DEPLOY_TIME ?? "—"}</p>
                         </div>
 
-                        <div
-                            className="p-4 rounded-xl border shadow backdrop-blur-sm theme-bg theme-border">
+                        <div className="p-4 rounded-xl border shadow backdrop-blur-sm theme-bg theme-border">
                             <div className="flex items-center gap-2 font-bold text-sm mb-2 opacity-80">
                                 <Terminal className="w-4 h-4"/> Debug Values
                             </div>
@@ -212,15 +214,17 @@ export default function AdminPage() {
                             <p className="text-xs opacity-70">Matches Loaded: {kpis.totalMatches}</p>
                             <p className="text-xs opacity-70">Scouting Status: {metadata.scouting_status ?? "—"}</p>
                         </div>
-
                     </aside>
+
                 </main>
-
-                {/* FOOTER */}
-                <footer
-                    className="h-16 border-t px-6 flex items-center justify-between backdrop-blur-md text-xs font-semibold tracking-wide theme-bg theme-border">
-
-                    <a href="https://console.neon.tech" target="_blank" className="hover:opacity-70 transition text-inherit">
+            }
+            footer={
+                <>
+                    <a
+                        href="https://console.neon.tech"
+                        target="_blank"
+                        className="hover:opacity-70 transition text-inherit"
+                    >
                         Neon URL
                     </a>
 
@@ -228,9 +232,8 @@ export default function AdminPage() {
                         <p>Branch: {version.VERCEL_GIT_COMMIT_REF || "development"}</p>
                         <p>Commit: {version.VERCEL_GIT_COMMIT_SHA_SHORT || "—"}</p>
                     </div>
-                </footer>
-
-            </div>
-        </div>
+                </>
+            }
+        />
     );
 }

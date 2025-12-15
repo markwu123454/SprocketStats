@@ -1,7 +1,7 @@
 import { useParams } from "react-router-dom"
 import { useMatchData } from "@/components/wrappers/DataWrapper"
 
-export default function MatchDataPost() {
+export default function MatchDataPostPage() {
     const { matchKey } = useParams<{ matchKey: string }>()
     const match = useMatchData(matchKey ?? "")
 

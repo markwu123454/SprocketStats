@@ -1,6 +1,6 @@
-import {useMemo} from "react"
+import {useEffect, useMemo, useState} from "react"
 import {useNavigate} from "react-router-dom"
-import {ExternalLink, ChevronDown} from "lucide-react"
+import {ChevronDown} from "lucide-react"
 
 import {useAuthSuccess, useGuestName, usePermissions, useLoading} from "@/components/wrappers/DataWrapper"
 import {useClientEnvironment} from "@/hooks/useClientEnvironment.ts";
@@ -23,6 +23,24 @@ export default function GuestDataPage() {
     const environment = useClientEnvironment();
     const device = environment.deviceType
 
+    const [teamQuery, setTeamQuery] = useState("");
+    const [matchQuery, setMatchQuery] = useState("");
+    const [teamOpen, setTeamOpen] = useState(false);
+    const [matchOpen, setMatchOpen] = useState(false);
+
+    const [teamNames, setTeamNames] = useState<Record<string, string>>({})
+
+    useEffect(() => {
+        fetch("/teams/team_names.json")
+            .then((res) => res.json())
+            .then((names: Record<string, string>) => {
+                setTeamNames(names)
+            })
+            .catch(() => {
+                setTeamNames({})
+            })
+    }, [])
+
     // Convert permissions → PageLink[]
     // Adjust this logic based on the actual structure of the permissions array.
     const accessiblePages = useMemo<PageLink[]>(() => {
@@ -36,7 +54,7 @@ export default function GuestDataPage() {
         if (permissions.ranking) {
             pages.push({
                 title: "Event Rankings",
-                href: "/admin/data/ranking",
+                href: "/data/ranking",
                 type: "ranking",
             } as PageLink);
         }
@@ -47,7 +65,7 @@ export default function GuestDataPage() {
         if (permissions.alliance) {
             pages.push({
                 title: "Alliance Simulator",
-                href: "/admin/data/alliance-sim",
+                href: "/data/alliance-sim",
                 type: "alliance",
             } as PageLink);
         }
@@ -58,8 +76,8 @@ export default function GuestDataPage() {
         if (Array.isArray(permissions.match)) {
             for (const matchId of permissions.match) {
                 pages.push({
-                    title: `Match ${matchId}`,
-                    href: `/admin/data/match/${matchId}`,
+                    title: matchId,
+                    href: `/data/match/${matchId}`,
                     type: "match",
                 });
             }
@@ -70,11 +88,13 @@ export default function GuestDataPage() {
         //
         if (Array.isArray(permissions.team)) {
             for (const teamNumber of permissions.team) {
+                const teamName = teamNames[String(teamNumber)] ?? "Unknown Team"
+
                 pages.push({
-                    title: `Team ${teamNumber}`,
-                    href: `/admin/data/team/${teamNumber}`,
+                    title: `${teamNumber} - ${teamName}`,
+                    href: `/data/team/${teamNumber}`,
                     type: "team",
-                });
+                })
             }
         }
 
@@ -84,7 +104,7 @@ export default function GuestDataPage() {
 
     return (
         <div
-            className="min-h-screen flex flex-col bg-gradient-to-b from-purple-950 via-purple-900 to-purple-950 text-purple-100 overflow-x-hidden"
+            className="min-h-screen flex flex-col bg-gradient-to-b from-purple-950 via-purple-900 to-purple-950 text-purple-100 overflow-x-hidden scrollbar-purple"
             aria-label="Accessible data grid scroll area"
         >
             {/* SECTION 1 – Hero */}
@@ -145,8 +165,7 @@ export default function GuestDataPage() {
                     </h2>
 
                     <div
-                        className="w-full overflow-y-auto overflow-x-hidden pr-1"
-                        style={{maxHeight: "calc(100vh - 490px)"}}
+                        className="w-full flex-1 overflow-y-auto overflow-x-hidden pr-1"
                         aria-label="Accessible data grid scroll area"
                     >
                         {loading ? (
@@ -171,32 +190,125 @@ export default function GuestDataPage() {
                                 you.</p>
 
                         ) : (
-                            // 4. NORMAL CASE — SHOW CARDS
-                            <ul className="grid gap-5 grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4">
-                                {accessiblePages.map((p, i) => (
-                                    <li
-                                        key={i}
-                                        className="cursor-pointer bg-purple-900/40 hover:bg-purple-800/60 transition rounded-2xl p-6 border border-purple-800 hover:border-purple-400 hover:shadow-purple-700/30 hover:shadow-lg"
-                                        onClick={() => navigate(p.href)}
-                                    >
-                                        <div className="flex items-center justify-between">
-                                            <div>
-                                                <h3 className="font-semibold text-lg">{p.title}</h3>
-                                                <p className="text-sm text-purple-300">
-                                                    {p.type === "match"
-                                                        ? "Match Data"
-                                                        : p.type === "team"
-                                                            ? "Team Overview"
-                                                            : p.type === "ranking"
-                                                                ? "Ranking Overview"
-                                                                : "Alliance Simulator"}
-                                                </p>
+                            (() => {
+                                const rankingPage = accessiblePages.find(p => p.type === "ranking");
+                                const alliancePage = accessiblePages.find(p => p.type === "alliance");
+
+                                const teamPages = accessiblePages.filter(p => p.type === "team");
+                                const matchPages = accessiblePages.filter(p => p.type === "match");
+
+                                const filteredTeams = teamPages.filter(p =>
+                                    p.title.toLowerCase().includes(teamQuery.toLowerCase())
+                                );
+
+                                const filteredMatches = matchPages.filter(p =>
+                                    p.title.toLowerCase().includes(matchQuery.toLowerCase())
+                                );
+
+                                return (
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+                                        {/* LEFT COLUMN */}
+                                        <div className="space-y-8">
+                                            {/* Ranking */}
+                                            {rankingPage && (
+                                                <div>
+                                                    <p className="font-semibold">Ranking</p>
+                                                    <div className="border-b border-purple-800 my-2"/>
+                                                    <button
+                                                        onClick={() => navigate(rankingPage.href)}
+                                                        className="text-purple-300 hover:text-purple-200 transition"
+                                                    >
+                                                        Open Ranking Overview
+                                                    </button>
+                                                </div>
+                                            )}
+
+                                            {/* Team selector */}
+                                            <div className="relative">
+                                                <p className="font-semibold">Team Data</p>
+                                                <div className="border-b border-purple-800 my-2"/>
+
+                                                <input
+                                                    type="text"
+                                                    value={teamQuery}
+                                                    placeholder="Search team…"
+                                                    onFocus={() => setTeamOpen(true)}
+                                                    onChange={(e) => {
+                                                        setTeamQuery(e.target.value);
+                                                        setTeamOpen(true);
+                                                    }}
+                                                    onBlur={() => setTimeout(() => setTeamOpen(false), 100)}
+                                                    className="w-full bg-purple-900/40 border border-purple-800 rounded-md px-3 py-2 text-purple-200 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                                                />
+
+                                                {teamOpen && filteredTeams.length > 0 && (
+                                                    <ul className="absolute z-10 mt-1 w-full bg-purple-950 border border-purple-800 rounded-md max-h-60 overflow-y-auto scrollbar-purple">
+                                                        {filteredTeams.map((p) => (
+                                                            <li
+                                                                key={p.href}
+                                                                onMouseDown={() => navigate(p.href)}
+                                                                className="px-3 py-2 cursor-pointer hover:bg-purple-800/50 text-purple-200"
+                                                            >
+                                                                {p.title}
+                                                            </li>
+                                                        ))}
+                                                    </ul>
+                                                )}
                                             </div>
-                                            <ExternalLink className="w-5 h-5 text-purple-300"/>
                                         </div>
-                                    </li>
-                                ))}
-                            </ul>
+
+                                        {/* RIGHT COLUMN */}
+                                        <div className="space-y-8">
+                                            {/* Alliance */}
+                                            {alliancePage && (
+                                                <div>
+                                                    <p className="font-semibold">Alliance Simulator</p>
+                                                    <div className="border-b border-purple-800 my-2"/>
+                                                    <button
+                                                        onClick={() => navigate(alliancePage.href)}
+                                                        className="text-purple-300 hover:text-purple-200 transition"
+                                                    >
+                                                        Open Alliance Simulator
+                                                    </button>
+                                                </div>
+                                            )}
+
+                                            {/* Match selector */}
+                                            <div className="relative">
+                                                <p className="font-semibold">Match Data</p>
+                                                <div className="border-b border-purple-800 my-2"/>
+
+                                                <input
+                                                    type="text"
+                                                    value={matchQuery}
+                                                    placeholder="Search match…"
+                                                    onFocus={() => setMatchOpen(true)}
+                                                    onChange={(e) => {
+                                                        setMatchQuery(e.target.value);
+                                                        setMatchOpen(true);
+                                                    }}
+                                                    onBlur={() => setTimeout(() => setMatchOpen(false), 100)}
+                                                    className="w-full bg-purple-900/40 border border-purple-800 rounded-md px-3 py-2 text-purple-200 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                                                />
+
+                                                {matchOpen && filteredMatches.length > 0 && (
+                                                    <ul className="absolute z-10 mt-1 w-full bg-purple-950 border border-purple-800 rounded-md max-h-60 overflow-y-auto scrollbar-purple">
+                                                        {filteredMatches.map((p) => (
+                                                            <li
+                                                                key={p.href}
+                                                                onMouseDown={() => navigate(p.href)}
+                                                                className="px-3 py-2 cursor-pointer hover:bg-purple-800/50 text-purple-200"
+                                                            >
+                                                                {p.title}
+                                                            </li>
+                                                        ))}
+                                                    </ul>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            })()
                         )}
                     </div>
 
@@ -274,11 +386,6 @@ export default function GuestDataPage() {
                 .animate-spin-slow { animation: spin-slow 10s linear infinite; }
                 [aria-label="Accessible data grid scroll area"] {
                     scrollbar-gutter: stable;
-                }
-                [aria-label="Accessible data grid scroll area"]::-webkit-scrollbar { width: 8px; }
-                [aria-label="Accessible data grid scroll area"]::-webkit-scrollbar-thumb {
-                    background-color: rgba(180, 100, 255, 0.4);
-                    border-radius: 4px;
                 }
             `}
             </style>

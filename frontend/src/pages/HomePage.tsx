@@ -1,10 +1,9 @@
 import {useEffect, useRef, useState} from "react"
 import {useNavigate} from "react-router-dom"
 import {useAPI} from "@/hooks/useAPI.ts"
-import TooltipButton from "@/components/ui/tooltipButton"
 import {useClientEnvironment} from "@/hooks/useClientEnvironment.ts"
 import {getSetting, getSettingSync, type Settings} from "@/db/settingsDb.ts"
-import ThemedWrapper from "@/components/wrappers/ThemedWrapper"
+import CardLayoutWrapper from "@/components/wrappers/CardLayoutWrapper.tsx"
 
 declare global {
     interface Window {
@@ -144,7 +143,7 @@ export default function HomePage() {
     }
 
     return (
-        <ThemedWrapper theme={theme ?? "2026"} showLogo={true}>
+        <CardLayoutWrapper theme={theme ?? "2026"} showLogo={true}>
             <div className="space-y-1">
                 <h1 className="text-2xl font-bold theme-h1-color">
                     Login
@@ -208,7 +207,7 @@ export default function HomePage() {
                         else {
                             enabled = Boolean(
                                 permissions?.[key as keyof typeof permissions]
-                            );;
+                            );
                         }
 
                         return (
@@ -241,6 +240,6 @@ export default function HomePage() {
                 </div>
 
             </div>
-        </ThemedWrapper>
+        </CardLayoutWrapper>
     )
 }

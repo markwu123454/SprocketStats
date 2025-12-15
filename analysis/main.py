@@ -347,7 +347,7 @@ def run_calculator():
             else:
                 calc_result = result
                 if result['status'] == 0:
-                    append_log(f"\n[green]✔ Calculator finished[/]\n")
+                    append_log(f"\n[green]✔ Done[/]\n")
                 if result['status'] == 1:
                     append_log(f"[red]✖ Calculator failed[/]")
         except Exception as e:
@@ -456,7 +456,8 @@ async def upload_task():
 
         await conn.close()
         update_progress(100)
-        append_log("[green]  ✔ Upload complete[/]")
+        append_log("[green]  ✔ Data uploaded[/]")
+        append_log("\n[green]✔ Upload complete.[/]\n")
     except Exception as e:
         append_log(f"[red]  ✖ {e}")
         update_progress(0)
@@ -596,10 +597,10 @@ def validate_env():
 
                 result = loop.run_until_complete(_test())
                 loop.close()
-                root.after(0, lambda: callback(result))
+                root.after(0, callback, result)
 
             except Exception:
-                root.after(0, lambda: callback(None))
+                root.after(0, callback, None)
 
         threading.Thread(target=worker, daemon=True).start()
 

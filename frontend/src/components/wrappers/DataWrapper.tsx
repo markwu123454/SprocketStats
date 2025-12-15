@@ -8,8 +8,56 @@ export interface RankingData {
 }
 
 export interface TeamData {
-    [key: string]: any
+    basic: TeamBasic
+    ranking: TeamRanking
+    metrics: Record<string, string | number | boolean>
+    matches: TeamMatchRow[]
+    rp: Record<string, TeamRPMatchData>
+    timeline: TeamTimelineRow[]
+    breakdown: TeamBreakdownNode
 }
+
+export interface TeamBasic {
+    tags: string[]
+}
+
+export interface TeamRanking {
+    auto: number
+    teleop: number
+    endgame: number
+    rp: number
+    rp_pred: number
+    rp_avg: number
+    rp_avg_pred: number
+}
+
+export interface TeamMatchRow {
+    match: string | number
+    own_alliance: number[]
+    opp_alliance: number[]
+
+    [key: string]: string | number | boolean | number[] | null
+}
+
+export type TeamRPMatchData = Record<
+    string,
+    boolean | number | string | Record<string, any>
+>
+
+export interface TeamTimelineRow {
+    match: string | number
+
+    [scoringKey: string]: number | string
+}
+
+export type TeamBreakdownNode = {
+    id: string
+    label: string
+    value?: number
+    sumValue?: number
+    children?: TeamBreakdownNode[]
+}
+
 
 export interface MatchData {
     [key: string]: any
@@ -59,7 +107,7 @@ export default function DataWrapper() {
     const {getProcessedData} = useAPI()
     const location = useLocation();
 
-    const isGuestAdminPage = location.pathname.startsWith("/admin/data/guest");
+    const hideLoad = location.pathname.startsWith("/data/guest") || location.pathname.startsWith("/guest");
 
     const [state, setState] = useState<DataContextType>({
         processedData: null,
@@ -92,6 +140,8 @@ export default function DataWrapper() {
                     guestName: null,
                     permissions: null,
                 }))
+                localStorage.removeItem("guest_pw_token")
+                localStorage.removeItem("guest_pw_expiry")
                 return
             }
 
@@ -150,7 +200,7 @@ export default function DataWrapper() {
     return (
         <DataContext.Provider value={value}>
             {/* NEW: If on admin/data/guest → NEVER block UI with loading */}
-            {isGuestAdminPage ? (
+            {hideLoad ? (
                 <>
                     <Outlet/>
                     {issues.length > 0 && (

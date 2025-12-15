@@ -112,7 +112,7 @@ export default function TeamData() {
 
         return (
             <Link
-                to={`/admin/data/match/${matchId}`}
+                to={`/data/match/${matchId}`}
                 className="text-blue-600 hover:underline"
             >
                 {matchId}
@@ -128,7 +128,7 @@ export default function TeamData() {
 
         return (
             <Link
-                to={`/admin/data/team/${teamNum}`}
+                to={`/data/team/${teamNum}`}
                 className="text-blue-600 hover:underline"
             >
                 {teamNum}
@@ -233,7 +233,6 @@ export default function TeamData() {
                             theme={themeQuartz}
                             rowData={rowData}
                             columnDefs={colDefs}
-                            domLayout="autoHeight"
                             animateRows
                             pagination={false}
                             suppressCellFocus
@@ -327,15 +326,6 @@ function Quadrant({title, children}: { title: string; children: React.ReactNode 
     )
 }
 
-function Placeholder({label}: { label: string }) {
-    return (
-        <div
-            className="h-full w-full border border-dashed rounded-lg flex items-center justify-center text-xs text-gray-500 text-center px-4">
-            {label}
-        </div>
-    )
-}
-
 function RankLabel({label, value}: { label: string; value: number }) {
     return (
         <div className="flex items-center">
@@ -413,7 +403,6 @@ function DynamicAgGrid({data}: { data: any[] }) {
         <AgGridReact
             rowData={rowData}
             columnDefs={colDefs}
-            domLayout="autoHeight"
             animateRows
             pagination={false}
             suppressCellFocus
