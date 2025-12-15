@@ -1,2 +1,17 @@
 [MASTER]
 ignore-paths=.*/2025/.*
+
+[MESSAGES CONTROL]
+disable=
+    missing-module-docstring,
+    missing-class-docstring,
+    missing-function-docstring
+
+[DESIGN]
+max-returns=6
+
+[FORMAT]
+max-line-length=100
+
+[TYPECHECK]
+ignored-modules=pydantic
