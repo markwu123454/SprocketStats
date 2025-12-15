@@ -215,11 +215,18 @@ async def _calculate_async(data, progress, log, get_settings):
             "ranking": {},
             "alliance": {},
         }
-
-        current_step = "6"
-        # Step 6: Convert computed data into output format (translation/serialization)
-        log("[white]    → Translating all processed data into output structures")
-        log("[green]      ✔ Done")
+        if run6:
+            current_step = "6"
+            # Step 6: Convert computed data into output format (translation/serialization)
+            log("[white]    → Translating all processed data into output structures")
+            result = {
+                step_0_output,
+                step_1_output,
+                step_2_output,
+                step_3_output,
+                step_4_output
+            }
+            log("[green]      ✔ Done")
 
         # TODO: look into bayesian_opr, glicko_2, xgboost, kmeans, monte-carlo, elote
 

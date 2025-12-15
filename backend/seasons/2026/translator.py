@@ -1,6 +1,6 @@
 import random
 from typing import TypedDict, Any, Dict, List, Union, Optional
-import enums
+
 
 # TODO: still from reefscape, everything need to change
 
@@ -22,7 +22,7 @@ class RawData(TypedDict, total=False):
 
 
 class RankingData(TypedDict, total=False):
-        rp: List[int]
+    rp: List[int]
 
 
 # ============================================================
@@ -102,6 +102,7 @@ class TeamTimelineEntry(TypedDict, total=False):
     teleop: float
     endgame: float
 
+
 class RPAspectEntry(TypedDict, total=False):
     """Subfields of a single RP category (booleans, numbers, etc.)."""
     # flexible field values
@@ -153,22 +154,22 @@ class MatchData(TypedDict, total=False):
 
 class AllianceMatchInfo(TypedDict, total=False):
     """Per-match alliance performance and results."""
-    alliance_color: str                # "Red" | "Blue"
-    opponent_color: str                # "Blue" | "Red"
+    alliance_color: str  # "Red" | "Blue"
+    opponent_color: str  # "Blue" | "Red"
     own_score: float
     opp_score: float
-    result: str                        # "W" | "L" | "T"
-    rp_earned: List[int]               # list of RP types earned (e.g., [1,3])
-    played: bool                       # True if actual match completed
-    match_type: str                    # "qm", "QF", "SF", "F"
+    result: str  # "W" | "L" | "T"
+    rp_earned: List[int]  # list of RP types earned (e.g., [1,3])
+    played: bool  # True if actual match completed
+    match_type: str  # "qm", "QF", "SF", "F"
     match_number: int
 
 
 class AllianceModelOutput(TypedDict, total=False):
     """Placeholder for decision-tree / random-forest output."""
-    model_type: str                    # e.g., "RandomForest"
+    model_type: str  # e.g., "RandomForest"
     win_probability: float
-    predicted_rp: Dict[str, float]     # e.g., {"auto":0.8,"teleop":0.6,"climb":0.7}
+    predicted_rp: Dict[str, float]  # e.g., {"auto":0.8,"teleop":0.6,"climb":0.7}
     feature_importance: Dict[str, float]
     notes: str
 
@@ -210,97 +211,97 @@ class Data(TypedDict, total=False):
 # ============================================================
 
 def generate_sample_data(entry: RawData) -> Data:
-        teams = [3473, 3476, 118, 10118, 2910, 1690, 1323, 4414, 5199, 4415, 2056, 148, 1678, 254, 6995, 6800, 4481,
-                 968]
-        matches = ["qm1", "qm2", "qm3", "qm4"]
-        climb_types = ["None", "Park", "Shallow", "Deep"]
+    teams = [3473, 3476, 118, 10118, 2910, 1690, 1323, 4414, 5199, 4415, 2056, 148, 1678, 254, 6995, 6800, 4481,
+             968]
+    matches = ["qm1", "qm2", "qm3", "qm4"]
+    climb_types = ["None", "Park", "Shallow", "Deep"]
 
-        data: Data = {
-            "ranking": {"rp": [random.randint(0, 4) for _ in range(2)]},
-            "team": {},
-            "match": {},
-            "Alliance": {
-                "average_score": round(random.uniform(80, 130), 2),
-                "score_stddev": round(random.uniform(5, 15), 2),
-                "consistency": round(random.uniform(85, 98), 2),
-                "fault_rate": round(random.uniform(0, 10), 2),
-                "qm_matches": {},
-                "last_played": random.choice(matches),
-                "past_matches": ["qm1"],
-                "predicted_matches": ["qm2"],
-                "model_analysis": {
-                    "model_type": "RandomForest",
-                    "win_probability": round(random.uniform(0.4, 0.9), 2),
-                    "predicted_rp": {
-                        "auto": round(random.uniform(0.4, 1.0), 2),
-                        "coral": round(random.uniform(0.4, 1.0), 2),
-                        "barge": round(random.uniform(0.4, 1.0), 2),
-                    },
-                    "feature_importance": {
-                        "auto_points": 0.3,
-                        "teleop_points": 0.4,
-                        "climb_points": 0.3,
-                    },
-                    "notes": "Simulated data",
+    data: Data = {
+        "ranking": {"rp": [random.randint(0, 4) for _ in range(2)]},
+        "team": {},
+        "match": {},
+        "Alliance": {
+            "average_score": round(random.uniform(80, 130), 2),
+            "score_stddev": round(random.uniform(5, 15), 2),
+            "consistency": round(random.uniform(85, 98), 2),
+            "fault_rate": round(random.uniform(0, 10), 2),
+            "qm_matches": {},
+            "last_played": random.choice(matches),
+            "past_matches": ["qm1"],
+            "predicted_matches": ["qm2"],
+            "model_analysis": {
+                "model_type": "RandomForest",
+                "win_probability": round(random.uniform(0.4, 0.9), 2),
+                "predicted_rp": {
+                    "auto": round(random.uniform(0.4, 1.0), 2),
+                    "coral": round(random.uniform(0.4, 1.0), 2),
+                    "barge": round(random.uniform(0.4, 1.0), 2),
                 },
+                "feature_importance": {
+                    "auto_points": 0.3,
+                    "teleop_points": 0.4,
+                    "climb_points": 0.3,
+                },
+                "notes": "Simulated data",
             },
-        }
+        },
+    }
 
-        for team in teams:
-            # --- Generate per-match RP sets ---
-            rp_by_match: Dict[str, TeamRPData] = {}
-            for m in matches:
-                rp_by_match[m] = {
-                    "Auto": {
-                        "Move": random.choice([True, False]),
-                        "Score": random.choice([True, False]),
-                    },
-                    "Coral": {
-                        "L1": random.randint(0, 5),
-                        "L2": random.randint(0, 5),
-                        "L3": random.randint(0, 5),
-                        "L4": random.randint(0, 5),
-                        "Processor": random.choice([True, False]),
-                    },
-                    "Barge": {
-                        "Climb": random.choice(climb_types),
-                    },
+    for team in teams:
+        # --- Generate per-match RP sets ---
+        rp_by_match: Dict[str, TeamRPData] = {}
+        for m in matches:
+            rp_by_match[m] = {
+                "Auto": {
+                    "Move": random.choice([True, False]),
+                    "Score": random.choice([True, False]),
+                },
+                "Coral": {
+                    "L1": random.randint(0, 5),
+                    "L2": random.randint(0, 5),
+                    "L3": random.randint(0, 5),
+                    "L4": random.randint(0, 5),
+                    "Processor": random.choice([True, False]),
+                },
+                "Barge": {
+                    "Climb": random.choice(climb_types),
+                },
+            }
+
+        data["team"][team] = {
+            "basic": {"tags": ["High Auto", "Reliable", "Fast Climb"]},
+            "ranking": {
+                "auto": round(random.uniform(1, 5), 2),
+                "teleop": round(random.uniform(1, 5), 2),
+                "endgame": round(random.uniform(1, 5), 2),
+                "rp": round(random.uniform(1, 4), 2),
+                "rp_pred": round(random.uniform(1, 4), 2),
+                "rp_avg": round(random.uniform(1, 3), 2),
+                "rp_avg_pred": round(random.uniform(1, 3), 2),
+            },
+            "rp": rp_by_match,  # ✅ per-match RP sets
+            "metrics": {
+                "Average_Score": f"{round(random.uniform(70, 120), 2)}",
+                "Score_StdDev": f"{round(random.uniform(5, 15), 2)}",
+                "Fault_Rate_Percent": f"{round(random.uniform(0, 10), 2)}%",
+            },
+            "matches": [
+                {
+                    "match": m,
+                    "alliance": random.choice(["Red", "Blue"]),
+                    "own_alliance": random.sample(teams, 3),
+                    "opp_alliance": random.sample(teams, 3),
+                    "own_score": random.randint(100, 250),
+                    "opp_score": random.randint(100, 250),
+                    "result": random.choice(["W", "L"]),
+                    "auto_Points": random.randint(20, 60),
+                    "teleop_Points": random.randint(50, 90),
+                    "endgame_Points": random.randint(0, 20),
+                    "rp_Earned": random.randint(0, 4),
                 }
-
-            data["team"][team] = {
-                "basic": {"tags": ["High Auto", "Reliable", "Fast Climb"]},
-                "ranking": {
-                    "auto": round(random.uniform(1, 5), 2),
-                    "teleop": round(random.uniform(1, 5), 2),
-                    "endgame": round(random.uniform(1, 5), 2),
-                    "rp": round(random.uniform(1, 4), 2),
-                    "rp_pred": round(random.uniform(1, 4), 2),
-                    "rp_avg": round(random.uniform(1, 3), 2),
-                    "rp_avg_pred": round(random.uniform(1, 3), 2),
-                },
-                "rp": rp_by_match,  # ✅ per-match RP sets
-                "metrics": {
-                    "Average_Score": f"{round(random.uniform(70, 120), 2)}",
-                    "Score_StdDev": f"{round(random.uniform(5, 15), 2)}",
-                    "Fault_Rate_Percent": f"{round(random.uniform(0, 10), 2)}%",
-                },
-                "matches": [
-                    {
-                        "match": m,
-                        "alliance": random.choice(["Red", "Blue"]),
-                        "own_alliance": random.sample(teams, 3),
-                        "opp_alliance": random.sample(teams, 3),
-                        "own_score": random.randint(100, 250),
-                        "opp_score": random.randint(100, 250),
-                        "result": random.choice(["W", "L"]),
-                        "auto_Points": random.randint(20, 60),
-                        "teleop_Points": random.randint(50, 90),
-                        "endgame_Points": random.randint(0, 20),
-                        "rp_Earned": random.randint(0, 4),
-                    }
-                    for m in matches
-                ],
-                "breakdown": {
+                for m in matches
+            ],
+            "breakdown": {
                 "id": "root",
                 "label": "Score Breakdown",
                 "children": [
@@ -348,34 +349,35 @@ def generate_sample_data(entry: RawData) -> Data:
                     },
                 ],
             },
-                "timeline": [
-                    {
-                        "match": m,
-                        "auto": random.randint(3, 30),
-                        "teleop": random.randint(10, 60),
-                        "endgame": random.randint(0, 12),
-                    }
-                    for m in matches
-                ],
-            }
+            "timeline": [
+                {
+                    "match": m,
+                    "auto": random.randint(3, 30),
+                    "teleop": random.randint(10, 60),
+                    "endgame": random.randint(0, 12),
+                }
+                for m in matches
+            ],
+        }
 
-        for match in matches:
-            data["match"][match] = {"placeholder": f"Sample data for {match}"}
-            data["Alliance"]["qm_matches"][match] = {
-                "alliance_color": random.choice(["Red", "Blue"]),
-                "opponent_color": random.choice(["Red", "Blue"]),
-                "own_score": random.randint(80, 130),
-                "opp_score": random.randint(70, 120),
-                "result": random.choice(["W", "L"]),
-                "rp_earned": [random.randint(0, 1) for _ in range(3)],
-                "played": match == "qm1",
-                "match_type": "qm",
-                "match_number": int(match.replace("qm", "")),
-            }
+    for match in matches:
+        data["match"][match] = {"placeholder": f"Sample data for {match}"}
+        data["Alliance"]["qm_matches"][match] = {
+            "alliance_color": random.choice(["Red", "Blue"]),
+            "opponent_color": random.choice(["Red", "Blue"]),
+            "own_score": random.randint(80, 130),
+            "opp_score": random.randint(70, 120),
+            "result": random.choice(["W", "L"]),
+            "rp_earned": [random.randint(0, 1) for _ in range(3)],
+            "played": match == "qm1",
+            "match_type": "qm",
+            "match_number": int(match.replace("qm", "")),
+        }
 
-        return data
+    return data
 
 
 if __name__ == "__main__":
     from pprint import pprint
+
     pprint(generate_sample_data(None))

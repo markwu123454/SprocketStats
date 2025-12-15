@@ -16,6 +16,7 @@ ignored-modules=pydantic
 
 [DESIGN]
 max-returns=6
+max-line-length=120
 
 [FORMAT]
 max-line-length=100
