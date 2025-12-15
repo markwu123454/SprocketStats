@@ -399,7 +399,7 @@ function Step1_QualSim({
                                 >
                                     <td className="border p-1">
                                         <Link
-                                            to={`/admin/data/match/${m.matchKey}`}
+                                            to={`/data/match/${m.matchKey}`}
                                             className="text-blue-600 hover:underline"
                                         >
                                             {m.matchKey}
@@ -409,7 +409,7 @@ function Step1_QualSim({
                                         {m.red.map((t) => (
                                             <Link
                                                 key={t}
-                                                to={`/admin/data/team/${t}`}
+                                                to={`/data/team/${t}`}
                                                 className="hover:underline mr-1"
                                             >
                                                 {t}
@@ -420,7 +420,7 @@ function Step1_QualSim({
                                         {m.blue.map((t) => (
                                             <Link
                                                 key={t}
-                                                to={`/admin/data/team/${t}`}
+                                                to={`/data/team/${t}`}
                                                 className="hover:underline mr-1"
                                             >
                                                 {t}
@@ -534,7 +534,7 @@ function Step1_QualSim({
                             <td className="border p-1">{i + 1}</td>
                             <td className="border p-1">
                                 <Link
-                                    to={`/admin/data/team/${r.team}`}
+                                    to={`/data/team/${r.team}`}
                                     className="text-blue-600 hover:underline"
                                 >
                                     {r.team}

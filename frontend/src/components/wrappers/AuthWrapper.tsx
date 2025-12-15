@@ -1,7 +1,13 @@
-import React, {useEffect, useState, useCallback, useRef} from "react"
+import React, {
+    useEffect,
+    useState,
+    useCallback,
+    useRef,
+} from "react"
 import {Outlet, useNavigate} from "react-router-dom"
-import {useAPI} from "@/hooks/useAPI.ts"
-import {useClientEnvironment} from "@/hooks/useClientEnvironment.ts"
+import {createPortal} from "react-dom"
+import {useAPI} from "@/hooks/useAPI"
+import {useClientEnvironment} from "@/hooks/useClientEnvironment"
 
 const PERMISSION_LABELS: Record<string, string> = {
     dev: "Developer",
@@ -17,7 +23,7 @@ export default function AuthGate({
     mode = "auto",
     children,
 }: {
-    permission: "dev" | "admin" | "match_scouting" | "pit_scouting"
+    permission: keyof typeof PERMISSION_LABELS
     device?: "mobile" | "desktop"
     dialogTheme?: "light" | "dark"
     mode?: "pessimistic" | "optimistic" | "auto"
@@ -27,100 +33,121 @@ export default function AuthGate({
     const {verify} = useAPI()
     const {isOnline, serverOnline, deviceType} = useClientEnvironment()
 
-    // Read cached permissions
     const cachedPerms = useRef<Record<string, boolean>>(
         JSON.parse(localStorage.getItem("perms") ?? "{}")
     )
 
-    // Decide whether to start optimistic or pessimistic
-    const effectiveOptimistic = (() => {
-        if (mode === "optimistic") return true
-        if (mode === "pessimistic") return false
-        // auto-mode: check cache
-        return !!cachedPerms.current[permission]
-    })()
+    const effectiveOptimistic =
+        mode === "optimistic"
+            ? true
+            : mode === "pessimistic"
+                ? false
+                : !!cachedPerms.current[permission]
 
-    // Initial auth state based on mode
     const [authorized, setAuthorized] = useState<boolean | null>(
         effectiveOptimistic ? true : null
     )
-
-    // "verifying" only affects loading display for pessimistic mode
     const [verifying, setVerifying] = useState(true)
-
     const [deviceWarning, setDeviceWarning] = useState(false)
     const [ignoredWarning, setIgnoredWarning] = useState(false)
+
     const dialogRef = useRef<HTMLDivElement | null>(null)
 
     const memoizedVerify = useCallback(async () => {
         setVerifying(true)
 
-        // Special offline logic for scouting routes
-        if ((!isOnline || !serverOnline) &&
-            (permission === "match_scouting" || permission === "pit_scouting")) {
+        if (
+            (!isOnline || !serverOnline) &&
+            (permission === "match_scouting" || permission === "pit_scouting")
+        ) {
             setAuthorized(true)
             setVerifying(false)
             return
         }
 
         const result = await verify()
-        const perms = result.permissions as Partial<Record<typeof permission, boolean>>
+        const perms = result.permissions ?? {}
         const success = result.success && !!perms[permission]
 
         setAuthorized(success)
         setVerifying(false)
 
-        // Update cache if verify succeeded
         if (result.success) {
             localStorage.setItem("perms", JSON.stringify(perms))
         }
     }, [isOnline, serverOnline, verify, permission])
 
-    // Trigger verification on mount
     useEffect(() => {
         void memoizedVerify()
     }, [memoizedVerify])
 
-    // Device mismatch alert
     useEffect(() => {
         if (authorized === true && device && deviceType !== device) {
             setDeviceWarning(true)
         }
     }, [authorized, device, deviceType])
 
-    // Focus modal for accessibility
+    const blocking =
+        (verifying && !effectiveOptimistic) ||
+        authorized === false ||
+        (deviceWarning && !ignoredWarning)
+
+    /** 🔒 Scroll lock */
     useEffect(() => {
-        if (deviceWarning && !ignoredWarning && dialogRef.current) {
-            dialogRef.current.focus()
+        if (!blocking) return
+
+        const original = document.body.style.overflow
+        document.body.style.overflow = "hidden"
+
+        return () => {
+            document.body.style.overflow = original
+        }
+    }, [blocking])
+
+    useEffect(() => {
+        if (deviceWarning && !ignoredWarning) {
+            dialogRef.current?.focus()
         }
     }, [deviceWarning, ignoredWarning])
 
     const isLight = dialogTheme === "light"
-    const overlayBg = isLight ? "bg-white text-black" : "bg-zinc-800 text-white"
-    const border = isLight ? "border border-gray-300 shadow-lg" : "border border-zinc-700 shadow-xl"
+    const overlayBg = isLight
+        ? "bg-white text-black"
+        : "bg-zinc-800 text-white"
+    const border = isLight
+        ? "border border-gray-300 shadow-lg"
+        : "border border-zinc-700 shadow-xl"
 
-    // Show spinner only if pessimistic & verifying
-    if (verifying && !effectiveOptimistic) {
-        return (
-            <div className={`w-screen h-screen flex flex-col items-center justify-center ${isLight ? "bg-zinc-100 text-black" : "bg-zinc-950 text-white"}`}>
-                <div className="flex flex-col items-center gap-4">
-                    <div className="w-8 h-8 border-4 border-t-transparent border-blue-500 rounded-full animate-spin" aria-label="Loading spinner"></div>
-                    <div className="text-lg font-medium" aria-live="polite">
-                        Checking access…
-                    </div>
-                </div>
-            </div>
-        )
+    /** ✅ NOT BLOCKING → NO DOM WRAPPER */
+    if (!blocking) {
+        return <>{children ?? <Outlet />}</>
     }
 
-    // Final denial screen
-    if (!verifying && authorized === false) {
-        return (
-            <div className="w-screen h-screen bg-zinc-950 text-white flex flex-col items-center justify-center">
-                <div className={`rounded-xl p-8 text-center max-w-sm ${overlayBg} ${border}`} role="alert" aria-live="assertive">
+    /** ⛔ BLOCKING UI (PORTAL) */
+    return createPortal(
+        <div
+            className={`fixed inset-0 z-[9999] flex items-center justify-center ${
+                isLight ? "bg-zinc-100 text-black" : "bg-zinc-950 text-white"
+            }`}
+            role="dialog"
+            aria-modal="true"
+        >
+            {verifying && !effectiveOptimistic && (
+                <div className="flex flex-col items-center gap-4">
+                    <div className="w-8 h-8 border-4 border-t-transparent border-blue-500 rounded-full animate-spin"/>
+                    <div className="text-lg font-medium">Checking access…</div>
+                </div>
+            )}
+
+            {!verifying && authorized === false && (
+                <div className={`rounded-xl p-8 text-center max-w-sm ${overlayBg} ${border}`}>
                     <h2 className="text-2xl font-bold mb-4">Access Denied</h2>
                     <p className="mb-6">
-                        You lack <span className="font-semibold text-red-400">{PERMISSION_LABELS[permission]}</span> permission or your session expired.
+                        You lack{" "}
+                        <span className="font-semibold text-red-400">
+                            {PERMISSION_LABELS[permission]}
+                        </span>{" "}
+                        permission or your session expired.
                     </p>
                     <button
                         onClick={() => navigate("/")}
@@ -129,54 +156,36 @@ export default function AuthGate({
                         Return to Login
                     </button>
                 </div>
-            </div>
-        )
-    }
-
-    return (
-        <div className="relative min-h-screen w-full max-w-[100vw]">
-            <div className={deviceWarning && !ignoredWarning ? "brightness-50 pointer-events-none" : ""}>
-                {children ?? <Outlet />}
-            </div>
+            )}
 
             {deviceWarning && !ignoredWarning && (
                 <div
-                    className="absolute top-0 left-0 w-full h-full flex items-center justify-center z-50"
-                    role="alertdialog"
-                    aria-modal="true"
-                    aria-labelledby="device-mismatch-title"
                     ref={dialogRef}
                     tabIndex={-1}
+                    className={`rounded-lg p-6 max-w-sm text-center ${overlayBg} ${border}`}
                 >
-                    <div className={`rounded-lg p-6 max-w-sm text-center ${overlayBg} ${border}`}>
-                        <h2 id="device-mismatch-title" className="text-xl font-bold mb-4">Device Mismatch</h2>
-                        <p className="mb-6">
-                            This page is intended for <strong>{device}</strong> devices.<br/>
-                            You're currently on a <strong>{deviceType}</strong>.
-                        </p>
-                        <div className="flex justify-center gap-4">
-                            <button
-                                className={`px-4 py-2 rounded font-medium transition ${
-                                    isLight
-                                        ? "bg-gray-200 text-black hover:bg-gray-400"
-                                        : "bg-zinc-700 text-white hover:bg-zinc-600"
-                                }`}
-                                onClick={() => navigate("/")}>
-                                {isLight ? "Return" : "Back"}
-                            </button>
-                            <button
-                                className={`px-4 py-2 rounded font-medium transition ${
-                                    isLight
-                                        ? "bg-blue-600 text-white hover:bg-blue-700"
-                                        : "bg-blue-500 text-white hover:bg-blue-400"
-                                }`}
-                                onClick={() => setIgnoredWarning(true)}>
-                                {isLight ? "Proceed" : "Continue Anyway"}
-                            </button>
-                        </div>
+                    <h2 className="text-xl font-bold mb-4">Device Mismatch</h2>
+                    <p className="mb-6">
+                        Intended for <strong>{device}</strong> devices.<br/>
+                        You are on <strong>{deviceType}</strong>.
+                    </p>
+                    <div className="flex justify-center gap-4">
+                        <button
+                            onClick={() => navigate("/")}
+                            className="px-4 py-2 rounded bg-zinc-700 hover:bg-zinc-600"
+                        >
+                            Back
+                        </button>
+                        <button
+                            onClick={() => setIgnoredWarning(true)}
+                            className="px-4 py-2 rounded bg-blue-600 hover:bg-blue-700"
+                        >
+                            Continue Anyway
+                        </button>
                     </div>
                 </div>
             )}
-        </div>
+        </div>,
+        document.body
     )
 }

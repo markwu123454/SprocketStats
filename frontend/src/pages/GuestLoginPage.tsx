@@ -2,16 +2,22 @@ import {useEffect, useState} from "react"
 import {useNavigate, useSearchParams} from "react-router-dom"
 import {KeyRound, Eye, EyeOff} from "lucide-react"
 
-import {useAuthSuccess, usePermissions, useLoading} from "@/components/wrappers/DataWrapper"
+import {useAuthSuccess, useLoading, useDataContext} from "@/components/wrappers/DataWrapper"
 
-export default function GuestRedirect() {
+
+export default function GuestLoginPage() {
     const [searchParams] = useSearchParams()
     const navigate = useNavigate()
+    const { refresh } = useDataContext()
+
+    const authSuccess = useAuthSuccess()
+    const loading = useLoading()
 
     const [manualPw, setManualPw] = useState("")
     const [showManualPortal, setShowManualPortal] = useState(false)
     const [showPassword, setShowPassword] = useState(false)
     const [error, setError] = useState("")
+    const [attempted, setAttempted] = useState(false)
 
     // Initial check for ?pw
     useEffect(() => {
@@ -22,26 +28,41 @@ export default function GuestRedirect() {
             return
         }
 
-        saveTokenAndRedirect(token)
+        saveToken(token)
     }, [searchParams])
 
     /** Save token + expiry, then redirect */
-    function saveTokenAndRedirect(token: string) {
+    function saveToken(token: string) {
         const expiry = Date.now() + 60 * 60 * 1000
         localStorage.setItem("guest_pw_token", token)
         localStorage.setItem("guest_pw_expiry", expiry.toString())
-        navigate("/admin/data/guest", {replace: true})
     }
 
-    function handleSubmit(e: React.FormEvent) {
+    useEffect(() => {
+        if (authSuccess) {
+            navigate("/data/guest", {replace: true})
+        }
+    }, [authSuccess, navigate])
+
+    useEffect(() => {
+        if (!loading && attempted && !authSuccess) {
+            setError("Invalid guest password.")
+            setShowManualPortal(true)
+        }
+    }, [loading, authSuccess, attempted])
+
+    async function handleSubmit(e: React.FormEvent) {
         e.preventDefault()
+        setError("")
+        setAttempted(true)
 
         if (!manualPw.trim()) {
             setError("Please enter a valid password.")
             return
         }
 
-        saveTokenAndRedirect(manualPw.trim())
+        saveToken(manualPw.trim())
+        await refresh()
     }
 
     // Polished password portal
@@ -79,7 +100,7 @@ export default function GuestRedirect() {
 
                     <form onSubmit={handleSubmit} className="flex flex-col gap-4">
                         <label className="text-sm flex items-center gap-2 text-purple-300">
-                            <KeyRound className="w-4 h-4 text-purple-400" />
+                            <KeyRound className="w-4 h-4 text-purple-400"/>
                             Guest Password
                         </label>
 
@@ -103,9 +124,9 @@ export default function GuestRedirect() {
                                 aria-label={showPassword ? "Hide password" : "Show password"}
                             >
                                 {showPassword ? (
-                                    <EyeOff className="w-5 h-5" />
+                                    <EyeOff className="w-5 h-5"/>
                                 ) : (
-                                    <Eye className="w-5 h-5" />
+                                    <Eye className="w-5 h-5"/>
                                 )}
                             </button>
                         </div>

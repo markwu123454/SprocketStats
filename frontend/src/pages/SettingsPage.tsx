@@ -4,7 +4,7 @@ import {ArrowLeft, RotateCcw, RotateCw} from "lucide-react"
 import {getSetting, getSettingSync, setSetting, type Settings} from "@/db/settingsDb.ts"
 import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from "@/components/ui/select"
 import {Label} from "@/components/ui/label"
-import ThemedWrapper from "@/components/wrappers/ThemedWrapper.tsx"
+import CardLayoutWrapper from "@/components/wrappers/CardLayoutWrapper.tsx"
 
 export default function SettingLayout() {
     const navigate = useNavigate()
@@ -46,7 +46,7 @@ export default function SettingLayout() {
     }, [theme])
 
     return (
-        <ThemedWrapper theme={theme ?? "2026"} showLogo={false}>
+        <CardLayoutWrapper theme={theme ?? "2026"} showLogo={false}>
             {/* Header */}
             <div className="flex items-center justify-between">
                 <h1
@@ -189,6 +189,6 @@ export default function SettingLayout() {
                     </div>
                 </div>
             </div>
-        </ThemedWrapper>
+        </CardLayoutWrapper>
     )
 }

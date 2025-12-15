@@ -1,15 +1,15 @@
-import { useState, useRef, useLayoutEffect } from "react"
-import { HelpCircle } from "lucide-react"
+import {useState, useRef, useLayoutEffect, useEffect} from "react"
+import {HelpCircle} from "lucide-react"
 
 export default function InfoToggle({
-    value,
-    onToggle,
-    label,
-    infoBox,
-    trueLabel = "Yes",
-    falseLabel = "No",
-    className = ""
-}: {
+                                       value,
+                                       onToggle,
+                                       label,
+                                       infoBox,
+                                       trueLabel = "Yes",
+                                       falseLabel = "No",
+                                       className = ""
+                                   }: {
     value: boolean
     onToggle: () => void
     label: string
@@ -19,13 +19,14 @@ export default function InfoToggle({
     className?: string
 }) {
     const [showInfo, setShowInfo] = useState(false)
-    const [pos, setPos] = useState({ top: 0, left: 0 })
-    const tooltipRef = useRef<HTMLDivElement>(null)
+    const [pos, setPos] = useState({top: 0, left: 0})
+    const infoRef = useRef<HTMLDivElement>(null)
     const containerRef = useRef<HTMLDivElement>(null)
+    const toggleRef = useRef<HTMLButtonElement | null>(null)
 
     /* ── keep tooltip inside viewport ─────────────────────────────── */
     const recalc = () => {
-        const tip = tooltipRef.current
+        const tip = infoRef.current
         const box = containerRef.current
         if (!tip || !box) return
 
@@ -51,8 +52,27 @@ export default function InfoToggle({
         if (boxRect.top + top + tipRect.height > vh - margin)
             top = vh - margin - boxRect.top - tipRect.height
 
-        setPos({ top, left })
+        setPos({top, left})
     }
+
+    useEffect(() => {
+        if (!showInfo) return
+
+        const handlePointerDown = (event: PointerEvent) => {
+            const target = event.target as Node
+            if (
+                infoRef.current &&
+                !infoRef.current.contains(target) &&
+                toggleRef.current &&
+                !toggleRef.current.contains(target)
+            ) {
+                setShowInfo(false)
+            }
+        }
+
+        document.addEventListener("pointerdown", handlePointerDown)
+        return () => document.removeEventListener("pointerdown", handlePointerDown)
+    }, [showInfo])
 
     useLayoutEffect(() => {
         if (showInfo) {
@@ -70,9 +90,8 @@ export default function InfoToggle({
         <div ref={containerRef} className={`relative w-max ${className}`}>
             {showInfo && (
                 <div
-                    ref={tooltipRef}
-                    style={{ top: pos.top, left: pos.left }}
-                    onClick={() => setShowInfo(false)}
+                    ref={infoRef}
+                    style={{top: pos.top, left: pos.left}}
                     className="absolute z-10 w-64 text-xs text-zinc-300 bg-zinc-800 rounded px-3 py-2 shadow-lg"
                 >
                     {infoBox}
@@ -89,13 +108,14 @@ export default function InfoToggle({
                     {label}: {value ? trueLabel : falseLabel}
                 </span>
                 {infoBox && (
-                    <HelpCircle
-                        className="w-4 h-4 text-zinc-200 hover:text-white"
-                        onClick={(e) => {
-                            e.stopPropagation()
-                            setShowInfo((prev) => !prev)
-                        }}
-                    />
+                    <button ref={toggleRef} onClick={(e) => {
+                        e.stopPropagation()
+                        setShowInfo(prev => !prev)
+                    }}>
+                        <HelpCircle
+                            className="w-4 h-4 text-zinc-200 hover:text-white"
+                        />
+                    </button>
                 )}
             </button>
         </div>

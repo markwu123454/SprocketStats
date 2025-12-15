@@ -10,7 +10,7 @@ import AdminPage from "@/pages/AdminPage.tsx"
 import AllianceSimDataPage from "@/pages/data/AllianceSimDataPage.tsx"
 import CandyDataPage from "@/pages/CandyDataPage.tsx"
 import GuestPage from "@/pages/GuestPage.tsx"
-import GuestRedirectPage from "@/pages/GuestRedirectPage.tsx"
+import GuestRedirectPage from "@/pages/GuestLoginPage.tsx"
 import HomePage from "@/pages/HomePage.tsx"
 import DeveloperPage from "@/pages/DeveloperPage.tsx"
 import MatchDataPostPage from "@/pages/data/MatchDataPostPage.tsx"
@@ -23,40 +23,36 @@ import RankingDataPage from "@/pages/data/RankingDataPage.tsx"
 import SettingsPage from "@/pages/SettingsPage.tsx"
 import TeamDataPage from "@/pages/data/TeamDataPage.tsx"
 import AdminSharePage from "@/pages/AdminSharePage.tsx";
-import GuestRedirect from "@/pages/GuestRedirectPage.tsx";
+import React from "react";
+import MatchDataPredPage from "@/pages/data/MatchDataPredPage.tsx";
 
 export default function App() {
     return (
-        <ThemeProvider>
-            <BrowserRouter>
-                <div className="h-screen flex flex-col min-h-0">
-                    <Routes>
-                        <Route path="/" element={<HomePage/>}/>
+        <React.StrictMode>
+            <ThemeProvider>
+                <BrowserRouter>
+                    <div className="h-screen flex flex-col min-h-0">
+                        <Routes>
+                            <Route path="/" element={<HomePage/>}/>
 
-                        <Route path="/ping" element={<PingPage/>}/>
+                            <Route path="/ping" element={<PingPage/>}/>
 
-                        <Route path="/candy" element={<CandyDataPage/>}/>
+                            <Route path="/candy" element={<CandyDataPage/>}/>
 
-                        <Route path="/settings" element={<SettingsPage/>}/>
+                            <Route path="/settings" element={<SettingsPage/>}/>
 
-                        <Route path="/scouting/match" element={
-                            <AuthWrapper permission="match_scouting" device="mobile">
-                                <MatchScoutingPage/>
-                            </AuthWrapper>
-                        }/>
+                            <Route path="/scouting/match" element={
+                                <AuthWrapper permission="match_scouting" device="mobile">
+                                    <MatchScoutingPage/>
+                                </AuthWrapper>
+                            }/>
 
-                        <Route path="/scouting/pit" element={
-                            <AuthWrapper permission="pit_scouting" device="mobile">
-                                <PitScoutingPage/>
-                            </AuthWrapper>
-                        }/>
+                            <Route path="/scouting/pit" element={
+                                <AuthWrapper permission="pit_scouting" device="mobile">
+                                    <PitScoutingPage/>
+                                </AuthWrapper>
+                            }/>
 
-                        {/* TOP LEVEL WRAPPER — no path */}
-                        <Route element={<DataWrapper/>}>
-
-                            {/* EVERYTHING inside here shares DataWrapper context */}
-
-                            {/* ----------------- ADMIN ROUTES ----------------- */}
                             <Route path="/admin" element={<Outlet/>}>
                                 <Route element={<AuthWrapper permission="admin" device="desktop"/>}>
                                     <Route index element={<AdminPage/>}/>
@@ -64,33 +60,31 @@ export default function App() {
                                     <Route path="assignment" element={<NotFoundPage code={501}/>}/>
                                     <Route path="share" element={<AdminSharePage/>}/>
                                 </Route>
+                            </Route>
 
-                                {/* data routes */}
+                            <Route element={<DataWrapper/>}>
                                 <Route path="data">
                                     <Route index element={<RankingDataPage/>}/>
                                     <Route path="guest" element={<GuestPage/>}/>
                                     <Route path="ranking" element={<RankingDataPage/>}/>
                                     <Route path="team/:team" element={<TeamDataPage/>}/>
-                                    <Route path="match/:matchKey" element={<MatchDataPostPage/>}/>
+                                    <Route path="match/:matchKey" element={<MatchDataPredPage/>}/>
                                     <Route path="alliance-sim" element={<AllianceSimDataPage/>}/>
                                 </Route>
+                                <Route path="/guest" element={<GuestRedirectPage/>}/>
                             </Route>
 
-                            {/* ------------- PUBLIC GUEST ROUTE ------------- */}
-                            <Route path="/guest" element={<GuestRedirectPage/>}/>
-                        </Route>
+                            <Route path="/dev" element={
+                                <AuthWrapper permission="dev" device="desktop" mode="pessimistic">
+                                    <DeveloperPage/>
+                                </AuthWrapper>
+                            }/>
 
-
-                        <Route path="/dev" element={
-                            <AuthWrapper permission="dev" device="desktop" mode="pessimistic">
-                                <DeveloperPage/>
-                            </AuthWrapper>
-                        }/>
-
-                        <Route path="*" element={<NotFoundPage/>}/>
-                    </Routes>
-                </div>
-            </BrowserRouter>
-        </ThemeProvider>
+                            <Route path="*" element={<NotFoundPage/>}/>
+                        </Routes>
+                    </div>
+                </BrowserRouter>
+            </ThemeProvider>
+        </React.StrictMode>
     )
 }

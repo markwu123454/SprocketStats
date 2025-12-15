@@ -4,6 +4,7 @@ import {useNavigate} from "react-router-dom";
 import {ArrowLeft} from "lucide-react";
 import ReactJsonView from "@microlink/react-json-view";
 import {getSetting, getSettingSync, type Settings} from "@/db/settingsDb.ts";
+import {HeaderFooterLayoutWrapper} from "@/components/wrappers/HeaderFooterLayoutWrapper.tsx";
 
 export default function DevPage() {
     const navigate = useNavigate();
@@ -176,16 +177,9 @@ export default function DevPage() {
     }, []);
 
     return (
-        <div className="min-h-screen relative text-sm max-w-full overflow-hidden theme-text">
-
-            {/* BACKGROUND LAYER */}
-            <div className="absolute inset-0 bg-top bg-cover theme-bg-page"/>
-
-            <div className="h-screen flex flex-col min-h-0 relative text-sm max-w-full overflow-hidden">
-
-                {/* HEADER */}
-                <header className="h-16 px-6 flex items-center border-b backdrop-blur-md theme-bg theme-border">
-
+        <HeaderFooterLayoutWrapper
+            header={
+                <>
                     <button onClick={() => navigate("/")}
                             className="flex items-center gap-2 hover:opacity-80 transition">
                         <ArrowLeft className="w-5 h-5"/>
@@ -202,135 +196,136 @@ export default function DevPage() {
                     <div className="text-xs opacity-70 text-right whitespace-nowrap flex-shrink-0">
                         Event Key: {devMetadata.current_event ?? PLACEHOLDER}
                     </div>
-                </header>
+                </>
+            }
+            body={
 
-                {/* MAIN CONTENT AREA */}
-                <main className="flex-1 p-6 gap-6 max-w-full overflow-auto">
+                <section className="space-y-4 min-w-0">
 
-                    <section className="space-y-4 min-w-0">
+                    {/* LOCAL STORAGE CARD */}
+                    <div className="border rounded-xl p-4 theme-bg theme-border">
 
-                        {/* LOCAL STORAGE CARD */}
-                        <div className="border rounded-xl p-4 theme-bg theme-border">
+                        <h3 className="text-xs font-semibold uppercase opacity-70">Local Storage</h3>
 
-                            <h3 className="text-xs font-semibold uppercase opacity-70">Local Storage</h3>
+                        <div
+                            className="max-h-32 overflow-auto border rounded-xl p-2 my-2 text-xs theme-bg theme-border theme-scrollbar">
 
-                            <div className="max-h-32 overflow-auto border rounded-xl p-2 my-2 text-xs theme-bg theme-border">
+                            {Object.keys(storage.local).length === 0 &&
+                                <p className="opacity-60">No LocalStorage keys found.</p>}
 
-                                {Object.keys(storage.local).length === 0 &&
-                                    <p className="opacity-60">No LocalStorage keys found.</p>}
-
-                                {Object.entries(storage.local).map(([k, v]) => (
-                                    <div key={k}
-                                         className="flex justify-between border-b py-1 truncate min-w-0 theme-border">
-                                        <span className="truncate max-w-[75%]">{k}: {v}</span>
-                                    </div>
-                                ))}
-                            </div>
+                            {Object.entries(storage.local).map(([k, v]) => (
+                                <div key={k}
+                                     className="flex justify-between border-b py-1 truncate min-w-0 theme-border">
+                                    <span className="truncate max-w-[75%]">{k}: {v}</span>
+                                </div>
+                            ))}
                         </div>
+                    </div>
 
-                        {/* COOKIES CARD */}
-                        <div className="border rounded-xl p-4 theme-bg theme-border">
+                    {/* COOKIES CARD */}
+                    <div className="border rounded-xl p-4 theme-bg theme-border">
 
-                            <h3 className="text-xs font-semibold uppercase opacity-70">Cookies</h3>
+                        <h3 className="text-xs font-semibold uppercase opacity-70">Cookies</h3>
 
-                            <div className="max-h-32 overflow-auto border rounded-xl p-2 my-2 text-xs theme-bg theme-border">
+                        <div
+                            className="max-h-32 overflow-auto border rounded-xl p-2 my-2 text-xs theme-bg theme-border theme-scrollbar">
 
-                                {Object.keys(storage.cookies).length === 0 &&
-                                    <p className="opacity-60">No cookies found.</p>}
+                            {Object.keys(storage.cookies).length === 0 &&
+                                <p className="opacity-60">No cookies found.</p>}
 
-                                {Object.entries(storage.cookies).map(([k, v]) => (
-                                    <div key={k} className="border-b py-1 truncate max-w-full min-w-0 theme-border">{k}: {v}</div>
-                                ))}
-                            </div>
+                            {Object.entries(storage.cookies).map(([k, v]) => (
+                                <div key={k}
+                                     className="border-b py-1 truncate max-w-full min-w-0 theme-border">{k}: {v}</div>
+                            ))}
                         </div>
+                    </div>
 
-                        {/* INDEXED DB CARD */}
-                        <div className="border rounded-xl p-4 theme-bg theme-border">
+                    {/* INDEXED DB CARD */}
+                    <div className="border rounded-xl p-4 theme-bg theme-border">
 
-                            <h3 className="text-xs font-semibold uppercase opacity-70">Indexed DB(Dexie DB)</h3>
+                        <h3 className="text-xs font-semibold uppercase opacity-70">Indexed DB(Dexie DB)</h3>
 
-                            <div className="border rounded-xl p-4 min-h-32 overflow-auto text-xs my-2 backdrop-blur-sm theme-bg theme-border"
-                            >
+                        <div
+                            className="border rounded-xl p-4 min-h-32 overflow-auto text-xs my-2 backdrop-blur-sm theme-bg theme-border"
+                        >
 
-                                {Object.keys(storage.dexiePreview).length > 0 ? (
-                                    <ReactJsonView
-                                        src={storage.dexiePreview}
-                                        collapsed={2}
-                                        theme={theme === "2025" || theme === "3473" || theme === "dark" ? "harmonic" : "rjv-default"}
-                                        style={{
-                                            backgroundColor: "transparent",
-                                            fontSize: "0.75rem",
-                                            lineHeight: 1.4,
-                                            color: theme === "2025" || theme === "3473" || theme === "dark" ? "#fafafa" : "#18181b",
-                                        }}
-                                        iconStyle="circle"
-                                        displayDataTypes={false}
-                                        indentWidth={2}
-                                        enableClipboard={false}
-                                    />
-                                ) : (
-                                    <p className="opacity-60">No JSON storage preview available.</p>
-                                )}
-
-                            </div>
-                        </div>
-
-                        {/* NETWORK LATENCY CARD */}
-                        <div className="border rounded-xl p-4 theme-bg theme-border">
-
-                            <h3 className="text-xs font-semibold uppercase opacity-70">Database & Network Latency</h3>
-
-                            <div className="space-y-2 my-2 text-xs">
-                                <p className="opacity-70">Client → Server (Upload): {latency.upload}</p>
-                                <p className="opacity-70">Server → Client (Download): {latency.download}</p>
-                                <p className="opacity-70">DB TCP Handshake: {latency.dbUpload}</p>
-                                <p className="opacity-70">DB Query Time: {latency.dbDownload}</p>
-                                <p className="opacity-70">Round Trip time: {latency.roundTrip}</p>
-                            </div>
-
-                            <button onClick={testLatency}
-                                    className="w-full p-4 border rounded-xl text-xs transition hover:bg-white/10 theme-border">
-                                Test Latency
-                            </button>
-                        </div>
-
-                        {/* DEPLOYMENT OVERVIEW CARD */}
-                        <div className="p-4 rounded-xl border theme-bg theme-border">
-
-                            <h3 className="text-xs font-semibold uppercase opacity-70 mb-2">
-                                Deployment Overview
-                            </h3>
-
-                            {/* Compact multi-column grid for curated fields */}
-                            <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-[11px] font-medium">
-                                <div>Environment: {version.NODE_ENV ?? PLACEHOLDER}</div>
-                                <div>Vercel Env: {version.VERCEL_ENV ?? PLACEHOLDER}</div>
-                                <div>Region: {version.VERCEL_REGION ?? PLACEHOLDER}</div>
-                                <div>URL: {version.VERCEL_URL ?? PLACEHOLDER}</div>
-                                <div>Preview: {String(version.VERCEL_IS_PREVIEW ?? false)}</div>
-                                <div>Branch: {version.VERCEL_GIT_COMMIT_REF ?? PLACEHOLDER}</div>
-                                <div>Commit: {version.VERCEL_GIT_COMMIT_SHA_SHORT ?? PLACEHOLDER}</div>
-                                <div>Author: {version.VERCEL_GIT_COMMIT_AUTHOR_NAME ?? PLACEHOLDER}</div>
-                                <div>Repo Owner: {version.VERCEL_GIT_REPO_OWNER ?? PLACEHOLDER}</div>
-                                <div>Repo Slug: {version.VERCEL_GIT_REPO_SLUG ?? PLACEHOLDER}</div>
-                                <div>Project ID: {version.VERCEL_PROJECT_ID ?? PLACEHOLDER}</div>
-                                <div>Deployment ID: {version.VERCEL_DEPLOYMENT_ID ?? PLACEHOLDER}</div>
-                                <div>Provider: {version.VERCEL_GIT_PROVIDER ?? PLACEHOLDER}</div>
-                                <div>Build time: {version.BUILD_TIME ?? PLACEHOLDER}</div>
-                                <div>Deploy time: {version.DEPLOY_TIME ?? PLACEHOLDER}</div>
-                                <div>Runtime: {version.VERCEL_RUNTIME ?? PLACEHOLDER}</div>
-                                <div>Config File: {version.VERCEL_CONFIG_FILE ?? PLACEHOLDER}</div>
-                                <div>Preview Mode: {String(version.VERCEL_IS_PREVIEW ?? false)}</div>
-                            </div>
+                            {Object.keys(storage.dexiePreview).length > 0 ? (
+                                <ReactJsonView
+                                    src={storage.dexiePreview}
+                                    collapsed={2}
+                                    theme={theme === "2025" || theme === "3473" || theme === "dark" ? "harmonic" : "rjv-default"}
+                                    style={{
+                                        backgroundColor: "transparent",
+                                        fontSize: "0.75rem",
+                                        lineHeight: 1.4,
+                                        color: theme === "2025" || theme === "3473" || theme === "dark" ? "#fafafa" : "#18181b",
+                                    }}
+                                    iconStyle="circle"
+                                    displayDataTypes={false}
+                                    indentWidth={2}
+                                    enableClipboard={false}
+                                />
+                            ) : (
+                                <p className="opacity-60">No JSON storage preview available.</p>
+                            )}
 
                         </div>
+                    </div>
 
-                    </section>
-                </main>
+                    {/* NETWORK LATENCY CARD */}
+                    <div className="border rounded-xl p-4 theme-bg theme-border">
 
-                {/* FOOTER */}
-                <footer className="h-16 border-t px-6 flex items-center justify-between backdrop-blur-md text-xs font-semibold tracking-wide theme-bg theme-border">
+                        <h3 className="text-xs font-semibold uppercase opacity-70">Database & Network Latency</h3>
 
+                        <div className="space-y-2 my-2 text-xs">
+                            <p className="opacity-70">Client → Server (Upload): {latency.upload}</p>
+                            <p className="opacity-70">Server → Client (Download): {latency.download}</p>
+                            <p className="opacity-70">DB TCP Handshake: {latency.dbUpload}</p>
+                            <p className="opacity-70">DB Query Time: {latency.dbDownload}</p>
+                            <p className="opacity-70">Round Trip time: {latency.roundTrip}</p>
+                        </div>
+
+                        <button onClick={testLatency}
+                                className="w-full p-4 border rounded-xl text-xs transition hover:bg-white/10 theme-border">
+                            Test Latency
+                        </button>
+                    </div>
+
+                    {/* DEPLOYMENT OVERVIEW CARD */}
+                    <div className="p-4 rounded-xl border theme-bg theme-border">
+
+                        <h3 className="text-xs font-semibold uppercase opacity-70 mb-2">
+                            Deployment Overview
+                        </h3>
+
+                        {/* Compact multi-column grid for curated fields */}
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-[11px] font-medium">
+                            <div>Environment: {version.NODE_ENV ?? PLACEHOLDER}</div>
+                            <div>Vercel Env: {version.VERCEL_ENV ?? PLACEHOLDER}</div>
+                            <div>Region: {version.VERCEL_REGION ?? PLACEHOLDER}</div>
+                            <div>URL: {version.VERCEL_URL ?? PLACEHOLDER}</div>
+                            <div>Preview: {String(version.VERCEL_IS_PREVIEW ?? false)}</div>
+                            <div>Branch: {version.VERCEL_GIT_COMMIT_REF ?? PLACEHOLDER}</div>
+                            <div>Commit: {version.VERCEL_GIT_COMMIT_SHA_SHORT ?? PLACEHOLDER}</div>
+                            <div>Author: {version.VERCEL_GIT_COMMIT_AUTHOR_NAME ?? PLACEHOLDER}</div>
+                            <div>Repo Owner: {version.VERCEL_GIT_REPO_OWNER ?? PLACEHOLDER}</div>
+                            <div>Repo Slug: {version.VERCEL_GIT_REPO_SLUG ?? PLACEHOLDER}</div>
+                            <div>Project ID: {version.VERCEL_PROJECT_ID ?? PLACEHOLDER}</div>
+                            <div>Deployment ID: {version.VERCEL_DEPLOYMENT_ID ?? PLACEHOLDER}</div>
+                            <div>Provider: {version.VERCEL_GIT_PROVIDER ?? PLACEHOLDER}</div>
+                            <div>Build time: {version.BUILD_TIME ?? PLACEHOLDER}</div>
+                            <div>Deploy time: {version.DEPLOY_TIME ?? PLACEHOLDER}</div>
+                            <div>Runtime: {version.VERCEL_RUNTIME ?? PLACEHOLDER}</div>
+                            <div>Config File: {version.VERCEL_CONFIG_FILE ?? PLACEHOLDER}</div>
+                            <div>Preview Mode: {String(version.VERCEL_IS_PREVIEW ?? false)}</div>
+                        </div>
+
+                    </div>
+
+                </section>
+        }
+            footer={
+                <>
                     <a href="/" className="truncate min-w-0 underline max-w-[40%]">
                         Frontend URL
                     </a>
@@ -339,10 +334,8 @@ export default function DevPage() {
                         <p>Branch: {version.VERCEL_GIT_COMMIT_REF ?? PLACEHOLDER}</p>
                         <p>Commit: {version.VERCEL_GIT_COMMIT_SHA_SHORT ?? PLACEHOLDER}</p>
                     </div>
-                </footer>
-
-            </div>
-        </div>
-    );
-
+                </>
+            }
+        />
+    )
 }

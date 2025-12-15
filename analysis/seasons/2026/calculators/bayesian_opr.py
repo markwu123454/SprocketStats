@@ -19,8 +19,8 @@ def fit_latent_offdef_linear(team_lists, contributions, num_teams, reg=1.0):
     contribution[r] = O[r] - sum(D[o] for o in opponents) + noise
     """
 
-    O_offset = 0
-    D_offset = num_teams
+    o_offset = 0
+    d_offset = num_teams
     num_params = num_teams * 2
 
     rows = []
@@ -35,12 +35,12 @@ def fit_latent_offdef_linear(team_lists, contributions, num_teams, reg=1.0):
             row = np.zeros(num_params)
 
             # Offensive coefficient for the robot
-            row[O_offset + team_id] = 1.0
+            row[o_offset + team_id] = 1.0
 
             # Defensive suppression from opponents
             opponents = red if team_id in blue else blue
             for opp in opponents:
-                row[D_offset + opp] -= 1.0
+                row[d_offset + opp] -= 1.0
 
             rows.append(row)
             ys.append(score)
@@ -49,11 +49,11 @@ def fit_latent_offdef_linear(team_lists, contributions, num_teams, reg=1.0):
     y = np.array(ys)
 
     # Closed-form ridge
-    regI = reg * np.eye(num_params)
-    XtX = X.T @ X
-    XtY = X.T @ y
+    reg_i = reg * np.eye(num_params)
+    xt_x = X.T @ X
+    xt_y = X.T @ y
 
-    theta = np.linalg.solve(XtX + regI, XtY)
+    theta = np.linalg.solve(xt_x + reg_i, xt_y)
 
     offense = theta[:num_teams]
     defense = theta[num_teams:]
@@ -119,45 +119,45 @@ def generate_synthetic_contributions(team_lists, true_off, true_def, off_std, de
 
 if __name__ == "__main__":
 
-    num_matches = 500
-    num_teams = 12
+    temp_num_matches = 500
+    temp_num_teams = 12
 
-    rng = np.random.default_rng()
+    temp_rng = np.random.default_rng()
 
     # TRUE MODEL PARAMETERS
-    true_off = rng.uniform(3, 10, size=num_teams)
-    true_def = rng.uniform(0.5, 3, size=num_teams)
-    off_std = rng.uniform(0.5, 2, size=num_teams)
-    def_std = rng.uniform(0.2, 1, size=num_teams)
+    temp_true_off = temp_rng.uniform(3, 10, size=temp_num_teams)
+    temp_true_def = temp_rng.uniform(0.5, 3, size=temp_num_teams)
+    temp_off_std = temp_rng.uniform(0.5, 2, size=temp_num_teams)
+    temp_def_std = temp_rng.uniform(0.2, 1, size=temp_num_teams)
 
     # Force special outliers
-    true_off[0] *= 3
-    true_def[1] *= 3
+    temp_true_off[0] *= 3
+    temp_true_def[1] *= 3
 
-    print("TRUE OFFENSE:", true_off)
-    print("TRUE DEFENSE:", true_def)
+    print("TRUE OFFENSE:", temp_true_off)
+    print("TRUE DEFENSE:", temp_true_def)
 
     # GENERATE MATCH STRUCTURE
-    team_lists = generate_random_matches(num_matches, num_teams)
+    temp_team_lists = generate_random_matches(temp_num_matches, temp_num_teams)
 
     # SYNTHETIC CONTRIBUTIONS
-    contributions = generate_synthetic_contributions(
-        team_lists, true_off, true_def, off_std, def_std
+    temp_contributions = generate_synthetic_contributions(
+        temp_team_lists, temp_true_off, temp_true_def, temp_off_std, temp_def_std
     )
 
     # FIT SOLVER
-    results = fit_latent_offdef_linear(team_lists, contributions, num_teams)
+    results = fit_latent_offdef_linear(temp_team_lists, temp_contributions, temp_num_teams)
 
     learned_off = results["offense"]
     learned_def = results["defense"]
 
     print("\n===== OFFENSE: TRUE vs LEARNED =====")
-    for t in range(num_teams):
-        print(f"Team {t:2d}: true={true_off[t]:6.2f}   learned={learned_off[t]:8.2f}")
+    for t in range(temp_num_teams):
+        print(f"Team {t:2d}: true={temp_true_off[t]:6.2f}   learned={learned_off[t]:8.2f}")
 
     print("\n===== DEFENSE: TRUE vs LEARNED =====")
     print("(NOTE: learned defense is NEGATIVE; stronger defense = more negative)")
-    for t in range(num_teams):
-        print(f"Team {t:2d}: true={true_def[t]:6.2f}   learned={learned_def[t]:8.2f}")
+    for t in range(temp_num_teams):
+        print(f"Team {t:2d}: true={temp_true_def[t]:6.2f}   learned={learned_def[t]:8.2f}")
 
     print("\nDONE.")

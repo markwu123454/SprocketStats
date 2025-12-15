@@ -12,9 +12,9 @@ import { useNavigate } from "react-router-dom";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select.tsx";
 import { Button } from "@/components/ui/button.tsx";
 import PhotoCaptureCard from "@/components/ui/cameraCapture";
-import { pitQuestions } from "@/components/seasons/2025/yearConfig.ts";
+import { pitQuestions } from "@/components/seasons/2026/yearConfig.ts";
 import { getSettingSync, type Settings } from "@/db/settingsDb.ts";
-import ThemedWrapper from "@/components/wrappers/ThemedWrapper.tsx";
+import CardLayoutWrapper from "@/components/wrappers/CardLayoutWrapper.tsx";
 
 // TODO: add questions for human factor(openness, approachability, etc)
 
@@ -109,7 +109,7 @@ export default function PitScoutingLayout() {
     };
 
     return (
-        <ThemedWrapper theme={theme??"2026"} showLogo={false} overflow={true}>
+        <CardLayoutWrapper theme={theme??"2026"} showLogo={false} overflow={true}>
             <form
                 onSubmit={handleSubmit}
                 className="space-y-6 max-w-xl mx-auto"
@@ -152,6 +152,8 @@ export default function PitScoutingLayout() {
                         className="mt-3 flex items-center justify-between p-2 border rounded-lg min-h-[60px] transition-colors duration-500 theme-border"
                     >
                         <div className="flex items-center space-x-3">
+                            {/* TODO: update logic, !teamNames[teamNumber] && teamNumber && !loading evaluate to null if updated before fetch finishes */}
+
                             {teamNumber && teamNames[teamNumber] && (
                                 <img
                                     key={teamNumber}
@@ -173,7 +175,7 @@ export default function PitScoutingLayout() {
                                     </>
                                 )}
                                 {!teamNumber && (
-                                    <span className="text-sm opacity-60">Enter a team number</span>
+                                    <span className="text-sm opacity-60">Enter a team number in the box above</span>
                                 )}
                                 {!teamNames[teamNumber] && teamNumber && !loading && (
                                     <span className="text-sm text-red-500">Team not found.</span>
@@ -344,7 +346,7 @@ export default function PitScoutingLayout() {
                     </Button>
                 </div>
             </form>
-        </ThemedWrapper>
+        </CardLayoutWrapper>
     );
 }
 
