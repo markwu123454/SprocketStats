@@ -125,24 +125,24 @@ if __name__ == "__main__":
     temp_rng = np.random.default_rng()
 
     # TRUE MODEL PARAMETERS
-    true_off = temp_rng.uniform(3, 10, size=temp_num_teams)
-    true_def = temp_rng.uniform(0.5, 3, size=temp_num_teams)
-    off_std = temp_rng.uniform(0.5, 2, size=temp_num_teams)
-    def_std = temp_rng.uniform(0.2, 1, size=temp_num_teams)
+    temp_true_off = temp_rng.uniform(3, 10, size=temp_num_teams)
+    temp_true_def = temp_rng.uniform(0.5, 3, size=temp_num_teams)
+    temp_off_std = temp_rng.uniform(0.5, 2, size=temp_num_teams)
+    temp_def_std = temp_rng.uniform(0.2, 1, size=temp_num_teams)
 
     # Force special outliers
-    true_off[0] *= 3
-    true_def[1] *= 3
+    temp_true_off[0] *= 3
+    temp_true_def[1] *= 3
 
-    print("TRUE OFFENSE:", true_off)
-    print("TRUE DEFENSE:", true_def)
+    print("TRUE OFFENSE:", temp_true_off)
+    print("TRUE DEFENSE:", temp_true_def)
 
     # GENERATE MATCH STRUCTURE
     temp_team_lists = generate_random_matches(temp_num_matches, temp_num_teams)
 
     # SYNTHETIC CONTRIBUTIONS
     temp_contributions = generate_synthetic_contributions(
-        temp_team_lists, true_off, true_def, off_std, def_std
+        temp_team_lists, temp_true_off, temp_true_def, temp_off_std, temp_def_std
     )
 
     # FIT SOLVER
@@ -153,11 +153,11 @@ if __name__ == "__main__":
 
     print("\n===== OFFENSE: TRUE vs LEARNED =====")
     for t in range(temp_num_teams):
-        print(f"Team {t:2d}: true={true_off[t]:6.2f}   learned={learned_off[t]:8.2f}")
+        print(f"Team {t:2d}: true={temp_true_off[t]:6.2f}   learned={learned_off[t]:8.2f}")
 
     print("\n===== DEFENSE: TRUE vs LEARNED =====")
     print("(NOTE: learned defense is NEGATIVE; stronger defense = more negative)")
     for t in range(temp_num_teams):
-        print(f"Team {t:2d}: true={true_def[t]:6.2f}   learned={learned_def[t]:8.2f}")
+        print(f"Team {t:2d}: true={temp_true_def[t]:6.2f}   learned={learned_def[t]:8.2f}")
 
     print("\nDONE.")
