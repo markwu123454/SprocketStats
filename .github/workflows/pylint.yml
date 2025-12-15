@@ -1,0 +1,51 @@
+name: Pylint
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  pylint:
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.8", "3.9", "3.10"]
+        project:
+          - name: analysis
+            path: analysis
+          - name: backend
+            path: backend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Lint ${{ matrix.project.name }}
+        run: |
+          set -e
+
+          echo "Linting ${{ matrix.project.name }}"
+
+          python -m venv venv
+          source venv/bin/activate
+
+          pip install --upgrade pip
+          pip install pylint
+
+          if [ -f "${{ matrix.project.path }}/requirements.txt" ]; then
+            pip install -r "${{ matrix.project.path }}/requirements.txt"
+          fi
+
+          files=$(git ls-files '${{ matrix.project.path }}/**/*.py')
+
+          if [ -n "$files" ]; then
+            pylint $files
+          else
+            echo "No Python files found in ${{ matrix.project.name }}"
+          fi
