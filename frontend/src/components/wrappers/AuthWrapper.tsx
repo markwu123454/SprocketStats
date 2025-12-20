@@ -17,12 +17,12 @@ const PERMISSION_LABELS: Record<string, string> = {
 }
 
 export default function AuthGate({
-    permission,
-    device,
-    dialogTheme = "dark",
-    mode = "auto",
-    children,
-}: {
+                                     permission,
+                                     device,
+                                     dialogTheme = "dark",
+                                     mode = "auto",
+                                     children,
+                                 }: {
     permission: keyof typeof PERMISSION_LABELS
     device?: "mobile" | "desktop"
     dialogTheme?: "light" | "dark"
@@ -78,6 +78,14 @@ export default function AuthGate({
     }, [isOnline, serverOnline, verify, permission])
 
     useEffect(() => {
+        if (authorized !== true || !device) return
+        if (!deviceType) return // or deviceType === "unknown"
+
+        setDeviceWarning(deviceType !== device)
+    }, [authorized, device, deviceType])
+
+
+    useEffect(() => {
         void memoizedVerify()
     }, [memoizedVerify])
 
@@ -120,7 +128,7 @@ export default function AuthGate({
 
     /** ✅ NOT BLOCKING → NO DOM WRAPPER */
     if (!blocking) {
-        return <>{children ?? <Outlet />}</>
+        return <>{children ?? <Outlet/>}</>
     }
 
     /** ⛔ BLOCKING UI (PORTAL) */
