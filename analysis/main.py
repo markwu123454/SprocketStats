@@ -664,7 +664,7 @@ $$\   $$ |$$ |      $$ |  $$ |$$ |  $$ |$$ |  $$\ $$ |\$$\  $$ |         $$ |   
  \______/ \__|      \__|  \__| \______/  \______/ \__|  \__|\________|   \__|    \______/   \__|   \__|  \__|  \__|    \______/ 
  """)
     append_log("[white]Welcome to the sprocketstats analytics engine!")
-    append_log("[white]Use list_available() to see available methods and variables\n")
+    append_log("[white]Use help() to see available methods and variables\n")
 
 
 root = tb.Window(themename="cosmo")
@@ -735,6 +735,9 @@ console_env.update({
     "get_settings_snapshot": get_settings_snapshot,
     "append_log": append_log,
     "update_progress": update_progress,
+    "download_data": run_download,
+    "run_calculator": run_calculator,
+    "upload_data": run_upload,
 })
 
 functions_mod.append_log = append_log
@@ -767,7 +770,6 @@ def help_console():
         append_log(f"  {f}")
 
 console_env["help"] = help_console
-
 
 # Run validation after Tk loads
 root.after(500, print_welcome)
