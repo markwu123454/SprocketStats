@@ -65,6 +65,7 @@ export default function App() {
                             <Route element={<DataWrapper/>}>
                                 <Route path="data">
                                     <Route index element={<RankingDataPage/>}/>
+                                    <Route path="test" element={<MatchDataPostPage/>}/>
                                     <Route path="guest" element={<GuestPage/>}/>
                                     <Route path="ranking" element={<RankingDataPage/>}/>
                                     <Route path="team/:team" element={<TeamDataPage/>}/>

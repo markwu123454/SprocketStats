@@ -1,8 +1,10 @@
-import { useParams } from "react-router-dom"
-import { useMatchData } from "@/components/wrappers/DataWrapper"
+import {useParams} from "react-router-dom"
+import {useMatchData, usePermissions} from "@/components/wrappers/DataWrapper"
+import DataSearch from "@/components/ui/dataSearch.tsx";
+import {useEffect, useState} from "react";
 
-export default function MatchDataPostPage() {
-    const { matchKey } = useParams<{ matchKey: string }>()
+function MatchDataPostPage() {
+    const {matchKey} = useParams<{ matchKey: string }>()
     const match = useMatchData(matchKey ?? "")
 
     const red = match?.alliances?.red
@@ -55,8 +57,8 @@ export default function MatchDataPostPage() {
                             {winner === "tie"
                                 ? "TIE"
                                 : winner
-                                ? `${winner.toUpperCase()} WIN`
-                                : "PENDING"}
+                                    ? `${winner.toUpperCase()} WIN`
+                                    : "PENDING"}
                         </span>
                     </div>
                     <AllianceHeader
@@ -79,7 +81,7 @@ export default function MatchDataPostPage() {
 
                 {/* COMPARISON CENTER */}
                 <div className="flex-1 flex flex-col overflow-auto bg-zinc-50 border-x border-zinc-200">
-                    <SectionHeader label="Match Summary & Comparison" />
+                    <SectionHeader label="Match Summary & Comparison"/>
                     <div className="flex-1 p-6 text-center text-sm text-zinc-500">
                         Charts, auto/teleop breakdowns, and alliance comparisons go here.
                     </div>
@@ -98,11 +100,11 @@ export default function MatchDataPostPage() {
 
 // === SUBCOMPONENTS ===
 function AllianceHeader({
-    color,
-    score,
-    rp,
-    winner,
-}: {
+                            color,
+                            score,
+                            rp,
+                            winner,
+                        }: {
     color: "red" | "blue"
     score: number | null
     rp: number | null
@@ -129,10 +131,10 @@ function AllianceHeader({
 }
 
 function AlliancePanel({
-    color,
-    alliance,
-    winner,
-}: {
+                           color,
+                           alliance,
+                           winner,
+                       }: {
     color: "red" | "blue"
     alliance: any
     winner: boolean
@@ -187,9 +189,9 @@ function AlliancePanel({
 }
 
 function SectionHeader({
-    label,
-    color,
-}: {
+                           label,
+                           color,
+                       }: {
     label: string
     color?: "red" | "blue"
 }) {
@@ -204,6 +206,28 @@ function SectionHeader({
             className={`px-5 py-2 border-b border-zinc-200 text-sm font-semibold ${colorClass}`}
         >
             {label}
+        </div>
+    )
+}
+
+
+export default function page() {
+    const permission = usePermissions()
+
+    const [teamNames, setTeamNames] = useState({})
+
+    useEffect(() => {
+        fetch("/teams/team_names.json")
+            .then((res) => res.json())
+            .then((data) => setTeamNames(data))
+            .catch(() => setTeamNames({}));
+    }, []);
+
+    return (
+        <div className="bg-white">
+            <DataSearch
+                teamNames={teamNames}
+                permissions={permission}/>
         </div>
     )
 }
