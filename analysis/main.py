@@ -657,7 +657,7 @@ root = tb.Window(themename="cosmo")
 root.title("Data Processor")
 root.state("zoomed")
 
-main_pane = tb.PanedWindow(root, orient="horizontal")
+main_pane = tb.Panedwindow(root, orient="horizontal")
 main_pane.pack(fill="both", expand=True, padx=15, pady=15)
 
 # ---- Left Pane (Logs + Progress) ----
