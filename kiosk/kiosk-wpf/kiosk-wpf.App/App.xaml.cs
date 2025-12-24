@@ -1,73 +1,90 @@
 ﻿using System.Diagnostics;
 using System.IO;
+using System.Reflection;
 using System.Windows;
 
 namespace kiosk_wpf.App;
 
 public partial class App
 {
-    private const int RestartDelayMs = 2000;
-    // =============================
-    // Configuration
-    // =============================
+    private Process? _backend;
 
-    private static readonly string LogFile =
-        Path.Combine(AppContext.BaseDirectory, "fastapi.log");
-
-    private readonly object _restartLock = new();
-
-    // =============================
-    // State
-    // =============================
-
-    private Process? _fastApiProcess;
-    private bool _isShuttingDown;
-
+    // App-level services
     public static WsService Ws { get; } = new();
 
-    // =============================
-    // Logging
-    // =============================
-
-    private static void Log(string text)
+    enum BackendMode
     {
-        try
-        {
-            File.AppendAllText(
-                LogFile,
-                $"[{DateTime.Now:HH:mm:ss}] {text}{Environment.NewLine}");
-        }
-        catch
-        {
-            // Never crash on logging failure
-        }
+        DevPython,
+        ProdExe
     }
-
-    // =============================
-    // App lifecycle
-    // =============================
 
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
-        StartFastApi();
+
+        try
+        {
+            StartBackend();
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(
+                $"Failed to start backend:\n{ex.Message}",
+                "Startup Error",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
+
+            Shutdown();
+        }
     }
 
     protected override void OnExit(ExitEventArgs e)
     {
-        _isShuttingDown = true;
-        StopFastApi();
+        try
+        {
+            if (_backend is { HasExited: false })
+                _backend.CloseMainWindow();
+        }
+        catch
+        {
+            
+        }
+
         base.OnExit(e);
     }
 
     // =============================
-    // FastAPI supervision
+    // Backend
     // =============================
 
-    private void StartFastApi()
+    private void StartBackend()
     {
-        if (_isShuttingDown)
-            return;
+        var info = ResolveBackend();
+
+        _backend = Process.Start(new ProcessStartInfo
+        {
+            FileName = info.FileName,
+            Arguments = info.Arguments,
+            WorkingDirectory = info.WorkingDirectory,
+            UseShellExecute = false,
+            CreateNoWindow = true
+        });
+    }
+
+    private BackendLaunchInfo ResolveBackend()
+    {
+        if (DetectBackendMode() == BackendMode.ProdExe)
+        {
+            var exePath = EnsureFastApiExe();
+
+            return new BackendLaunchInfo(
+                FileName: exePath,
+                Arguments: "",
+                WorkingDirectory: Path.GetDirectoryName(exePath)!
+            );
+        }
+
+        // -------- DEV MODE --------
 
         var exeDir = AppContext.BaseDirectory;
 
@@ -77,8 +94,6 @@ public partial class App
 
         var fastApiDir = Path.Combine(kioskRoot, "kiosk-fastapi");
 
-        Log($"FastAPI working directory: {fastApiDir}");
-
         var pythonExe = Path.Combine(
             fastApiDir,
             ".venv",
@@ -87,141 +102,51 @@ public partial class App
         );
 
         if (!File.Exists(pythonExe))
-        {
-            Log($"ERROR: Python not found at {pythonExe}");
-            MessageBox.Show($"Python not found:\n{pythonExe}");
-            return;
-        }
+            throw new FileNotFoundException("Python not found", pythonExe);
 
-        var psi = new ProcessStartInfo
-        {
-            FileName = pythonExe,
-            Arguments = "-m uvicorn main:app --host 127.0.0.1 --port 8000",
-            WorkingDirectory = fastApiDir,
-            UseShellExecute = false,
-            CreateNoWindow = true,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true
-        };
-
-        try
-        {
-            _fastApiProcess = new Process
-            {
-                StartInfo = psi,
-                EnableRaisingEvents = true
-            };
-
-            _fastApiProcess.Exited += (_, _) =>
-            {
-                Log("FastAPI process exited");
-
-                if (_isShuttingDown)
-                    return;
-
-                RestartFastApiWithBackoff();
-            };
-
-            _fastApiProcess.OutputDataReceived += (_, e) =>
-            {
-                if (e.Data != null)
-                    Log($"[FastAPI] {e.Data}");
-            };
-
-            _fastApiProcess.ErrorDataReceived += (_, e) =>
-            {
-                if (e.Data != null)
-                    Log($"[FastAPI ERROR] {e.Data}");
-            };
-
-            _fastApiProcess.Start();
-            _fastApiProcess.BeginOutputReadLine();
-            _fastApiProcess.BeginErrorReadLine();
-
-            Log("FastAPI process started");
-        }
-        catch (Exception ex)
-        {
-            Log($"ERROR starting FastAPI: {ex}");
-        }
+        return new BackendLaunchInfo(
+            FileName: pythonExe,
+            Arguments: "-m uvicorn main:app --host 127.0.0.1 --port 8000",
+            WorkingDirectory: fastApiDir
+        );
     }
 
-    private static void KillProcessOnPort(int port)
+    private BackendMode DetectBackendMode()
     {
-        try
-        {
-            var psi = new ProcessStartInfo
-            {
-                FileName = "cmd.exe",
-                Arguments = $"/c netstat -ano | findstr :{port}",
-                RedirectStandardOutput = true,
-                UseShellExecute = false,
-                CreateNoWindow = true
-            };
-
-            using var proc = Process.Start(psi)!;
-            var output = proc.StandardOutput.ReadToEnd();
-            proc.WaitForExit();
-
-            foreach (var line in output.Split('\n'))
-            {
-                var parts = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-                if (parts.Length < 5) continue;
-
-                var pid = parts[^1];
-                Process.Start("cmd.exe", $"/c taskkill /PID {pid} /F");
-                Log($"Killed process {pid} on port {port}");
-            }
-        }
-        catch (Exception ex)
-        {
-            Log($"Port cleanup failed: {ex}");
-        }
+        return File.Exists(Path.Combine(AppContext.BaseDirectory, "fastapi.exe"))
+            ? BackendMode.ProdExe
+            : BackendMode.DevPython;
     }
 
-
-    private async void RestartFastApiWithBackoff()
+    private static string EnsureFastApiExe()
     {
-        lock (_restartLock)
-        {
-            if (_isShuttingDown)
-                return;
-        }
+        var targetPath = Path.Combine(
+            AppContext.BaseDirectory,
+            "fastapi.exe"
+        );
 
-        Log($"Restarting FastAPI in {RestartDelayMs}ms...");
-        await Task.Delay(RestartDelayMs);
+        if (File.Exists(targetPath))
+            return targetPath;
 
-        if (_isShuttingDown)
-            return;
+        using var stream = Assembly.GetExecutingAssembly()
+            .GetManifestResourceStream("kiosk_wpf.Resources.fastapi.exe");
 
-        try
-        {
-            KillProcessOnPort(8000);
-            StartFastApi();
-        }
-        catch (Exception ex)
-        {
-            Log($"RESTART FAILED: {ex}");
-        }
+        if (stream == null)
+            throw new InvalidOperationException("Embedded fastapi.exe not found");
+
+        using var file = File.Create(targetPath);
+        stream.CopyTo(file);
+
+        return targetPath;
     }
 
-    private void StopFastApi()
-    {
-        if (_fastApiProcess is { HasExited: false })
-            try
-            {
-                Log("Stopping FastAPI");
-                _fastApiProcess.Kill(true);
-                _fastApiProcess.WaitForExit(2000);
-            }
-            catch (Exception ex)
-            {
-                Log($"ERROR stopping FastAPI: {ex}");
-            }
-            finally
-            {
-                _fastApiProcess.Dispose();
-                _fastApiProcess = null;
-            }
-    }
+    // =============================
+    // Models
+    // =============================
+
+    sealed record BackendLaunchInfo(
+        string FileName,
+        string Arguments,
+        string WorkingDirectory
+    );
 }

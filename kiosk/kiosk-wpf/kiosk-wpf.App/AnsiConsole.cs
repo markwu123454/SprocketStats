@@ -134,7 +134,8 @@ public sealed class AnsiConsole
                 _lines.Add(currentLine);
                 _cursorLineOffset = 0;
                 continue;
-            } 
+            }
+
             if (c == '\r')
             {
                 Flush();

@@ -1,6 +1,4 @@
 ﻿using System.ComponentModel;
-using System.Text;
-using System.Text.RegularExpressions;
 using System.Windows;
 using System.Windows.Documents;
 using System.Windows.Input;
@@ -206,8 +204,8 @@ public partial class MainWindow
     private void OnClosing(object? sender, CancelEventArgs e)
     {
 #if !DEBUG
-        e.Cancel = true;      // prevent app from closing
-        RestartApp();         // keep shell alive
+        //e.Cancel = true; // prevent app from closing
+        //RestartApp(); // keep shell alive
 #endif
         // DEBUG: allow close normally
     }
