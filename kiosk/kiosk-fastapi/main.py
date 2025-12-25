@@ -654,6 +654,7 @@ async def ws_endpoint(ws: WebSocket):
 
     await ws.accept()
     active_ws = ws
+    set_busy(True)
     log("\x1b[35m $$$$$$\  $$$$$$$\  $$$$$$$\   $$$$$$\   $$$$$$\  $$\   $$\ $$$$$$$$\ $$$$$$$$\  $$$$$$\ $$$$$$$$\  $$$$$$\ $$$$$$$$\  $$$$$$\  \x1b[0m")
     log("\x1b[35m$$  __$$\ $$  __$$\ $$  __$$\ $$  __$$\ $$  __$$\ $$ | $$  |$$  _____|\__$$  __|$$  __$$\\\__$$  __|$$  __$$\\\__$$  __|$$  __$$\ \x1b[0m")
     log("\x1b[35m$$ /  \__|$$ |  $$ |$$ |  $$ |$$ /  $$ |$$ /  \__|$$ |$$  / $$ |         $$ |   $$ /  \__|  $$ |   $$ /  $$ |  $$ |   $$ /  \__|\x1b[0m")
@@ -662,7 +663,7 @@ async def ws_endpoint(ws: WebSocket):
     log("\x1b[35m$$\   $$ |$$ |      $$ |  $$ |$$ |  $$ |$$ |  $$\ $$ |\$$\  $$ |         $$ |   $$\   $$ |  $$ |   $$ |  $$ |  $$ |   $$\   $$ |\x1b[0m")
     log("\x1b[35m\$$$$$$  |$$ |      $$ |  $$ | $$$$$$  |\$$$$$$  |$$ | \$$\ $$$$$$$$\    $$ |   \$$$$$$  |  $$ |   $$ |  $$ |  $$ |   \$$$$$$  |\x1b[0m")
     log("\x1b[35m \______/ \__|      \__|  \__| \______/  \______/ \__|  \__|\________|   \__|    \______/   \__|   \__|  \__|  \__|    \______/\x1b[0m")
-    log("Welcome to the sprocketstats analytics engine!")
+    log("Welcome to the Sprocketstats analytics engine!")
     log("Use help() to see available methods and variables\n")
 
     validate_env()

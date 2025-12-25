@@ -122,6 +122,10 @@ public sealed class WsClient : IDisposable
         }
     }
 
+    public void SetBusy(bool busy)
+    {
+        Raise(() => BusyChanged?.Invoke(busy));
+    }
 
     private void Raise(Action action)
     {

@@ -13,4 +13,11 @@
         <PackageReference Include="ModernWpfUI" Version="0.9.6"/>
     </ItemGroup>
 
+    <ItemGroup>
+      <None Remove="SettingsView.json" />
+      <EmbeddedResource Include="SettingsView.json">
+        <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+      </EmbeddedResource>
+    </ItemGroup>
+
 </Project>

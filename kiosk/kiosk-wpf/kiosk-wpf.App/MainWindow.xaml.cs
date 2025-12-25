@@ -10,6 +10,8 @@ namespace kiosk_wpf.App;
 
 public partial class MainWindow
 {
+    private const string AppVersion = "v26.0.1";
+    
     private static readonly Dictionary<MediaColor, MediaBrush> BrushCache = new();
     private readonly List<string> _commandHistory = new();
     private string _currentInputBuffer = string.Empty;
@@ -28,7 +30,7 @@ public partial class MainWindow
 
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
-        OnLog("v26.0.1");
+        OnLog(AppVersion);
         _ = StartWsAsync();
     }
 
@@ -37,7 +39,15 @@ public partial class MainWindow
         const int maxAttempts = 30; // ~7.5 seconds total
         const int delayMs = 250;
 
+        // 🔒 Mark UI busy immediately
+        OnBusyChanged(true);
+        App.Ws.Client.SetBusy(true);
+
+        // Optional: guarantee busy shows for at least 1 second
+        var minBusyTask = Task.Delay(1000);
+
         for (var attempt = 1; attempt <= maxAttempts; attempt++)
+        {
             try
             {
                 await App.Ws.Client.ConnectAsync("ws://127.0.0.1:8000/ws");
@@ -45,15 +55,27 @@ public partial class MainWindow
                 App.Ws.Client.LogReceived += OnLog;
                 App.Ws.Client.BusyChanged += OnBusyChanged;
 
+                // Backend now owns busy state
                 return;
             }
-            catch (Exception)
+            catch
             {
-                await Task.Delay(delayMs);
+                if (attempt < maxAttempts)
+                {
+                    await Task.Delay(delayMs);
+                }
             }
+        }
 
-        // Only reached if backend never came up
-        Dispatcher.Invoke(() => { Application.Current.Shutdown(); });
+        // ❌ All attempts failed
+        await minBusyTask;
+
+        // 🔓 Explicitly release busy state only after giving up
+        OnBusyChanged(false);
+        App.Ws.Client.SetBusy(false);
+
+        // Optionally notify the user or log
+        OnLog("WebSocket connection failed after retries.");
     }
 
     private static MediaBrush GetBrush(MediaColor color)
@@ -97,7 +119,6 @@ public partial class MainWindow
 
         LogOutput.ScrollToEnd();
     }
-
 
     private void OnBusyChanged(bool busy)
     {

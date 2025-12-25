@@ -42,16 +42,16 @@ public partial class App
     {
         try
         {
-            if (_backend is { HasExited: false })
-                _backend.CloseMainWindow();
+            StopBackend();
         }
         catch
         {
-            
+            // swallow shutdown exceptions
         }
 
         base.OnExit(e);
     }
+
 
     // =============================
     // Backend
@@ -139,6 +139,32 @@ public partial class App
 
         return targetPath;
     }
+    
+    private void StopBackend()
+    {
+        if (_backend == null)
+            return;
+
+        if (_backend.HasExited)
+            return;
+
+        try
+        {
+            // Kill the entire process tree (important for uvicorn / python)
+            _backend.Kill(entireProcessTree: true);
+            _backend.WaitForExit(3000);
+        }
+        catch
+        {
+            // Ignore shutdown failures
+        }
+        finally
+        {
+            _backend.Dispose();
+            _backend = null;
+        }
+    }
+
 
     // =============================
     // Models

@@ -2,6 +2,8 @@ import os
 import dotenv
 import uvicorn
 import logging.config
+from main import app
+
 
 LOGGING_CONFIG = {
     "version": 1,
@@ -32,8 +34,8 @@ if __name__ == "__main__":
     port = int(os.getenv("FASTAPI_PORT", "8000"))
 
     uvicorn.run(
-        "main:app",
+        app,
         host="127.0.0.1",
         port=port,
-        log_config=LOGGING_CONFIG,  # 🔴 THIS FIXES IT
+        log_config=LOGGING_CONFIG,
     )
