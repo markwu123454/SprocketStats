@@ -4,6 +4,8 @@ import importlib
 import threading
 import asyncio
 import traceback
+from typing import Any
+
 import dotenv
 import ttkbootstrap as tb
 import asyncpg
@@ -113,7 +115,7 @@ async def fetch_all_match(conn, event_key_filter: str):
 
 
 # ================== Console functions ==================
-console_env = {
+console_env: dict[str, Any] = {
     "__builtins__": {
         "print": lambda *a, **kw: append_log(" ".join(map(str, a))),
         "len": len,
@@ -731,13 +733,14 @@ append_log = log.write  # backward compatibility
 console_env.update({
     "downloaded_data": None,
     "calc_result": None,
-    "DB_LINK": DB_DSN,
+    "database_url": DB_DSN,
     "get_settings_snapshot": get_settings_snapshot,
     "append_log": append_log,
     "update_progress": update_progress,
     "download_data": run_download,
     "run_calculator": run_calculator,
     "upload_data": run_upload,
+    "validate_env": validate_env,
 })
 
 functions_mod.append_log = append_log
@@ -761,13 +764,13 @@ def help_console():
         else:
             vars_.append(name)
 
-    append_log("[cyan]Available variables:[/]")
+    append_log("[white]→ Available variables:[/]")
     for v in sorted(vars_):
-        append_log(f"  {v}")
+        append_log(f"[white]  → {v}[/]")
 
-    append_log("[cyan]Available functions:[/]")
+    append_log("\n[white]→ Available functions:[/]")
     for f in sorted(funcs):
-        append_log(f"  {f}")
+        append_log(f"[white]  → {f}[/]")
 
 console_env["help"] = help_console
 
