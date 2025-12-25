@@ -43,13 +43,12 @@ The WPF UI is composed of three primary file types:
 #### `.cs`
 - Pure C# source files
 - Contains:
-    - ViewModels
+    - Helpers
     - Services
-    - Models
     - Application logic
 
-**Rule of thumb:**
-If you are writing logic, it almost certainly belongs in a `.cs` file, not in `.xaml.cs`.
+**Important:**
+This project does not use MVVM and most page logic exists in `.xaml.cs` and `.cs` files.
 
 ---
 
