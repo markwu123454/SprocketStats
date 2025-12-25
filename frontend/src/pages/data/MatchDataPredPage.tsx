@@ -1,5 +1,5 @@
-import {useParams} from "react-router-dom"
-import {useMatchData} from "@/components/wrappers/DataWrapper"
+import {Link, useParams} from "react-router-dom"
+import {useMatchData, usePermissions} from "@/components/wrappers/DataWrapper"
 import {useEffect, useState} from "react";
 
 const placeholder = {
@@ -25,6 +25,7 @@ const placeholder = {
 
 export default function MatchDataPredPage() {
     const {matchKey} = useParams<{ matchKey: string }>()
+    const permissions = usePermissions()
     const match = placeholder //useMatchData(matchKey ?? "")
 
     const [teamNames, setTeamNames] = useState<Record<number, string>>({})
@@ -70,6 +71,7 @@ export default function MatchDataPredPage() {
                     color="red"
                     alliance={red}
                     teamNames={teamNames}
+                    permissions={permissions}
                 />
 
                 {/* CENTER COLUMN */}
@@ -84,6 +86,7 @@ export default function MatchDataPredPage() {
                     color="blue"
                     alliance={blue}
                     teamNames={teamNames}
+                    permissions={permissions}
                 />
             </div>
         </div>
@@ -93,13 +96,15 @@ export default function MatchDataPredPage() {
 /* ===================== SUBCOMPONENTS ===================== */
 
 function AlliancePanel({
-    color,
-    alliance,
-    teamNames,
-}: {
+                           color,
+                           alliance,
+                           teamNames,
+                           permissions,
+                       }: {
     color: "red" | "blue"
     alliance: any
     teamNames: Record<number, string>
+    permissions: any
 }) {
     const bg = color === "red" ? "bg-red-50" : "bg-blue-50"
 
@@ -110,14 +115,14 @@ function AlliancePanel({
         teamData: any | null
     }[] = [
         teamEntries[0]
-            ? { teamNum: Number(teamEntries[0][0]), teamData: teamEntries[0][1] }
-            : { teamNum: null, teamData: null },
+            ? {teamNum: Number(teamEntries[0][0]), teamData: teamEntries[0][1]}
+            : {teamNum: null, teamData: null},
         teamEntries[1]
-            ? { teamNum: Number(teamEntries[1][0]), teamData: teamEntries[1][1] }
-            : { teamNum: null, teamData: null },
+            ? {teamNum: Number(teamEntries[1][0]), teamData: teamEntries[1][1]}
+            : {teamNum: null, teamData: null},
         teamEntries[2]
-            ? { teamNum: Number(teamEntries[2][0]), teamData: teamEntries[2][1] }
-            : { teamNum: null, teamData: null },
+            ? {teamNum: Number(teamEntries[2][0]), teamData: teamEntries[2][1]}
+            : {teamNum: null, teamData: null},
     ]
 
     return (
@@ -128,13 +133,17 @@ function AlliancePanel({
             />
 
             <ul className="flex flex-col flex-1 divide-y divide-zinc-200">
-                {teamSlots.map(({ teamNum, teamData }, idx) => (
+                {teamSlots.map(({teamNum, teamData}, idx) => (
                     <AllianceTeamRow
                         key={idx}
                         color={color}
                         teamNum={teamNum}
                         teamName={teamNum !== null ? teamNames[teamNum] : undefined}
                         teamData={teamData}
+                        canLink={
+                            !!teamNum &&
+                            !permissions?.team?.map(String).includes(String(teamNum))
+                        }
                     />
                 ))}
             </ul>
@@ -143,44 +152,59 @@ function AlliancePanel({
 }
 
 
-
 function AllianceTeamRow({
-    color,
-    teamNum,
-    teamName,
-    teamData,
-}: {
+                             color,
+                             teamNum,
+                             teamName,
+                             teamData,
+                             canLink = false,
+                         }: {
     color: "red" | "blue"
     teamNum: number | null
     teamName?: string
     teamData?: any | null
+    canLink?: boolean
 }) {
     const textColor = color === "red" ? "text-red-700" : "text-blue-700"
     const logoPath = teamNum ? `/teams/team_icons/${teamNum}.png` : null
+    const linkHref = teamNum !== null ? `/data/team/${teamNum}` : ""
+
+    const Content = (
+        <div className="flex items-center gap-3 min-w-0">
+            <img
+                src={logoPath ?? ""}
+                alt="logo"
+                className={`h-8 w-8 rounded object-contain ring-1 ring-gray-200 ${
+                    color === "red" ? "bg-red-500" : "bg-blue-500"
+                }`}
+                onError={(e) => (e.currentTarget.style.visibility = "hidden")}
+            />
+
+            <div className="min-w-0">
+                <div className={`font-semibold truncate ${textColor}`}>
+                    #{teamNum}
+                </div>
+                <div className="text-xs text-zinc-500 truncate">
+                    {teamName ?? "Unknown Team"}
+                </div>
+            </div>
+        </div>
+    )
 
     return (
         <li className="flex-1 p-4 flex flex-col justify-between">
             {teamNum !== null ? (
                 <>
-                    <div className="flex items-center gap-3 min-w-0">
-                        <img
-                            src={logoPath ?? ""}
-                            alt="logo"
-                            className={`h-8 w-8 rounded object-contain ring-1 ring-gray-200 ${
-                                color === "red" ? "bg-red-500" : "bg-blue-500"
-                            }`}
-                            onError={(e) => (e.currentTarget.style.visibility = "hidden")}
-                        />
-
-                        <div className="min-w-0">
-                            <div className={`font-semibold truncate ${textColor}`}>
-                                #{teamNum}
-                            </div>
-                            <div className="text-xs text-zinc-500 truncate">
-                                {teamName ?? "Unknown Team"}
-                            </div>
-                        </div>
-                    </div>
+                    {canLink ? (
+                        <Link
+                            to={linkHref}
+                            className="hover:opacity-80 transition-opacity"
+                        >
+                            {Content}
+                        </Link>
+                    ) : (
+                        Content
+                    )}
 
                     {/* === Match-Specific Metrics === */}
                     <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-zinc-500 mt-2">

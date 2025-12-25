@@ -141,7 +141,7 @@ export default function TeamData() {
     // Render
     // ============================================================
     return (
-        <div className="h-screen w-screen overflow-hidden bg-gray-50 flex flex-col">
+        <div className="min-h-screen w-screen overflow-x-hidden bg-gray-50 flex flex-col">
             {/* ===== Header ===== */}
             <header
                 className="flex-none border-b bg-white/90 backdrop-blur px-4 py-2 flex items-center justify-between h-[3.5rem]">
@@ -192,7 +192,18 @@ export default function TeamData() {
             </header>
 
             {/* ===== Main Dashboard ===== */}
-            <main className="grow grid grid-cols-2 grid-rows-2 gap-2 p-2">
+            <main
+  className="
+    grow
+    flex md:grid
+    md:grid-cols-2 md:grid-rows-2
+    gap-2 p-2
+
+    overflow-x-auto md:overflow-hidden
+    snap-x snap-mandatory md:snap-none
+  "
+>
+
                 <Quadrant title="Metrics Overview">
                     <div className="p-4">
                         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-x-6 gap-y-2 text-sm">
@@ -315,8 +326,16 @@ export default function TeamData() {
 function Quadrant({title, children}: { title: string; children: React.ReactNode }) {
     return (
         <section
-            className="rounded-lg border bg-white shadow-sm overflow-hidden flex flex-col"
-            style={{height: "calc((100vh - 5rem) / 2)"}}
+            className="
+        rounded-lg border bg-white shadow-sm overflow-hidden flex flex-col
+
+        w-full md:w-auto
+        shrink-0
+        snap-start
+
+        h-[calc(100vh-5rem)]
+        md:h-[calc((100vh-5rem)/2)]
+      "
         >
             <div className="border-b px-3 py-1.5 text-sm font-semibold text-gray-800 shrink-0">
                 {title}
@@ -325,6 +344,7 @@ function Quadrant({title, children}: { title: string; children: React.ReactNode 
         </section>
     )
 }
+
 
 function RankLabel({label, value}: { label: string; value: number }) {
     return (

@@ -1,0 +1,15 @@
+﻿# .NET / WPF
+bin/
+obj/
+
+# Visual Studio
+.vs/
+*.user
+*.suo
+
+# Logs
+*.log
+
+# OS junk
+Thumbs.db
+.DS_Store
