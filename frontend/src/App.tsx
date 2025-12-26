@@ -16,6 +16,7 @@ import DeveloperPage from "@/pages/DeveloperPage.tsx"
 import MatchDataPostPage from "@/pages/data/MatchDataPostPage.tsx"
 import MatchMonitorPage from "@/pages/MatchMonitorPage.tsx"
 import MatchScoutingPage from "@/pages/MatchScoutingPage.tsx"
+import MatchAssignmentPage from "@/pages/MatchAssignmentPage.tsx"
 import NotFoundPage from "@/pages/NotFoundPage.tsx"
 import PingPage from "@/pages/PingPage.tsx"
 import PitScoutingPage from "@/pages/PitScoutingPage.tsx"
@@ -57,7 +58,7 @@ export default function App() {
                                 <Route element={<AuthWrapper permission="admin" device="desktop"/>}>
                                     <Route index element={<AdminPage/>}/>
                                     <Route path="monitor/*" element={<MatchMonitorPage/>}/>
-                                    <Route path="assignment" element={<NotFoundPage code={501}/>}/>
+                                    <Route path="assignment" element={<MatchAssignmentPage/>}/>
                                     <Route path="share" element={<AdminSharePage/>}/>
                                 </Route>
                             </Route>

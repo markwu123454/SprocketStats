@@ -210,31 +210,53 @@ export function useAPI() {
     }, []) // <-- stable identity
 
 
-    // --- Endpoint: GET /admin/matches/filter ---
-    const getFilteredMatches = async (
-        scouters?: string[],
-        statuses?: string[]
-    ): Promise<
-        {
-            match: number;
-            match_type: string;
-            team: string;
-            alliance: string;
-            scouter: string | null;
-            status: string;
-            last_modified: number;
-        }[]
-    > => {
-        const query: Record<string, string> = {};
+    // --- Endpoint: GET /admin/matches/active ---
+    const getActiveMatches = async (): Promise<{
+        [matchType: string]: {
+            [matchNumber: number]: {
+                time: number | null;
+                red: Record<number, {
+                    scouter: string | null;
+                    name: string | null;
+                    phase: string;
+                    assigned_scouter: string | null;
+                    assigned_name: string | null;
+                }>;
+                blue: Record<number, {
+                    scouter: string | null;
+                    name: string | null;
+                    phase: string;
+                    assigned_scouter: string | null;
+                    assigned_name: string | null;
+                }>;
+            };
+        };
+    }> => {
+        const res = await apiRequest<{
+            [matchType: string]: {
+                [matchNumber: number]: {
+                    time: number | null;
+                    red: Record<number, {
+                        scouter: string | null;
+                        name: string | null;
+                        phase: string;
+                        assigned_scouter: string | null;
+                        assigned_name: string | null;
+                    }>;
+                    blue: Record<number, {
+                        scouter: string | null;
+                        name: string | null;
+                        phase: string;
+                        assigned_scouter: string | null;
+                        assigned_name: string | null;
+                    }>;
+                };
+            };
+        }>(
+            "/admin/matches/active"
+        );
 
-        scouters?.forEach((s, i) => (query[`scouters[${i}]`] = s));
-        statuses?.forEach((s, i) => (query[`statuses[${i}]`] = s));
-
-        const res = await apiRequest<{ matches: any[] }>("/admin/matches/filter", {
-            query,
-        });
-
-        return res?.matches ?? [];
+        return res ?? {};
     };
 
 
@@ -440,13 +462,103 @@ export function useAPI() {
         alliance: 'red' | 'blue'
     ): Promise<{
         timestamp: string | null
-        teams: Record<string, { scouter: string | null }>
-    } | null
-    > => {
+        teams: Record<string, {
+            scouter: string | null
+            name: string
+            assigned_scouter: string | null
+            assigned_name: string
+        }>
+    } | null> => {
         return await apiRequest<{
-            timestamp: string | null;
-            teams: Record<string, { scouter: string | null }>
+            timestamp: string | null
+            teams: Record<string, {
+                scouter: string | null
+                name: string
+                assigned_scouter: string | null
+                assigned_name: string
+            }>
         }>(`/match/${m_type}/${match}/${alliance}/state`);
+    };
+
+
+    // --- Endpoint: GET /scouter/schedule ---
+    const getScouterSchedule = async (): Promise<
+        {
+            match_type: MatchType;
+            match_number: number;
+            set_number: number;
+            alliance: AllianceType;
+            robot: number;
+        }[]
+    > => {
+        const res = await apiRequest<{
+            assignments: {
+                match_type: MatchType;
+                match_number: number;
+                set_number: number;
+                alliance: AllianceType;
+                robot: number;
+            }[];
+        }>("/scouter/schedule");
+
+        return res?.assignments ?? [];
+    };
+
+    // --- Endpoint: GET /matches ---
+    const getAllMatches = async (): Promise<{
+        matches: {
+            key: string
+            event_key: string
+            match_type: MatchType
+            match_number: number
+            set_number: number
+            scheduled_time: string | null
+            actual_time: string | null
+            red1: number | null
+            red2: number | null
+            red3: number | null
+            blue1: number | null
+            blue2: number | null
+            blue3: number | null
+            red1_scouter: string | null
+            red2_scouter: string | null
+            red3_scouter: string | null
+            blue1_scouter: string | null
+            blue2_scouter: string | null
+            blue3_scouter: string | null
+        }[]
+        scouters: {
+            email: string
+            name: string
+        }[]
+    } | null> => {
+        return await apiRequest<{
+            matches: {
+                key: string
+                event_key: string
+                match_type: MatchType
+                match_number: number
+                set_number: number
+                scheduled_time: string | null
+                actual_time: string | null
+                red1: number | null
+                red2: number | null
+                red3: number | null
+                blue1: number | null
+                blue2: number | null
+                blue3: number | null
+                red1_scouter: string | null
+                red2_scouter: string | null
+                red3_scouter: string | null
+                blue1_scouter: string | null
+                blue2_scouter: string | null
+                blue3_scouter: string | null
+            }[]
+            scouters: {
+                email: string
+                name: string
+            }[]
+        }>("/matches");
     };
 
 
@@ -616,6 +728,7 @@ export function useAPI() {
         updateState,
         submitData,
         getTeamList,
+        getScouterSchedule,
         getAllStatuses,
         getScouterState,
         getPitTeams,
@@ -623,9 +736,10 @@ export function useAPI() {
         updatePitData,
         submitPitData,
         getPitScoutStatus,
-        getFilteredMatches,
+        getActiveMatches,
         getProcessedData,
         getCandyData,
         getLatency,
+        getAllMatches,
     };
 }
