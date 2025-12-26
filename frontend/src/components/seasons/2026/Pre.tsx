@@ -10,7 +10,7 @@ export default function PrePhase({data, setData}: {
     setData: React.Dispatch<React.SetStateAction<MatchScoutingData>>
 }) {
     // === Hooks / API ===
-    const {claimTeam, unclaimTeam, getTeamList, getScouterState} = useAPI()
+    const {claimTeam, unclaimTeam, getTeamList, getScouterState, getScouterSchedule} = useAPI()
     const {isOnline, serverOnline} = useClientEnvironment()
 
     // === Local State ===
@@ -23,6 +23,7 @@ export default function PrePhase({data, setData}: {
     const [lastClaimedTeam, setLastClaimedTeam] = useState<number | null>(null) // backup to restore if user leaves manual entry
     const [imageErrors, setImageErrors] = useState<Record<number, boolean>>({});
     const [teamNames, setTeamNames] = useState<Record<string, string>>({});
+    const [schedule, setSchedule] = useState<Awaited<ReturnType<typeof getScouterSchedule>>>([])
 
     // === Derived constants ===
     const {match, alliance, match_type, teamNumber} = data
@@ -89,7 +90,13 @@ export default function PrePhase({data, setData}: {
                         ? prev
                         : prev.map(t =>
                             t.number in teamsMap
-                                ? {...t, scouter: teamsMap[t.number].scouter}
+                                ? {
+                                    ...t,
+                                    scouter: teamsMap[t.number].scouter,
+                                    name: teamsMap[t.number].name,
+                                    assigned_scouter: teamsMap[t.number].assigned_scouter,
+                                    assigned_name: teamsMap[t.number].assigned_name,
+                                }
                                 : t
                         )
                 )
@@ -104,6 +111,20 @@ export default function PrePhase({data, setData}: {
             clearInterval(id)
         }
     }, [isOnline, serverOnline, match, alliance, match_type])
+
+    useEffect(() => {
+        if (!(isOnline && serverOnline)) return
+
+        let alive = true
+        void (async () => {
+            const res = await getScouterSchedule()
+            if (alive) setSchedule(res)
+        })()
+
+        return () => {
+            alive = false
+        }
+    }, [isOnline, serverOnline])
 
     // === Manual entry: show icon preview ===
     useEffect(() => {
@@ -373,6 +394,9 @@ export default function PrePhase({data, setData}: {
                                     )
                                 }
 
+                                const isAssignedToMe =
+                                    team.assigned_scouter === scouterEmail
+
                                 // state per team
                                 const isSelected = teamNumber === team.number
                                 const isClaimed = team.scouter !== null && team.number !== teamNumber
@@ -383,9 +407,11 @@ export default function PrePhase({data, setData}: {
                                         key={team.number}
                                         disabled={isClaimed || claiming}
                                         onClick={() => handleTeamSelect(team.number)}
-                                        className={`w-full py-2 px-4 rounded flex items-center justify-center gap-3 ${
-                                            isSelected ? 'bg-zinc-500' : 'bg-zinc-700'
-                                        } ${(isClaimed || claiming) ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                        className={`w-full py-2 px-4 rounded flex items-center justify-center gap-3 
+                                        ${isSelected ? 'bg-zinc-500' : 'bg-zinc-700'}
+                                        ${isAssignedToMe ? 'ring-2 ring-yellow-400' : ''}
+                                        ${(isClaimed || claiming) ? 'opacity-50 cursor-not-allowed' : ''}`
+                                        }
                                     >
 
                                         {/* team color bubble */}
@@ -418,12 +444,21 @@ export default function PrePhase({data, setData}: {
                                             <span>{team.number}</span>
                                         </div>
 
+                                        {isAssignedToMe && (
+                                            <span className="text-xs text-yellow-400 font-medium">
+                                                Assigned to you
+                                            </span>
+                                        )}
+
                                         {/* show claim info */}
                                         {isClaimed && (
                                             <span className="text-sm">
-                                                {team.scouter === scouterEmail ? "Scouting by you" : `Scouting by ${team.scouter}`}
+                                                {team.scouter === scouterEmail
+                                                    ? "Scouting by you"
+                                                    : `Scouting by ${team.name ?? "another scouter"}`}
                                             </span>
                                         )}
+
                                     </button>
                                 )
                             })
@@ -431,6 +466,39 @@ export default function PrePhase({data, setData}: {
                     </div>
                 )}
             </div>
+
+            {schedule.length > 0 && (
+                <div className="mt-4">
+                    <div className="text-sm font-medium text-zinc-300 mb-2">
+                        Your Upcoming Assignments
+                    </div>
+
+                    <div className="flex flex-col gap-1">
+                        {schedule.map((s, i) => (
+                            <div
+                                key={i}
+                                className="text-xs flex justify-between items-center px-3 py-2 rounded bg-zinc-800"
+                            >
+                                <span>
+                                    {s.match_type.toUpperCase()} {s.match_number}
+                                    {s.set_number != 1 ? `-${s.set_number}` : ""}
+                                </span>
+
+                                <span
+                                    className={`font-medium ${
+                                        s.alliance === "red"
+                                            ? "text-red-400"
+                                            : "text-blue-400"
+                                    }`}
+                                >
+                        Team {s.robot}
+                    </span>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+
         </div>
     )
 }

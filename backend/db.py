@@ -499,6 +499,316 @@ async def get_match_scouting(
         await release_db_connection(DB_NAME, conn)
 
 
+async def get_match_scouters_schedule(
+    match_type: enums.MatchType,
+    match_number: int,
+    alliance: enums.AllianceType,
+    set_number: int = 1,
+) -> Optional[list[Optional[str]]]:
+    """
+    Fetch the 3 assigned scouters for a given alliance in a match,
+    scoped to the current_event from metadata.
+
+    Returns (order preserved):
+        ["scouter1", "scouter2", "scouter3"]
+
+    Returns None if the match does not exist.
+    """
+
+    conn = await get_db_connection(DB_NAME)
+    try:
+        row = await conn.fetchrow("""
+            SELECT
+                red1_scouter, red2_scouter, red3_scouter,
+                blue1_scouter, blue2_scouter, blue3_scouter
+            FROM matches
+            WHERE event_key = (SELECT current_event FROM metadata LIMIT 1)
+              AND match_type = $1
+              AND match_number = $2
+              AND set_number = $3
+            LIMIT 1
+        """, match_type.value, match_number, set_number)
+
+        if not row:
+            return None
+
+        if alliance == enums.AllianceType.RED:
+            return [
+                row["red1_scouter"],
+                row["red2_scouter"],
+                row["red3_scouter"],
+            ]
+        elif alliance == enums.AllianceType.BLUE:
+            return [
+                row["blue1_scouter"],
+                row["blue2_scouter"],
+                row["blue3_scouter"],
+            ]
+        else:
+            raise HTTPException(status_code=400, detail="Invalid alliance")
+
+    except PostgresError as e:
+        logger.error("Failed to fetch match scouters: %s", e)
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to fetch match scouters"
+        )
+    finally:
+        await release_db_connection(DB_NAME, conn)
+
+
+async def get_scouters_match_schedule(
+    scouter: str,
+    event_key: Optional[str] = None,
+) -> list[Dict[str, Any]]:
+    """
+    Fetch the full match schedule for a given scouter.
+
+    Returns all matches where the scouter is assigned in the `matches` table,
+    including match_type, match_number, alliance, and robot (team number).
+
+    Args:
+        scouter: scouter email (users.email)
+        event_key: optional event key; defaults to current_event from metadata
+
+    Returns:
+        [
+            {
+                "match_type": str,
+                "match_number": int,
+                "set_number": int,
+                "alliance": "red" | "blue",
+                "robot": int,
+            },
+            ...
+        ]
+    """
+
+    conn = await get_db_connection(DB_NAME)
+    try:
+        rows = await conn.fetch("""
+            SELECT
+                match_type,
+                match_number,
+                set_number,
+                red1, red2, red3,
+                blue1, blue2, blue3,
+                red1_scouter, red2_scouter, red3_scouter,
+                blue1_scouter, blue2_scouter, blue3_scouter
+            FROM matches
+            WHERE event_key = COALESCE(
+                $1,
+                (SELECT current_event FROM metadata LIMIT 1)
+            )
+              AND (
+                   red1_scouter = $2 OR red2_scouter = $2 OR red3_scouter = $2
+                OR blue1_scouter = $2 OR blue2_scouter = $2 OR blue3_scouter = $2
+              )
+            ORDER BY match_type, match_number, set_number
+        """, event_key, scouter)
+
+        results: list[Dict[str, Any]] = []
+
+        for r in rows:
+            # Red alliance
+            if r["red1_scouter"] == scouter:
+                results.append({
+                    "match_type": r["match_type"],
+                    "match_number": r["match_number"],
+                    "set_number": r["set_number"],
+                    "alliance": enums.AllianceType.RED.value,
+                    "robot": r["red1"],
+                })
+            if r["red2_scouter"] == scouter:
+                results.append({
+                    "match_type": r["match_type"],
+                    "match_number": r["match_number"],
+                    "set_number": r["set_number"],
+                    "alliance": enums.AllianceType.RED.value,
+                    "robot": r["red2"],
+                })
+            if r["red3_scouter"] == scouter:
+                results.append({
+                    "match_type": r["match_type"],
+                    "match_number": r["match_number"],
+                    "set_number": r["set_number"],
+                    "alliance": enums.AllianceType.RED.value,
+                    "robot": r["red3"],
+                })
+
+            # Blue alliance
+            if r["blue1_scouter"] == scouter:
+                results.append({
+                    "match_type": r["match_type"],
+                    "match_number": r["match_number"],
+                    "set_number": r["set_number"],
+                    "alliance": enums.AllianceType.BLUE.value,
+                    "robot": r["blue1"],
+                })
+            if r["blue2_scouter"] == scouter:
+                results.append({
+                    "match_type": r["match_type"],
+                    "match_number": r["match_number"],
+                    "set_number": r["set_number"],
+                    "alliance": enums.AllianceType.BLUE.value,
+                    "robot": r["blue2"],
+                })
+            if r["blue3_scouter"] == scouter:
+                results.append({
+                    "match_type": r["match_type"],
+                    "match_number": r["match_number"],
+                    "set_number": r["set_number"],
+                    "alliance": enums.AllianceType.BLUE.value,
+                    "robot": r["blue3"],
+                })
+
+        return results
+
+    except PostgresError as e:
+        logger.error("Failed to fetch scouter match schedule: %s", e)
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to fetch scouter match schedule"
+        )
+    finally:
+        await release_db_connection(DB_NAME, conn)
+
+
+async def get_all_matches() -> list[Dict[str, Any]]:
+    """
+    Fetch all matches for the current event from metadata.
+
+    Returns:
+        [
+            {
+                "key": str,
+                "event_key": str,
+                "match_type": str,
+                "match_number": int,
+                "set_number": int,
+                "scheduled_time": datetime | None,
+                "actual_time": datetime | None,
+                "red1": int | None,
+                "red2": int | None,
+                "red3": int | None,
+                "blue1": int | None,
+                "blue2": int | None,
+                "blue3": int | None,
+                "red1_scouter": str | None,
+                "red2_scouter": str | None,
+                "red3_scouter": str | None,
+                "blue1_scouter": str | None,
+                "blue2_scouter": str | None,
+                "blue3_scouter": str | None,
+            },
+            ...
+        ]
+    """
+    conn = await get_db_connection(DB_NAME)
+    try:
+        rows = await conn.fetch("""
+                                SELECT key,
+                                       event_key,
+                                       match_type,
+                                       match_number,
+                                       set_number,
+                                       scheduled_time,
+                                       actual_time,
+                                       red1,
+                                       red2,
+                                       red3,
+                                       blue1,
+                                       blue2,
+                                       blue3,
+                                       red1_scouter,
+                                       red2_scouter,
+                                       red3_scouter,
+                                       blue1_scouter,
+                                       blue2_scouter,
+                                       blue3_scouter
+                                FROM matches
+                                WHERE event_key = (SELECT current_event
+                                                   FROM metadata
+                                                   LIMIT 1)
+                                ORDER BY match_type, match_number, set_number
+                                """)
+
+        return [
+            {
+                "key": r["key"],
+                "event_key": r["event_key"],
+                "match_type": r["match_type"],
+                "match_number": r["match_number"],
+                "set_number": r["set_number"],
+                "scheduled_time": r["scheduled_time"],
+                "actual_time": r["actual_time"],
+                "red1": r["red1"],
+                "red2": r["red2"],
+                "red3": r["red3"],
+                "blue1": r["blue1"],
+                "blue2": r["blue2"],
+                "blue3": r["blue3"],
+                "red1_scouter": _from_db_scouter(r["red1_scouter"]),
+                "red2_scouter": _from_db_scouter(r["red2_scouter"]),
+                "red3_scouter": _from_db_scouter(r["red3_scouter"]),
+                "blue1_scouter": _from_db_scouter(r["blue1_scouter"]),
+                "blue2_scouter": _from_db_scouter(r["blue2_scouter"]),
+                "blue3_scouter": _from_db_scouter(r["blue3_scouter"]),
+            }
+            for r in rows
+        ]
+
+    except PostgresError as e:
+        logger.error("Failed to fetch matches: %s", e)
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to fetch matches"
+        )
+    finally:
+        await release_db_connection(DB_NAME, conn)
+
+
+async def get_match_scout_users() -> list[Dict[str, str]]:
+    """
+    Fetch all users who are allowed to do match scouting.
+
+    Returns:
+        [
+            {
+                "email": str,
+                "name": str,
+            },
+            ...
+        ]
+    """
+    conn = await get_db_connection(DB_NAME)
+    try:
+        rows = await conn.fetch("""
+            SELECT email, name
+            FROM users
+            WHERE perm_match_scout = TRUE
+              AND approval = 'approved'
+            ORDER BY name
+        """)
+
+        return [
+            {
+                "email": r["email"],
+                "name": r["name"],
+            }
+            for r in rows
+        ]
+
+    except PostgresError as e:
+        logger.error("Failed to fetch match scout users: %s", e)
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to fetch match scout users"
+        )
+    finally:
+        await release_db_connection(DB_NAME, conn)
+
+
 # =================== Pit Scouting ===================
 
 async def add_pit_scouting(

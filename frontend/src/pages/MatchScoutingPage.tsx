@@ -1,4 +1,4 @@
-import {useState, useEffect} from 'react'
+import {useState, useEffect, useRef} from 'react'
 
 import {useNavigate} from "react-router-dom"
 
@@ -23,6 +23,28 @@ const PHASE_ORDER: Phase[] = ['pre', 'auto', 'teleop', 'post']
 export default function MatchScoutingPage() {
     // 1. External hooks
     const navigate = useNavigate()
+
+    const didUnclaimRef = useRef(false);
+
+    const tryUnclaim = () => {
+        if (didUnclaimRef.current) return;
+
+        const {match, match_type, teamNumber} = scoutingData;
+
+        if (!match || !match_type || !teamNumber) return;
+        if (submitStatus === "success" || submitStatus === "local") return;
+        if (!isOnline || !serverOnline) return;
+
+        didUnclaimRef.current = true;
+
+        unclaimTeamBeacon(
+            match,
+            teamNumber,
+            match_type,
+            scouterEmail
+        );
+    };
+
 
     const {submitData, verify, claimTeam, unclaimTeam, unclaimTeamBeacon, updateState} = useAPI()
     const {isOnline, serverOnline} = useClientEnvironment()
@@ -105,19 +127,38 @@ export default function MatchScoutingPage() {
     }, [phase, phaseIndex, scoutingData.match, scoutingData.match_type, scoutingData.teamNumber]);
 
     useEffect(() => {
-        const handleUnload = () => {
-            const {match, match_type, teamNumber} = scoutingData;
-            if (!match || !match_type || !teamNumber) return;
-            if (submitStatus === "success" || submitStatus === "local") return;
-            if (isOnline && serverOnline)
-                unclaimTeamBeacon(match, teamNumber, match_type, scouterEmail);
+        const onVisibilityChange = () => {
+            if (document.visibilityState === "hidden") {
+                tryUnclaim();
+            }
         };
 
-        window.addEventListener("beforeunload", handleUnload);
-        return () => {
-            window.removeEventListener("beforeunload", handleUnload);
+        const onPageHide = () => {
+            tryUnclaim();
         };
-    }, [scoutingData.match, scoutingData.match_type, scoutingData.teamNumber, isOnline, serverOnline]);
+
+        const onBeforeUnload = () => {
+            tryUnclaim();
+        };
+
+        document.addEventListener("visibilitychange", onVisibilityChange);
+        window.addEventListener("pagehide", onPageHide);
+        window.addEventListener("beforeunload", onBeforeUnload);
+
+        return () => {
+            document.removeEventListener("visibilitychange", onVisibilityChange);
+            window.removeEventListener("pagehide", onPageHide);
+            window.removeEventListener("beforeunload", onBeforeUnload);
+        };
+    }, [
+        scoutingData.match,
+        scoutingData.match_type,
+        scoutingData.teamNumber,
+        submitStatus,
+        isOnline,
+        serverOnline
+    ]);
+
 
     useEffect(() => {
         console.log("scoutingData updated:", scoutingData)
@@ -185,7 +226,6 @@ export default function MatchScoutingPage() {
             }, 1000)
         }
     }
-
 
     const handleNext = async () => {
         if (baseDisabled) return

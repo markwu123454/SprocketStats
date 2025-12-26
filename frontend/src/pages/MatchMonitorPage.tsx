@@ -1,36 +1,36 @@
 import {useEffect, useState} from "react"
-import {useAPI} from "@/hooks/useAPI.ts"
-import {Loader2} from "lucide-react"
-import {getSettingSync, type Settings} from "@/db/settingsDb"
+import {Loader2, AlertTriangle} from "lucide-react"
+import {useAPI} from "@/hooks/useAPI"
+import {HeaderFooterLayoutWrapper} from "@/components/wrappers/HeaderFooterLayoutWrapper"
 
-type MatchRow = {
-    match: number
-    match_type: "qm" | "sf" | "f" | string
-    team: string
-    alliance: "red" | "blue"
+type ActiveMatches = {
+    [matchType: string]: {
+        [matchNumber: number]: {
+            time: number | null
+            red: Record<number, TeamData>
+            blue: Record<number, TeamData>
+        }
+    }
+}
+
+type TeamData = {
     scouter: string | null
-    status: string
-    last_modified: number
+    name: string | null
+    assigned_scouter: string | null
+    assigned_name: string | null
+    phase: string
 }
 
 export default function AdminMonitoringPage() {
-    const {getFilteredMatches} = useAPI()
-    const [rows, setRows] = useState<MatchRow[]>([])
+    const {getActiveMatches} = useAPI()
+    const [matches, setMatches] = useState<ActiveMatches>({})
     const [loading, setLoading] = useState(true)
     const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
-    const [theme] = useState<Settings["theme"]>(() => getSettingSync("theme", "2025"))
 
-    // --- Fetch every 5 seconds ---
     const loadData = async () => {
         try {
-            const res = await getFilteredMatches(undefined, ["pre", "auto", "teleop", "post"])
-            setRows(
-                res.map(r => ({
-                    ...r,
-                    alliance: r.alliance as "red" | "blue",
-                }))
-            )
-
+            const res = await getActiveMatches()
+            setMatches(res)
             setLastUpdated(new Date())
         } finally {
             setLoading(false)
@@ -43,139 +43,192 @@ export default function AdminMonitoringPage() {
         return () => clearInterval(id)
     }, [])
 
-    // --- Group by match (type+number), then split by alliance ---
-    const grouped = rows.reduce((acc, r) => {
-        const key = `${r.match_type}-${r.match}`
-        if (!acc[key]) acc[key] = {type: r.match_type, num: r.match, red: [], blue: []}
-        acc[key][r.alliance].push(r)
-        return acc
-    }, {} as Record<string, { type: string; num: number; red: MatchRow[]; blue: MatchRow[] }>)
+    const isStartingSoon = (time: number | null) =>
+        time !== null && Math.abs(time - Date.now()) <= 10 * 60 * 1000
 
-    // --- Sort: type order (qm → sf → f) then by number ---
-    const typeOrder: Record<string, number> = {qm: 1, sf: 2, f: 3}
-    const sortedMatches = Object.values(grouped).sort((a, b) => {
-        const typeA = typeOrder[a.type] ?? 99
-        const typeB = typeOrder[b.type] ?? 99
-        if (typeA !== typeB) return typeA - typeB
-        return a.num - b.num
-    })
+    const hasMismatch = (
+        assignedId: string | null,
+        actualId: string | null
+    ) =>
+        assignedId !== null &&
+        actualId !== null &&
+        assignedId !== actualId
+
+    const matchCards = Object.entries(matches).flatMap(([type, byNumber]) =>
+        Object.entries(byNumber).map(([num, match]) => ({
+            type,
+            num: Number(num),
+            ...match,
+        }))
+    )
 
     return (
-        <div
-            className={`
-                min-h-screen relative text-sm transition-colors duration-500
-                ${theme === "light" ? "text-zinc-900" : ""}
-                ${theme === "dark" ? "text-white" : ""}
-                ${theme === "2025" ? "text-white" : ""}
-                ${theme === "2026" ? "text-[#3b2d00]" : ""}
-            `}
-        >
-            {/* --- Background --- */}
-            <div
-                className={`
-                    absolute inset-0 bg-top bg-cover transition-colors duration-500
-                    ${theme === "light" ? "bg-zinc-100" : ""}
-                    ${theme === "dark" ? "bg-zinc-950" : ""}
-                    ${theme === "2025" ? "bg-[url('/seasons/2025/expanded.png')]" : ""}
-                    ${theme === "2026" ? "bg-[url('/seasons/2026/expanded.png')]" : ""}
-                `}
-            />
-
-            {/* --- Foreground --- */}
-            <div className="relative z-10 p-6 space-y-8">
-                <div className="flex items-center justify-between">
-                    <h1 className="text-2xl font-bold">Match Scouting Monitor</h1>
-                    <div className="text-xs opacity-70">
-                        {lastUpdated ? `Updated ${lastUpdated.toLocaleTimeString()}` : "Loading..."}
-                    </div>
+        <HeaderFooterLayoutWrapper
+            header={
+                <div className="flex justify-between items-center w-full">
+                    <h1 className="text-xl font-bold">
+                        Match Scouting Monitor
+                    </h1>
+                    <span className="text-xs opacity-70">
+                        {lastUpdated
+                            ? `Updated ${lastUpdated.toLocaleTimeString()}`
+                            : "Loading…"}
+                    </span>
                 </div>
+            }
 
-                {loading ? (
-                    <div className="flex justify-center py-10">
+            body={
+                loading ? (
+                    <div className="flex justify-center py-16">
                         <Loader2 className="animate-spin h-6 w-6 opacity-60"/>
                     </div>
-                ) : sortedMatches.length === 0 ? (
-                    <div className="text-center opacity-70 py-10">
-                        No active scouting in progress.
+                ) : matchCards.length === 0 ? (
+                    <div className="text-center opacity-70 py-16">
+                        No active matches.
                     </div>
                 ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-                        {sortedMatches.map(({type, num, red, blue}) => (
+                        {matchCards.map(match => {
+                            const soon = isStartingSoon(match.time)
+
+                            return (
+                                <div
+                                    key={`${match.type}-${match.num}`}
+                                    className={`
+                                        p-5 rounded-lg border shadow-lg backdrop-blur-sm
+                                        theme-bg theme-border
+                                        ${soon ? "ring-2 ring-yellow-400/70" : ""}
+                                    `}
+                                >
+                                    {/* Match Header */}
+                                    <div className="flex justify-between items-center mb-3">
+                                        <div className="font-semibold flex items-center gap-2">
+                                            {match.type.toUpperCase()} {match.num}
+                                            {isStartingSoon(match.time) && (
+                                                <span className="text-red-500 text-xs flex items-center gap-1">
+                                                    <AlertTriangle className="h-4 w-4"/>
+                                                    Starting Soon
+                                                </span>
+                                            )}
+                                        </div>
+
+                                        <span className="text-xs opacity-70">
+                                            {match.time
+                                                ? new Date(match.time).toLocaleString(undefined, {
+                                                    month: "short",
+                                                    day: "numeric",
+                                                    hour: "2-digit",
+                                                    minute: "2-digit",
+                                                })
+                                                : "—"}
+                                        </span>
+                                    </div>
+
+
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <AllianceColumn
+                                            title="Red Alliance"
+                                            color="red"
+                                            teams={match.red}
+                                            hasMismatch={hasMismatch}
+                                        />
+                                        <AllianceColumn
+                                            title="Blue Alliance"
+                                            color="blue"
+                                            teams={match.blue}
+                                            hasMismatch={hasMismatch}
+                                        />
+                                    </div>
+                                </div>
+                            )
+                        })}
+                    </div>
+                )
+            }
+
+            footer={
+                <>
+                    <span>Admin Monitoring</span>
+                    <span className="opacity-70">
+                        Live · 2s refresh
+                    </span>
+                </>
+            }
+        />
+    )
+}
+
+/* ---------------------------------- */
+/* Alliance Column                     */
+
+/* ---------------------------------- */
+
+function AllianceColumn({
+                            title,
+                            color,
+                            teams,
+                            hasMismatch,
+                        }: {
+    title: string
+    color: "red" | "blue"
+    teams: Record<number, TeamData>
+    hasMismatch: (a: string | null, b: string | null) => boolean
+}) {
+    const entries = Object.entries(teams)
+
+    return (
+        <div>
+            <div className={`font-medium mb-1 text-${color}-400`}>
+                {title}
+            </div>
+
+            {entries.length === 0 ? (
+                <div className="text-xs opacity-50">—</div>
+            ) : (
+                <div className="space-y-1">
+                    {entries.map(([team, data]) => {
+                        const mismatch = hasMismatch(
+                            data.assigned_scouter,
+                            data.scouter
+                        )
+
+                        return (
                             <div
-                                key={`${type}-${num}`}
+                                key={team}
                                 className={`
-                                    relative z-10 w-full p-5 rounded-lg shadow-lg border transition-colors duration-500 backdrop-blur-sm
-                                    ${theme === "dark" ? "bg-zinc-950/70 border-zinc-800 text-white" : ""}
-                                    ${theme === "light" ? "bg-white border-zinc-300 text-zinc-900" : ""}
-                                    ${theme === "2025" ? "bg-[#0b234f]/70 border-[#1b3d80] text-white" : ""}
-                                    ${theme === "2026" ? "bg-[#fef7dc]/80 border-[#e6ddae] text-[#3b2d00]" : ""}
+                                flex justify-between items-center
+                                px-3 py-1.5 rounded-md
+                                bg-${color}-500/10
+                                ${mismatch ? "ring-1 ring-red-500/70" : ""}
                                 `}
                             >
-                                <div className="flex justify-between items-center mb-3">
-                                    <div className="font-semibold">
-                                        {type.toUpperCase()} {num}
+                                <span className="font-semibold">
+                                    #{team}
+                                </span>
+
+                                <div className="text-right text-xs">
+                                    <div>
+                                        Assigned: {data.assigned_name ?? "—"}
                                     </div>
-                                    <div className="text-xs opacity-70">
-                                        {red.length + blue.length} teams
+                                    <div
+                                        className={
+                                            mismatch
+                                                ? "text-red-500 font-semibold"
+                                                : "opacity-80"
+                                        }
+                                    >
+                                        Scouting: {data.name ?? "—"}
                                     </div>
                                 </div>
 
-                                <div className="grid grid-cols-2 gap-3">
-                                    {/* --- Red Alliance --- */}
-                                    <div>
-                                        <div className="font-medium text-red-400 mb-1">
-                                            Red Alliance
-                                        </div>
-                                        {red.length === 0 ? (
-                                            <div className="text-xs opacity-50">—</div>
-                                        ) : (
-                                            <div className="space-y-1">
-                                                {red.map((r, i) => (
-                                                    <div
-                                                        key={i}
-                                                        className="flex justify-between items-center bg-red-500/10 px-3 py-1.5 rounded-md"
-                                                    >
-                                                        <span className="font-semibold">#{r.team}</span>
-                                                        <span className="opacity-90">{r.scouter ?? "—"}</span>
-                                                        <span className="text-xs capitalize opacity-80">
-                                                            {r.status}
-                                                        </span>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        )}
-                                    </div>
-
-                                    {/* --- Blue Alliance --- */}
-                                    <div>
-                                        <div className="font-medium text-blue-400 mb-1">
-                                            Blue Alliance
-                                        </div>
-                                        {blue.length === 0 ? (
-                                            <div className="text-xs opacity-50">—</div>
-                                        ) : (
-                                            <div className="space-y-1">
-                                                {blue.map((r, i) => (
-                                                    <div
-                                                        key={i}
-                                                        className="flex justify-between items-center bg-blue-500/10 px-3 py-1.5 rounded-md"
-                                                    >
-                                                        <span className="font-semibold">#{r.team}</span>
-                                                        <span className="opacity-90">{r.scouter ?? "—"}</span>
-                                                        <span className="text-xs capitalize opacity-80">
-                                                            {r.status}
-                                                        </span>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
+                                <span className="text-xs capitalize opacity-80">
+                                    {data.phase}
+                                </span>
                             </div>
-                        ))}
-                    </div>
-                )}
-            </div>
+                        )
+                    })}
+                </div>
+            )}
         </div>
     )
 }
