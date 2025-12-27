@@ -3,8 +3,9 @@ import json
 import time
 import uuid
 from datetime import datetime, timezone, timedelta
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 from fastapi import Depends, HTTPException, Body, APIRouter, Request, Query, status
+from pydantic import BaseModel
 from starlette.responses import HTMLResponse
 from google.oauth2 import id_token
 from google.auth.transport import requests as g_requests
@@ -785,7 +786,7 @@ async def get_scouter_match_schedule(
     }
 
 
-@router.get("/matches")
+@router.get("/matches/schedule")
 async def get_all_matches(
     _: enums.SessionInfo = Depends(db.require_permission("admin")),
 ):
@@ -801,6 +802,49 @@ async def get_all_matches(
         "scouters": await db.get_match_scout_users(),
     }
 
+
+class MatchUpdate(BaseModel):
+    key: str
+    scheduled_time: datetime | None = None
+    actual_time: datetime | None = None
+    red1: int | None = None
+    red2: int | None = None
+    red3: int | None = None
+    blue1: int | None = None
+    blue2: int | None = None
+    blue3: int | None = None
+    red1_scouter: str | None = None
+    red2_scouter: str | None = None
+    red3_scouter: str | None = None
+    blue1_scouter: str | None = None
+    blue2_scouter: str | None = None
+    blue3_scouter: str | None = None
+
+
+class BulkMatchUpdate(BaseModel):
+    matches: List[MatchUpdate]
+
+
+@router.patch("/matches/schedule")
+async def update_match_schedule(
+    payload: BulkMatchUpdate = Body(...),
+    _: enums.SessionInfo = Depends(db.require_permission("admin")),
+):
+    """
+    Bulk update match schedule, teams, and scouter assignments.
+
+    Admin-only endpoint.
+    Used for scheduling, assignments, and bulk editing.
+    """
+    if not payload.matches:
+        raise HTTPException(
+            status_code=400,
+            detail="No match updates provided",
+        )
+
+    await db.update_matches_bulk(payload.matches)
+
+    return {"status": "ok"}
 
 
 # === Pit scouting ===
