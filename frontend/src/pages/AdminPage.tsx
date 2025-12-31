@@ -91,27 +91,6 @@ export default function AdminPage() {
                     {/* LEFT: ROUTING HUB */}
                     <section className="space-y-4">
 
-                        {/* Status Cards */}
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                            {[
-                                {label: "Total Matches", value: kpis.totalMatches, icon: Activity},
-                                {label: "Scouted", value: kpis.scouted, icon: BarChart2},
-                                {label: "Pending", value: kpis.pending, icon: Search},
-                                {label: "Current Match", value: kpis.currentMatch, icon: Monitor},
-                            ].map((item, i) => (
-                                <div
-                                    key={i}
-                                    className="p-3 rounded-xl border shadow backdrop-blur-sm theme-bg theme-border"
-                                >
-                                    <div className="flex items-center gap-2 opacity-80 text-xs">
-                                        <item.icon className="w-4 h-4"/>
-                                        {item.label}
-                                    </div>
-                                    <p className="text-xl font-bold pt-1">{item.value}</p>
-                                </div>
-                            ))}
-                        </div>
-
                         {/* Navigation Cards */}
                         <div onClick={() => navigate("/admin/monitor")}
                              className="p-4 rounded-xl border cursor-pointer shadow-md transition hover:scale-[1.02] active:scale-[0.98] backdrop-blur-sm theme-bg theme-border">

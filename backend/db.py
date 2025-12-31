@@ -51,13 +51,15 @@ import asyncpg
 import json
 import time
 import logging
-from typing import Dict, Any, Optional, Callable, Annotated, Awaitable
+from typing import Dict, Any, Optional, Callable, Annotated, Awaitable, List
 import dotenv
 from fastapi import HTTPException, Header, Depends
 from datetime import datetime, timezone
 import uuid
 from asyncpg import PostgresError
 from asyncpg.exceptions import UniqueViolationError
+from pydantic import BaseModel
+
 import enums
 import os, ssl
 import certifi
@@ -807,6 +809,90 @@ async def get_match_scout_users() -> list[Dict[str, str]]:
         )
     finally:
         await release_db_connection(DB_NAME, conn)
+
+
+class MatchUpdate(BaseModel):
+    key: str
+    scheduled_time: datetime | None = None
+    actual_time: datetime | None = None
+    red1: int | None = None
+    red2: int | None = None
+    red3: int | None = None
+    blue1: int | None = None
+    blue2: int | None = None
+    blue3: int | None = None
+    red1_scouter: str | None = None
+    red2_scouter: str | None = None
+    red3_scouter: str | None = None
+    blue1_scouter: str | None = None
+    blue2_scouter: str | None = None
+    blue3_scouter: str | None = None
+
+async def update_matches_bulk(
+    updates: list[MatchUpdate]
+) -> None:
+    if not updates:
+        return
+
+    conn = await get_db_connection(DB_NAME)
+    try:
+        # Fetch current rows
+        keys = [u.key for u in updates]
+        rows = await conn.fetch(
+            """
+            SELECT *
+            FROM matches
+            WHERE key = ANY($1)
+            """,
+            keys,
+        )
+
+        current_by_key = {r["key"]: r for r in rows}
+
+        await conn.executemany(
+            """
+            UPDATE matches
+            SET scheduled_time = $2,
+                actual_time    = $3,
+                red1           = $4,
+                red2           = $5,
+                red3           = $6,
+                blue1          = $7,
+                blue2          = $8,
+                blue3          = $9,
+                red1_scouter   = $10,
+                red2_scouter   = $11,
+                red3_scouter   = $12,
+                blue1_scouter  = $13,
+                blue2_scouter  = $14,
+                blue3_scouter  = $15
+            WHERE key = $1
+            """,
+            [
+                (
+                    u.key,
+                    u.scheduled_time if u.scheduled_time is not None else current_by_key[u.key]["scheduled_time"],
+                    u.actual_time    if u.actual_time    is not None else current_by_key[u.key]["actual_time"],
+                    u.red1           if u.red1           is not None else current_by_key[u.key]["red1"],
+                    u.red2           if u.red2           is not None else current_by_key[u.key]["red2"],
+                    u.red3           if u.red3           is not None else current_by_key[u.key]["red3"],
+                    u.blue1          if u.blue1          is not None else current_by_key[u.key]["blue1"],
+                    u.blue2          if u.blue2          is not None else current_by_key[u.key]["blue2"],
+                    u.blue3          if u.blue3          is not None else current_by_key[u.key]["blue3"],
+                    u.red1_scouter   if u.red1_scouter   is not None else current_by_key[u.key]["red1_scouter"],
+                    u.red2_scouter   if u.red2_scouter   is not None else current_by_key[u.key]["red2_scouter"],
+                    u.red3_scouter   if u.red3_scouter   is not None else current_by_key[u.key]["red3_scouter"],
+                    u.blue1_scouter  if u.blue1_scouter  is not None else current_by_key[u.key]["blue1_scouter"],
+                    u.blue2_scouter  if u.blue2_scouter  is not None else current_by_key[u.key]["blue2_scouter"],
+                    u.blue3_scouter  if u.blue3_scouter  is not None else current_by_key[u.key]["blue3_scouter"],
+                )
+                for u in updates
+            ],
+        )
+
+    finally:
+        await release_db_connection(DB_NAME, conn)
+
 
 
 # =================== Pit Scouting ===================

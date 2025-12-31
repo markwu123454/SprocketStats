@@ -180,10 +180,7 @@ public partial class MainWindow
         // save current input BEFORE moving into history
         if (_historyIndex == _commandHistory.Count) _currentInputBuffer = CommandInput.Text;
 
-        if (up)
-            _historyIndex = Math.Max(0, _historyIndex - 1);
-        else
-            _historyIndex = Math.Min(_commandHistory.Count, _historyIndex + 1);
+        _historyIndex = up ? Math.Max(0, _historyIndex - 1) : Math.Min(_commandHistory.Count, _historyIndex + 1);
 
         if (_historyIndex >= 0 && _historyIndex < _commandHistory.Count)
             CommandInput.Text = _commandHistory[_historyIndex];

@@ -1,185 +1,293 @@
-import { ArrowLeft } from "lucide-react"
-import { useEffect, useMemo, useState } from "react"
-import { AgGridReact } from "ag-grid-react"
-import type {ColDef} from "ag-grid-community"
-import { themeQuartz } from "ag-grid-community"
-import { HeaderFooterLayoutWrapper } from "@/components/wrappers/HeaderFooterLayoutWrapper"
-import { useAPI } from "@/hooks/useAPI"
-import type { MatchType } from "@/types"
+import {ArrowLeft} from "lucide-react";
+import {useEffect, useMemo, useState} from "react";
+import {useAPI} from "@/hooks/useAPI";
+import {AgGridReact, type CustomCellEditorProps} from "ag-grid-react";
+import {type ColDef, type CellValueChangedEvent, themeQuartz} from "ag-grid-community";
+import {HeaderFooterLayoutWrapper} from "@/components/wrappers/HeaderFooterLayoutWrapper";
+import SearchDropdown, {type SearchItem} from "@/components/ui/searchDropdown";
+import type {MatchType} from "@/types";
 
-// -------------------------------
+// ---------------------------
 // Types
-// -------------------------------
+// ---------------------------
 type MatchRow = {
-    key: string
-    event_key: string
-    match_type: MatchType
-    match_number: number
-    set_number: number
-    scheduled_time: string | null
-    actual_time: string | null
-    red1: number | null
-    red2: number | null
-    red3: number | null
-    blue1: number | null
-    blue2: number | null
-    blue3: number | null
-    red1_scouter: string | null
-    red2_scouter: string | null
-    red3_scouter: string | null
-    blue1_scouter: string | null
-    blue2_scouter: string | null
-    blue3_scouter: string | null
-}
+    key: string;
+    event_key: string;
+    match_type: MatchType;
+    match_number: number;
+    set_number: number;
+    scheduled_time: string | null;
+    actual_time: string | null;
+    red1: number | null;
+    red2: number | null;
+    red3: number | null;
+    blue1: number | null;
+    blue2: number | null;
+    blue3: number | null;
+    red1_scouter: string | null;
+    red2_scouter: string | null;
+    red3_scouter: string | null;
+    blue1_scouter: string | null;
+    blue2_scouter: string | null;
+    blue3_scouter: string | null;
+};
 
 type Scouter = {
-    email: string
-    name: string
-}
+    email: string;
+    name: string;
+};
 
-// -------------------------------
-// Page
-// -------------------------------
+type DirtyCell = {
+    rowKey: string;
+    colId: string;
+    oldValue: string | number | null | undefined;
+    newValue: string | number | null;
+};
+
+// ---------------------------
+// Custom Scouter Editor (REACTIVE API)
+// ---------------------------
+type ScouterEditorProps =
+    CustomCellEditorProps<string | null> & {
+    scouters: Scouter[];
+};
+
+const ScouterCellEditor = ({
+                               value,
+                               onValueChange,
+                               stopEditing,
+                               scouters,
+                           }: ScouterEditorProps) => {
+    const items: SearchItem[] = scouters.map(s => ({
+        id: s.email,
+        label: s.name,
+        value: s.email,
+        keywords: [s.email],
+    }));
+
+    // Find current scouter name for placeholder
+    const currentScouterName =
+        value
+            ? scouters.find(s => s.email === value)?.name ?? value
+            : undefined;
+
+    function handleSelect(item: SearchItem) {
+        onValueChange(item.value); // commit value to AG Grid
+        stopEditing();
+    }
+
+    return (
+        <SearchDropdown
+            items={items}
+            onSelect={handleSelect}
+            placeholder={currentScouterName ? `replace ${currentScouterName} with...` : "Assign scouter…"}
+            maxVisibleResults={6}
+        />
+    );
+};
+
+
+// ---------------------------
+// Page Component
+// ---------------------------
 export default function MatchAssignmentPage() {
-    const { getAllMatches } = useAPI()
+    const {getAllMatches, updateMatchSchedule} = useAPI();
 
-    const [rowData, setRowData] = useState<MatchRow[]>([])
-    const [scouters, setScouters] = useState<Scouter[]>([])
-    const [loading, setLoading] = useState(true)
-    const [dirtyRows, setDirtyRows] = useState<Map<string, MatchRow>>(new Map())
+    const [rowData, setRowData] = useState<MatchRow[]>([]);
+    const [scouters, setScouters] = useState<Scouter[]>([]);
+    const [dirtyCells, setDirtyCells] = useState<Map<string, DirtyCell>>(new Map());
+    const [originalRows, setOriginalRows] = useState<Map<string, MatchRow>>(new Map());
 
-    // -------------------------------
-    // Load data
-    // -------------------------------
+    // Load matches + scouters
     useEffect(() => {
         const load = async () => {
-            setLoading(true)
-            const res = await getAllMatches()
-            if (!res) return
+            const res = await getAllMatches();
+            if (!res) return;
+            setRowData(res.matches);
+            setOriginalRows(new Map(res.matches.map(row => [row.key, {...row}])));
+            setScouters(res.scouters);
+        };
+        void load();
+    }, []);
 
-            setRowData(res.matches)
-            setScouters(res.scouters)
-            setLoading(false)
-        }
-        load()
-    }, [])
-
-    // -------------------------------
-    // Scouter helpers
-    // -------------------------------
+    // Map email → name for display
     const scouterNameByEmail = useMemo(
         () => Object.fromEntries(scouters.map(s => [s.email, s.name])),
         [scouters]
-    )
+    );
 
-    const scouterEmails = useMemo(
-        () => scouters.map(s => s.email),
-        [scouters]
-    )
+    const makeDirtyKey = (rowKey: string, colId: string) =>
+        `${rowKey}::${colId}`;
 
-    const scouterColumn = (headerName: string, field: keyof MatchRow): ColDef => ({
-        headerName,
-        field,
-        width: 180,
-        editable: true,
-
-        cellEditor: "agRichSelectCellEditor",
-        cellEditorParams: {
-            values: scouterEmails,
-            searchType: "contains",
-            allowTyping: true,
-            filterList: true,
-            highlightMatch: true,
+    const defaultColDef: ColDef = {
+        cellClassRules: {
+            "bg-yellow-100": params =>
+                dirtyCells.has(`${params.data.key}::${params.colDef.field}`),
         },
+    };
 
+    // Helper for scouter columns
+    const scouterColumn = (header: string, field: keyof MatchRow): ColDef => ({
+        headerName: header,
+        field,
+        width: 130,
+        editable: true,
+        cellEditor: ScouterCellEditor,
+        cellEditorPopup: true,
+        cellEditorParams: {scouters},
         valueFormatter: params =>
-            params.value
-                ? scouterNameByEmail[params.value] ?? params.value
-                : "",
+            params.value ? scouterNameByEmail[params.value] ?? params.value : "",
+    });
 
-        valueParser: params =>
-            params.newValue === "" ? null : params.newValue,
-    })
-
-    // -------------------------------
     // Column definitions
-    // -------------------------------
     const columnDefs: ColDef[] = [
-        // ---- Match identity (read-only) ----
-        { headerName: "Type", field: "match_type", width: 90, sortable: true },
-        { headerName: "Match", field: "match_number", width: 90, sortable: true },
-        { headerName: "Set", field: "set_number", width: 80, sortable: true },
+        {headerName: "Type", field: "match_type", width: 65},
+        {headerName: "Match", field: "match_number", width: 75},
+        // {headerName: "Set", field: "set_number", width: 55}, set_number should be 1 at all times
 
-        // ---- Times ----
-        { headerName: "Scheduled", field: "scheduled_time", width: 180, editable: true },
-        { headerName: "Actual", field: "actual_time", width: 180, editable: true },
+        {headerName: "Scheduled", field: "scheduled_time", width: 200, editable: true, cellDataType: "dateTimeString"},
+        {headerName: "Actual", field: "actual_time", width: 200, editable: true, cellDataType: "dateTimeString"},
 
-        // ---- Red alliance ----
-        { headerName: "R1", field: "red1", width: 90, editable: true },
-        { headerName: "R2", field: "red2", width: 90, editable: true },
-        { headerName: "R3", field: "red3", width: 90, editable: true },
+        {headerName: "Red 1", field: "red1", width: 75, editable: true},
+        {headerName: "Red 2", field: "red2", width: 75, editable: true},
+        {headerName: "Red 3", field: "red3", width: 75, editable: true},
 
-        scouterColumn("R1 Scouter", "red1_scouter"),
-        scouterColumn("R2 Scouter", "red2_scouter"),
-        scouterColumn("R3 Scouter", "red3_scouter"),
+        scouterColumn("Red 1 Scouter", "red1_scouter"),
+        scouterColumn("Red 2 Scouter", "red2_scouter"),
+        scouterColumn("Red 3 Scouter", "red3_scouter"),
 
-        // ---- Blue alliance ----
-        { headerName: "B1", field: "blue1", width: 90, editable: true },
-        { headerName: "B2", field: "blue2", width: 90, editable: true },
-        { headerName: "B3", field: "blue3", width: 90, editable: true },
+        {headerName: "Blue 1", field: "blue1", width: 75, editable: true},
+        {headerName: "Blue 2", field: "blue2", width: 75, editable: true},
+        {headerName: "Blue 3", field: "blue3", width: 75, editable: true},
 
-        scouterColumn("B1 Scouter", "blue1_scouter"),
-        scouterColumn("B2 Scouter", "blue2_scouter"),
-        scouterColumn("B3 Scouter", "blue3_scouter"),
-    ]
+        scouterColumn("Blue 1 Scouter", "blue1_scouter"),
+        scouterColumn("Blue 2 Scouter", "blue2_scouter"),
+        scouterColumn("Blue 3 Scouter", "blue3_scouter"),
+    ];
 
-    // -------------------------------
-    // Change tracking
-    // -------------------------------
-    const onCellValueChanged = (params: any) => {
-        setDirtyRows(prev => {
-            const next = new Map(prev)
-            next.set(params.data.key, params.data)
-            return next
-        })
-    }
+    // Track edited rows
+    const onCellValueChanged = (
+        params: CellValueChangedEvent<MatchRow>
+    ) => {
 
-    // -------------------------------
-    // Render
-    // -------------------------------
+        const rowKey = params.data.key;
+        const colId = params.colDef.field;
+
+        if (!colId) return;
+
+        const dirtyKey = makeDirtyKey(rowKey, colId);
+        const originalRow = originalRows.get(rowKey);
+        const originalValue = originalRow?.[colId as keyof MatchRow];
+
+        setDirtyCells(prev => {
+            const next = new Map(prev);
+
+            // If reverted to original value → clear dirty state
+            if (String(params.newValue ?? "") === String(originalValue ?? "")) {
+                next.delete(dirtyKey);
+                return next;
+            }
+
+            next.set(dirtyKey, {
+                rowKey,
+                colId,
+                oldValue: originalValue,
+                newValue: params.newValue,
+            });
+
+            return next;
+        });
+    };
+
+
+    const buildPatchPayload = (): {
+        key: string;
+        scheduled_time: string | null;
+        actual_time: string | null;
+        red1: number | null;
+        red2: number | null;
+        red3: number | null;
+        blue1: number | null;
+        blue2: number | null;
+        blue3: number | null;
+        red1_scouter: string | null;
+        red2_scouter: string | null;
+        red3_scouter: string | null;
+        blue1_scouter: string | null;
+        blue2_scouter: string | null;
+        blue3_scouter: string | null;
+    }[] => {
+        const rows = new Map<string, Partial<MatchRow>>();
+
+        for (const dirty of dirtyCells.values()) {
+            if (!rows.has(dirty.rowKey)) {
+                rows.set(dirty.rowKey, {key: dirty.rowKey});
+            }
+
+            rows.get(dirty.rowKey)![dirty.colId as keyof MatchRow] =
+                dirty.newValue as any;
+        }
+
+        return Array.from(rows.values()) as any;
+    };
+
+    const handleSaveChanges = async () => {
+        if (dirtyCells.size === 0) return;
+
+        const payload = buildPatchPayload();
+        const res = await updateMatchSchedule(payload);
+
+        if (!res) return;
+
+        // Commit changes as new baseline
+        setOriginalRows(
+            new Map(rowData.map(r => [r.key, {...r}]))
+        );
+        setDirtyCells(new Map());
+    };
+
+
     return (
         <HeaderFooterLayoutWrapper
             header={
                 <div className="flex items-center gap-4 text-lg font-semibold">
                     <a href="/" className="flex items-center p-2 rounded-md theme-hover">
-                        <ArrowLeft className="h-5 w-5" />
+                        <ArrowLeft className="h-5 w-5"/>
                     </a>
-                    Match Assignments
+
+                    <span>Match Assignments</span>
+
+                    <span className="ml-4 text-sm font-normal text-muted-foreground">
+                        {dirtyCells.size} change{dirtyCells.size === 1 ? "" : "s"}
+                    </span>
+
+                    <button
+                        onClick={handleSaveChanges}
+                        disabled={dirtyCells.size === 0}
+                        className="ml-auto px-4 py-1.5 rounded-md text-sm font-medium
+                       bg-primary text-primary-foreground
+                       disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                        Save changes
+                    </button>
                 </div>
             }
             body={
                 <div className="w-full h-full rounded-md shadow-sm">
-                    {loading ? (
-                        <div className="p-4">Loading matches…</div>
-                    ) : (
-                        <AgGridReact
-                            theme={themeQuartz}
-                            rowData={rowData}
-                            columnDefs={columnDefs}
-                            rowHeight={36}
-                            animateRows
-                            onCellValueChanged={onCellValueChanged}
-                            getRowId={params => params.data.key}
-                        />
-                    )}
-                </div>
-            }
-            footer={
-                <div className="flex items-center justify-between w-full">
-                    <span>© Candy Data</span>
-                    <span>{dirtyRows.size} unsaved changes</span>
+                    <AgGridReact
+                        theme={themeQuartz}
+                        rowData={rowData}
+                        columnDefs={columnDefs}
+                        defaultColDef={defaultColDef}
+                        rowHeight={36}
+                        animateRows
+                        singleClickEdit
+                        stopEditingWhenCellsLoseFocus
+                        onCellValueChanged={onCellValueChanged}
+                        getRowId={p => p.data.key}
+                    />
                 </div>
             }
         />
-    )
+    );
 }
