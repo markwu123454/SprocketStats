@@ -2,12 +2,14 @@ __version__ = "v26.0.0"
 
 import asyncio
 import importlib
+import inspect
 import json
 import os
 import re
 import threading
 import traceback
 from contextlib import asynccontextmanager
+from pprint import pformat
 from typing import Callable
 
 import dotenv
@@ -15,6 +17,8 @@ import asyncpg
 import ssl
 import certifi
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+
+import runnable_functions as fn
 
 calc = importlib.import_module("seasons.2026.calculator")
 
@@ -50,6 +54,7 @@ python_globals = {
         "min": min,
         "max": max,
         "print": lambda *a: log(" ".join(map(str, a))),
+        "__import__": __import__,
     },
 }
 
@@ -335,7 +340,6 @@ COMMANDS = {
 def validate_env():
     """
     Runs environment validation and reports status via WebSocket.
-    Safe to call from WS command handler.
     """
     global DB_DSN
 
@@ -553,11 +557,7 @@ def pop_input_listener(fn: InputListener | None = None):
 
 def python_help():
     """
-    Print help for all available symbols in the Python console.
-
-    - Lists all public symbols
-    - For functions: shows call signature and docstring (if any)
-    - For variables: shows type information
+    Print help for all available symbols in the Python console, including shallow type for variables and doc string for functions
     """
 
     scope = python_globals
@@ -577,8 +577,6 @@ def python_help():
         except Exception:
             return "()"
 
-    log("\n=== Python Console Help ===")
-
     for name in sorted(scope):
         if name.startswith("_"):
             continue
@@ -594,10 +592,21 @@ def python_help():
             log(f"\n{name}")
             log(f"  type: {type(obj).__name__}")
 
-    log("\nEnd of help.\n")
-
 
 python_globals["help"] = python_help
+
+
+def inject_module_functions(module, target_globals, *, prefix=None):
+    """
+    Inject public functions defined in `module` into target_globals.
+    """
+    for name, obj in vars(module).items():
+        if name.startswith("_"):
+            continue
+
+        if inspect.isfunction(obj) and obj.__module__ == module.__name__:
+            exposed_name = f"{prefix}{name}" if prefix else name
+            target_globals[exposed_name] = obj
 
 
 def refresh_python_globals():
@@ -610,10 +619,19 @@ def refresh_python_globals():
         "calc_result": calc_result,
         "settings": settings,
         "log": log,
+        "pretty_log": pretty_log,
         "validate_env": validate_env,
         "inject_ws": handle_ws_message,
         "send_ws": send_ws_sync
     })
+
+    fn.log = log
+    fn.settings = settings
+    fn.downloaded_data = downloaded_data
+    fn.calc_result = calc_result
+    fn.print = log # overriding builtins
+
+    inject_module_functions(fn, python_globals)
 
 
 # === Templates ===
@@ -682,7 +700,7 @@ async def ws_endpoint(ws: WebSocket):
 # =======================
 def handle_ws_message(msg: dict):
     """
-    Handles received websocket messages
+    Process websocket messages
     """
     t = msg.get("type")
 
@@ -714,7 +732,36 @@ async def ws_send(msg: dict):
 
 
 def log(msg: str, newline: bool = True):
+    """
+    Sends message to console
+    """
     run_coro(ws_send({"type": "log", "text": f"\n{msg}" if newline else msg}))
+
+
+def pretty_log(
+    obj,
+    *,
+    prefix: str | None = None,
+    width: int = 120,
+    depth: int | None = None,
+    compact: bool = False,
+    sort_dicts: bool = True,
+):
+    """
+    Pretty-format an object and send it to the websocket log.
+    """
+    formatted = pformat(
+        obj,
+        width=width,
+        depth=depth,
+        compact=compact,
+        sort_dicts=sort_dicts,
+    )
+
+    if prefix:
+        formatted = f"{prefix}\n{formatted}"
+
+    log(formatted)
 
 
 def set_busy(val: bool):
