@@ -4,6 +4,8 @@ import importlib
 import threading
 import asyncio
 import traceback
+from typing import Any
+
 import dotenv
 import ttkbootstrap as tb
 import asyncpg
@@ -14,6 +16,9 @@ import os
 import re
 
 calc = importlib.import_module("seasons.2026.calculator")
+functions_mod = importlib.import_module("seasons.2026.functions")
+
+PROMPT = ">>> "
 
 # ================== Database Config ==================
 dotenv.load_dotenv()
@@ -110,48 +115,53 @@ async def fetch_all_match(conn, event_key_filter: str):
 
 
 # ================== Console functions ==================
+console_env: dict[str, Any] = {
+    "__builtins__": {
+        "print": lambda *a, **kw: append_log(" ".join(map(str, a))),
+        "len": len,
+        "range": range,
+        "sum": sum,
+        "min": min,
+        "max": max,
+        "sorted": sorted,
+        "round": round,
+        "json": json,
+    }
+}
+
+
 def run_command(event=None):
-    cmd = cmd_var.get().strip()
+    raw = cmd_var.get()
+
+    if not raw.startswith(PROMPT):
+        return
+
+    cmd = raw[len(PROMPT):].strip()
     if not cmd:
         return
 
-    # Add to history (avoid duplicates in a row)
     global command_history, history_index
-    if len(command_history) == 0 or command_history[-1] != cmd:
+    if not command_history or command_history[-1] != cmd:
         command_history.append(cmd)
 
-    history_index = -1  # reset index when a command is executed
+    history_index = -1
 
     cmd_var.set("")
-    append_log(f">>> {cmd}")
-
-    safe_globals = {
-        "__builtins__": {
-            "print": lambda *a, **kw: append_log(" ".join(map(str, a))),
-            "len": len, "range": range, "sum": sum,
-            "min": min, "max": max, "sorted": sorted,
-            "round": round, "json": json,
-        },
-        "downloaded_data": downloaded_data,
-        "calc_result": calc_result,
-        "get_settings_snapshot": get_settings_snapshot,
-        "append_log": append_log,
-        "update_progress": update_progress,
-        "list_available": lambda: {"globals": list(safe_globals.keys()),
-                                   "builtins": list(safe_globals["__builtins__"].keys())}
-    }
+    append_log(f"[white]>>> {cmd}[/]")
 
     try:
         try:
-            result = eval(cmd, safe_globals)
+            result = eval(cmd, console_env, console_env)
             if result is not None:
-                append_log(str(result))
-
+                append_log(f"[white]{result}[/]")
         except SyntaxError:
-            exec(cmd, safe_globals)
-
-    except Exception as e:
+            exec(cmd, console_env, console_env)
+    except Exception:
         append_log(f"[red]{traceback.format_exc()}[/]")
+    finally:
+        cmd_var.set(PROMPT)
+        cmd_entry.icursor("end")
+
 
 
 def navigate_history(direction):
@@ -160,23 +170,31 @@ def navigate_history(direction):
     if not command_history:
         return
 
-    # Move index
     if history_index == -1:
         history_index = len(command_history)
 
     history_index += direction
-
-    # Clamp range
     history_index = max(0, min(history_index, len(command_history)))
 
-    # If at end (blank entry)
     if history_index == len(command_history):
-        cmd_var.set("")
-        return
+        cmd_var.set(PROMPT)
+    else:
+        cmd_var.set(PROMPT + command_history[history_index])
 
-    # Load command into entry
-    cmd_var.set(command_history[history_index])
     cmd_entry.icursor("end")
+
+
+def protect_prompt(event):
+    # Block Backspace at prompt boundary
+    if event.keysym == "BackSpace":
+        if cmd_entry.index("insert") <= len(PROMPT):
+            return "break"
+
+    # Block Left arrow into prompt
+    if event.keysym == "Left":
+        if cmd_entry.index("insert") <= len(PROMPT):
+            return "break"
+
 
 
 # ================== Terminal Log Class ==================
@@ -628,8 +646,6 @@ def validate_env():
     run_db_test_async(on_db_test_result)
 
 
-
-
 downloaded_data = None
 calc_result = None
 
@@ -650,14 +666,14 @@ $$\   $$ |$$ |      $$ |  $$ |$$ |  $$ |$$ |  $$\ $$ |\$$\  $$ |         $$ |   
  \______/ \__|      \__|  \__| \______/  \______/ \__|  \__|\________|   \__|    \______/   \__|   \__|  \__|  \__|    \______/ 
  """)
     append_log("[white]Welcome to the sprocketstats analytics engine!")
-    append_log("[white]Use list_available() to see available methods and variables\n")
+    append_log("[white]Use help() to see available methods and variables\n")
 
 
 root = tb.Window(themename="cosmo")
 root.title("Data Processor")
 root.state("zoomed")
 
-main_pane = tb.PanedWindow(root, orient="horizontal")
+main_pane = tb.Panedwindow(root, orient="horizontal")
 main_pane.pack(fill="both", expand=True, padx=15, pady=15)
 
 # ---- Left Pane (Logs + Progress) ----
@@ -678,13 +694,15 @@ log_text.configure(state="disabled", background="#0c0c0c", foreground="#00ff6f",
 cmd_frame = tb.Frame(log_frame)
 cmd_frame.pack(fill="x", pady=(5, 0))
 
-cmd_var = tb.StringVar()
+cmd_var = tb.StringVar(value=PROMPT)
 # noinspection PyArgumentList
 cmd_entry = tb.Entry(cmd_frame, textvariable=cmd_var, bootstyle="dark")
 cmd_entry.pack(fill="x")
 cmd_entry.bind("<Up>", lambda e: navigate_history(-1))
 cmd_entry.bind("<Down>", lambda e: navigate_history(1))
 cmd_entry.bind("<Return>", run_command)
+cmd_entry.bind("<KeyPress>", protect_prompt)
+cmd_entry.icursor("end")
 
 # ---- Right Pane (Settings + Buttons) ----
 right = tb.Frame(main_pane, padding=10)
@@ -711,6 +729,50 @@ for b in (btn_download, btn_run, btn_upload, btn_exit):
 # Initialize log object
 log = TerminalLog(log_text, root)
 append_log = log.write  # backward compatibility
+
+console_env.update({
+    "downloaded_data": None,
+    "calc_result": None,
+    "database_url": DB_DSN,
+    "get_settings_snapshot": get_settings_snapshot,
+    "append_log": append_log,
+    "update_progress": update_progress,
+    "download_data": run_download,
+    "run_calculator": run_calculator,
+    "upload_data": run_upload,
+    "validate_env": validate_env,
+})
+
+functions_mod.append_log = append_log
+functions_mod.update_progress = update_progress
+
+for name in dir(functions_mod):
+    if not name.startswith("_"):
+        obj = getattr(functions_mod, name)
+        if callable(obj):
+            console_env[name] = obj
+
+def help_console():
+    vars_ = []
+    funcs = []
+
+    for name, obj in console_env.items():
+        if name.startswith("_"):
+            continue
+        if callable(obj):
+            funcs.append(name)
+        else:
+            vars_.append(name)
+
+    append_log("[white]→ Available variables:[/]")
+    for v in sorted(vars_):
+        append_log(f"[white]  → {v}[/]")
+
+    append_log("\n[white]→ Available functions:[/]")
+    for f in sorted(funcs):
+        append_log(f"[white]  → {f}[/]")
+
+console_env["help"] = help_console
 
 # Run validation after Tk loads
 root.after(500, print_welcome)

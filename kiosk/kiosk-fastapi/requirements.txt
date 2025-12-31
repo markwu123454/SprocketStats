@@ -1,0 +1,5 @@
+fastapi~=0.127.0
+asyncpg
+python-dotenv
+certifi
+uvicorn
