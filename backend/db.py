@@ -413,7 +413,7 @@ async def update_match_scouting(
     """
     Update an existing match scouting entry.
     Uses current_event from metadata.
-    Raises 404 if entry not found or 409 on conflicting reassignment.
+    Raises 400 if entry not found or 409 on conflicting reassignment.
     """
     conn = await get_db_connection(DB_NAME)
     try:
@@ -426,7 +426,7 @@ async def update_match_scouting(
                 FOR UPDATE
             """, match, m_type.value, str(team), _to_db_scouter(scouter), _to_db_scouter(scouter_new))
             if not row:
-                raise HTTPException(status_code=404, detail="Match scouting entry not found")
+                raise HTTPException(status_code=400, detail="Match scouting entry not found")
 
             current_data: Dict[str, Any] = row["data"]
             if data:
@@ -934,7 +934,7 @@ async def update_pit_scouting(
     """
     Update an existing pit scouting entry.
     Uses current_event from metadata.
-    Raises 404 if entry not found or 409 on conflicting reassignment.
+    Raises 400 if entry not found or 409 on conflicting reassignment.
     """
     conn = await get_db_connection(DB_NAME)
     try:
@@ -947,7 +947,7 @@ async def update_pit_scouting(
                 FOR UPDATE
             """, str(team), _to_db_scouter(scouter))
             if not row:
-                raise HTTPException(status_code=404, detail="Pit scouting entry not found")
+                raise HTTPException(status_code=400, detail="Pit scouting entry not found")
 
             current_data: Dict[str, Any] = row["data"]
             if data:
@@ -1365,10 +1365,20 @@ async def create_user_if_missing(email: str, name: str):
         await release_db_connection(DB_NAME, conn)
 
 
+async def get_feature_flags():
+    conn = await get_db_connection(DB_NAME)
+    try:
+        metadata = await conn.fetchrow("SELECT feature_flags FROM metadata LIMIT 1")
+        if metadata:
+            return metadata
+    finally:
+        await release_db_connection(DB_NAME, conn)
+
+
 async def get_metadata():
     conn = await get_db_connection(DB_NAME)
     try:
-        metadata = await conn.fetchrow("SELECT current_event FROM metadata LIMIT 1")
+        metadata = await conn.fetchrow("SELECT * FROM metadata LIMIT 1")
         if metadata:
             return metadata
     finally:

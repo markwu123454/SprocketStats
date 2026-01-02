@@ -200,6 +200,11 @@ async def get_metadata(_: enums.SessionInfo = Depends(db.require_permission("adm
     return await db.get_metadata()
 
 
+@router.get("/metadata/feature_flags")
+async def get_metadata(_: enums.SessionInfo = Depends(db.require_permission("admin"))):
+    return await db.get_metadata()
+
+
 @router.get("/admin/matches/active")
 async def admin_active_matches(
     _: enums.SessionInfo = Depends(db.require_permission("admin")),
@@ -317,8 +322,6 @@ async def admin_active_matches(
         }
 
     return result
-
-
 
 
 @router.get("/team/{team}")
@@ -848,79 +851,6 @@ async def update_match_schedule(
 
 
 # === Pit scouting ===
-
-@router.get("/pit/teams")
-async def list_pit_teams(
-        _: enums.SessionInfo = Depends(db.require_permission("pit_scouting")),
-):
-    """
-    Lists all teams with pit scouting data for the current event.
-    """
-    rows = await db.get_pit_scouting()  # uses metadata.current_event internally
-    return {"teams": [
-        {
-            "team": r["team"],
-            "scouter": r.get("scouter"),
-            "status": r.get("status"),
-            "last_modified": r.get("last_modified")
-        }
-        for r in rows
-    ]}
-
-
-@router.get("/pit/{team}")
-async def get_pit_team(
-        team: int,
-        _: enums.SessionInfo = Depends(db.require_permission("pit_scouting")),
-):
-    """
-    Fetches a single team's pit scouting data.
-    """
-    rows = await db.get_pit_scouting(team=team)
-    if not rows:
-        raise HTTPException(status_code=404, detail="No pit scouting entry found")
-    entry = rows[0]
-    return {
-        "team": entry["team"],
-        "scouter": entry["scouter"],
-        "status": entry["status"],
-        "data": entry["data"],
-        "last_modified": entry["last_modified"],
-    }
-
-
-@router.post("/pit/{team}")
-async def update_pit_team(
-        team: int,
-        body: Dict[str, Any] = Body(...),
-        _: enums.SessionInfo = Depends(db.require_permission("pit_scouting")),
-):
-    """
-    Creates or updates pit scouting data for a team.
-    """
-    existing = await db.get_pit_scouting(team=team)
-    scouter = body.get("scouter")
-    status = enums.StatusType(body.get("status", enums.StatusType.PRE.value))
-
-    if not existing:
-        # insert new row
-        await db.add_pit_scouting(
-            team=team,
-            scouter=scouter,
-            status=status,
-            data=body.get("data", {}),
-        )
-        return {"status": "created", "team": team}
-
-    # merge/update existing
-    await db.update_pit_scouting(
-        team=team,
-        scouter=scouter,
-        status=status,
-        data=body.get("data", {}),
-    )
-    return {"status": "updated", "team": team}
-
 
 @router.post("/pit/{team}/submit")
 async def submit_pit_data(

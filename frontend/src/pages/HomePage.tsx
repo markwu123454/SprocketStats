@@ -4,6 +4,7 @@ import {useAPI} from "@/hooks/useAPI.ts"
 import {useClientEnvironment} from "@/hooks/useClientEnvironment.ts"
 import {getSetting, getSettingSync, type Settings} from "@/db/settingsDb.ts"
 import CardLayoutWrapper from "@/components/wrappers/CardLayoutWrapper.tsx"
+import useFeatureFlags from "@/hooks/useFeatureFlags.ts";
 
 declare global {
     interface Window {
@@ -14,6 +15,7 @@ declare global {
 export default function HomePage() {
     const {login, verify, logout} = useAPI()
     const {isOnline, serverOnline} = useClientEnvironment()
+    const featureFlags = useFeatureFlags()
 
     const googleDivRef = useRef<HTMLDivElement | null>(null)
     const [name, setName] = useState<string | null>(null)
@@ -120,7 +122,7 @@ export default function HomePage() {
     }
 
     useEffect(() => {
-            renderGoogleButton()
+        renderGoogleButton()
     }, [serverOnline])
 
     // Configure google signin state
@@ -195,9 +197,9 @@ export default function HomePage() {
                         if (key === "settings") {
                             enabled = true;
                         }
-                        // Scouting pages: offline OK
+                        // Scouting pages: offline OK only if feature flag allows it
                         else if (isScoutingPage && offline) {
-                            enabled = true;
+                            enabled = Boolean(featureFlags.offlineScouting);
                         }
                         // Restricted pages (dev/admin): offline forbidden
                         else if (isRestrictedOffline && offline) {

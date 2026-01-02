@@ -29,7 +29,6 @@ import MatchDataPredPage from "@/pages/data/MatchDataPredPage.tsx";
 
 export default function App() {
     return (
-        <React.StrictMode>
             <ThemeProvider>
                 <BrowserRouter>
                     <div className="h-screen flex flex-col min-h-0">
@@ -87,6 +86,5 @@ export default function App() {
                     </div>
                 </BrowserRouter>
             </ThemeProvider>
-        </React.StrictMode>
     )
 }

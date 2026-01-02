@@ -172,32 +172,59 @@ export default function PrePhase({data, setData}: {
     }, [isOnline])
 
     // === Handle selecting a team (claim logic) ===
+    const claimAttemptRef = useRef(0)
+
     const handleTeamSelect = async (newTeamNumber: number) => {
         if (claiming) return
+
         setClaiming(true)
+        const attemptId = ++claimAttemptRef.current
+        const previousTeam = teamNumber
+
         try {
-            // unclaim old team if different
-            if (match && teamNumber !== null && teamNumber !== newTeamNumber) {
-                const oldTeamNumber = teamNumber
-                setTeamList(prev =>
-                    prev?.map(t =>
-                        t.number === oldTeamNumber ? {...t, scouter: null} : t
-                    ) ?? null
-                )
-                await unclaimTeam(match, oldTeamNumber, match_type, scouterEmail)
+            // unclaim previous team first (server-side)
+            if (match && previousTeam !== null && previousTeam !== newTeamNumber) {
+                await unclaimTeam(match, previousTeam, match_type, scouterEmail)
             }
 
-            // update selected team locally
-            setData(d => ({...d, teamNumber: newTeamNumber}))
+            // attempt claim
+            if (!match) throw new Error("No match set")
+            const ok = await claimTeam(match, newTeamNumber, match_type, scouterEmail)
 
-            // claim team on server
-            if (match && newTeamNumber !== null) {
-                await claimTeam(match, newTeamNumber, match_type, scouterEmail)
+            if (claimAttemptRef.current !== attemptId) return
+
+            if (!ok) {
+                setData(d => ({...d, teamNumber: null}))
+                return
+            }
+
+            setData(d => ({...d, teamNumber: newTeamNumber}))
+        } catch (err) {
+            console.error("Claim failed — selection aborted", err)
+
+            // rollback hard: ensure no team is selected
+            if (claimAttemptRef.current === attemptId) {
+                setData(d => ({...d, teamNumber: null}))
+            }
+
+            // optional: re-claim previous team
+            if (match && previousTeam !== null) {
+                try {
+                    await claimTeam(match, previousTeam, match_type, scouterEmail)
+                    if (claimAttemptRef.current === attemptId) {
+                        setData(d => ({...d, teamNumber: previousTeam}))
+                    }
+                } catch {
+                    // swallow — better to be unclaimed than inconsistent
+                }
             }
         } finally {
-            setClaiming(false)
+            if (claimAttemptRef.current === attemptId) {
+                setClaiming(false)
+            }
         }
     }
+
 
     // === UI ===
     return (
