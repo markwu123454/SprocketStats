@@ -1,10 +1,11 @@
 import type {AllianceType, MatchType} from "@/types"
 
 export type MatchScoutingData = {
-    match: number | null
     match_type: MatchType
+    match: number | null
     alliance: AllianceType
     teamNumber: number | null
+    manualTeam: boolean
     scouter: string | null
 
     auto: {
@@ -34,10 +35,11 @@ export type MatchScoutingData = {
 export const createDefaultScoutingData = (): Omit<MatchScoutingData, "scouter"> => {
 
     return {
-        match: null,
         match_type: null,
+        match: null,
         alliance: null,
         teamNumber: null,
+        manualTeam: false,
         auto: {
         },
         teleop: {

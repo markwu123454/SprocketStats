@@ -104,12 +104,12 @@ export default function GuestDataPage() {
 
     return (
         <div
-            className="min-h-screen flex flex-col bg-gradient-to-b from-purple-950 via-purple-900 to-purple-950 text-purple-100 overflow-x-hidden scrollbar-purple"
+            className="min-h-screen flex flex-col bg-linear-to-b from-purple-950 via-purple-900 to-purple-950 text-purple-100 overflow-x-hidden scrollbar-purple"
             aria-label="Accessible data grid scroll area"
         >
             {/* SECTION 1 – Hero */}
-            <div className="flex flex-col min-h-[100svh]">
-                <header className="flex-shrink-0 flex flex-col items-center pt-10 sm:pt-16 text-center px-4">
+            <div className="flex flex-col min-h-svh">
+                <header className="shrink-0 flex flex-col items-center pt-10 sm:pt-16 text-center px-4">
                     <div className="relative w-20 h-20 sm:w-24 sm:h-24 mb-5">
                         <img
                             src="/static/sprocket_logo_ring.png"
@@ -158,7 +158,7 @@ export default function GuestDataPage() {
 
                 {/* SECTION 2 – Scrollable Data Grid */}
                 <main
-                    className="flex-grow flex flex-col items-center justify-start max-w-6xl mx-auto px-4 sm:px-6 w-full pb-8"
+                    className="grow flex flex-col items-center justify-start max-w-6xl mx-auto px-4 sm:px-6 w-full pb-8"
                 >
                     <h2 className="text-xl sm:text-2xl font-semibold mb-4 border-b border-purple-700 pb-2 w-full text-left">
                         Available Data

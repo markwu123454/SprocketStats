@@ -3,6 +3,7 @@ import {useEffect, useState, useMemo} from "react";
 import {useAPI} from "@/hooks/useAPI.ts";
 import {AgGridReact} from "ag-grid-react";
 import {themeQuartz} from "ag-grid-community";
+import {HeaderFooterLayoutWrapper} from "@/components/wrappers/HeaderFooterLayoutWrapper.tsx";
 
 export default function CandyDataPage() {
     const api = useAPI();
@@ -151,97 +152,59 @@ export default function CandyDataPage() {
 
 
     return (
-        <div
-            className="min-h-screen relative text-sm
-                theme-light:text-zinc-900
-                theme-dark:text-white
-                theme-2025:text-white
-                theme-2026:text-[#3b2d00]
-                theme-3473:text-white"
-        >
-            <div className="relative z-10 flex flex-col min-h-screen">
-                <div className="absolute inset-0 bg-top bg-cover
-                 theme-light:bg-zinc-100
-                 theme-dark:bg-zinc-950
-                 theme-2025:bg-[url('/seasons/2025/expanded.png')]
-                 theme-2026:bg-[url('/seasons/2026/expanded.png')]
-                 theme-3473:bg-[radial-gradient(80%_110%_at_10%_10%,#4c2c7a,#1f0b46),linear-gradient(135deg,#140a2a,#1f0b46)]"
-                />
-
-                <div className="relative z-10 flex flex-col min-h-screen">
-
-                    {/* Header */}
-                    <div
-                        className="h-10 text-xl flex items-center px-3 gap-4
-                        theme-light:bg-[#ffffff]/75
-                        theme-dark:bg-[rgba(9,9,11,0.7)]/75
-                        theme-2025:bg-[rgba(11,35,79,0.7)]/75
-                        theme-2026:bg-[rgba(254,247,220,0.8)]/75
-                        theme-3473:bg-[rgba(76,29,149,0.75)]/75"
+        <HeaderFooterLayoutWrapper
+            header={
+                <div className="flex items-center gap-4 text-xl theme-text">
+                    <a
+                        href="/"
+                        className="flex items-center p-2 rounded-md
+                               theme-button-bg hover:theme-button-hover transition-colors"
                     >
-                        <a
-                            href="/"
-                            className="flex items-center p-1 rounded-md
-                            theme-light:text-zinc-900 theme-light:hover:bg-zinc-200
-                            theme-dark:text-white theme-dark:hover:bg-zinc-800
-                            theme-2025:text-white theme-2025:hover:bg-[#1a356d]
-                            theme-2026:text-[#3b2d00] theme-2026:hover:bg-[#e6ddae]
-                            theme-3473:text-white theme-3473:hover:bg-[#5b21b6]"
-                        >
-                            <ArrowLeft className="h-5 w-5"/>
-                        </a>
-                        Candy Data: event projections
+                        <ArrowLeft className="h-5 w-5"/>
+                    </a>
 
-                        {/* Event Selector */}
-                        <select
-                            className="px-2 py-1 rounded-md border text-sm outline-none
-                            theme-light:bg-white theme-light:border-zinc-300 theme-light:text-zinc-900
-                            theme-dark:bg-zinc-900 theme-dark:border-zinc-700 theme-dark:text-white
-                            theme-2025:bg-[#0c1f47]/80 theme-2025:border-[#2f4e9a] theme-2025:text-white
-                            theme-2026:bg-[#fff8dc]/80 theme-2026:border-[#c9bb87] theme-2026:text-[#3b2d00]
-                            theme-3473:bg-[#3b1a63]/80 theme-3473:border-[#6d28d9] theme-3473:text-white"
-                            value={selectedEvent}
-                            onChange={(e) => setSelectedEvent(e.target.value)}
-                        >
-                            {eventList.map((ev) => (
-                                <option key={ev} value={ev}>
-                                    {eventNameMap[ev]["full"] ?? ev}
-                                </option>
-                            ))}
-                        </select>
-                    </div>
-                    <div className="flex-1 p-4 space-y-6 border-y-2
-                        theme-light:border-zinc-300
-                        theme-dark:border-zinc-800
-                        theme-2025:border-[#1b3d80]
-                        theme-2026:border-[#e6ddae]
-                        theme-3473:border-[#6d28d9]">
-                        <div className="w-full h-[87.5vh] rounded-md shadow opacity-90">
-                            {loading ? (
-                                <div className="p-4">Loading teams...</div>
-                            ) : (
-                                <AgGridReact
-                                    theme={themeQuartz}
-                                    gridOptions={gridOptions}
-                                    columnDefs={columnDefs}
-                                    rowData={rowData}
-                                    components={{awardsRenderer: AwardsRenderer}}
-                                    rowHeight={36}
-                                    animateRows={true}
-                                />
-                            )}
-                        </div>
-                    </div>
-                    <div className="pt-2 h-10
-                    theme-light:bg-[#ffffff]/75
-                    theme-dark:bg-[rgba(9,9,11,0.7)]/75
-                    theme-2025:bg-[rgba(11,35,79,0.7)]/75
-                    theme-2026:bg-[rgba(254,247,220,0.8)]/75
-                    theme-3473:bg-[rgba(76,29,149,0.75)]/75"
-                    />
+                    <span>Candy Data: event projections</span>
+
+                    <select
+                        className="px-2 py-1 rounded-md border text-sm outline-none
+                               theme-bg theme-border theme-text
+                               hover:theme-button-hover transition-colors"
+                        value={selectedEvent}
+                        onChange={(e) => setSelectedEvent(e.target.value)}
+                    >
+                        {eventList.map((ev) => (
+                            <option key={ev} value={ev}>
+                                {eventNameMap[ev]?.full ?? ev}
+                            </option>
+                        ))}
+                    </select>
                 </div>
-            </div>
-        </div>
+            }
+            body={
+                <div className="w-full h-full rounded-md shadow theme-bg theme-border theme-scrollbar">
+                    {loading ? (
+                        <div className="p-4 theme-subtext-color">
+                            Loading teams...
+                        </div>
+                    ) : (
+                        <AgGridReact
+                            theme={themeQuartz}
+                            gridOptions={gridOptions}
+                            columnDefs={columnDefs}
+                            rowData={rowData}
+                            components={{awardsRenderer: AwardsRenderer}}
+                            rowHeight={36}
+                            animateRows={true}
+                        />
+                    )}
+                </div>
+            }
+            footer={
+                <div className="theme-subtext-color">
+                    {/* optional footer content */}
+                </div>
+            }
+        />
     );
 }
 

@@ -7,6 +7,7 @@ export type MatchScoutingData = {
     match_type: MatchType
     alliance: AllianceType
     teamNumber: number | null
+    manualTeam: boolean
     scouter: string | null
 
     auto: {
@@ -77,6 +78,7 @@ export const createDefaultScoutingData = (): Omit<MatchScoutingData, "scouter"> 
         match_type: null,
         alliance: null,
         teamNumber: null,
+        manualTeam: false,
         auto: {
             branchPlacement: makeBranches(),
             algaePlacement: makeAlgae(),

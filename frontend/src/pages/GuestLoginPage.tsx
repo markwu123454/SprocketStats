@@ -69,7 +69,7 @@ export default function GuestLoginPage() {
     if (showManualPortal) {
         return (
             <div className="min-h-screen flex flex-col items-center justify-center
-                            bg-gradient-to-b from-purple-950 via-purple-900 to-purple-950
+                            bg-linear-to-b from-purple-950 via-purple-900 to-purple-950
                             text-purple-100 px-4">
 
                 {/* Hero */}

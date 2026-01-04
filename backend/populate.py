@@ -14,7 +14,7 @@ async def get_candy_data():
     # ---------------------------------------------------------
     # Step 1 – Fetch teams for the two target events
     # ---------------------------------------------------------
-    events = ["2026capoh", "2026casgv", "2025caoc", "2025cafr"]
+    events = ["2026capoh", "2026casgv", "2026caven", "2026calas", "2026casnd", "2026cagle", "2026caasv", "2026caoec"]
 
     event_team_map = {
         event: await tba.fetch(f"event/{event}/teams/keys", use_backoff=True) or []
@@ -100,10 +100,17 @@ async def get_candy_data():
     # ---------------------------------------------------------
     # Step 6 – Fetch awards + EPA for each team (parallel)
     # ---------------------------------------------------------
+    async def safe_get_epa(num):
+        try:
+            epa = await statbot.get_team_epa_async(num)
+            return epa or 0
+        except Exception:
+            return 0
+
     team_tasks = {
         num: asyncio.gather(
             tba.fetch(f"team/frc{num}/awards", use_backoff=True),
-            statbot.get_team_epa_async(num),
+            safe_get_epa(num),
         )
         for num in all_numeric
     }

@@ -2,7 +2,7 @@ import {useEffect, useRef, useState} from "react"
 import {useNavigate} from "react-router-dom"
 import {useAPI} from "@/hooks/useAPI.ts"
 import {useClientEnvironment} from "@/hooks/useClientEnvironment.ts"
-import {getSetting, getSettingSync, type Settings} from "@/db/settingsDb.ts"
+import {getSettingSync, type Settings} from "@/db/settingsDb.ts"
 import CardLayoutWrapper from "@/components/wrappers/CardLayoutWrapper.tsx"
 import useFeatureFlags from "@/hooks/useFeatureFlags.ts";
 
@@ -28,20 +28,8 @@ export default function HomePage() {
     } | null>(null)
     const [error, setError] = useState<string | null>(null)
     const [messageIndex, setMessageIndex] = useState<number | null>(null)
-    const [theme, setTheme] = useState<Settings["theme"]>(() => getSettingSync("theme", "2026"))
+    const [theme] = useState<Settings["theme"]>(() => getSettingSync("theme"))
     const wakingUp = isOnline && !serverOnline
-
-    // Fetches theme from settings
-    useEffect(() => {
-        void (async () => {
-            const t = await getSetting("theme")
-            setTheme(
-                ["dark", "light", "2025", "2026", "3473"].includes(t ?? "")
-                    ? (t as Settings["theme"])
-                    : "2026"
-            )
-        })()
-    }, [])
 
     const greetings = [
         `Welcome, ${name}, to FIRST Age.`,
@@ -145,7 +133,7 @@ export default function HomePage() {
     }
 
     return (
-        <CardLayoutWrapper theme={theme ?? "2026"} showLogo={true}>
+        <CardLayoutWrapper showLogo={true}>
             <div className="space-y-1">
                 <h1 className="text-2xl font-bold theme-h1-color">
                     Login

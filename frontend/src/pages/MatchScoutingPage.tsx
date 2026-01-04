@@ -211,7 +211,7 @@ export default function MatchScoutingPage() {
                     setPhaseIndex(0)
                 }, 1000)
             }
-        } catch (err) {
+        } catch {
             await updateScoutingStatus(match_type!, match!, teamNumber!, "completed")
             setSubmitStatus("warning")
 
