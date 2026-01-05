@@ -2,8 +2,9 @@ import {useEffect, useRef, useState} from "react"
 import {useNavigate} from "react-router-dom"
 import {useAPI} from "@/hooks/useAPI.ts"
 import {useClientEnvironment} from "@/hooks/useClientEnvironment.ts"
-import {getSetting, getSettingSync, type Settings} from "@/db/settingsDb.ts"
+import {getSettingSync, type Settings} from "@/db/settingsDb.ts"
 import CardLayoutWrapper from "@/components/wrappers/CardLayoutWrapper.tsx"
+import useFeatureFlags from "@/hooks/useFeatureFlags.ts";
 
 declare global {
     interface Window {
@@ -14,6 +15,7 @@ declare global {
 export default function HomePage() {
     const {login, verify, logout} = useAPI()
     const {isOnline, serverOnline} = useClientEnvironment()
+    const featureFlags = useFeatureFlags()
 
     const googleDivRef = useRef<HTMLDivElement | null>(null)
     const [name, setName] = useState<string | null>(null)
@@ -26,20 +28,8 @@ export default function HomePage() {
     } | null>(null)
     const [error, setError] = useState<string | null>(null)
     const [messageIndex, setMessageIndex] = useState<number | null>(null)
-    const [theme, setTheme] = useState<Settings["theme"]>(() => getSettingSync("theme", "2026"))
+    const [theme] = useState<Settings["theme"]>(() => getSettingSync("theme"))
     const wakingUp = isOnline && !serverOnline
-
-    // Fetches theme from settings
-    useEffect(() => {
-        void (async () => {
-            const t = await getSetting("theme")
-            setTheme(
-                ["dark", "light", "2025", "2026", "3473"].includes(t ?? "")
-                    ? (t as Settings["theme"])
-                    : "2026"
-            )
-        })()
-    }, [])
 
     const greetings = [
         `Welcome, ${name}, to FIRST Age.`,
@@ -120,7 +110,7 @@ export default function HomePage() {
     }
 
     useEffect(() => {
-            renderGoogleButton()
+        renderGoogleButton()
     }, [serverOnline])
 
     // Configure google signin state
@@ -143,7 +133,7 @@ export default function HomePage() {
     }
 
     return (
-        <CardLayoutWrapper theme={theme ?? "2026"} showLogo={true}>
+        <CardLayoutWrapper showLogo={true}>
             <div className="space-y-1">
                 <h1 className="text-2xl font-bold theme-h1-color">
                     Login
@@ -195,9 +185,9 @@ export default function HomePage() {
                         if (key === "settings") {
                             enabled = true;
                         }
-                        // Scouting pages: offline OK
+                        // Scouting pages: offline OK only if feature flag allows it
                         else if (isScoutingPage && offline) {
-                            enabled = true;
+                            enabled = Boolean(featureFlags.offlineScouting);
                         }
                         // Restricted pages (dev/admin): offline forbidden
                         else if (isRestrictedOffline && offline) {

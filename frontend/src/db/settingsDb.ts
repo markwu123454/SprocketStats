@@ -4,7 +4,13 @@ import Dexie, { type Table } from "dexie"
 export type Settings = {
     theme?: "dark" | "light" | "2025" | "2026" | "3473"
     field_orientation?: "0" | "90" | "180" | "270"
-} & Record<string, string | boolean | number | undefined>
+} & Record<string, string | boolean | number>
+
+export const DEFAULT_SETTINGS: Required<Pick<Settings, "theme" | "field_orientation">> &
+    Omit<Settings, "theme" | "field_orientation"> = {
+    theme: "2026",
+    field_orientation: "0",
+}
 
 export interface SettingRow {
     key: "global"
@@ -26,12 +32,15 @@ class SettingsDB extends Dexie {
 export const settingsDB = new SettingsDB()
 
 // 2. Get full settings object or specific key (proper overloads)
-export async function getSetting(): Promise<Settings | null>
-export async function getSetting<K extends keyof Settings>(key: K): Promise<Settings[K] | null>
+export async function getSetting(): Promise<Settings>
+export async function getSetting<K extends keyof Settings>(key: K): Promise<Settings[K]>
 export async function getSetting(key?: keyof Settings): Promise<any> {
     const entry = await settingsDB.settings.get(GLOBAL_KEY)
-    if (!entry) return null
-    return key ? entry.value[key] ?? null : entry.value
+    const value: Settings = {
+        ...DEFAULT_SETTINGS,
+        ...(entry?.value ?? {}),
+    }
+    return key ? value[key] : value
 }
 
 // 3. Set partial or full settings (atomic)
@@ -58,14 +67,13 @@ export async function clearSettings() {
 
 // 5. Fast, synchronous read (for startup UI only)
 export function getSettingSync<K extends keyof Settings>(
-    key: K,
-    fallback?: Settings[K]
+    key: K
 ): Settings[K] {
     try {
         const cached = localStorage.getItem(`setting_${key}`)
-        if (cached !== null) return cached as Settings[K]
-        return (fallback ?? null) as Settings[K]
-    } catch {
-        return (fallback ?? null) as Settings[K]
-    }
+        if (cached !== null) {
+            return cached as Settings[K]
+        }
+    } catch {}
+    return DEFAULT_SETTINGS[key] as Settings[K]
 }

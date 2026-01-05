@@ -67,7 +67,6 @@ input_listeners: list[InputListener] = []
 # =======================
 DB_DSN = ""
 
-
 async def get_connection():
     if not DB_DSN:
         raise RuntimeError("DATABASE_URL not set in environment")
@@ -76,62 +75,6 @@ async def get_connection():
     await conn.set_type_codec("jsonb", encoder=json.dumps, decoder=json.loads, schema="pg_catalog")
     await conn.set_type_codec("json", encoder=json.dumps, decoder=json.loads, schema="pg_catalog")
     return conn
-
-
-async def fetch_submitted_match(conn, event_key_filter: str):
-    if event_key_filter:
-        rows = await conn.fetch("""
-                                SELECT event_key, match, match_type, team, alliance, scouter, data
-                                FROM match_scouting
-                                WHERE status = 'submitted'
-                                  AND event_key ILIKE $1
-                                ORDER BY match_type, match, alliance, team
-                                """, f"%{event_key_filter}%")
-    else:
-        rows = await conn.fetch("""
-                                SELECT event_key, match, match_type, team, alliance, scouter, data
-                                FROM match_scouting
-                                WHERE status = 'submitted'
-                                ORDER BY match_type, match, alliance, team
-                                """)
-    return rows
-
-
-async def fetch_submitted_pit(conn, event_key_filter: str):
-    if event_key_filter:
-        rows = await conn.fetch("""
-                                SELECT event_key, team, scouter, data
-                                FROM pit_scouting
-                                WHERE status = 'submitted'
-                                  AND event_key ILIKE $1
-                                ORDER BY team, scouter
-                                """, f"%{event_key_filter}%")
-    else:
-        rows = await conn.fetch("""
-                                SELECT event_key, team, scouter, data
-                                FROM pit_scouting
-                                WHERE status = 'submitted'
-                                ORDER BY team, scouter
-                                """)
-    return rows
-
-
-async def fetch_all_match(conn, event_key_filter: str):
-    if event_key_filter:
-        rows = await conn.fetch("""
-                                SELECT key, event_key, match_type, match_number, set_number, scheduled_time, actual_time, red1, red2, red3, blue1, blue2, blue3
-                                FROM matches
-                                WHERE event_key ILIKE $1
-                                ORDER BY match_type, match_number
-                                """, f"%{event_key_filter}%")
-    else:
-        rows = await conn.fetch("""
-                                SELECT key, event_key, match_type, match_number, set_number, scheduled_time, actual_time, red1, red2, red3, blue1, blue2, blue3
-                                FROM matches
-                                ORDER BY event_key, match_type, match_number
-                                """)
-    return rows
-
 
 # =======================
 # App + event loop
@@ -199,13 +142,30 @@ async def cmd_download():
     try:
         log("→ Connecting to database...")
         conn = await get_connection()
-        log(f"{ANSI_GREEN}  ✔ Database connected{ANSI_RESET}\n")
+        log(f"{ANSI_GREEN}  ✔ Database connected{ANSI_RESET}")
 
         event_key = settings.get("event_key", "") or ""
         log(f"  → Fetching data from {event_key or 'all events'}...")
 
+        event_filter = f"%{event_key}%" if event_key else None
+
+        # ── Match scouting ─────────────────────────────────────────────
         log("    → Fetching match data...")
-        match = [dict(r) for r in await fetch_submitted_match(conn, event_key)]
+        match_query = """
+            SELECT event_key, match, match_type, team, alliance, scouter, data
+            FROM match_scouting
+            WHERE status = 'submitted'
+        """
+        if event_filter:
+            match_query += " AND event_key ILIKE $1"
+            rows = await conn.fetch(match_query, event_filter)
+        else:
+            rows = await conn.fetch(match_query + """
+                ORDER BY match_type, match, alliance, team
+            """)
+
+        match = [dict(r) for r in rows]
+
         robot_entries = len(match)
         match_count = len({
             (r["event_key"], r["match_type"], r["match"])
@@ -220,15 +180,44 @@ async def cmd_download():
             f"{ANSI_RESET}"
         )
 
+        # ── Pit scouting ───────────────────────────────────────────────
         log("    → Fetching team data...")
-        pit = [dict(r) for r in await fetch_submitted_pit(conn, event_key)]
+        pit_query = """
+            SELECT event_key, team, scouter, data
+            FROM pit_scouting
+            WHERE status = 'submitted'
+        """
+        if event_filter:
+            pit_query += " AND event_key ILIKE $1"
+            rows = await conn.fetch(pit_query, event_filter)
+        else:
+            rows = await conn.fetch(pit_query + " ORDER BY team, scouter")
+
+        pit = [dict(r) for r in rows]
+
         log(
             f"{ANSI_GREEN if pit else ANSI_YELLOW}"
             f"      {'✔' if pit else '⚠'} {len(pit)} pit entries{ANSI_RESET}"
         )
 
+        # ── Match schedule ─────────────────────────────────────────────
         log("    → Fetching match schedules...")
-        all_matches = [dict(r) for r in await fetch_all_match(conn, event_key)]
+        schedule_query = """
+            SELECT key, event_key, match_type, match_number, set_number,
+                   scheduled_time, actual_time,
+                   red1, red2, red3, blue1, blue2, blue3
+            FROM matches
+        """
+        if event_filter:
+            schedule_query += " WHERE event_key ILIKE $1"
+            rows = await conn.fetch(schedule_query, event_filter)
+        else:
+            rows = await conn.fetch(schedule_query + """
+                ORDER BY event_key, match_type, match_number
+            """)
+
+        all_matches = [dict(r) for r in rows]
+
         log(
             f"{ANSI_GREEN if all_matches else ANSI_YELLOW}"
             f"      {'✔' if all_matches else '⚠'} {len(all_matches)} schedule entries{ANSI_RESET}"

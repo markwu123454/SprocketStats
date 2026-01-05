@@ -17,7 +17,7 @@ export default function PrePhase({data, setData}: {
     const [teamList, setTeamList] = useState<TeamInfo[] | null>(null) // available teams
     const [loadingTeams, setLoadingTeams] = useState(false) // UI loading flag for team list
     const [claiming, setClaiming] = useState(false) // debounce flag for team claiming
-    const [manualEntry, setManualEntry] = useState(false) // toggle for manual entry mode
+    const [manualEntry, setManualEntry] = useState<boolean>(data.manualTeam ?? false) // toggle for manual entry mode
     const [manualTeam, setManualTeam] = useState<string>("") // input value in manual mode
     const [iconSrc, setIconSrc] = useState<string | null>(null) // live preview of team icon
     const [lastClaimedTeam, setLastClaimedTeam] = useState<number | null>(null) // backup to restore if user leaves manual entry
@@ -71,7 +71,6 @@ export default function PrePhase({data, setData}: {
         };
     }, []);
 
-
     // === Live refresh of scouter claim state ===
     useEffect(() => {
         if (!(isOnline && serverOnline) || !match || !alliance) return
@@ -111,6 +110,18 @@ export default function PrePhase({data, setData}: {
             clearInterval(id)
         }
     }, [isOnline, serverOnline, match, alliance, match_type])
+
+    useEffect(() => {
+        setManualEntry(data.manualTeam ?? false)
+    }, [data.manualTeam])
+
+    useEffect(() => {
+        if (!manualEntry) return
+        if (!data.teamNumber) return
+
+        // populate input from existing teamNumber
+        setManualTeam(String(data.teamNumber))
+    }, [manualEntry, data.teamNumber])
 
     useEffect(() => {
         if (!(isOnline && serverOnline)) return
@@ -168,34 +179,63 @@ export default function PrePhase({data, setData}: {
 
     // === Offline mode: force manual entry ===
     useEffect(() => {
-        if (!isOnline) setManualEntry(true)
+        if (!isOnline) {
+            setManualEntry(true)
+            setData(d => ({...d, manualTeam: true}))
+        }
     }, [isOnline])
 
     // === Handle selecting a team (claim logic) ===
+    const claimAttemptRef = useRef(0)
+
     const handleTeamSelect = async (newTeamNumber: number) => {
         if (claiming) return
+
         setClaiming(true)
+        const attemptId = ++claimAttemptRef.current
+        const previousTeam = teamNumber
+
         try {
-            // unclaim old team if different
-            if (match && teamNumber !== null && teamNumber !== newTeamNumber) {
-                const oldTeamNumber = teamNumber
-                setTeamList(prev =>
-                    prev?.map(t =>
-                        t.number === oldTeamNumber ? {...t, scouter: null} : t
-                    ) ?? null
-                )
-                await unclaimTeam(match, oldTeamNumber, match_type, scouterEmail)
+            // unclaim previous team first (server-side)
+            if (match && previousTeam !== null && previousTeam !== newTeamNumber) {
+                await unclaimTeam(match, previousTeam, match_type, scouterEmail)
             }
 
-            // update selected team locally
-            setData(d => ({...d, teamNumber: newTeamNumber}))
+            // attempt claim
+            if (!match) return
+            const ok = await claimTeam(match, newTeamNumber, match_type, scouterEmail)
 
-            // claim team on server
-            if (match && newTeamNumber !== null) {
-                await claimTeam(match, newTeamNumber, match_type, scouterEmail)
+            if (claimAttemptRef.current !== attemptId) return
+
+            if (!ok) {
+                setData(d => ({...d, teamNumber: null}))
+                return
+            }
+
+            setData(d => ({...d, teamNumber: newTeamNumber}))
+        } catch (err) {
+            console.error("Claim failed — selection aborted", err)
+
+            // rollback hard: ensure no team is selected
+            if (claimAttemptRef.current === attemptId) {
+                setData(d => ({...d, teamNumber: null}))
+            }
+
+            // optional: re-claim previous team
+            if (match && previousTeam !== null) {
+                try {
+                    await claimTeam(match, previousTeam, match_type, scouterEmail)
+                    if (claimAttemptRef.current === attemptId) {
+                        setData(d => ({...d, teamNumber: previousTeam}))
+                    }
+                } catch {
+                    // swallow — better to be unclaimed than inconsistent
+                }
             }
         } finally {
-            setClaiming(false)
+            if (claimAttemptRef.current === attemptId) {
+                setClaiming(false)
+            }
         }
     }
 
@@ -306,6 +346,7 @@ export default function PrePhase({data, setData}: {
                                         setData(d => ({...d, teamNumber: null}))
                                     }
                                     setManualEntry(true)
+                                    setData(d => ({...d, manualTeam: true}))
                                 } else {
                                     // leaving manual mode — restore last claim
                                     if ((isOnline && serverOnline) && match && lastClaimedTeam !== null) {
@@ -313,11 +354,12 @@ export default function PrePhase({data, setData}: {
                                         setData(d => ({...d, teamNumber: lastClaimedTeam}))
                                     }
                                     setManualEntry(false)
+                                    setData(d => ({...d, manualTeam: false}))
                                 }
                             }}
                             className="text-sm text-zinc-400 hover:text-zinc-300"
                         >
-                            I don’t see my team
+                            {manualEntry ? "I see my team" : "I don’t see my team"}
                         </button>
                     )}
                 </div>
@@ -327,7 +369,7 @@ export default function PrePhase({data, setData}: {
                     <div className="flex flex-col gap-2">
                         <div className="flex items-center gap-3">
                             <div
-                                className={`flex-shrink-0 w-16 h-16 rounded flex items-center justify-center ${
+                                className={`shrink-0 w-16 h-16 rounded flex items-center justify-center ${
                                     alliance === 'red'
                                         ? 'bg-red-700'
                                         : alliance === 'blue'
@@ -480,7 +522,7 @@ export default function PrePhase({data, setData}: {
                                 className="text-xs flex justify-between items-center px-3 py-2 rounded bg-zinc-800"
                             >
                                 <span>
-                                    {s.match_type.toUpperCase()} {s.match_number}
+                                    {s.match_type?.toUpperCase()} {s.match_number}
                                     {s.set_number != 1 ? `-${s.set_number}` : ""}
                                 </span>
 
@@ -491,14 +533,13 @@ export default function PrePhase({data, setData}: {
                                             : "text-blue-400"
                                     }`}
                                 >
-                        Team {s.robot}
-                    </span>
+                                    Team {s.robot}
+                                </span>
                             </div>
                         ))}
                     </div>
                 </div>
             )}
-
         </div>
     )
 }

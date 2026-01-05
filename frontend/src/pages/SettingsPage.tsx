@@ -8,12 +8,12 @@ import CardLayoutWrapper from "@/components/wrappers/CardLayoutWrapper.tsx"
 
 export default function SettingLayout() {
     const navigate = useNavigate()
-    const [theme, setThemeState] = useState<Settings["theme"]>(() => getSettingSync("theme", "2026"))
+    const [theme, setThemeState] = useState<Settings["theme"]>(() => getSettingSync("theme"))
     const [orientation, setOrientationState] = useState<Settings["field_orientation"]>(
-        () => getSettingSync("field_orientation", "0")
+        () => getSettingSync("field_orientation")
     )
     const [angle, setAngle] = useState<number>(
-        () => (getSettingSync("field_orientation", "0") === "180" ? 180 : 0)
+        () => (getSettingSync("field_orientation") === "180" ? 180 : 0)
     )
 
     // Load saved settings

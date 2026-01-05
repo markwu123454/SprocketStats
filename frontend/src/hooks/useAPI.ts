@@ -45,7 +45,7 @@ async function apiRequest<T>(
     options: {
         method?: string;
         query?: Record<string, string | number | null | undefined>;
-        body?: any;
+        body?: unknown;
         headers?: HeadersInit;
     } = {}
 ): Promise<T | null> {
@@ -85,7 +85,6 @@ async function apiRequest<T>(
 }
 
 
-// --- Hook ---
 export function useAPI() {
 
     // --- Endpoint: GET /ping ---
@@ -174,16 +173,31 @@ export function useAPI() {
 
 
     // --- Endpoint: GET /metadata ---
-    const getMetadata = async (): Promise<Record<string, any>> => {
-        return (await apiRequest<Record<string, any>>("/metadata") ?? {});
-    };
+    const getMetadata = async () => {
+        return apiRequest<{
+            current_event: string
+            feature_flags: {
+                offlineScouting: boolean
+                pushNotificationWarning: boolean
+            }
+        }>("/metadata")
+    }
+
+    const getFeatureFlags = async () => {
+        return apiRequest<{
+            feature_flags: {
+                offlineScouting: boolean
+                pushNotificationWarning: boolean
+            }
+        }>("/metadata/feature_flags")
+    }
 
 
     // --- Endpoint: GET /auth/verify ---
     const verify = useCallback(async (): Promise<{
         success: boolean
-        name?: string
-        permissions?: {
+        name: string
+        permissions: {
             dev: boolean
             admin: boolean
             match_scouting: boolean
@@ -195,17 +209,40 @@ export function useAPI() {
             const res = await fetch(`${BASE_URL}/auth/verify`, {
                 headers: getAuthHeaders(),
             })
-            if (!res.ok) return {success: false}
+            if (!res.ok) return {
+                success: false,
+                name: "",
+                permissions: {
+                    dev: false,
+                    admin: false,
+                    match_scouting: false,
+                    pit_scouting: false,
+                },
+            }
 
             const json = await res.json()
 
             return {
                 success: true,
                 name: json.name,
-                permissions: json.permissions,
+                permissions: json.permissions ?? {
+                    dev: false,
+                    admin: false,
+                    match_scouting: false,
+                    pit_scouting: false,
+                },
             }
         } catch {
-            return {success: false}
+            return {
+                success: false,
+                name: "",
+                permissions: {
+                    dev: false,
+                    admin: false,
+                    match_scouting: false,
+                    pit_scouting: false,
+                },
+            }
         }
     }, []) // <-- stable identity
 
@@ -440,21 +477,6 @@ export function useAPI() {
     }
 
 
-    // --- Endpoint: GET /status/All/All ---
-    const getAllStatuses = async (): Promise<
-        Record<string, Record<number, {
-            status: string;
-            scouter: string | null
-        }>>
-        | null
-    > => {
-        return await apiRequest<Record<string, Record<number, {
-            status: string;
-            scouter: string | null
-        }>>>("/status/All/All");
-    }
-
-
     // --- Endpoint: GET /match/{m_type}/{match}/{alliance}/state ---
     const getScouterState = async (
         match: number,
@@ -482,15 +504,7 @@ export function useAPI() {
 
 
     // --- Endpoint: GET /scouter/schedule ---
-    const getScouterSchedule = async (): Promise<
-        {
-            match_type: MatchType;
-            match_number: number;
-            set_number: number;
-            alliance: AllianceType;
-            robot: number;
-        }[]
-    > => {
+    const getScouterSchedule = async () => {
         const res = await apiRequest<{
             assignments: {
                 match_type: MatchType;
@@ -504,34 +518,9 @@ export function useAPI() {
         return res?.assignments ?? [];
     };
 
+
     // --- Endpoint: GET /matches/schedule ---
-    const getAllMatches = async (): Promise<{
-        matches: {
-            key: string
-            event_key: string
-            match_type: MatchType
-            match_number: number
-            set_number: number
-            scheduled_time: string | null
-            actual_time: string | null
-            red1: number | null
-            red2: number | null
-            red3: number | null
-            blue1: number | null
-            blue2: number | null
-            blue3: number | null
-            red1_scouter: string | null
-            red2_scouter: string | null
-            red3_scouter: string | null
-            blue1_scouter: string | null
-            blue2_scouter: string | null
-            blue3_scouter: string | null
-        }[]
-        scouters: {
-            email: string
-            name: string
-        }[]
-    } | null> => {
+    const getAllMatches = async () => {
         return await apiRequest<{
             matches: {
                 key: string
@@ -561,6 +550,7 @@ export function useAPI() {
         }>("/matches/schedule");
     };
 
+
     // --- Endpoint: PATCH /matches/schedule ---
     const updateMatchSchedule = async (
         matches: {
@@ -588,50 +578,6 @@ export function useAPI() {
                 body: {matches},
             }
         );
-    };
-
-    // --- Endpoint: GET /pit/teams ---
-    const getPitTeams = async (): Promise<
-        { team: number | string; scouter: string | null; status: string; last_modified: number }[]
-    > => {
-        const res = await apiRequest<{ teams: any[] }>("/pit/teams");
-        return res?.teams ?? [];
-    };
-
-
-    // --- Endpoint: GET /pit/{team} ---
-    const getPitData = async (
-        team: number | string
-    ): Promise<{
-        team: number | string;
-        scouter: string | null;
-        status: string;
-        data: Record<string, any>;
-        last_modified: number;
-    } | null
-    > => {
-        return await apiRequest<{
-            team: number | string;
-            scouter: string | null;
-            status: string;
-            data: Record<string, any>;
-            last_modified: number;
-        }>(`/pit/${team}`);
-    };
-
-// --- Endpoint: POST /pit/{team} ---
-    const updatePitData = async (
-        team: number | string,
-        scouter: string,
-        data: Record<string, any>,
-        status: "pre" | "submitted" | "unclaimed" | "in_progress" = "pre"
-    ): Promise<
-        boolean
-    > => {
-        return (await apiRequest(`/pit/${team}`, {
-            method: "POST",
-            body: {scouter, data, status},
-        })) !== null;
     };
 
 
@@ -666,11 +612,13 @@ export function useAPI() {
 
         // If NO admin UUID exists, fall back to guest endpoint + token
         if (!headers["x-uuid"]) {
-            endpoint = "/data/processed/guest";
-
-            if (token) {
-                headers["x-guest-password"] = token;
+            if (!token) {
+                // hard fail instead of making an invalid request
+                return null
             }
+
+            endpoint = "/data/processed/guest"
+            headers["x-guest-password"] = token
         }
 
         const query: Record<string, string> = {};
@@ -690,11 +638,15 @@ export function useAPI() {
         return await apiRequest<Record<string, any>>("/data/candy");
     };
 
+
     const getLatency = async (): Promise<{
         client_to_server_ns: number | null,
         server_to_client_ns: number | null,
         roundtrip_ns: number | null,
-        db_latency: Record<string, any> | null
+        db_latency: {
+            tcp_latency_ns: number | null,
+            db_query_latency_ns: number | null
+        } | null
     }
     > => {
         try {
@@ -743,6 +695,23 @@ export function useAPI() {
         }
     };
 
+    // --- Endpoint: GET /metadata ---
+    const getAllGuest = async (): Promise<
+        {
+            password: string
+            name: string
+            permissions: {
+                team: string[]
+                match: string[]
+                ranking: boolean
+                alliance: boolean
+            }
+            expire_date: string | null
+        }[]
+    > => {
+        return await apiRequest("/admin/get_guests") ?? []
+    }
+
 
     return {
         login,
@@ -757,11 +726,7 @@ export function useAPI() {
         submitData,
         getTeamList,
         getScouterSchedule,
-        getAllStatuses,
         getScouterState,
-        getPitTeams,
-        getPitData,
-        updatePitData,
         submitPitData,
         getPitScoutStatus,
         getActiveMatches,
@@ -770,5 +735,7 @@ export function useAPI() {
         getLatency,
         getAllMatches,
         updateMatchSchedule,
+        getFeatureFlags,
+        getAllGuest,
     };
 }
