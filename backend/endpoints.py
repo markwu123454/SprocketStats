@@ -982,6 +982,17 @@ async def get_data_processed_guest(
         "permissions": perms,
     }
 
+@router.get("/admin/get_guests")
+async def admin_get_guests(
+    _: enums.SessionInfo = Depends(db.require_permission("admin")),
+):
+    """
+    Admin-only endpoint.
+    Returns all guest records, including passwords.
+    """
+    return await db.get_all_guests()
+
+
 @router.get("/data/candy")
 async def get_candy_data():
     cache_key = "candy_cache"

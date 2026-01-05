@@ -2,8 +2,23 @@ import {ArrowLeft} from "lucide-react";
 import {useEffect, useState, useMemo} from "react";
 import {useAPI} from "@/hooks/useAPI.ts";
 import {AgGridReact} from "ag-grid-react";
-import {themeQuartz} from "ag-grid-community";
+import {type ColDef, type ICellRendererParams, RowNode, themeQuartz} from "ag-grid-community";
 import {HeaderFooterLayoutWrapper} from "@/components/wrappers/HeaderFooterLayoutWrapper.tsx";
+
+type AwardDisplayPart = {
+    text: string;
+    className: string;
+};
+
+type CandyRow = {
+    team: number;
+    epa: number | null;
+    district2025: number | null;
+    awardsDisplay: {
+        formatted: AwardDisplayPart[];
+    };
+    awardsValue: number;
+};
 
 export default function CandyDataPage() {
     const api = useAPI();
@@ -13,15 +28,29 @@ export default function CandyDataPage() {
     const [selectedEvent, setSelectedEvent] = useState<string>("");
     const [teams, setTeams] = useState<number[]>([]);
     const [teamData, setTeamData] = useState<Record<number, any>>({});
-    const [loading, setLoading] = useState(true);
     const [raw, setRaw] = useState<any>(null);
 
     const [eventNameMap, setEventNameMap] = useState<Record<string, Record<string, string>>>({});
 
-    const columnDefs = [
+    const columnDefs = useMemo<ColDef<CandyRow>[]>(() => [
         {headerName: "Team", field: "team", width: 100, sortable: true},
-        {headerName: "2025 EPA", field: "epa", width: 140, sortable: true},
-        {headerName: "2025 District Points", field: "district2025", width: 170, sortable: true},
+
+        {
+            headerName: "2025 EPA",
+            field: "epa",
+            width: 140,
+            sortable: true,
+            sortingOrder: ['desc', 'asc', null],
+        },
+
+        {
+            headerName: "2025 District Points",
+            field: "district2025",
+            width: 170,
+            sortable: true,
+            sortingOrder: ['desc', 'asc', null],
+        },
+
         {
             headerName: "Awards (Impact/EI)",
             field: "awardsDisplay",
@@ -29,20 +58,20 @@ export default function CandyDataPage() {
             sortable: true,
             wrapText: true,
             autoHeight: true,
-            comparator: (a: any, b: any, nodeA: any, nodeB: any) =>
-                nodeA.data.awardsValue - nodeB.data.awardsValue,
-            cellRenderer: "awardsRenderer"
+            sortingOrder: ['desc', 'asc', null],
+            comparator: (
+                _a: unknown,
+                _b: unknown,
+                nodeA: RowNode<CandyRow>,
+                nodeB: RowNode<CandyRow>
+            ) => nodeA.data!.awardsValue - nodeB.data!.awardsValue,
+            cellRenderer: "awardsRenderer",
         }
-    ];
+    ], []);
 
-    const gridOptions = {
-        sortingOrder: ['desc', 'asc', null]
-    };
 
     useEffect(() => {
         const load = async () => {
-            setLoading(true);
-
             // Load event names
             const nameRes = await fetch("/teams/event_names.json");
             const nameMap = await nameRes.json();
@@ -63,10 +92,8 @@ export default function CandyDataPage() {
                 setTeams(block.teams || []);
                 setTeamData(block.data || {});
             }
-
-            setLoading(false);
         };
-        load();
+        void load();
     }, []);
 
     useEffect(() => {
@@ -85,7 +112,7 @@ export default function CandyDataPage() {
 
             const epa = record.epa?.epa?.current ?? "";
 
-            let district2025 = "";
+            let district2025;
             if (record.district_points) {
                 district2025 = Object.entries(record.district_points)
                     .filter(([key]) => key.startsWith("2025"))
@@ -182,44 +209,32 @@ export default function CandyDataPage() {
             }
             body={
                 <div className="w-full h-full rounded-md shadow theme-bg theme-border theme-scrollbar">
-                    {loading ? (
-                        <div className="p-4 theme-subtext-color">
-                            Loading teams...
-                        </div>
-                    ) : (
-                        <AgGridReact
-                            theme={themeQuartz}
-                            gridOptions={gridOptions}
-                            columnDefs={columnDefs}
-                            rowData={rowData}
-                            components={{awardsRenderer: AwardsRenderer}}
-                            rowHeight={36}
-                            animateRows={true}
-                        />
-                    )}
-                </div>
-            }
-            footer={
-                <div className="theme-subtext-color">
-                    {/* optional footer content */}
+                    <AgGridReact
+                        theme={themeQuartz}
+                        columnDefs={columnDefs}
+                        rowData={rowData}
+                        components={{awardsRenderer: AwardsRenderer}}
+                        rowHeight={36}
+                        animateRows={true}
+                    />
                 </div>
             }
         />
     );
 }
 
-const AwardsRenderer = (params: any) => {
+const AwardsRenderer = (params: ICellRendererParams<CandyRow, CandyRow["awardsDisplay"]>) => {
     const html = params.value as {
         formatted: Array<{ text: string; className: string }>;
     };
     return (
         <span>
-      {html.formatted.map((part, i) => (
-          <span key={i} className={part.className}>
-          {part.text}
-              {i < html.formatted.length - 1 ? ", " : ""}
+            {html.formatted.map((part, i) => (
+                <span key={i} className={part.className}>
+                    {part.text}
+                    {i < html.formatted.length - 1 ? ", " : ""}
+                </span>
+            ))}
         </span>
-      ))}
-    </span>
     );
 };

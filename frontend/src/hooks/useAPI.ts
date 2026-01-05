@@ -612,11 +612,13 @@ export function useAPI() {
 
         // If NO admin UUID exists, fall back to guest endpoint + token
         if (!headers["x-uuid"]) {
-            endpoint = "/data/processed/guest";
-
-            if (token) {
-                headers["x-guest-password"] = token;
+            if (!token) {
+                // hard fail instead of making an invalid request
+                return null
             }
+
+            endpoint = "/data/processed/guest"
+            headers["x-guest-password"] = token
         }
 
         const query: Record<string, string> = {};
@@ -693,6 +695,23 @@ export function useAPI() {
         }
     };
 
+    // --- Endpoint: GET /metadata ---
+    const getAllGuest = async (): Promise<
+        {
+            password: string
+            name: string
+            permissions: {
+                team: string[]
+                match: string[]
+                ranking: boolean
+                alliance: boolean
+            }
+            expire_date: string | null
+        }[]
+    > => {
+        return await apiRequest("/admin/get_guests") ?? []
+    }
+
 
     return {
         login,
@@ -717,5 +736,6 @@ export function useAPI() {
         getAllMatches,
         updateMatchSchedule,
         getFeatureFlags,
+        getAllGuest,
     };
 }

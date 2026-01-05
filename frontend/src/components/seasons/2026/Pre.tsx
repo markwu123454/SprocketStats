@@ -116,6 +116,14 @@ export default function PrePhase({data, setData}: {
     }, [data.manualTeam])
 
     useEffect(() => {
+        if (!manualEntry) return
+        if (!data.teamNumber) return
+
+        // populate input from existing teamNumber
+        setManualTeam(String(data.teamNumber))
+    }, [manualEntry, data.teamNumber])
+
+    useEffect(() => {
         if (!(isOnline && serverOnline)) return
 
         let alive = true
@@ -351,7 +359,7 @@ export default function PrePhase({data, setData}: {
                             }}
                             className="text-sm text-zinc-400 hover:text-zinc-300"
                         >
-                            I don’t see my team
+                            {manualEntry ? "I see my team" : "I don’t see my team"}
                         </button>
                     )}
                 </div>

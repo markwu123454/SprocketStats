@@ -302,8 +302,8 @@ async def init_db():
                                (
                                    password         TEXT PRIMARY KEY,
                                    name             TEXT    NOT NULL,
-                                   perms            JSONB NOT NULL,
-                                   created_at       TIMESTAMPTZ DEFAULT now()
+                                   permissions      JSONB NOT NULL,
+                                   expire_date       TIMESTAMPTZ DEFAULT now()
                                );
                                """)
 
@@ -1707,6 +1707,44 @@ async def get_guest(password: str) -> Optional[dict]:
         raise HTTPException(status_code=500, detail="Database error retrieving guest")
     finally:
         await release_db_connection(DB_NAME, conn)
+
+
+async def get_all_guests() -> list[Dict[str, Any]]:
+    """
+    Fetch all guest records.
+    """
+
+    conn = await get_db_connection(DB_NAME)
+    try:
+        rows = await conn.fetch("""
+            SELECT
+                password,
+                name,
+                permissions,
+                expire_date
+            FROM guests
+        """)
+
+        return [
+            {
+                "password": r["password"],
+                "name": r["name"],
+                "permissions": r["permissions"],
+                "expire_date": r["expire_date"].isoformat()
+                if r["expire_date"] else None,
+            }
+            for r in rows
+        ]
+
+    except PostgresError as e:
+        logger.error("Failed to fetch guests: %s", e)
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to fetch guest records"
+        )
+    finally:
+        await release_db_connection(DB_NAME, conn)
+
 
 
 def require_guest_password() -> Callable[..., Awaitable[dict]]:
