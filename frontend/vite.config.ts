@@ -16,7 +16,7 @@ export default defineConfig({
 
             manifest: {
                 name: "Sprocketstats",
-                short_name: "Sprocketstats",
+                short_name: "Spstats",
                 start_url: "/",
                 display: "standalone",
                 background_color: "#000000",
@@ -34,27 +34,48 @@ export default defineConfig({
                 clientsClaim: true,
 
                 navigateFallback: "/index.html",
-                globDirectory: "dist", // explicitly define this
-                globPatterns: ["**/*.{js,css,html,ico,png,svg,webmanifest}"],
-                globIgnores: ["**/teams/team_icons/**", "sw.js", "workbox-*.js"],
+
+                globPatterns: [
+                    "**/index.html",
+                    "**/*.webmanifest",
+                    "**/*.png",
+                    "**/*.svg",
+                    "**/*.ico",
+                ],
+
+                globIgnores: ["sw.js", "workbox-*.js"],
 
                 runtimeCaching: [
+                    {
+                        urlPattern: ({request}) =>
+                            request.destination === "script" ||
+                            request.destination === "style",
+                        handler: "StaleWhileRevalidate",
+                        options: {
+                            cacheName: "assets-cache",
+                        },
+                    },
                     {
                         urlPattern: ({request}) => request.destination === "image",
                         handler: "CacheFirst",
                         options: {
                             cacheName: "images-cache",
-                            expiration: {maxEntries: 100, maxAgeSeconds: 60 * 60 * 24 * 30},
+                            expiration: {
+                                maxEntries: 100,
+                                maxAgeSeconds: 60 * 60 * 24 * 30,
+                            },
                         },
                     },
                     {
                         urlPattern: ({request}) => request.mode === "navigate",
                         handler: "NetworkFirst",
-                        options: {networkTimeoutSeconds: 3},
+                        options: {
+                            networkTimeoutSeconds: 3,
+                        },
                     },
                 ],
 
-                maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
+                cleanupOutdatedCaches: true,
             },
 
             injectRegister: "auto", // ensures auto registration
