@@ -8,7 +8,7 @@ public sealed class AnsiConsole
     private readonly List<ConsoleLine> _lines = new();
 
     private MediaColor _currentColor = MediaColor.FromRgb(255, 255, 255);
-    private int _cursorLineOffset = 0;
+    private int _cursorLineOffset;
 
     private static readonly Dictionary<int, MediaColor> AnsiColors = new()
     {
@@ -76,7 +76,7 @@ public sealed class AnsiConsole
             {
                 Flush();
 
-                int end = text.IndexOfAny(new[] { 'm', 'A', 'K' }, i);
+                int end = text.IndexOfAny(['m', 'A', 'K'], i);
                 if (end == -1)
                     break;
 
@@ -160,6 +160,6 @@ public sealed class ConsoleLine
 
 public sealed class ConsoleSpan
 {
-    public string Text { get; set; } = "";
-    public MediaColor Color { get; set; }
+    public string Text { get; init; } = "";
+    public MediaColor Color { get; init; }
 }

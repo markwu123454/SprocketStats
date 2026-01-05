@@ -504,7 +504,7 @@ export function useAPI() {
         return res?.assignments ?? [];
     };
 
-    // --- Endpoint: GET /matches ---
+    // --- Endpoint: GET /matches/schedule ---
     const getAllMatches = async (): Promise<{
         matches: {
             key: string
@@ -558,9 +558,37 @@ export function useAPI() {
                 email: string
                 name: string
             }[]
-        }>("/matches");
+        }>("/matches/schedule");
     };
 
+    // --- Endpoint: PATCH /matches/schedule ---
+    const updateMatchSchedule = async (
+        matches: {
+            key: string
+            scheduled_time: string | null
+            actual_time: string | null
+            red1: number | null
+            red2: number | null
+            red3: number | null
+            blue1: number | null
+            blue2: number | null
+            blue3: number | null
+            red1_scouter: string | null
+            red2_scouter: string | null
+            red3_scouter: string | null
+            blue1_scouter: string | null
+            blue2_scouter: string | null
+            blue3_scouter: string | null
+        }[]
+    ): Promise<{ status: "ok" } | null> => {
+        return await apiRequest<{ status: "ok" }>(
+            "/matches/schedule",
+            {
+                method: "PATCH",
+                body: {matches},
+            }
+        );
+    };
 
     // --- Endpoint: GET /pit/teams ---
     const getPitTeams = async (): Promise<
@@ -741,5 +769,6 @@ export function useAPI() {
         getCandyData,
         getLatency,
         getAllMatches,
+        updateMatchSchedule,
     };
 }

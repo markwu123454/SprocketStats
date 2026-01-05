@@ -277,6 +277,7 @@ export default function TeamData() {
                                         {data.label}: {data.value ?? data.sumValue ?? 0}
                                     </div>
                                 )}
+                                animate={false}
                             />
                         </div>
 
@@ -311,6 +312,7 @@ export default function TeamData() {
                                         {id}: {value}
                                     </div>
                                 )}
+                                animate={false}
                             />
                         </div>
                     </div>

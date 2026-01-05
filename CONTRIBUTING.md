@@ -2,6 +2,11 @@
 
 This document serves as a concise guide for developers working on the FRC Scouting App — covering setup, infrastructure, and collaboration rules to ensure consistent, stable development.
 
+> [!WARNING]
+> **Internal Development Documentation**
+> 
+> If you wish to use this project or contribute to it, please contact the owner first.
+
 ---
 
 ## Table of Contents
@@ -32,10 +37,10 @@ pip install -r requirements.txt
 
 > Do **not** run `npm run dev` or `uvicorn main:app --reload` directly — use the unified runner below.
 
-| Mode        | Command               |
-|-------------|-----------------------|
-| Development | `python3 run.py dev`  |
-| Production  | `python3 run.py prod` |
+| Mode        | Command                                    |
+|-------------|--------------------------------------------|
+| Development | `python3 run.py dev`                       |
+| Production  | `python3 run.py prod`(outdated, don't use) |
 
 ---
 
