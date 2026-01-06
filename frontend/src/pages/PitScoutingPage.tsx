@@ -13,7 +13,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Button } from "@/components/ui/button.tsx";
 import PhotoCaptureCard from "@/components/ui/cameraCapture";
 import { pitQuestions } from "@/components/seasons/2026/yearConfig.ts";
-import { getSettingSync, type Settings } from "@/db/settingsDb.ts";
 import CardLayoutWrapper from "@/components/wrappers/CardLayoutWrapper.tsx";
 
 // TODO: add questions for human factor(openness, approachability, etc)
@@ -35,7 +34,6 @@ export default function PitScoutingLayout() {
     const [answers, setAnswers] = useState<Partial<Record<string, string>>>({});
     const [submitted, setSubmitted] = useState(false);
     const [teamNames, setTeamNames] = useState<Record<string, string>>({});
-    const [theme] = useState<Settings["theme"]>(() => getSettingSync("theme", "2026"));
 
     // --- Load team names once ---
     useEffect(() => {
@@ -109,7 +107,7 @@ export default function PitScoutingLayout() {
     };
 
     return (
-        <CardLayoutWrapper theme={theme??"2026"} showLogo={false} overflow={true}>
+        <CardLayoutWrapper showLogo={false}>
             <form
                 onSubmit={handleSubmit}
                 className="space-y-6 max-w-xl mx-auto"

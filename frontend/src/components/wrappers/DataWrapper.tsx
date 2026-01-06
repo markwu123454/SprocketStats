@@ -119,11 +119,24 @@ export default function DataWrapper() {
         permissions: null,
     })
 
-    async function loadAll() {
-        setState((s) => ({...s, loading: true}))
+    async function loadAll(tokenOverride?: string) {
+        setState(s => ({...s, loading: true}))
 
         try {
-            const token = localStorage.getItem("guest_pw_token") ?? ""
+            const token =
+                tokenOverride ??
+                localStorage.getItem("guest_pw_token") ??
+                ""
+
+            if (!token) {
+                setState(s => ({
+                    ...s,
+                    loading: false,
+                    authSuccess: false,
+                }))
+                return
+            }
+
             const result = await getProcessedData(token)
 
             const processed = result?.raw_data ?? null

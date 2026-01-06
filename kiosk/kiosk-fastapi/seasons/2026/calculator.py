@@ -1,8 +1,19 @@
 import asyncio
 import traceback
 
+# =========================
+# ANSI Color Constants
+# =========================
+ANSI_RESET = "\x1b[0m"
 
-# TODO: still from reefscape, everything need to change
+ANSI_RED = "\x1b[31m"
+ANSI_GREEN = "\x1b[32m"
+ANSI_YELLOW = "\x1b[33m"
+ANSI_BLUE = "\x1b[34m"
+ANSI_MAGENTA = "\x1b[35m"
+ANSI_CYAN = "\x1b[36m"
+ANSI_GRAY = "\x1b[90m"
+
 
 # =========================
 # Calculation Helper functions
@@ -15,11 +26,16 @@ import traceback
 async def _calculate_async(data, progress, log, get_settings):
     current_step = ""
     try:
+        # =========================
+        # Initialization
+        # =========================
         progress(0)
-        log(f"→ Starting calculator")
+        log("→ Starting calculator")
         # log(json.dumps(extract_team_metrics(data)))
 
-        # fetch flags
+        # =========================
+        # Fetch runtime flags
+        # =========================
         settings = get_settings()
         verbose = settings.get("verbose", True)
 
@@ -36,20 +52,30 @@ async def _calculate_async(data, progress, log, get_settings):
                 for k, v in settings.items()
                 if k.startswith("run_") and v
             ]
+            log(
+                f"  Running steps: {', '.join(steps) or 'none'}"
+            )
+        log(f"{ANSI_YELLOW}  ⚠ This is a placeholder for the actual calculator, no computation is completed{ANSI_RESET}")
 
-            log(f"  → Running steps: {', '.join(steps) or 'none'}")
         progress(1)
 
         result = {}
 
-        # --- Extract datasets ---
+        # =========================
+        # Extract datasets
+        # =========================
         match_data = data.get("match_scouting", [])
         all_matches = data.get("all_matches", [])
+
         '''
         if not match_data:
             log("[yellow][WARN] No match_scouting data found — skipping main analysis pipeline.[/]")
-            return {"status": 1, "result": {"error": "no match_scouting"}}'''
+            return {"status": 1, "result": {"error": "no match_scouting"}}
+        '''
 
+        # =========================
+        # Step 0 Output Structure
+        # =========================
         step_0_output = {
             "total_warnings": 0,
             "valid_records": 0,
@@ -62,45 +88,70 @@ async def _calculate_async(data, progress, log, get_settings):
             },
         }
 
-        current_step = "0"
+        # =========================
         # Step 0: Data validation pipeline
-        log("    → Running data validation checks")
+        # =========================
+        current_step = "0"
+        log("  → Running data validation checks")
 
-        current_step = "0.1"
         # Step 0.1: Validate raw input data for internal consistency
-        log("\x1b[32m      ✔ Internal data consistency validated")
+        current_step = "0.1"
+        log(
+            f"{ANSI_GREEN}    ✔ Internal data consistency validated{ANSI_RESET}"
+        )
 
-        current_step = "0.2"
         # Step 0.2: Validate event/team/match data against TBA's published data
-        log("\x1b[32m      ✔ Data validated against TBA official records")
+        current_step = "0.2"
+        log(
+            f"{ANSI_GREEN}    ✔ Data validated against TBA official records{ANSI_RESET}"
+        )
 
-        current_step = "0.3"
         # Step 0.3: Identify scouting entries or matches with abnormal/low confidence
-        log("\x1b[32m      ✔ Low-confidence or anomalous data detected")
+        current_step = "0.3"
+        log(
+            f"{ANSI_GREEN}    ✔ Low-confidence or anomalous data detected{ANSI_RESET}"
+        )
 
+        # =========================
+        # Step 1 Output Structure
+        # =========================
         step_1_output = {
-            "team_match": {},  # team_match[team][match] → per-team-per-match computed metrics
-            "team": {},  # team[team] → aggregated team-level metrics
-            "match": {},  # match[match] → aggregated match-level metrics
+            # team_match[team][match] → per-team-per-match computed metrics
+            "team_match": {},
+            # team[team] → aggregated team-level metrics
+            "team": {},
+            # match[match] → aggregated match-level metrics
+            "match": {},
         }
 
+        # =========================
+        # Step 1: Baseline metrics
+        # =========================
         if run1:
             current_step = "1"
-            # Step 1: Compute baseline metrics from scouting data
-            log("    → Computing baseline match and team metrics")
+            log("  → Computing baseline match and team metrics")
 
-            current_step = "1.1"
             # Step 1.1: Compute metrics for each team in each match
-            log("\x1b[32m      ✔ Per-team-per-match metrics calculated")
+            current_step = "1.1"
+            log(
+                f"{ANSI_GREEN}    ✔ Per-team-per-match metrics calculated{ANSI_RESET}"
+            )
 
-            current_step = "1.2"
             # Step 1.2: Aggregate per-team metrics across all matches
-            log("\x1b[32m      ✔ Team aggregate metrics calculated")
+            current_step = "1.2"
+            log(
+                f"{ANSI_GREEN}    ✔ Team aggregate metrics calculated{ANSI_RESET}"
+            )
 
-            current_step = "1.3"
             # Step 1.3: Aggregate per-match metrics across all teams
-            log("\x1b[32m      ✔ Match aggregate metrics calculated")
+            current_step = "1.3"
+            log(
+                f"{ANSI_GREEN}    ✔ Match aggregate metrics calculated{ANSI_RESET}"
+            )
 
+        # =========================
+        # Step 2 Output Structure
+        # =========================
         step_2_output = {
             "heuristic": {
                 "ranking": [],
@@ -120,85 +171,220 @@ async def _calculate_async(data, progress, log, get_settings):
             },
         }
 
+        # =========================
+        # Step 2: Rankings
+        # =========================
         if run2:
             current_step = "2"
-            # Step 2: Build performance rankings using multiple models
-            log("    → Generating performance-based team rankings")
+            log("  → Generating performance-based team rankings")
 
-            current_step = "2.1"
             # Step 2.1: Compute heuristic scoring averages
-            log("\x1b[32m      ✔ Heuristic ranking scores computed")
+            current_step = "2.1"
+            log(
+                f"{ANSI_GREEN}    ✔ Heuristic ranking scores computed{ANSI_RESET}"
+            )
 
-            current_step = "2.2"
             # Step 2.2: Compute feature-based ELO scores
-            log("\x1b[32m      ✔ ELO model team scores computed")
+            current_step = "2.2"
+            log(
+                f"{ANSI_GREEN}    ✔ ELO model team scores computed{ANSI_RESET}"
+            )
 
-            current_step = "2.3"
             # Step 2.3: Retrieve Statbotics EPA values
-            log("\x1b[32m      ✔ Statbotics EPA rankings fetched")
+            current_step = "2.3"
+            log(
+                f"{ANSI_GREEN}    ✔ Statbotics EPA rankings fetched{ANSI_RESET}"
+            )
 
-            current_step = "2.4"
             # Step 2.4: Retrieve TBA ranking point values
-            log("\x1b[32m      ✔ Ranking point standings retrieved from TBA")
+            current_step = "2.4"
+            log(
+                f"{ANSI_GREEN}    ✔ Ranking point standings retrieved from TBA{ANSI_RESET}"
+            )
 
+        # =========================
+        # Step 3 Output Structure
+        # =========================
         step_3_output = {
             "heuristic": {},
             "random_forest": {},
         }
 
+        # =========================
+        # Step 3: Match prediction
+        # =========================
         if run3:
             current_step = "3"
-            # Step 3: Predict match outcomes
-            log("    → Running match prediction models")
+            log("  → Running match prediction models")
 
-            current_step = "3.1"
+            log(f"    0 out of 10 completed")
+            for i in range(10):
+                await asyncio.sleep(0.3)
+                log(f"\r    {i+1} out of 10 completed", newline=False)
+            log("\x1b[K", newline=False)
+
             # Step 3.1: Predict match outcomes using heuristic rankings
-            log("\x1b[32m      ✔ Match predictions generated from heuristic model")
+            current_step = "3.1"
+            log(
+                f"{ANSI_GREEN}    ✔ Match predictions generated from heuristic model{ANSI_RESET}"
+            )
 
-            current_step = "3.2"
             # Step 3.2: Predict match outcomes using Random Forest model
-            log("\x1b[32m      ✔ Match predictions generated from Random Forest model")
+            current_step = "3.2"
+            log(
+                f"{ANSI_GREEN}    ✔ Match predictions generated from Random Forest model{ANSI_RESET}"
+            )
 
+        # =========================
+        # Step 4 Output Structure
+        # =========================
         step_4_output = {}
 
+        # =========================
+        # Step 4: Qualitative analysis
+        # =========================
         if run4:
             current_step = "4"
-            # Step 4: Perform qualitative analysis on teams and matches
-            log("    → Performing qualitative analysis")
+            log("  → Performing qualitative analysis")
 
+            # Step 4.1: Generate qualitative insights
             current_step = "4.1"
-            # Step 4.1: Generate qualitative insights (strengths, weaknesses, trends)
-            log("\x1b[32m      ✔ Qualitative analysis complete")
+            log(
+                f"{ANSI_GREEN}    ✔ Qualitative analysis complete{ANSI_RESET}"
+            )
 
-        # Step 5 reserved for future features
-        # log("    → Step 5 placeholder (future expansion)")
-
+        # =========================
+        # Step 6: Output translation
+        # =========================
         result = {
             "match": {},
             "team": {},
             "ranking": {},
             "alliance": {},
         }
+
         if run6:
             current_step = "6"
-            # Step 6: Convert computed data into output format (translation/serialization)
-            log("    → Translating all processed data into output structures")
-            result = {
-                "step0": step_0_output,
-                "step1": step_1_output,
-                "step2": step_2_output,
-                "step3": step_3_output,
-                "step4": step_4_output
-            }
-            log("\x1b[32m      ✔ Done")
+            log("  → Translating all processed data into output structures")
 
-        # TODO: look into bayesian_opr, glicko_2, xgboost(predict trends for wins/losses), kmeans useful!!, monte-carlo, elote
+            result = {
+                "team": {
+                    3473:
+                    # basic
+                        {"tags": ["rookie", "defense"],
+
+                         # ranking
+                         "ranking": {
+                             "auto": 12,
+                             "teleop": 45,
+                             "endgame": 20,
+                             "rp": 3,
+                             "rp_pred": 2.7,
+                             "rp_avg": 2.4,
+                             "rp_avg_pred": 2.6,
+                         },
+
+                         # metrics
+                         "metrics": {
+                             "avg_score": 77.3,
+                             "auto_consistency": 0.85,
+                             "can_climb": True,
+                             "drive_type": "swerve",
+                         },
+
+                         # matches
+                         "matches": [
+                             {
+                                 "match": 1,
+                                 "own_alliance": [123, 456, 789],
+                                 "opp_alliance": [321, 654, 987],
+                                 "score": 85,
+                                 "won": True,
+                             },
+                             {
+                                 "match": 2,
+                                 "own_alliance": [123, 222, 333],
+                                 "opp_alliance": [444, 555, 666],
+                                 "score": 72,
+                                 "won": False,
+                                 "notes": None,
+                             },
+                         ],
+
+                         # rp
+                         "rp": {
+                             "match_1": {
+                                 "earned": True,
+                                 "value": 2,
+                                 "details": {
+                                     "auto_rp": True,
+                                     "endgame_rp": False,
+                                 },
+                             },
+                             "match_2": {
+                                 "earned": False,
+                                 "value": 1,
+                             },
+                         },
+
+                         # timeline (match is the only required key)
+                         "timeline": [
+                             {
+                                 "match": 1,
+                                 "auto_points": 15,
+                                 "teleop_points": 50,
+                                 "endgame_points": 20,
+                             },
+                             {
+                                 "match": 15,
+                                 "auto_points": 10,
+                                 "teleop_points": 45,
+                                 "endgame_points": 17,
+                             },
+                         ],
+
+                         # breakdown (tree structure)
+                         "breakdown": {
+                             "id": "total",
+                             "label": "Total Score",
+                             "sumValue": 150,
+                             "children": [
+                                 {
+                                     "id": "auto",
+                                     "label": "Autonomous",
+                                     "value": 25,
+                                 },
+                                 {
+                                     "id": "teleop",
+                                     "label": "Teleop",
+                                     "value": 95,
+                                 },
+                                 {
+                                     "id": "endgame",
+                                     "label": "Endgame",
+                                     "value": 30,
+                                 },
+                             ],
+                         },
+                    }
+                }
+            }
+
+            log(f"{ANSI_GREEN}    ✔ Done{ANSI_RESET}")
+
+        # TODO: consider
+        # - bayesian_opr
+        # - glicko_2
+        # - xgboost (predict trends for wins/losses)
+        # - kmeans (clustering usefulness)
+        # - monte-carlo simulations
+        # - elote
 
         return {"status": 0, "result": result}
 
     except Exception as e:
-        log(f"\x1b[31m ✖ error in: {current_step}")
-        log(f"\x1b[31m ✖ {traceback.format_exc()}")
+        log(f"{ANSI_RED} ✖ error in: {current_step}{ANSI_RESET}")
+        log(f"{ANSI_RED} ✖ {traceback.format_exc()}{ANSI_RESET}")
         return {"status": 1, "result": {"error": str(e)}}
 
 

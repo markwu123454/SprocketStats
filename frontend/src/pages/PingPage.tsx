@@ -49,7 +49,7 @@ export default function PingMonitor() {
 
     return (
         <div
-            className="flex flex-col items-center justify-center h-screen bg-gradient-to-br from-[#1A082E] via-[#240046] to-[#0B0014] text-zinc-100 select-none pointer-events-none">
+            className="flex flex-col items-center justify-center h-screen bg-linear-to-br from-[#1A082E] via-[#240046] to-[#0B0014] text-zinc-100 select-none pointer-events-none">
             {/* --- HEADER --- */}
             <div className="relative flex flex-col items-center mt-6 mb-3">
                 {/* Layered logo: ring behind gear */}

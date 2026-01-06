@@ -1,9 +1,26 @@
 import {useState, useRef, useEffect} from "react";
 import {Share2, Maximize, Printer} from "lucide-react";
 import QRCodeStyling from "qr-code-styling";
+import {useAPI} from "@/hooks/useAPI.ts";
+import SearchDropdown from "@/components/ui/searchDropdown.tsx"
+
+type GuestAdminInfo = {
+    password: string
+    name: string
+    perms: {
+        team: string[]
+        match: string[]
+        ranking: boolean
+        alliance: boolean
+    }
+    created_at: string | null
+}
+
 
 export default function AdminSharePage() {
-    const [guestPassword, setGuestPassword] = useState("");
+    const {getAllGuest} = useAPI()
+    const [guests, setGuests] = useState<GuestAdminInfo[]>([])
+    const [selectedGuest, setSelectedGuest] = useState<GuestAdminInfo | null>(null)
     const [finalPassword, setFinalPassword] = useState<string | null>(null);
     const [mode, setMode] = useState<"normal" | "fullscreen" | "print">("normal");
 
@@ -13,6 +30,10 @@ export default function AdminSharePage() {
     let guestUrl = "https://sprocketstats.io/guest";
     guestUrl = "https://sprocketstats.vercel.app/guest";
     const fullLink = finalPassword ? `${guestUrl}?pw=${finalPassword}` : guestUrl;
+
+    useEffect(() => {
+        getAllGuest().then(setGuests).catch(console.error)
+    }, [])
 
     useEffect(() => {
         if (!finalPassword) return;
@@ -69,13 +90,6 @@ export default function AdminSharePage() {
 
     }, [finalPassword, mode, fullLink]);
 
-
-    const enterPassword = () => {
-        if (guestPassword.trim().length === 0) return;
-        setFinalPassword(guestPassword.trim());
-    };
-
-
     const handleShare = async () => {
         if (navigator.share) {
             try {
@@ -118,7 +132,7 @@ export default function AdminSharePage() {
             {/* Intro Message */}
             <div className="max-w-3xl mb-12 text-purple-200 text-lg leading-relaxed">
                 <p className="mb-4 font-semibold text-xl text-purple-300">
-                    Welcome!
+                    Welcome{selectedGuest ? `, ${selectedGuest.name}` : ""}!
                 </p>
                 <p>
                     Team Sprocket has decided to share some of our scouting data with you
@@ -171,26 +185,29 @@ export default function AdminSharePage() {
 
     return (
         <div
-            className={`min-h-screen flex flex-col bg-gradient-to-b from-purple-950 via-purple-900 to-purple-950 text-purple-100`}>
+            className={`min-h-screen flex flex-col bg-linear-to-b from-purple-950 via-purple-900 to-purple-950 text-purple-100`}>
 
-            {/* STEP 1 — Password Selection */}
+            {/* STEP 1 — Guest Selection */}
             {!finalPassword && (
                 <div className="flex flex-col items-center mt-32 px-4">
-                    <h1 className="text-3xl font-bold mb-6">Select Guest Password</h1>
+                    <h1 className="text-3xl font-bold mb-6">Select Guest</h1>
 
-                    <input
-                        value={guestPassword}
-                        onChange={(e) => setGuestPassword(e.target.value)}
-                        placeholder="Enter guest password"
-                        className="bg-purple-900/40 border border-purple-700 p-3 rounded-xl w-full max-w-md mb-4"
+                    <SearchDropdown
+                        items={guests}
+                        displayKey="name"
+                        placeholder="Search guest name…"
+                        onSelect={(guest: GuestAdminInfo) => {
+                            setSelectedGuest(guest)
+                            setFinalPassword(guest.password)
+                        }}
+                        className="w-full max-w-md text-black"
                     />
 
-                    <button
-                        onClick={enterPassword}
-                        className="bg-purple-700 hover:bg-purple-600 transition px-5 py-2 rounded-lg text-lg font-medium"
-                    >
-                        Continue
-                    </button>
+                    {selectedGuest && (
+                        <p className="text-purple-300 text-lg">
+                            Welcome, <span className="font-semibold">{selectedGuest.name}</span>!
+                        </p>
+                    )}
                 </div>
             )}
 
@@ -232,7 +249,6 @@ export default function AdminSharePage() {
             {finalPassword && mode === "fullscreen" && (
                 <div className="absolute inset-0 bg-purple-950 overflow-auto p-8">
                     {renderShareView()}
-
                 </div>
             )}
 

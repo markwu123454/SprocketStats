@@ -8,6 +8,7 @@ import {Outlet, useNavigate} from "react-router-dom"
 import {createPortal} from "react-dom"
 import {useAPI} from "@/hooks/useAPI"
 import {useClientEnvironment} from "@/hooks/useClientEnvironment"
+import useFeatureFlags from "@/hooks/useFeatureFlags.ts";
 
 const PERMISSION_LABELS: Record<string, string> = {
     dev: "Developer",
@@ -23,7 +24,7 @@ export default function AuthGate({
                                      mode = "auto",
                                      children,
                                  }: {
-    permission: keyof typeof PERMISSION_LABELS
+    permission: "dev" | "admin" | "match_scouting" | "pit_scouting"
     device?: "mobile" | "desktop"
     dialogTheme?: "light" | "dark"
     mode?: "pessimistic" | "optimistic" | "auto"
@@ -32,6 +33,7 @@ export default function AuthGate({
     const navigate = useNavigate()
     const {verify} = useAPI()
     const {isOnline, serverOnline, deviceType} = useClientEnvironment()
+    const featureFlags = useFeatureFlags()
 
     const cachedPerms = useRef<Record<string, boolean>>(
         JSON.parse(localStorage.getItem("perms") ?? "{}")
@@ -42,7 +44,7 @@ export default function AuthGate({
             ? true
             : mode === "pessimistic"
                 ? false
-                : !!cachedPerms.current[permission]
+                : cachedPerms.current[permission]
 
     const [authorized, setAuthorized] = useState<boolean | null>(
         effectiveOptimistic ? true : null
@@ -56,18 +58,27 @@ export default function AuthGate({
     const memoizedVerify = useCallback(async () => {
         setVerifying(true)
 
-        if (
-            (!isOnline || !serverOnline) &&
-            (permission === "match_scouting" || permission === "pit_scouting")
-        ) {
+        const isScoutingPermission =
+            permission === "match_scouting" || permission === "pit_scouting"
+
+        const canUseOfflineScouting =
+            isScoutingPermission && featureFlags.offlineScouting
+
+        if ((!isOnline || !serverOnline) && canUseOfflineScouting) {
             setAuthorized(true)
             setVerifying(false)
             return
         }
 
+        if ((!isOnline || !serverOnline) && isScoutingPermission) {
+            setAuthorized(false)
+            setVerifying(false)
+            return
+        }
+
         const result = await verify()
-        const perms = result.permissions ?? {}
-        const success = result.success && !!perms[permission]
+        const perms = result.permissions
+        const success = result.success && perms[permission]
 
         setAuthorized(success)
         setVerifying(false)
@@ -75,7 +86,13 @@ export default function AuthGate({
         if (result.success) {
             localStorage.setItem("perms", JSON.stringify(perms))
         }
-    }, [isOnline, serverOnline, verify, permission])
+    }, [
+        isOnline,
+        serverOnline,
+        verify,
+        permission,
+        featureFlags.offlineScouting,
+    ])
 
     useEffect(() => {
         if (authorized !== true || !device) return
@@ -83,7 +100,6 @@ export default function AuthGate({
 
         setDeviceWarning(deviceType !== device)
     }, [authorized, device, deviceType])
-
 
     useEffect(() => {
         void memoizedVerify()
@@ -100,7 +116,7 @@ export default function AuthGate({
         authorized === false ||
         (deviceWarning && !ignoredWarning)
 
-    /** 🔒 Scroll lock */
+    /** Scroll lock */
     useEffect(() => {
         if (!blocking) return
 
@@ -126,15 +142,15 @@ export default function AuthGate({
         ? "border border-gray-300 shadow-lg"
         : "border border-zinc-700 shadow-xl"
 
-    /** ✅ NOT BLOCKING → NO DOM WRAPPER */
+    /** NOT BLOCKING → NO DOM WRAPPER */
     if (!blocking) {
         return <>{children ?? <Outlet/>}</>
     }
 
-    /** ⛔ BLOCKING UI (PORTAL) */
+    /** BLOCKING UI (PORTAL) */
     return createPortal(
         <div
-            className={`fixed inset-0 z-[9999] flex items-center justify-center ${
+            className={`fixed inset-0 z-9999 flex items-center justify-center ${
                 isLight ? "bg-zinc-100 text-black" : "bg-zinc-950 text-white"
             }`}
             role="dialog"

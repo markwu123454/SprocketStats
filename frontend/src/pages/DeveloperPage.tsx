@@ -30,7 +30,7 @@ export default function DevPage() {
     const [version, setVersion] = useState<Record<string, any>>({});
     const [devMetadata, setDevMetadata] = useState<Record<string, any>>({});
     const [eventNames, setEventNames] = useState<Record<string, { full: string; short: string }>>({});
-    const [theme, setThemeState] = useState<Settings["theme"]>(() => getSettingSync("theme", "2026"))
+    const [theme, setThemeState] = useState<Settings["theme"]>(() => getSettingSync("theme"))
 
     const inspectIndexedDB = async () => {
         const dbs = await indexedDB.databases();
@@ -193,7 +193,7 @@ export default function DevPage() {
                         </p>
                     </div>
 
-                    <div className="text-xs opacity-70 text-right whitespace-nowrap flex-shrink-0">
+                    <div className="text-xs opacity-70 text-right whitespace-nowrap shrink-0">
                         Event Key: {devMetadata.current_event ?? PLACEHOLDER}
                     </div>
                 </>
@@ -330,7 +330,7 @@ export default function DevPage() {
                         Frontend URL
                     </a>
 
-                    <div className="text-right opacity-70 whitespace-nowrap overflow-hidden flex-shrink-0">
+                    <div className="text-right opacity-70 whitespace-nowrap overflow-hidden shrink-0">
                         <p>Branch: {version.VERCEL_GIT_COMMIT_REF ?? PLACEHOLDER}</p>
                         <p>Commit: {version.VERCEL_GIT_COMMIT_SHA_SHORT ?? PLACEHOLDER}</p>
                     </div>
