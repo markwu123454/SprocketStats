@@ -183,7 +183,7 @@ export default function CandyDataPage() {
             header={
                 <div className="flex items-center gap-4 text-xl theme-text">
                     <a
-                        href="/"
+                        href="/more"
                         className="flex items-center p-2 rounded-md
                                theme-button-bg hover:theme-button-hover transition-colors"
                     >

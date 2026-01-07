@@ -182,7 +182,7 @@ export default function AuthGate({
                 </div>
             )}
 
-            {deviceWarning && !ignoredWarning && (
+            {deviceWarning && !ignoredWarning && authorized && (
                 <div
                     ref={dialogRef}
                     tabIndex={-1}
