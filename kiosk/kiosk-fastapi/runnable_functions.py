@@ -1,5 +1,8 @@
+import json
+import random
 from collections import defaultdict
 from collections.abc import Mapping, Sequence
+from datetime import datetime
 
 PY_TO_TS = {
     int: "number",
@@ -100,7 +103,7 @@ def infer_types(value, *, pretty=False):
             inner = fp[1]
             if len(inner) == 1:
                 return f"{emit_fp(inner[0])}[]"
-            return f"({ ' | '.join(emit_fp(x) for x in inner) })[]"
+            return f"({' | '.join(emit_fp(x) for x in inner)})[]"
 
         if kind == "record":
             return f"Record<string, {emit_fp(fp[1])}>"
@@ -277,3 +280,94 @@ def counts_appearances(downloaded_data):
     print("\nRobot (Team) Appearance Counts:")
     for team, count in sorted(robot_counts.items(), key=lambda x: x[1], reverse=True):
         print(f"  - Team {team}: {count}")
+
+SPECIAL_CHARS = "!@#$%^&*_-+=?"
+
+def generate_password(team_number: int, team_name: str) -> str:
+    # Split and scramble word order
+    words = team_name.split()
+    random.shuffle(words)
+    base = "".join(words)
+
+    chars = list(base)
+
+    # Insert each digit of the team number at a random position
+    for digit in str(team_number):
+        pos = random.randrange(len(chars) + 1)
+        chars.insert(pos, digit)
+
+    # Insert exactly two special characters
+    for _ in range(2):
+        special = random.choice(SPECIAL_CHARS)
+        pos = random.randrange(len(chars) + 1)
+        chars.insert(pos, special)
+
+    return "".join(chars)
+
+async def generate_guest_profile():
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    with open("team_names.json", "r") as f:
+        team_names = json.load(f)
+
+    matches = await cursor.fetch("""
+        SELECT match_type,
+               match_number,
+               red1, red2, red3,
+               blue1, blue2, blue3
+        FROM matches
+        WHERE event_key = (
+            SELECT current_event
+            FROM metadata
+            LIMIT 1
+        );
+    """)
+
+    partner_data = {}
+
+    for m in matches:
+        match_key = f"{m['match_type']}{m['match_number']}"
+        red = [m["red1"], m["red2"], m["red3"]]
+        blue = [m["blue1"], m["blue2"], m["blue3"]]
+
+        if 3473 in red:
+            alliance = red
+        elif 3473 in blue:
+            alliance = blue
+        else:
+            continue
+
+        for partner in alliance:
+            if partner == 3473:
+                continue
+
+            entry = partner_data.setdefault(
+                partner, {"teams": set(), "matches": set()}
+            )
+
+            entry["teams"].update(map(str, red + blue))
+            entry["matches"].add(match_key)
+
+    for partner, data in partner_data.items():
+        team_name = team_names.get(str(partner), f"Team {partner}")
+        password = generate_password(partner, team_name)
+
+        permissions = {
+            "team": sorted(data["teams"]),
+            "match": sorted(data["matches"]),
+            "ranking": False,
+            "alliance": False
+        }
+
+        await cursor.execute("""
+            INSERT INTO guests (password, name, permissions, expire_date)
+            VALUES (%s, %s, %s::jsonb, %s);
+        """, (
+            password,
+            team_name,
+            json.dumps(permissions),
+            datetime(2026, 6, 1)
+        ))
+
+    await conn.commit()

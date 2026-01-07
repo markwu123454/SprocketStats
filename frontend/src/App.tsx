@@ -19,7 +19,7 @@ import NotFoundPage from "@/pages/NotFoundPage.tsx"
 import PingPage from "@/pages/PingPage.tsx"
 import PitScoutingPage from "@/pages/PitScoutingPage.tsx"
 import RankingDataPage from "@/pages/data/RankingDataPage.tsx"
-import SettingsPage from "@/pages/SettingsPage.tsx"
+import MorePage from "@/pages/MorePage.tsx"
 import TeamDataPage from "@/pages/data/TeamDataPage.tsx"
 import AdminSharePage from "@/pages/AdminSharePage.tsx";
 import MatchDataPredPage from "@/pages/data/MatchDataPredPage.tsx";
@@ -36,7 +36,7 @@ export default function App() {
 
                         <Route path="/candy" element={<CandyDataPage/>}/>
 
-                        <Route path="/settings" element={<SettingsPage/>}/>
+                        <Route path="/more" element={<MorePage/>}/>
 
                         <Route path="/scouting/match" element={
                             <AuthWrapper permission="match_scouting" device="mobile">

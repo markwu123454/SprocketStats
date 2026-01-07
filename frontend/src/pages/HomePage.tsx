@@ -44,7 +44,7 @@ export default function HomePage() {
         {label: "Admin Panel & Data", key: "admin", path: "/admin"},
         {label: "Match Scouting", key: "match_scouting", path: "/scouting/match"},
         {label: "Pit Scouting", key: "pit_scouting", path: "/scouting/pit"},
-        {label: "Settings", key: "settings", path: "/settings"},
+        {label: "More", key: "more", path: "/more"},
     ]
 
     const navigate = useNavigate()
@@ -182,7 +182,7 @@ export default function HomePage() {
                         let enabled: boolean;
 
                         // Settings ALWAYS enabled
-                        if (key === "settings") {
+                        if (key === "more") {
                             enabled = true;
                         }
                         // Scouting pages: offline OK only if feature flag allows it

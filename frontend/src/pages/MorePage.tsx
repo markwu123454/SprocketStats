@@ -6,7 +6,7 @@ import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from "@/c
 import {Label} from "@/components/ui/label"
 import CardLayoutWrapper from "@/components/wrappers/CardLayoutWrapper.tsx"
 
-export default function SettingLayout() {
+export default function MorePage() {
     const navigate = useNavigate()
     const [theme, setThemeState] = useState<Settings["theme"]>(() => getSettingSync("theme"))
     const [orientation, setOrientationState] = useState<Settings["field_orientation"]>(
@@ -46,13 +46,11 @@ export default function SettingLayout() {
     }, [theme])
 
     return (
-        <CardLayoutWrapper theme={theme ?? "2026"} showLogo={false}>
+        <CardLayoutWrapper showLogo={false}>
             {/* Header */}
             <div className="flex items-center justify-between">
-                <h1
-                    className="text-2xl font-bold theme-h1-color"
-                >
-                    Settings
+                <h1 className="text-2xl font-bold theme-h1-color">
+                    More
                 </h1>
                 <button
                     onClick={() => navigate("/")}
@@ -63,6 +61,20 @@ export default function SettingLayout() {
                 </button>
             </div>
 
+            {/* Extra section */}
+            <div className="space-y-3 mt-2">
+                <button
+                    onClick={() => navigate("/candy")}
+                    className="w-full px-4 py-2 rounded-md border transition
+                               theme-border theme-button-bg/50 theme-text hover:theme-button-hover hover:cursor-pointer"
+                >
+                    Candy Data
+                </button>
+            </div>
+
+            <hr className="my-4 theme-border"/>
+
+            {/* Settings */}
             <div className="space-y-4">
                 {/* Theme Selection */}
                 <div className="space-y-1">
@@ -72,45 +84,13 @@ export default function SettingLayout() {
                         onValueChange={(val) => setThemeState(val as Settings["theme"])}
                     >
                         <SelectTrigger
-                            className="w-full border rounded-md transition theme-button-bg theme-border theme-text theme-button-hover "
+                            className="w-full border rounded-md transition theme-button-bg theme-border theme-text theme-button-hover"
                         >
                             <SelectValue placeholder="Select Theme"/>
                         </SelectTrigger>
 
                         <SelectContent
-                            className="rounded-md shadow-lg border transition"
-                            style={{
-                                background:
-                                    theme === "dark"
-                                        ? "#18181b"
-                                        : theme === "light"
-                                            ? "#ffffff"
-                                            : theme === "2025"
-                                                ? "#0b234f"
-                                                : theme === "2026"
-                                                    ? "#fff8e5"
-                                                    : "#4c1d95", // 3473 purple
-                                color:
-                                    theme === "dark"
-                                        ? "#e4e4e7"
-                                        : theme === "light"
-                                            ? "#111"
-                                            : theme === "2025"
-                                                ? "#e2e8f0"
-                                                : theme === "2026"
-                                                    ? "#1a1a1a"
-                                                    : "#e5deff",
-                                borderColor:
-                                    theme === "dark"
-                                        ? "#27272a"
-                                        : theme === "light"
-                                            ? "#d4d4d8"
-                                            : theme === "2025"
-                                                ? "#1e3a8a"
-                                                : theme === "2026"
-                                                    ? "#e5dec4"
-                                                    : "#6d28d9",
-                            }}
+                            className="rounded-md shadow-lg transition theme-border theme-button-bg"
                         >
                             {["dark", "light", "2025", "2026", "3473"].map((val) => (
                                 <SelectItem
@@ -132,19 +112,17 @@ export default function SettingLayout() {
                     <Label className="theme-subtext-color">
                         Field Orientation
                     </Label>
-                    <p
-                        className="text-sm italic mb-2 theme-subtext-color"
-                    >
+                    <p className="text-sm italic mb-2 theme-subtext-color">
                         Rotate until the field image matches what you see from your current location.
                     </p>
 
                     <div className="flex flex-col items-center gap-3">
                         <div
                             className="
-        relative w-64 h-64 border rounded-lg overflow-hidden
-        shadow-[0_0_12px_rgba(0,0,0,0.25)] theme-border
-        transition-transform duration-700 ease-in-out will-change-transform
-    "
+                                relative w-64 h-64 border rounded-lg overflow-hidden
+                                shadow-[0_0_12px_rgba(0,0,0,0.25)] theme-border
+                                transition-transform duration-700 ease-in-out will-change-transform
+                            "
                             style={{
                                 transform: `rotate(${angle}deg)`,
                                 transformOrigin: "50% 50%",
@@ -167,9 +145,7 @@ export default function SettingLayout() {
                                 className="p-2 rounded-full border transition hover:theme-button-hover theme-border"
                                 title="Rotate Counterclockwise"
                             >
-                                <RotateCcw
-                                    className="w-5 h-5 theme-text"
-                                />
+                                <RotateCcw className="w-5 h-5 theme-text"/>
                             </button>
 
                             <button
@@ -181,9 +157,7 @@ export default function SettingLayout() {
                                 className="p-2 rounded-full border transition hover:theme-button-hover theme-border"
                                 title="Rotate Clockwise"
                             >
-                                <RotateCw
-                                    className="w-5 h-5 theme-text"
-                                />
+                                <RotateCw className="w-5 h-5 theme-text"/>
                             </button>
                         </div>
                     </div>
