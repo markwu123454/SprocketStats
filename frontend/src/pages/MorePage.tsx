@@ -70,6 +70,13 @@ export default function MorePage() {
                 >
                     Candy Data
                 </button>
+                <button
+                    onClick={() => navigate("/countdown")}
+                    className="w-full px-4 py-2 rounded-md border transition
+                               theme-border theme-button-bg/50 theme-text hover:theme-button-hover hover:cursor-pointer"
+                >
+                    2026 Sprocket Countdown
+                </button>
             </div>
 
             <hr className="my-4 theme-border"/>
