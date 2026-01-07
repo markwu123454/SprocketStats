@@ -618,6 +618,7 @@ def refresh_python_globals():
     fn.settings = settings
     fn.downloaded_data = downloaded_data
     fn.calc_result = calc_result
+    fn.get_connection = get_connection
     fn.print = log # overriding builtins
 
     inject_module_functions(fn, python_globals)
