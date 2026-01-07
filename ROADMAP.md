@@ -32,19 +32,21 @@
 - Make new settings ui for the wpf app
 - Make the analysis engine
 
-### General updating:
+#### Required changes:
+
+- Make pre-match and post-match data page 
+- Make a script to generate guest login info(mainly password and username but also permissions)
+- Add the data navigation searchable dropdown to each data page
+- Fix share data page's dropdown colors(bg and text are all white), also a way to print for all teams at once(otherwise it's going to be painful to distribute)
+  
+#### QOL:
 
 - Fix auto population problems with alliance selection of alliance page
 - Add proper percentage predictions for playoff simulation of alliance page
-- Make pre-match and post-match data page
 - Add random popup to ask provide feedback via the google form(also finish the form), using a wrapper
 - Fix device and permission overlay conflicting
-- Make a script to generate guest login info(mainly password and username but also permissions)
 - Make more pages available on mobile(mostly admin and dev)
-- Fix share data page's dropdown colors(bg and text are all white), also a way to print for all teams at once(otherwise it's going to be painful to distribute)
 - Add more chart types as necessary for ranking data and add better title and legend for each chart
 - Add match links in rp section of team data and team links in match data
 - Add metadata for current match and actually use the timestamps fetched from tba for uses
-- Add the data navigation searchable dropdown to each data page
 - Replace the settings button in home with more, and redo settings page to not only include settings but also links to pages like candy
-- 
