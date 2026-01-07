@@ -1,6 +1,7 @@
 import {Link, useParams} from "react-router-dom"
 import {useMatchData, usePermissions} from "@/components/wrappers/DataWrapper"
 import {useEffect, useState} from "react";
+import DataSearch from "@/components/ui/dataSearch.tsx";
 
 const placeholder = {
     alliances: {
@@ -50,15 +51,22 @@ export default function MatchDataPredPage() {
         <div className="flex flex-col h-screen bg-white text-zinc-900">
             {/* === HEADER === */}
             <div className="flex items-center justify-between border-b border-zinc-200 px-8 py-4 h-20 bg-zinc-50">
-                <div className="flex flex-col">
-                    <h1 className="text-xl font-semibold">
-                        {matchKey?.toUpperCase() ?? "MATCH"}
-                    </h1>
-                    <p className="text-sm text-zinc-500">
-                        {match?.event_key ?? "Unknown Event"} —{" "}
-                        {match?.comp_level?.toUpperCase() ?? "?"}
-                    </p>
+                <div className="flex items-center gap-4">
+                    <div className="flex flex-col">
+                        <h1 className="text-xl font-semibold">
+                            {matchKey?.toUpperCase() ?? "MATCH"}
+                        </h1>
+                        <p className="text-sm text-zinc-500">
+                            {match?.event_key ?? "Unknown Event"} —{" "}
+                            {match?.comp_level?.toUpperCase() ?? "?"}
+                        </p>
+                    </div>
+                    <DataSearch
+                        teamNames={teamNames}
+                        permissions={permissions}
+                    />
                 </div>
+
 
                 <div className="flex items-center gap-10 text-lg font-semibold">
                     starting in 5 matches

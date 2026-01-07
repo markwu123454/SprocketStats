@@ -7,6 +7,7 @@ import {AgGridReact} from "ag-grid-react"
 import {useTeamData, usePermissions} from "@/components/wrappers/DataWrapper.tsx"
 import {SquareCheckBig, SquareX} from "lucide-react";
 import {themeQuartz} from "ag-grid-community";
+import DataSearch from "@/components/ui/dataSearch.tsx";
 
 type BreakdownNode = {
     id: string
@@ -25,6 +26,16 @@ export default function TeamData() {
     const data = useTeamData(teamNum)
     const permissions = usePermissions()
     const [teamName, setTeamName] = useState("Unknown Team")
+    const permission = usePermissions()
+
+    const [teamNames, setTeamNames] = useState({})
+
+    useEffect(() => {
+        fetch("/teams/team_names.json")
+            .then((res) => res.json())
+            .then((data) => setTeamNames(data))
+            .catch(() => setTeamNames({}));
+    }, []);
 
     // ---- Load team nickname from /teams/team_names.json ----
     useEffect(() => {
@@ -155,6 +166,10 @@ export default function TeamData() {
                     <div className="truncate font-semibold text-base">
                         #{teamNum} {teamName}
                     </div>
+                    <DataSearch
+                        teamNames={teamNames}
+                        permissions={permission}
+                    />
                 </div>
 
                 <div className="flex items-center gap-6 text-sm text-gray-700">

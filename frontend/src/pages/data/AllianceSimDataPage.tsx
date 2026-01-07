@@ -7,6 +7,8 @@ import {
 } from "@dnd-kit/core";
 import {CSS} from "@dnd-kit/utilities"
 import {Link} from "react-router-dom";
+import DataSearch from "@/components/ui/dataSearch.tsx";
+import {usePermissions} from "@/components/wrappers/DataWrapper.tsx";
 
 // ===== Shared Types =====
 type Match = {
@@ -33,7 +35,16 @@ type Alliance = {
 
 // ===== Main Page =====
 export default function AllianceSimData() {
+    const permission = usePermissions()
 
+    const [teamNames, setTeamNames] = useState({})
+
+    useEffect(() => {
+        fetch("/teams/team_names.json")
+            .then((res) => res.json())
+            .then((data) => setTeamNames(data))
+            .catch(() => setTeamNames({}));
+    }, []);
     const [step, setStep] = useState<1 | 2 | 3>(1)
     const [recentMatch, setRecentMatch] = useState<string>("qm3")
     const [matches, setMatches] = useState<Match[]>([
@@ -279,7 +290,15 @@ export default function AllianceSimData() {
         <div className="h-screen flex flex-col p-4 gap-4 bg-white">
             {/* ===== Header Navigation ===== */}
             <header className="flex justify-between items-center border-b pb-2">
-                <h1 className="text-2xl font-bold">Alliance Simulation</h1>
+                <div className="flex items-center gap-4">
+                    <h1 className="text-2xl font-bold whitespace-nowrap">
+                        Alliance Simulation
+                    </h1>
+                    <DataSearch
+                        teamNames={teamNames}
+                        permissions={permission}
+                    />
+                </div>
                 <div className="flex gap-2">
                     {[1, 2, 3].map((s) => (
                         <button
@@ -770,20 +789,69 @@ function Step3_ElimSim({alliances}: { alliances: Alliance[] }) {
 
     // ---- Build initial static template ----
     const template = useMemo<Record<string, BracketMatch>>(() => ({
-        UB1: { id: "UB1", red: null, blue: null, winner: null, winnerDest: {id: "UB5", slot: "red"}, loserDest: {id: "LB1", slot: "red"} },
-        UB2: { id: "UB2", red: null, blue: null, winner: null, winnerDest: {id: "UB5", slot: "blue"}, loserDest: {id: "LB1", slot: "blue"} },
-        UB3: { id: "UB3", red: null, blue: null, winner: null, winnerDest: {id: "UB6", slot: "red"}, loserDest: {id: "LB2", slot: "red"} },
-        UB4: { id: "UB4", red: null, blue: null, winner: null, winnerDest: {id: "UB6", slot: "blue"}, loserDest: {id: "LB2", slot: "blue"} },
-        UB5: { id: "UB5", red: null, blue: null, winner: null, winnerDest: {id: "UB7", slot: "red"}, loserDest: {id: "LB3", slot: "blue"} },
-        UB6: { id: "UB6", red: null, blue: null, winner: null, winnerDest: {id: "UB7", slot: "blue"}, loserDest: {id: "LB4", slot: "blue"} },
-        UB7: { id: "UB7", red: null, blue: null, winner: null, winnerDest: {id: "F", slot: "red"}, loserDest: {id: "LB6", slot: "blue"} },
-        LB1: { id: "LB1", red: null, blue: null, winner: null, winnerDest: {id: "LB3", slot: "red"} },
-        LB2: { id: "LB2", red: null, blue: null, winner: null, winnerDest: {id: "LB4", slot: "red"} },
-        LB3: { id: "LB3", red: null, blue: null, winner: null, winnerDest: {id: "LB5", slot: "red"} },
-        LB4: { id: "LB4", red: null, blue: null, winner: null, winnerDest: {id: "LB5", slot: "blue"} },
-        LB5: { id: "LB5", red: null, blue: null, winner: null, winnerDest: {id: "LB6", slot: "red"} },
-        LB6: { id: "LB6", red: null, blue: null, winner: null, winnerDest: {id: "F", slot: "blue"} },
-        F:   { id: "F", red: null, blue: null, winner: null },
+        UB1: {
+            id: "UB1",
+            red: null,
+            blue: null,
+            winner: null,
+            winnerDest: {id: "UB5", slot: "red"},
+            loserDest: {id: "LB1", slot: "red"}
+        },
+        UB2: {
+            id: "UB2",
+            red: null,
+            blue: null,
+            winner: null,
+            winnerDest: {id: "UB5", slot: "blue"},
+            loserDest: {id: "LB1", slot: "blue"}
+        },
+        UB3: {
+            id: "UB3",
+            red: null,
+            blue: null,
+            winner: null,
+            winnerDest: {id: "UB6", slot: "red"},
+            loserDest: {id: "LB2", slot: "red"}
+        },
+        UB4: {
+            id: "UB4",
+            red: null,
+            blue: null,
+            winner: null,
+            winnerDest: {id: "UB6", slot: "blue"},
+            loserDest: {id: "LB2", slot: "blue"}
+        },
+        UB5: {
+            id: "UB5",
+            red: null,
+            blue: null,
+            winner: null,
+            winnerDest: {id: "UB7", slot: "red"},
+            loserDest: {id: "LB3", slot: "blue"}
+        },
+        UB6: {
+            id: "UB6",
+            red: null,
+            blue: null,
+            winner: null,
+            winnerDest: {id: "UB7", slot: "blue"},
+            loserDest: {id: "LB4", slot: "blue"}
+        },
+        UB7: {
+            id: "UB7",
+            red: null,
+            blue: null,
+            winner: null,
+            winnerDest: {id: "F", slot: "red"},
+            loserDest: {id: "LB6", slot: "blue"}
+        },
+        LB1: {id: "LB1", red: null, blue: null, winner: null, winnerDest: {id: "LB3", slot: "red"}},
+        LB2: {id: "LB2", red: null, blue: null, winner: null, winnerDest: {id: "LB4", slot: "red"}},
+        LB3: {id: "LB3", red: null, blue: null, winner: null, winnerDest: {id: "LB5", slot: "red"}},
+        LB4: {id: "LB4", red: null, blue: null, winner: null, winnerDest: {id: "LB5", slot: "blue"}},
+        LB5: {id: "LB5", red: null, blue: null, winner: null, winnerDest: {id: "LB6", slot: "red"}},
+        LB6: {id: "LB6", red: null, blue: null, winner: null, winnerDest: {id: "F", slot: "blue"}},
+        F: {id: "F", red: null, blue: null, winner: null},
     }), [])
 
     // ---- Initialize bracket ----
@@ -791,10 +859,14 @@ function Step3_ElimSim({alliances}: { alliances: Alliance[] }) {
         if (alliances.filter(a => a.captain).length < 8) return
 
         const seeded = structuredClone(template)
-        seeded.UB1.red = 1; seeded.UB1.blue = 8
-        seeded.UB2.red = 4; seeded.UB2.blue = 5
-        seeded.UB3.red = 2; seeded.UB3.blue = 7
-        seeded.UB4.red = 3; seeded.UB4.blue = 6
+        seeded.UB1.red = 1;
+        seeded.UB1.blue = 8
+        seeded.UB2.red = 4;
+        seeded.UB2.blue = 5
+        seeded.UB3.red = 2;
+        seeded.UB3.blue = 7
+        seeded.UB4.red = 3;
+        seeded.UB4.blue = 6
 
         const res: Record<string, ResultChoice> = {}
         Object.keys(seeded).forEach(k => res[k] = null)
@@ -810,12 +882,16 @@ function Step3_ElimSim({alliances}: { alliances: Alliance[] }) {
             M[id] = {...templateBase[id], red: null, blue: null, winner: null}
 
         // Seeds
-        M.UB1.red = 1; M.UB1.blue = 8
-        M.UB2.red = 4; M.UB2.blue = 5
-        M.UB3.red = 2; M.UB3.blue = 7
-        M.UB4.red = 3; M.UB4.blue = 6
+        M.UB1.red = 1;
+        M.UB1.blue = 8
+        M.UB2.red = 4;
+        M.UB2.blue = 5
+        M.UB3.red = 2;
+        M.UB3.blue = 7
+        M.UB4.red = 3;
+        M.UB4.blue = 6
 
-        const order = ["UB1","UB2","UB3","UB4","UB5","UB6","LB1","LB2","LB3","LB4","UB7","LB5","LB6","F"]
+        const order = ["UB1", "UB2", "UB3", "UB4", "UB5", "UB6", "LB1", "LB2", "LB3", "LB4", "UB7", "LB5", "LB6", "F"]
 
         const put = (d: Dest | undefined, team: number | null) => {
             if (!d || team == null) return
@@ -907,7 +983,8 @@ function Step3_ElimSim({alliances}: { alliances: Alliance[] }) {
 
     const SafeMatchBox = ({id}: { id: string }) => {
         const m = matches[id]
-        return m ? <MatchBox m={m}/> : <div className="border rounded-lg bg-gray-50 p-2 w-44 text-center text-gray-400">—</div>
+        return m ? <MatchBox m={m}/> :
+            <div className="border rounded-lg bg-gray-50 p-2 w-44 text-center text-gray-400">—</div>
     }
 
     if (!Object.keys(matches).length)
@@ -919,7 +996,7 @@ function Step3_ElimSim({alliances}: { alliances: Alliance[] }) {
 
             <div className="grid grid-cols-6 gap-x-20 auto-rows-min">
                 {/* headers */}
-                {["Round 1","Round 2","Round 3","Round 4","Round 5","Finals"].map((r,i)=>(
+                {["Round 1", "Round 2", "Round 3", "Round 4", "Round 5", "Finals"].map((r, i) => (
                     <div key={i} className="text-center font-semibold">{r}</div>
                 ))}
 
