@@ -28,6 +28,7 @@ export default function HomePage() {
     } | null>(null)
     const [error, setError] = useState<string | null>(null)
     const [messageIndex, setMessageIndex] = useState<number | null>(null)
+    const [authChecked, setAuthChecked] = useState(false)
     const [theme] = useState<Settings["theme"]>(() => getSettingSync("theme"))
     const wakingUp = isOnline && !serverOnline
 
@@ -58,6 +59,7 @@ export default function HomePage() {
                 setPermissions(result.permissions)
                 setMessageIndex(Math.floor(Math.random() * greetings.length))
             }
+            setAuthChecked(true)
         }
         void load()
     }, [])
@@ -110,8 +112,11 @@ export default function HomePage() {
     }
 
     useEffect(() => {
-        renderGoogleButton()
-    }, [serverOnline])
+        if (!authChecked) return
+        if (!name && !permissions) {
+            renderGoogleButton()
+        }
+    }, [serverOnline, authChecked, name, permissions])
 
     // Configure google signin state
     useEffect(() => {
@@ -140,26 +145,31 @@ export default function HomePage() {
                 </h1>
             </div>
 
-            <div className="flex flex-col items-center space-y-4">
+            <div className="flex flex-col items-center space-y-2 min-h-17">
                 {wakingUp ? (
                     <div className="flex flex-col items-center space-y-2">
-                        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-zinc-400"/>
+                        <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-zinc-400"/>
                         <p className="text-sm theme-subtext-color">
                             Waking up backend service...
                         </p>
                     </div>
-                ) : name && permissions ? (
-                    <>
+                ) : !authChecked ? (
+                    <div className="flex flex-col items-center space-y-2">
+                        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-zinc-400"/>
                         <p className="text-sm theme-subtext-color">
-                            {greetings[messageIndex!]}
+                            Checking session…
                         </p>
-                    </>
+                    </div>
+                ) : name && permissions ? (
+                    <p className="text-sm theme-subtext-color">
+                        {greetings[messageIndex!]}
+                    </p>
                 ) : (
                     <>
                         <p className="text-sm theme-subtext-color">
                             Sign in with your Google account
                         </p>
-                        <div id="googleSignInDiv" ref={googleDivRef}></div>
+                        <div ref={googleDivRef}></div>
                         {error && <p className="text-red-500 text-sm">{error}</p>}
                     </>
                 )}
@@ -217,16 +227,22 @@ export default function HomePage() {
                     })}
                 </div>
 
-                <div className="pt-4 border-t theme-border text-center">
-                    {name && permissions && (<p className="text-xs text-zinc-500">
-                        Logged in as <span className="text-zinc-400">{name}</span>.{" "}
-                        <button
-                            onClick={handleLogout}
-                            className="underline hover:text-zinc-300 transition-colors"
-                        >
-                            Log out
-                        </button>
-                    </p>)}
+                <div className="pt-4 border-t theme-border text-center min-h-7">
+                    {name && permissions ? (
+                        <p className="text-xs text-zinc-500">
+                            Logged in as <span className="text-zinc-400">{name}</span>.{" "}
+                            <button
+                                onClick={handleLogout}
+                                className="underline hover:text-zinc-300 transition-colors"
+                            >
+                                Log out
+                            </button>
+                        </p>
+                    ) : (
+                        <p className="text-xs text-zinc-500 opacity-40">
+                            Not signed in
+                        </p>
+                    )}
                 </div>
 
             </div>

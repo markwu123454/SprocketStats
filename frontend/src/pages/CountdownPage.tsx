@@ -1,6 +1,7 @@
 import {HeaderFooterLayoutWrapper} from "@/components/wrappers/HeaderFooterLayoutWrapper.tsx";
 import {ArrowLeft} from "lucide-react";
 import {useEffect, useState} from "react";
+import {Link} from "react-router-dom";
 
 type CountdownTarget = {
     name: string;
@@ -53,13 +54,12 @@ export default function CountdownPage() {
         <HeaderFooterLayoutWrapper
             header={
                 <div className="flex items-center gap-4 text-xl theme-text">
-                    <a
-                        href="/more"
-                        className="flex items-center p-2 rounded-md
-                                   theme-button-bg hover:theme-button-hover transition-colors"
+                    <Link
+                        to="/more"
+                        className="flex items-center p-2 rounded-md theme-button-bg hover:theme-button-hover transition-colors"
                     >
                         <ArrowLeft className="h-5 w-5"/>
-                    </a>
+                    </Link>
                     <span>FRC 2026 Sprocket Countdown</span>
                 </div>
             }
@@ -106,7 +106,6 @@ export default function CountdownPage() {
                     })}
                 </div>
             }
-            footer={<></>}
         />
     );
 }

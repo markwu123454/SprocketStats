@@ -4,11 +4,59 @@ import React, {
     useCallback,
     useRef,
 } from "react"
-import {Outlet, useNavigate} from "react-router-dom"
+import {Link, Outlet, useLocation} from "react-router-dom"
 import {createPortal} from "react-dom"
 import {useAPI} from "@/hooks/useAPI"
 import {useClientEnvironment} from "@/hooks/useClientEnvironment"
-import useFeatureFlags from "@/hooks/useFeatureFlags.ts";
+import useFeatureFlags from "@/hooks/useFeatureFlags.ts"
+
+const DEVICE_WARNING_STORAGE_KEY = "device_warning_silenced_routes"
+
+function getSilencedRoutes(): string[] {
+    try {
+        return JSON.parse(
+            localStorage.getItem(DEVICE_WARNING_STORAGE_KEY) ?? "[]"
+        )
+    } catch {
+        return []
+    }
+}
+
+function silenceRoute(route: string) {
+    const existing = new Set(getSilencedRoutes())
+    existing.add(route)
+    localStorage.setItem(
+        DEVICE_WARNING_STORAGE_KEY,
+        JSON.stringify([...existing])
+    )
+}
+
+class InlineRenderGuard extends React.Component<
+    {
+        onError: () => void
+        children: React.ReactNode
+    },
+    { hasError: boolean }
+> {
+    state = { hasError: false }
+
+    static getDerivedStateFromError() {
+        return { hasError: true }
+    }
+
+    componentDidCatch(error: Error) {
+        console.error("[AuthGate] Page render failed:", error)
+        this.props.onError()
+    }
+
+    render() {
+        if (this.state.hasError) {
+            return null
+        }
+
+        return this.props.children
+    }
+}
 
 const PERMISSION_LABELS: Record<string, string> = {
     dev: "Developer",
@@ -30,32 +78,34 @@ export default function AuthGate({
     mode?: "pessimistic" | "optimistic" | "auto"
     children?: React.ReactNode
 }) {
-    const navigate = useNavigate()
+    const location = useLocation()
+    const routeKey = location.pathname
+
     const {verify} = useAPI()
     const {isOnline, serverOnline, deviceType} = useClientEnvironment()
     const featureFlags = useFeatureFlags()
+
+    /* ---------------------------------------------
+     * AUTHORIZATION STATE
+     * -------------------------------------------*/
 
     const cachedPerms = useRef<Record<string, boolean>>(
         JSON.parse(localStorage.getItem("perms") ?? "{}")
     )
 
-    const effectiveOptimistic =
+    const useOptimisticUX =
         mode === "optimistic"
             ? true
             : mode === "pessimistic"
                 ? false
-                : cachedPerms.current[permission]
+                : Boolean(cachedPerms.current[permission])
 
     const [authorized, setAuthorized] = useState<boolean | null>(
-        effectiveOptimistic ? true : null
+        useOptimisticUX ? true : null
     )
-    const [verifying, setVerifying] = useState(true)
-    const [deviceWarning, setDeviceWarning] = useState(false)
-    const [ignoredWarning, setIgnoredWarning] = useState(false)
+    const [verifying, setVerifying] = useState(!useOptimisticUX)
 
-    const dialogRef = useRef<HTMLDivElement | null>(null)
-
-    const memoizedVerify = useCallback(async () => {
+    const verifyAuth = useCallback(async () => {
         setVerifying(true)
 
         const isScoutingPermission =
@@ -71,7 +121,9 @@ export default function AuthGate({
         }
 
         if ((!isOnline || !serverOnline) && isScoutingPermission) {
-            setAuthorized(false)
+            if (!useOptimisticUX) {
+                setAuthorized(false)
+            }
             setVerifying(false)
             return
         }
@@ -80,7 +132,13 @@ export default function AuthGate({
         const perms = result.permissions
         const success = result.success && perms[permission]
 
-        setAuthorized(success)
+        if (!success && useOptimisticUX) {
+            // hard failure only — downgrade now
+            setAuthorized(false)
+        } else {
+            setAuthorized(success)
+        }
+
         setVerifying(false)
 
         if (result.success) {
@@ -95,28 +153,49 @@ export default function AuthGate({
     ])
 
     useEffect(() => {
-        if (authorized !== true || !device) return
-        if (!deviceType) return // or deviceType === "unknown"
+        void verifyAuth()
+    }, [verifyAuth])
+
+    const authBlocking =
+        (!useOptimisticUX && verifying) || authorized === false
+
+    /* ---------------------------------------------
+     * DEVICE MISMATCH STATE
+     * -------------------------------------------*/
+
+    const [deviceWarning, setDeviceWarning] = useState(false)
+    const [ignoredWarning, setIgnoredWarning] = useState(false)
+    const dialogRef = useRef<HTMLDivElement | null>(null)
+
+    useEffect(() => {
+        if (!device || !deviceType) return
+        if (authorized !== true) return
+
+        const silencedRoutes = getSilencedRoutes()
+        if (silencedRoutes.includes(routeKey)) return
 
         setDeviceWarning(deviceType !== device)
-    }, [authorized, device, deviceType])
+    }, [authorized, device, deviceType, routeKey])
 
     useEffect(() => {
-        void memoizedVerify()
-    }, [memoizedVerify])
-
-    useEffect(() => {
-        if (authorized === true && device && deviceType !== device) {
-            setDeviceWarning(true)
+        if (deviceWarning && !ignoredWarning) {
+            dialogRef.current?.focus()
         }
-    }, [authorized, device, deviceType])
+    }, [deviceWarning, ignoredWarning])
 
-    const blocking =
-        (verifying && !effectiveOptimistic) ||
-        authorized === false ||
-        (deviceWarning && !ignoredWarning)
+    const deviceBlocking =
+        !useOptimisticUX && deviceWarning && !ignoredWarning
 
-    /** Scroll lock */
+    /* ---------------------------------------------
+     * COMBINED BLOCKING
+     * -------------------------------------------*/
+
+    const blocking = authBlocking || deviceBlocking
+
+    /* ---------------------------------------------
+     * SCROLL LOCK
+     * -------------------------------------------*/
+
     useEffect(() => {
         if (!blocking) return
 
@@ -128,11 +207,9 @@ export default function AuthGate({
         }
     }, [blocking])
 
-    useEffect(() => {
-        if (deviceWarning && !ignoredWarning) {
-            dialogRef.current?.focus()
-        }
-    }, [deviceWarning, ignoredWarning])
+    /* ---------------------------------------------
+     * STYLES
+     * -------------------------------------------*/
 
     const isLight = dialogTheme === "light"
     const overlayBg = isLight
@@ -142,74 +219,138 @@ export default function AuthGate({
         ? "border border-gray-300 shadow-lg"
         : "border border-zinc-700 shadow-xl"
 
-    /** NOT BLOCKING → NO DOM WRAPPER */
-    if (!blocking) {
-        return <>{children ?? <Outlet/>}</>
-    }
+    /* ---------------------------------------------
+     * CONTENT (ALWAYS RENDERED)
+     * -------------------------------------------*/
 
-    /** BLOCKING UI (PORTAL) */
-    return createPortal(
-        <div
-            className={`fixed inset-0 z-9999 flex items-center justify-center ${
-                isLight ? "bg-zinc-100 text-black" : "bg-zinc-950 text-white"
-            }`}
-            role="dialog"
-            aria-modal="true"
-        >
-            {verifying && !effectiveOptimistic && (
-                <div className="flex flex-col items-center gap-4">
-                    <div className="w-8 h-8 border-4 border-t-transparent border-blue-500 rounded-full animate-spin"/>
-                    <div className="text-lg font-medium">Checking access…</div>
-                </div>
-            )}
+    const [contentCrashed, setContentCrashed] = useState(false)
 
-            {!verifying && authorized === false && (
-                <div className={`rounded-xl p-8 text-center max-w-sm ${overlayBg} ${border}`}>
-                    <h2 className="text-2xl font-bold mb-4">Access Denied</h2>
-                    <p className="mb-6">
-                        You lack{" "}
-                        <span className="font-semibold text-red-400">
-                            {PERMISSION_LABELS[permission]}
-                        </span>{" "}
-                        permission or your session expired.
-                    </p>
-                    <button
-                        onClick={() => navigate("/")}
-                        className="px-4 py-2 bg-red-600 rounded-md hover:bg-red-700 transition"
-                    >
-                        Return to Login
-                    </button>
-                </div>
-            )}
+    const content = children ?? <Outlet/>
 
-            {deviceWarning && !ignoredWarning && authorized && (
+    return (
+        <>
+            {/* PAGE CONTENT (best-effort) */}
+            {!contentCrashed && (
                 <div
-                    ref={dialogRef}
-                    tabIndex={-1}
-                    className={`rounded-lg p-6 max-w-sm text-center ${overlayBg} ${border}`}
+                    className={
+                        blocking
+                            ? "pointer-events-none select-none blur-[1px]"
+                            : undefined
+                    }
+                    aria-hidden={blocking}
                 >
-                    <h2 className="text-xl font-bold mb-4">Device Mismatch</h2>
-                    <p className="mb-6">
-                        Intended for <strong>{device}</strong> devices.<br/>
-                        You are on <strong>{deviceType}</strong>.
-                    </p>
-                    <div className="flex justify-center gap-4">
-                        <button
-                            onClick={() => navigate("/")}
-                            className="px-4 py-2 rounded bg-zinc-700 hover:bg-zinc-600"
-                        >
-                            Back
-                        </button>
-                        <button
-                            onClick={() => setIgnoredWarning(true)}
-                            className="px-4 py-2 rounded bg-blue-600 hover:bg-blue-700"
-                        >
-                            Continue Anyway
-                        </button>
-                    </div>
+                    <InlineRenderGuard onError={() => setContentCrashed(true)}>
+                        {content}
+                    </InlineRenderGuard>
                 </div>
             )}
-        </div>,
-        document.body
+
+            {/* FALLBACK BACKGROUND IF CONTENT CRASHED */}
+            {contentCrashed && (
+                <div
+                    className={`fixed inset-0 ${
+                        isLight
+                            ? "bg-zinc-100 text-black"
+                            : "bg-zinc-950 text-white"
+                    }`}
+                />
+            )}
+
+            {/* OVERLAY (ALWAYS SAFE) */}
+            {blocking &&
+                createPortal(
+                    <div
+                        className={`fixed inset-0 z-9999 flex items-center justify-center ${
+                            isLight
+                                ? "bg-zinc-100/80 text-black"
+                                : "bg-zinc-950/80 text-white"
+                        }`}
+                        role="dialog"
+                        aria-modal="true"
+                    >
+                        {!useOptimisticUX && verifying && (
+                            <div className="flex flex-col items-center gap-4">
+                                <div
+                                    className="w-8 h-8 border-4 border-t-transparent border-blue-500 rounded-full animate-spin"/>
+                                <div className="text-lg font-medium">
+                                    Checking access…
+                                </div>
+                            </div>
+                        )}
+
+                        {!verifying && authorized === false && (
+                            <div
+                                className={`rounded-xl p-8 text-center max-w-sm ${overlayBg} ${border}`}
+                            >
+                                <h2 className="text-2xl font-bold mb-4">
+                                    Access Denied
+                                </h2>
+                                <p className="mb-6">
+                                    You lack{" "}
+                                    <span className="font-semibold text-red-400">
+                                    {PERMISSION_LABELS[permission]}
+                                </span>{" "}
+                                    permission or your session expired.
+                                </p>
+                                <Link
+                                    to="/"
+                                    className="px-4 py-2 bg-red-600 rounded-md hover:bg-red-700 transition"
+                                >
+                                    Return to Login
+                                </Link>
+                            </div>
+                        )}
+
+                        {deviceWarning && !ignoredWarning && authorized && (
+                            <div
+                                ref={dialogRef}
+                                tabIndex={-1}
+                                className={`rounded-lg p-6 max-w-sm text-center ${overlayBg} ${border}`}
+                            >
+                                <h2 className="text-xl font-bold mb-4">
+                                    Device Mismatch
+                                </h2>
+                                <p className="mb-6">
+                                    Intended for{" "}
+                                    <strong>{device}</strong> devices.
+                                    <br/>
+                                    You are on{" "}
+                                    <strong>{deviceType}</strong>.
+                                </p>
+
+                                <div className="flex flex-col gap-3">
+                                    <div className="flex justify-center gap-4">
+                                        <Link
+                                            to="/"
+                                            className="px-4 py-2 rounded bg-zinc-700 hover:bg-zinc-600"
+                                        >
+                                            Back
+                                        </Link>
+                                        <button
+                                            onClick={() =>
+                                                setIgnoredWarning(true)
+                                            }
+                                            className="px-4 py-2 rounded bg-blue-600 hover:bg-blue-700"
+                                        >
+                                            Continue Anyway
+                                        </button>
+                                    </div>
+
+                                    <button
+                                        onClick={() => {
+                                            silenceRoute(routeKey)
+                                            setIgnoredWarning(true)
+                                        }}
+                                        className="text-sm text-zinc-400 hover:text-zinc-200 underline"
+                                    >
+                                        Don’t warn me again on this page
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+                    </div>,
+                    document.body
+                )}
+        </>
     )
 }

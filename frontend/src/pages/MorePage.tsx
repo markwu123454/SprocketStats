@@ -61,49 +61,64 @@ export default function MorePage() {
                 </button>
             </div>
 
-            {/* Extra section */}
-            <div className="space-y-3 mt-2">
-                <button
-                    onClick={() => navigate("/candy")}
-                    className="w-full px-4 py-2 rounded-md border transition
-                               theme-border theme-button-bg/50 theme-text hover:theme-button-hover hover:cursor-pointer"
-                >
-                    Candy Data
-                </button>
-                <button
-                    onClick={() => navigate("/countdown")}
-                    className="w-full px-4 py-2 rounded-md border transition
-                               theme-border theme-button-bg/50 theme-text hover:theme-button-hover hover:cursor-pointer"
-                >
-                    2026 Sprocket Countdown
-                </button>
+            {/* Links Section */}
+            <div className="mt-4 space-y-2">
+                <h2 className="text-sm font-semibold uppercase tracking-wide theme-subtext-color">
+                    Links
+                </h2>
+
+                <div className="space-y-3">
+                    <button
+                        onClick={() => navigate("/candy")}
+                        className="w-full px-4 py-2 rounded-md border transition
+                               theme-border theme-button-bg/50 theme-text hover:theme-button-hover"
+                    >
+                        Candy Data
+                    </button>
+
+                    <button
+                        onClick={() => navigate("/countdown")}
+                        className="w-full px-4 py-2 rounded-md border transition
+                               theme-border theme-button-bg/50 theme-text hover:theme-button-hover"
+                    >
+                        2026 Sprocket Countdown
+                    </button>
+                </div>
             </div>
 
-            <hr className="my-4 theme-border"/>
+            <hr className="my-6 theme-border"/>
 
-            {/* Settings */}
+            {/* Settings Section */}
             <div className="space-y-4">
+                <h2 className="text-sm font-semibold uppercase tracking-wide theme-subtext-color">
+                    Settings
+                </h2>
+
                 {/* Theme Selection */}
                 <div className="space-y-1">
                     <Label className="theme-subtext-color">Theme</Label>
                     <Select
                         value={theme}
-                        onValueChange={(val) => setThemeState(val as Settings["theme"])}
+                        onValueChange={(val) =>
+                            setThemeState(val as Settings["theme"])
+                        }
                     >
                         <SelectTrigger
-                            className="w-full border rounded-md transition theme-button-bg theme-border theme-text theme-button-hover"
+                            className="w-full border rounded-md transition
+                                   theme-button-bg theme-border theme-text theme-button-hover"
                         >
                             <SelectValue placeholder="Select Theme"/>
                         </SelectTrigger>
 
                         <SelectContent
-                            className="rounded-md shadow-lg transition theme-border theme-button-bg"
+                            className="rounded-md shadow-lg transition
+                                   theme-border theme-button-bg"
                         >
                             {["dark", "light", "2025", "2026", "3473"].map((val) => (
                                 <SelectItem
                                     key={val}
                                     value={val}
-                                    className="cursor-pointer transition hover:opacity-80"
+                                    className="cursor-pointer transition hover:opacity-80 theme-text"
                                 >
                                     {val === "3473"
                                         ? "Team 3473 (Sprocket)"
@@ -119,26 +134,26 @@ export default function MorePage() {
                     <Label className="theme-subtext-color">
                         Field Orientation
                     </Label>
-                    <p className="text-sm italic mb-2 theme-subtext-color">
+                    <p className="text-sm italic theme-subtext-color">
                         Rotate until the field image matches what you see from your current location.
                     </p>
 
                     <div className="flex flex-col items-center gap-3">
                         <div
                             className="
-                                relative w-64 h-64 border rounded-lg overflow-hidden
-                                shadow-[0_0_12px_rgba(0,0,0,0.25)] theme-border
-                                transition-transform duration-700 ease-in-out will-change-transform
-                            "
+                            relative w-64 h-64 border rounded-lg overflow-hidden
+                            shadow-[0_0_12px_rgba(0,0,0,0.25)] theme-border
+                            transition-transform duration-700 ease-in-out
+                        "
                             style={{
                                 transform: `rotate(${angle}deg)`,
-                                transformOrigin: "50% 50%",
                             }}
                         >
                             <img
-                                src={"/seasons/2025/Field.png"}
+                                src="/seasons/2025/Field.png"
                                 alt="Field orientation preview"
-                                className="absolute inset-0 w-full h-full object-contain pointer-events-none select-none"
+                                className="absolute inset-0 w-full h-full object-contain
+                                       pointer-events-none select-none"
                             />
                         </div>
 
@@ -147,9 +162,12 @@ export default function MorePage() {
                                 type="button"
                                 onClick={() => {
                                     setAngle((a) => a - 180)
-                                    setOrientationState((o) => (o === "0" ? "180" : "0"))
+                                    setOrientationState((o) =>
+                                        o === "0" ? "180" : "0"
+                                    )
                                 }}
-                                className="p-2 rounded-full border transition hover:theme-button-hover theme-border"
+                                className="p-2 rounded-full border transition
+                                       hover:theme-button-hover theme-border"
                                 title="Rotate Counterclockwise"
                             >
                                 <RotateCcw className="w-5 h-5 theme-text"/>
@@ -159,9 +177,12 @@ export default function MorePage() {
                                 type="button"
                                 onClick={() => {
                                     setAngle((a) => a + 180)
-                                    setOrientationState((o) => (o === "0" ? "180" : "0"))
+                                    setOrientationState((o) =>
+                                        o === "0" ? "180" : "0"
+                                    )
                                 }}
-                                className="p-2 rounded-full border transition hover:theme-button-hover theme-border"
+                                className="p-2 rounded-full border transition
+                                       hover:theme-button-hover theme-border"
                                 title="Rotate Clockwise"
                             >
                                 <RotateCw className="w-5 h-5 theme-text"/>

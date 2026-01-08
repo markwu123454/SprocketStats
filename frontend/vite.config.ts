@@ -12,7 +12,11 @@ export default defineConfig({
         VitePWA({
             registerType: "autoUpdate",
 
-            includeAssets: ["favicon.ico", "robots.txt", "apple-touch-icon.png"],
+            includeAssets: [
+                "favicon.ico",
+                "robots.txt",
+                "apple-touch-icon.png",
+            ],
 
             manifest: {
                 name: "Sprocketstats",
@@ -30,15 +34,11 @@ export default defineConfig({
             },
 
             workbox: {
+                maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
                 skipWaiting: true,
                 clientsClaim: true,
 
-                navigateFallback: "/index.html",
-
-                maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
-
                 globPatterns: [
-                    "**/index.html",
                     "**/*.webmanifest",
                     "**/*.png",
                     "**/*.svg",
@@ -57,6 +57,7 @@ export default defineConfig({
                             cacheName: "assets-cache",
                         },
                     },
+
                     {
                         urlPattern: ({request}) => request.destination === "image",
                         handler: "CacheFirst",
@@ -68,11 +69,17 @@ export default defineConfig({
                             },
                         },
                     },
+
                     {
                         urlPattern: ({request}) => request.mode === "navigate",
                         handler: "NetworkFirst",
                         options: {
-                            networkTimeoutSeconds: 3,
+                            cacheName: "html-cache",
+                            networkTimeoutSeconds: 10,
+                            expiration: {
+                                maxEntries: 10,
+                                maxAgeSeconds: 60 * 5,
+                            },
                         },
                     },
                 ],
@@ -80,9 +87,12 @@ export default defineConfig({
                 cleanupOutdatedCaches: true,
             },
 
-            injectRegister: "auto", // ensures auto registration
-            devOptions: {enabled: true}, // enables PWA during dev (optional)
-        }),
+            injectRegister: "auto",
+
+            devOptions: {
+                enabled: false,
+            },
+        })
     ],
 
     resolve: {

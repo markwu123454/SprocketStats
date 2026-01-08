@@ -6,6 +6,7 @@ import {type ColDef, type CellValueChangedEvent, themeQuartz} from "ag-grid-comm
 import {HeaderFooterLayoutWrapper} from "@/components/wrappers/HeaderFooterLayoutWrapper";
 import SearchDropdown, {type SearchItem} from "@/components/ui/searchDropdown";
 import type {MatchType} from "@/types";
+import {Link} from "react-router-dom";
 
 // ---------------------------
 // Types
@@ -251,9 +252,9 @@ export default function MatchAssignmentPage() {
         <HeaderFooterLayoutWrapper
             header={
                 <div className="flex items-center gap-4 text-lg font-semibold">
-                    <a href="/" className="flex items-center p-2 rounded-md theme-hover">
+                    <Link to="/" className="flex items-center p-2 rounded-md theme-hover">
                         <ArrowLeft className="h-5 w-5"/>
-                    </a>
+                    </Link>
 
                     <span>Match Assignments</span>
 

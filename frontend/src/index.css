@@ -160,12 +160,12 @@
 
 :root.theme-2025 {
     --theme-bg: rgba(11, 35, 79, 0.6);
-    --theme-border: #1b3d80;
+    --theme-border: #1a4598;
     --theme-text: #ffffff;
     --theme-bg-page: url('/seasons/2025/expanded.png');
     --theme-h1-color: #ffffff;
     --theme-subtext-color: #d4d4d8;
-    --theme-button-bg: rgba(16, 43, 106, 0.8);
+    --theme-button-bg: rgba(16, 43, 106, 0.95);
     --theme-button-hover: #1d3d7d;
     --theme-text-contrast: #93c5fd;
     --scrollbar-track: transparent;
