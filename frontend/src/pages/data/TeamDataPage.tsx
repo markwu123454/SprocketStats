@@ -25,27 +25,19 @@ export default function TeamData() {
     const teamNum = team ? parseInt(team, 10) : NaN
     const data = useTeamData(teamNum)
     const permissions = usePermissions()
-    const [teamName, setTeamName] = useState("Unknown Team")
-    const permission = usePermissions()
-
-    const [teamNames, setTeamNames] = useState({})
+    const [teamNames, setTeamNames] = useState<Record<string, string>>({});
+    const [teamName, setTeamName] = useState("Unknown Team");
 
     useEffect(() => {
         fetch("/teams/team_names.json")
-            .then((res) => res.json())
-            .then((data) => setTeamNames(data))
+            .then(res => res.json())
+            .then((data: Record<string, string>) => setTeamNames(data))
             .catch(() => setTeamNames({}));
     }, []);
 
-    // ---- Load team nickname from /teams/team_names.json ----
     useEffect(() => {
-        fetch("/teams/team_names.json")
-            .then((res) => res.json())
-            .then((names: Record<string, string>) => {
-                setTeamName(names[teamNum] ?? "Unknown Team")
-            })
-            .catch(() => setTeamName("Unknown Team"))
-    }, [teamNum])
+        setTeamName(teamNames[teamNum] ?? "Unknown Team");
+    }, [teamNum, teamNames]);
 
     useEffect(() => {
         document.title = `${teamNum} | Team Data`
@@ -168,7 +160,7 @@ export default function TeamData() {
                     </div>
                     <DataSearch
                         teamNames={teamNames}
-                        permissions={permission}
+                        permissions={permissions}
                     />
                 </div>
 
@@ -208,7 +200,7 @@ export default function TeamData() {
 
             {/* ===== Main Dashboard ===== */}
             <main
-  className="
+                className="
     grow
     flex md:grid
     md:grid-cols-2 md:grid-rows-2
@@ -217,7 +209,7 @@ export default function TeamData() {
     overflow-x-auto md:overflow-hidden
     snap-x snap-mandatory md:snap-none
   "
->
+            >
 
                 <Quadrant title="Metrics Overview">
                     <div className="p-4">

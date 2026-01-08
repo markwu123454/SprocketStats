@@ -1,4 +1,4 @@
-import {useEffect, useMemo, useRef, useState} from "react";
+import React, {useEffect, useMemo, useRef, useState} from "react";
 import {
     AgGridReact, type AgGridReact as AgGridReactType
 } from "ag-grid-react";
@@ -6,6 +6,8 @@ import {themeQuartz} from "ag-grid-community";
 import {usePermissions} from "@/components/wrappers/DataWrapper.tsx";
 import {Link} from "react-router-dom";
 import {ResponsiveScatterPlot, type ScatterPlotNodeProps} from "@nivo/scatterplot"
+import {ResponsiveRadar} from "@nivo/radar"
+import DataSearch from "@/components/ui/dataSearch.tsx";
 
 type BaseDatum = { x: number; y: number }
 
@@ -28,10 +30,10 @@ const metricMeta: Record<string, MetricMeta> = {
 
 
 const CustomScatterNode = <T extends BaseDatum>({
-    node,
-    style,
-    selectedTeam,
-}: CustomNodeProps<T>) => {
+                                                    node,
+                                                    style,
+                                                    selectedTeam,
+                                                }: CustomNodeProps<T>) => {
     const x = style.x.get()
     const y = style.y.get()
     const size = style.size.get()
@@ -97,9 +99,16 @@ export default function RankingData() {
     const [selectedMetric, setSelectedMetric] = useState<string | null>(null)
     const [xMetric, setXMetric] = useState<string | null>(null)
     const [graphType, setGraphType] = useState<
-        "box" | "scatter" | "scatter2d"
+        "box" | "scatter" | "scatter2d" | "radar"
     >("scatter")
+    const [teamNames, setTeamNames] = useState({})
 
+    useEffect(() => {
+        fetch("/teams/team_names.json")
+            .then((res) => res.json())
+            .then((data) => setTeamNames(data))
+            .catch(() => setTeamNames({}));
+    }, []);
 
     const rankingData = useMemo(() => [
         {
@@ -204,20 +213,16 @@ export default function RankingData() {
         }
     ], [])
 
-    const selectedMetricMeta = useMemo(() => {
-        if (!selectedMetric) return null
-        return metricMeta[selectedMetric] ?? {higherIsBetter: true}
-    }, [selectedMetric])
+    function useMetricMeta(metric: string | null) {
+        return useMemo(
+            () => (metric ? metricMeta[metric] ?? {higherIsBetter: true} : null),
+            [metric]
+        )
+    }
 
-    const xMetricMeta = useMemo(() => {
-        if (!xMetric) return null
-        return metricMeta[xMetric] ?? {higherIsBetter: true}
-    }, [xMetric])
-
-    const yMetricMeta = useMemo(() => {
-        if (!selectedMetric) return null
-        return metricMeta[selectedMetric] ?? {higherIsBetter: true}
-    }, [selectedMetric])
+    const selectedMetricMeta = useMetricMeta(selectedMetric)
+    const xMetricMeta = useMetricMeta(xMetric)
+    const yMetricMeta = selectedMetricMeta
 
     const columnDefs = useMemo(() => {
         if (!rankingData || rankingData.length === 0) return []
@@ -235,6 +240,35 @@ export default function RankingData() {
         return metric.split(".").reduce((acc, key) => acc?.[key], row)
     }
 
+    function normalizeMetric(
+        value: number,
+        min: number,
+        max: number,
+        higherIsBetter: boolean
+    ) {
+        if (max === min) return 1
+        const t = (value - min) / (max - min)
+        return higherIsBetter ? t : 1 - t
+    }
+
+    function extractNumericMetrics(
+        obj: Record<string, any>,
+        parentKey = ""
+    ): string[] {
+        return Object.entries(obj).flatMap(([key, value]) => {
+            const path = parentKey ? `${parentKey}.${key}` : key
+
+            if (typeof value === "number") {
+                return [path]
+            }
+
+            if (value && typeof value === "object" && !Array.isArray(value)) {
+                return extractNumericMetrics(value, path)
+            }
+
+            return []
+        })
+    }
 
     const scatterData = useMemo(() => {
         if (!selectedMetric || !selectedMetricMeta) return []
@@ -288,6 +322,40 @@ export default function RankingData() {
         ]
     }, [rankingData, selectedMetric, xMetric])
 
+    const radarMetrics = useMemo(() => {
+        if (!rankingData.length) return []
+        return extractNumericMetrics(rankingData[0])
+            .filter(m => m !== "team") // exclude team id
+    }, [rankingData])
+
+
+    const radarData = useMemo(() => {
+        if (!selectedTeam) return []
+
+        const teamRow = rankingData.find(r => r.team === selectedTeam)
+        if (!teamRow) return []
+
+        return radarMetrics.map(metric => {
+            const meta = metricMeta[metric] ?? {higherIsBetter: true}
+
+            const values = rankingData
+                .map(r => getMetricValue(r, metric))
+                .filter(v => typeof v === "number") as number[]
+
+            if (!values.length) return null
+
+            const min = Math.min(...values)
+            const max = Math.max(...values)
+
+            const rawValue = getMetricValue(teamRow, metric)
+            if (typeof rawValue !== "number") return null
+
+            return {
+                metric,
+                value: normalizeMetric(rawValue, min, max, meta.higherIsBetter)
+            }
+        }).filter(Boolean)
+    }, [rankingData, selectedTeam, radarMetrics])
 
     useEffect(() => {
         if (!gridRef.current?.api) return
@@ -365,7 +433,13 @@ export default function RankingData() {
         <div className="min-h-screen bg-white flex flex-col">
             {/* Header */}
             <header className="h-14 px-6 flex items-center border-b text-xl font-semibold">
-                Ranking Data
+                <div className="pr-5">
+                    Ranking Data
+                </div>
+                <DataSearch
+                    teamNames={teamNames}
+                    permissions={permissions}
+                />
             </header>
 
             {/* Content */}
@@ -404,6 +478,7 @@ export default function RankingData() {
                             <option value="box">Box Plot</option>
                             <option value="scatter">1-Variable Scatter Plot</option>
                             <option value="scatter2d">2-Variable Scatter Plot</option>
+                            <option value="radar">Radar Graph</option>
                         </select>
                     </div>
 
@@ -549,6 +624,55 @@ export default function RankingData() {
                                             onClick={(node) =>
                                                 setSelectedTeam(Number(node.data.team))
                                             }
+
+                                            animate={false}
+                                        />
+                                    )
+
+                                case "radar":
+                                    if (!selectedTeam) {
+                                        return (
+                                            <div className="h-full flex items-center justify-center text-gray-400">
+                                                Select a team to view radar
+                                            </div>
+                                        )
+                                    }
+
+                                    return (
+                                        <ResponsiveRadar
+                                            data={radarData}
+                                            keys={["value"]}
+                                            indexBy="metric"
+
+                                            maxValue={1}
+                                            margin={{top: 40, right: 80, bottom: 40, left: 80}}
+
+                                            curve="linearClosed"
+                                            borderWidth={2}
+                                            borderColor="#2563eb"
+
+                                            gridLevels={5}
+                                            gridShape="circular"
+
+                                            dotSize={6}
+                                            dotColor="#2563eb"
+                                            dotBorderWidth={1}
+                                            dotBorderColor="#1e40af"
+
+                                            colors={["#3b82f6"]}
+                                            fillOpacity={0.25}
+
+                                            axisTop={null}
+                                            axisRight={null}
+                                            axisBottom={null}
+                                            axisLeft={null}
+
+                                            tooltip={({index, value}) => (
+                                                <div className="bg-white p-2 text-sm border rounded shadow">
+                                                    <strong>{index}</strong>
+                                                    <div>Relative score: {(value * 100).toFixed(0)}%</div>
+                                                </div>
+                                            )}
 
                                             animate={false}
                                         />

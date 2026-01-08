@@ -1,13 +1,12 @@
 import {useEffect, useState} from "react";
 import {useAPI} from "@/hooks/useAPI.ts";
-import {useNavigate} from "react-router-dom";
+import {Link} from "react-router-dom";
 import {ArrowLeft} from "lucide-react";
 import ReactJsonView from "@microlink/react-json-view";
 import {getSetting, getSettingSync, type Settings} from "@/db/settingsDb.ts";
 import {HeaderFooterLayoutWrapper} from "@/components/wrappers/HeaderFooterLayoutWrapper.tsx";
 
 export default function DevPage() {
-    const navigate = useNavigate();
     const {getMetadata, getLatency} = useAPI();
 
     const PLACEHOLDER = "—";
@@ -180,11 +179,11 @@ export default function DevPage() {
         <HeaderFooterLayoutWrapper
             header={
                 <>
-                    <button onClick={() => navigate("/")}
+                    <Link to="/"
                             className="flex items-center gap-2 hover:opacity-80 transition">
                         <ArrowLeft className="w-5 h-5"/>
                         <span className="text-sm font-medium">Back</span>
-                    </button>
+                    </Link>
 
                     <div className="flex-1 text-center min-w-0">
                         <p className="text-lg font-bold">Developer Dashboard</p>
