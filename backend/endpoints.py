@@ -201,8 +201,8 @@ async def get_metadata(_: enums.SessionInfo = Depends(db.require_permission("adm
 
 
 @router.get("/metadata/feature_flags")
-async def get_metadata(_: enums.SessionInfo = Depends(db.require_permission("admin"))):
-    return await db.get_metadata()
+async def get_feature_flags():
+    return await db.get_feature_flags()
 
 
 @router.get("/admin/matches/active")

@@ -25,6 +25,8 @@ export default function CardLayoutWrapper({
                     <img
                         src={`/seasons/${theme}/logo_animation.gif`}
                         alt="logo animation"
+                        loading="lazy"
+                        decoding="async"
                         className="fixed top-2 left-4 h-20 pointer-events-none"
                     />
                 )}
@@ -34,11 +36,15 @@ export default function CardLayoutWrapper({
                         <img
                             src="/static/sprocket_logo_gear.png"
                             className="absolute inset-0 w-full h-full animate-[spin_18s_linear_infinite] direction-[reverse]"
+                            loading="lazy"
+                            decoding="async"
                             alt="logo animation"
                         />
                         <img
                             src="/static/sprocket_logo_ring.png"
                             className="absolute inset-0 w-full h-full animate-[spin_12s_linear_infinite]"
+                            loading="lazy"
+                            decoding="async"
                             alt="logo animation"
                         />
                     </div>
