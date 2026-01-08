@@ -13,7 +13,7 @@ ANSI_BLUE = "\x1b[34m"
 ANSI_MAGENTA = "\x1b[35m"
 ANSI_CYAN = "\x1b[36m"
 ANSI_GRAY = "\x1b[90m"
-
+ANSI_REPLACE_LINE = "\x1b[1A\x1b[K"
 
 # =========================
 # Calculation Helper functions
@@ -220,7 +220,7 @@ async def _calculate_async(data, progress, log, get_settings):
             log(f"    0 out of 10 completed")
             for i in range(10):
                 await asyncio.sleep(0.3)
-                log(f"\r    {i+1} out of 10 completed", newline=False)
+                log(f"{ANSI_REPLACE_LINE}    {i+1} out of 10 completed", newline=False)
             log("\x1b[K", newline=False)
 
             # Step 3.1: Predict match outcomes using heuristic rankings

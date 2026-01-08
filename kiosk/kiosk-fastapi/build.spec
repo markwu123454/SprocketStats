@@ -7,6 +7,8 @@ hidden = (
     collect_submodules("sklearn")
     + collect_submodules("joblib")
     + collect_submodules("uvicorn")
+    + collect_submodules("websockets")
+    + collect_submodules("wsproto")
     + collect_submodules("asyncpg")
 )
 
@@ -39,7 +41,7 @@ exe = EXE(
     a.datas,
     [],
     name="fastapi",
-    debug=False,
+    debug=True,
     bootloader_ignore_signals=False,
     strip=False,
     upx=True,
