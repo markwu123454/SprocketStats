@@ -26,12 +26,12 @@ export default function CountdownPage() {
             date: new Date("2026-01-10T09:00:00-08:00"),
         },
         {
-            name: "2026 Port Hueneme Regional",
+            name: "2026 Port Hueneme Event",
             // Friday before event: Mar 6, 2026 – 8:30 PM PST
             date: new Date("2026-03-06T20:30:00-08:00"),
         },
         {
-            name: "2026 San Gabriel Valley Regional",
+            name: "2026 San Gabriel Valley Event",
             // Friday before event: Mar 27, 2026 – 8:30 PM PDT
             date: new Date("2026-03-27T20:30:00-07:00"),
         },

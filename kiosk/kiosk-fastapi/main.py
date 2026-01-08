@@ -11,6 +11,7 @@ import traceback
 from contextlib import asynccontextmanager
 from pprint import pformat
 from typing import Callable
+import logging
 
 import dotenv
 import asyncpg
@@ -61,6 +62,12 @@ python_globals = {
 InputListener = Callable[[str], bool]
 
 input_listeners: list[InputListener] = []
+
+logger = logging.getLogger(__name__)
+
+log_queue: asyncio.Queue[str] = asyncio.Queue()
+
+main_event_loop = None
 
 # =======================
 # Database Config
@@ -658,10 +665,15 @@ def confirm(prompt: str) -> asyncio.Future:
 # =======================
 @app.websocket("/ws")
 async def ws_endpoint(ws: WebSocket):
-    global active_ws
+    global active_ws, main_event_loop
 
     await ws.accept()
     active_ws = ws
+    main_event_loop = asyncio.get_running_loop()
+
+    # START THE LOG SENDER
+    sender_task = asyncio.create_task(log_sender(ws))
+
     set_busy(True)
     log("\x1b[35m $$$$$$\  $$$$$$$\  $$$$$$$\   $$$$$$\   $$$$$$\  $$\   $$\ $$$$$$$$\ $$$$$$$$\  $$$$$$\ $$$$$$$$\  $$$$$$\ $$$$$$$$\  $$$$$$\  \x1b[0m")
     log("\x1b[35m$$  __$$\ $$  __$$\ $$  __$$\ $$  __$$\ $$  __$$\ $$ | $$  |$$  _____|\__$$  __|$$  __$$\\\__$$  __|$$  __$$\\\__$$  __|$$  __$$\ \x1b[0m")
@@ -682,6 +694,7 @@ async def ws_endpoint(ws: WebSocket):
             handle_ws_message(msg)
 
     except WebSocketDisconnect:
+        sender_task.cancel()
         active_ws = None
 
 
@@ -720,12 +733,25 @@ async def ws_send(msg: dict):
     except Exception:
         active_ws = None
 
+async def log_sender(ws: WebSocket):
+    while True:
+        msg = await log_queue.get()
+        await ws.send_json({"type": "log", "text": msg})
+
 
 def log(msg: str, newline: bool = True):
     """
     Sends message to console
     """
-    run_coro(ws_send({"type": "log", "text": f"\n{msg}" if newline else msg}))
+    logger.info(msg)
+    try:
+        loop = asyncio.get_running_loop()
+        loop.create_task(log_queue.put(f"\n{msg}" if newline else msg))
+    except RuntimeError:
+        asyncio.run_coroutine_threadsafe(
+            log_queue.put(f"\n{msg}" if newline else msg),
+            main_event_loop
+        )
 
 
 def pretty_log(

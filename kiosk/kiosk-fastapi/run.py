@@ -1,7 +1,6 @@
 import os
 import dotenv
 import uvicorn
-import logging.config
 from main import app
 
 
@@ -38,4 +37,5 @@ if __name__ == "__main__":
         host="127.0.0.1",
         port=port,
         log_config=LOGGING_CONFIG,
+        ws="websockets",
     )
