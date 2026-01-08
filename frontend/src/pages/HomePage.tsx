@@ -28,6 +28,7 @@ export default function HomePage() {
     } | null>(null)
     const [error, setError] = useState<string | null>(null)
     const [messageIndex, setMessageIndex] = useState<number | null>(null)
+    const [authChecked, setAuthChecked] = useState(false)
     const [theme] = useState<Settings["theme"]>(() => getSettingSync("theme"))
     const wakingUp = isOnline && !serverOnline
 
@@ -58,6 +59,7 @@ export default function HomePage() {
                 setPermissions(result.permissions)
                 setMessageIndex(Math.floor(Math.random() * greetings.length))
             }
+            setAuthChecked(true)
         }
         void load()
     }, [])
@@ -110,8 +112,11 @@ export default function HomePage() {
     }
 
     useEffect(() => {
-        renderGoogleButton()
-    }, [serverOnline])
+        if (!authChecked) return
+        if (!name && !permissions) {
+            renderGoogleButton()
+        }
+    }, [serverOnline, authChecked, name, permissions])
 
     // Configure google signin state
     useEffect(() => {
@@ -148,18 +153,23 @@ export default function HomePage() {
                             Waking up backend service...
                         </p>
                     </div>
-                ) : name && permissions ? (
-                    <>
+                ) : !authChecked ? (
+                    <div className="flex flex-col items-center space-y-2">
+                        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-zinc-400"/>
                         <p className="text-sm theme-subtext-color">
-                            {greetings[messageIndex!]}
+                            Checking session…
                         </p>
-                    </>
+                    </div>
+                ) : name && permissions ? (
+                    <p className="text-sm theme-subtext-color">
+                        {greetings[messageIndex!]}
+                    </p>
                 ) : (
                     <>
                         <p className="text-sm theme-subtext-color">
                             Sign in with your Google account
                         </p>
-                        <div id="googleSignInDiv" ref={googleDivRef}></div>
+                        <div ref={googleDivRef}></div>
                         {error && <p className="text-red-500 text-sm">{error}</p>}
                     </>
                 )}

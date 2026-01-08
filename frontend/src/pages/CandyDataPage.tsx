@@ -4,6 +4,7 @@ import {useAPI} from "@/hooks/useAPI.ts";
 import {AgGridReact} from "ag-grid-react";
 import {type ColDef, type ICellRendererParams, RowNode, themeQuartz} from "ag-grid-community";
 import {HeaderFooterLayoutWrapper} from "@/components/wrappers/HeaderFooterLayoutWrapper.tsx";
+import {Link} from "react-router-dom";
 
 type AwardDisplayPart = {
     text: string;
@@ -182,13 +183,12 @@ export default function CandyDataPage() {
         <HeaderFooterLayoutWrapper
             header={
                 <div className="flex items-center gap-4 text-xl theme-text">
-                    <a
-                        href="/more"
-                        className="flex items-center p-2 rounded-md
-                               theme-button-bg hover:theme-button-hover transition-colors"
+                    <Link
+                        to="/more"
+                        className="flex items-center p-2 rounded-md theme-button-bg hover:theme-button-hover transition-colors"
                     >
                         <ArrowLeft className="h-5 w-5"/>
-                    </a>
+                    </Link>
 
                     <span>Candy Data: event projections</span>
 
