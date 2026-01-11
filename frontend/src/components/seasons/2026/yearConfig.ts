@@ -110,11 +110,17 @@ export const pitQuestions = [
         type: "select",
         options: ["Center Field", "Processor Side", "Opposite Side"],
     },
-    {key: "climb", label: "Climb or Endgame capability", type: "text", placeholder: "e.g. Can hang on mid bar"},
+    {key: "climb", label: "Level capable of climbing to", type: "select", options: ["None", "L1", "L2", "L3"]},
 
     {section: "Programming"},
 
     {section: "Misc"},
+    {
+        key: "Friendliness",
+        label: "Friendliness",
+        type: "text",
+        placeholder: "Do they want to be here"
 
+    },
     {key: "comments", label: "Robot name", type: "text", placeholder: "e.g. Nautilus"},
 ]
