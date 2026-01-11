@@ -1,5 +1,14 @@
 import type {AllianceType, MatchType} from "@/types"
 
+export type Shots = {
+    x: number
+    y: number
+    xPrime: number
+    yPrime: number
+    fuelShot: number
+    fuelScored: number
+}
+
 export type MatchScoutingData = {
     match_type: MatchType
     match: number | null
@@ -9,20 +18,26 @@ export type MatchScoutingData = {
     scouter: string | null
 
     auto: {
-
+        shootLocation: Shots[]
+        climb: "none" | "attempted" | "climb"
     }
 
     teleop: {
-
+        shootLocation: Shots[]
+        bumpL: number
+        trenchL: number
+        bumpR: number
+        trenchR: number
     }
 
     postmatch: {
-        skill: number
-        defenseSkill: number
+        climb: "none" | "attempted" | "low" | "mid" | "high"
         climbSpeed: number
         climbSuccess: boolean
         offense: boolean
         defense: boolean
+        skill: number
+        defenseSkill: number
         faults: {
             system: boolean
             idle: boolean
@@ -33,29 +48,44 @@ export type MatchScoutingData = {
 }
 
 export const createDefaultScoutingData = (): Omit<MatchScoutingData, "scouter"> => {
-
     return {
         match_type: null,
         match: null,
         alliance: null,
         teamNumber: null,
         manualTeam: false,
+
         auto: {
+            shootLocation: [],
+            climbed: false,
         },
+
         teleop: {
+            shootLocation: [],
+            bumpL: 0,
+            trenchL: 0,
+            bumpR: 0,
+            trenchR: 0,
         },
+
         postmatch: {
-            skill: 0,
-            defenseSkill: 0,
+            climb: "none",
             climbSpeed: 0,
             climbSuccess: false,
             offense: false,
             defense: false,
-            faults: {system: false, idle: false, other: false},
+            skill: 0,
+            defenseSkill: 0,
+            faults: {
+                system: false,
+                idle: false,
+                other: false,
+            },
             notes: "",
         },
     }
 }
+
 
 export const pitQuestions = [
     {section: "Robot Info"},

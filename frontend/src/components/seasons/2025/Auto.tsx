@@ -73,7 +73,7 @@ export default function AutoPhase({data, setData}: {
                     ? "/seasons/2025/Reef_Transparent_No-Tape_Red.png"
                     : undefined;
 
-        const flip = (getSettingSync("field_orientation", "0") === "180") !== (data.alliance === "red");
+        const flip = (getSettingSync("field_orientation") === "180") !== (data.alliance === "red");
 
         const levelOffsets: Record<string, Record<"l2" | "l3" | "l4", { x: number; y: number }>> = {
             A: {l2: {x: -35, y: 30}, l3: {x: -35, y: 0}, l4: {x: -35, y: -30}},

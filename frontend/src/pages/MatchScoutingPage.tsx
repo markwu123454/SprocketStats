@@ -13,10 +13,10 @@ import {Button} from '@/components/ui/button'
 import LoadButton from '@/components/ui/loadButton'
 
 import PrePhase from "@/components/seasons/2026/Pre.tsx"
-import AutoPhase from "@/components/seasons/2025/Auto.tsx"
-import TeleopPhase from "@/components/seasons/2025/Teleop.tsx"
-import PostMatch from "@/components/seasons/2025/Post.tsx"
-import {createDefaultScoutingData} from "@/components/seasons/2025/yearConfig.ts"
+import AutoPhase from "@/components/seasons/2026/Auto.tsx"
+import TeleopPhase from "@/components/seasons/2026/Teleop.tsx"
+import PostMatch from "@/components/seasons/2026/Post.tsx"
+import {createDefaultScoutingData} from "@/components/seasons/2026/yearConfig.ts"
 
 const PHASE_ORDER: Phase[] = ['pre', 'auto', 'teleop', 'post']
 

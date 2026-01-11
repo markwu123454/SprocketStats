@@ -55,7 +55,6 @@ async def _calculate_async(data, progress, log, get_settings):
             log(
                 f"  Running steps: {', '.join(steps) or 'none'}"
             )
-        log(f"{ANSI_YELLOW}  ⚠ This is a placeholder for the actual calculator, no computation is completed{ANSI_RESET}")
 
         progress(1)
 

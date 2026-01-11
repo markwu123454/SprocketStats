@@ -4,12 +4,14 @@ import Dexie, { type Table } from "dexie"
 export type Settings = {
     theme?: "dark" | "light" | "2025" | "2026" | "3473"
     field_orientation?: "0" | "90" | "180" | "270"
-} & Record<string, string | boolean | number>
+    match_scouting_device_type?: "mobile" | "tablet"
+} & Record<string, string | boolean | number | undefined>
 
 export const DEFAULT_SETTINGS: Required<Pick<Settings, "theme" | "field_orientation">> &
     Omit<Settings, "theme" | "field_orientation"> = {
     theme: "2026",
     field_orientation: "0",
+    match_scouting_device_type: "mobile"
 }
 
 export interface SettingRow {
@@ -31,7 +33,7 @@ class SettingsDB extends Dexie {
 
 export const settingsDB = new SettingsDB()
 
-// 2. Get full settings object or specific key (proper overloads)
+// Get full settings object or specific key (proper overloads)
 export async function getSetting(): Promise<Settings>
 export async function getSetting<K extends keyof Settings>(key: K): Promise<Settings[K]>
 export async function getSetting(key?: keyof Settings): Promise<any> {
@@ -43,7 +45,7 @@ export async function getSetting(key?: keyof Settings): Promise<any> {
     return key ? value[key] : value
 }
 
-// 3. Set partial or full settings (atomic)
+// Set partial or full settings (atomic)
 export async function setSetting(patch: Partial<Settings>) {
     await settingsDB.transaction("rw", settingsDB.settings, async () => {
         const current = (await settingsDB.settings.get(GLOBAL_KEY))?.value ?? {}
@@ -57,15 +59,7 @@ export async function setSetting(patch: Partial<Settings>) {
     })
 }
 
-// 4. Clear all settings
-export async function clearSettings() {
-    await settingsDB.settings.clear()
-    Object.keys(localStorage)
-        .filter(k => k.startsWith("setting_"))
-        .forEach(k => localStorage.removeItem(k))
-}
-
-// 5. Fast, synchronous read (for startup UI only)
+// Fast, synchronous read (for startup UI only)
 export function getSettingSync<K extends keyof Settings>(
     key: K
 ): Settings[K] {

@@ -1,6 +1,6 @@
 export type {
   MatchScoutingData,
-} from "@/components/seasons/2025/yearConfig"
+} from "@/components/seasons/2026/yearConfig"
 
 export type MatchType = 'qm' | 'sf' | 'f' | null
 export type AllianceType = 'red' | 'blue' | null
