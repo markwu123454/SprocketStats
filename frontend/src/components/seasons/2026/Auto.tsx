@@ -9,16 +9,28 @@ export default function AutoPhase({data, setData}: {
 }) {
     const fieldRef = useRef<HTMLDivElement>(null)
 
-    const [x, setX] = useState(0.5)
-    const [y, setY] = useState(0.5)
-    const [xPrime, setXPrime] = useState(0.5)
-    const [yPrime, setYPrime] = useState(0.5)
+    const [x1, setX1] = useState(0.5)
+    const [y1, setY1] = useState(0.5)
+    const [x2, setX2] = useState(0.5)
+    const [y2, setY2] = useState(0.5)
 
-    const [fuel, setFuel] = useState(0)
+    const [fuelShotStack, setFuelShotStack] = useState<number[]>([])
+    const [fuelScoredStack, setFuelScoredStack] = useState<number[]>([])
+    const fuelShot = fuelShotStack.reduce((a, b) => a + b, 0)
+    const fuelScored = fuelScoredStack.reduce((a, b) => a + b, 0)
+
     const [dragging, setDragging] = useState(false)
 
     const [shots, setShots] = useState<Shots[]>([])
     const [shotIndex, setShotIndex] = useState<number | null>(null)
+
+    const [shotPulse, setShotPulse] = useState<'' | 'up' | 'down'>('')
+    const [scorePulse, setScorePulse] = useState<'' | 'up' | 'down'>('')
+
+    function pulse(setter: (v: any) => void, type: 'up' | 'down') {
+        setter(type)
+        setTimeout(() => setter(''), 150)
+    }
 
     const flip = (getSettingSync("field_orientation") === "180") !== (data.alliance === "red")
 
@@ -35,66 +47,81 @@ export default function AutoPhase({data, setData}: {
         const p = getFieldPos(e)
 
         // If current shot has fuel, lock it in
-        if (fuel > 0) {
+        if (fuelShot > 0) {
             commitCurrentShot()
-            setFuel(0)
+            setFuelShotStack([])
+            setFuelScoredStack([])
         }
+
         // Otherwise override previous shot
         else if (shotIndex !== null) {
             setShots(arr => {
                 const copy = [...arr]
-                copy[shotIndex] = {...copy[shotIndex], x: p.x, y: p.y, xPrime: p.x, yPrime: p.y}
+                copy[shotIndex] = {...copy[shotIndex], x1: p.x, y1: p.y, x2: p.x, y2: p.y}
                 return copy
             })
         }
 
-        setX(p.x)
-        setY(p.y)
-        setXPrime(p.x)
-        setYPrime(p.y)
+        setX1(p.x)
+        setY1(p.y)
+        setX2(p.x)
+        setY2(p.y)
         setDragging(true)
     }
 
     function handlePointerMove(e: React.PointerEvent) {
         if (!dragging) return
         const p = getFieldPos(e)
-        setXPrime(p.x)
-        setYPrime(p.y)
+        setX2(p.x)
+        setY2(p.y)
     }
 
     function handlePointerUp(e: React.PointerEvent) {
         if (!dragging) return
         const p = getFieldPos(e)
-        setXPrime(p.x)
-        setYPrime(p.y)
+        setX2(p.x)
+        setY2(p.y)
         setDragging(false)
     }
 
-    function addFuel(v: number) {
-        setFuel(f => Math.max(0, f + v))
+    function addFuelShot(v: number) {
+        setFuelShotStack(s => [...s, v])
+    }
+
+    function undoFuelShot() {
+        setFuelShotStack(s => s.slice(0, -1))
+    }
+
+    function addFuelScored(v: number) {
+        setFuelScoredStack(s => [...s, v])
+    }
+
+    function undoFuelScored() {
+        setFuelScoredStack(s => s.slice(0, -1))
     }
 
     function commitCurrentShot() {
-        if (fuel === 0) return
+        if (fuelShot === 0) return
 
         const s: Shots = {
-            x,
-            y,
-            xPrime,
-            yPrime,
-            fuelShot: fuel,
-            fuelScored: 0
+            x1,
+            y1,
+            x2,
+            y2,
+            fuelShot,
+            fuelScored
         }
 
         setShots(arr => {
             if (shotIndex === null) return [...arr, s]
-
             const copy = [...arr]
             copy[shotIndex] = s
             return copy
         })
 
         setShotIndex(null)
+        setFuelShotStack([])
+        setFuelScoredStack([])
     }
 
     function viewX(v: number) {
@@ -108,14 +135,14 @@ export default function AutoPhase({data, setData}: {
     useEffect(() => {
         const finalized: Shots[] = [...shots]
 
-        if (fuel > 0) {
+        if (fuelShot > 0) {
             finalized.push({
-                x,
-                y,
-                xPrime,
-                yPrime,
-                fuelShot: fuel,
-                fuelScored: 0
+                x1: x1,
+                y1: y1,
+                x2: x2,
+                y2: y2,
+                fuelShot: fuelShot,
+                fuelScored: fuelScored
             })
         }
 
@@ -124,18 +151,18 @@ export default function AutoPhase({data, setData}: {
             auto: {
                 ...d.auto,
                 shootLocation: finalized.map(s => {
-                    const sx = flip ? 1 - s.x : s.x
-                    const sy = flip ? 1 - s.y : s.y
-                    const ex = flip ? 1 - s.xPrime : s.xPrime
-                    const ey = flip ? 1 - s.yPrime : s.yPrime
+                    const sx = flip ? 1 - s.x1 : s.x1
+                    const sy = flip ? 1 - s.y1 : s.y1
+                    const ex = flip ? 1 - s.x2 : s.x2
+                    const ey = flip ? 1 - s.y2 : s.y2
 
                     return {
-                        x: sx,
-                        y: sy,
-                        xPrime: ex,
-                        yPrime: ey,
+                        x1: sx,
+                        y1: sy,
+                        x2: ex,
+                        y2: ey,
                         fuelShot: s.fuelShot,
-                        fuelScored: 0
+                        fuelScored: s.fuelScored
                     }
                 })
             }
@@ -144,8 +171,8 @@ export default function AutoPhase({data, setData}: {
 
 
     return (
-        <div className="w-screen h-max flex flex-col p-4 select-none gap-4">
-            <div className="text-xl font-semibold">Auto</div>
+        <div className="w-screen h-max flex flex-col p-2 select-none gap-4 text-sm">
+            <div className="text-sm font-semibold">Auto</div>
 
             {/* Field */}
             <div
@@ -169,8 +196,8 @@ export default function AutoPhase({data, setData}: {
                 <div
                     className="absolute w-4 h-4 bg-red-500 rounded-full -translate-x-1/2 -translate-y-1/2"
                     style={{
-                        left: `${viewX(x) * 100}%`,
-                        top: `${viewY(y) * 100}%`
+                        left: `${viewX(x1) * 100}%`,
+                        top: `${viewY(y1) * 100}%`
                     }}
                 />
 
@@ -178,10 +205,10 @@ export default function AutoPhase({data, setData}: {
                 <svg className="absolute inset-0 w-full h-full pointer-events-none"
                 >
                     <line
-                        x1={`${viewX(x) * 100}%`}
-                        y1={`${viewY(y) * 100}%`}
-                        x2={`${viewX(xPrime) * 100}%`}
-                        y2={`${viewY(yPrime) * 100}%`}
+                        x1={`${viewX(x1) * 100}%`}
+                        y1={`${viewY(y1) * 100}%`}
+                        x2={`${viewX(x2) * 100}%`}
+                        y2={`${viewY(y2) * 100}%`}
                         stroke="red"
                         strokeWidth="3"
                         markerEnd="url(#arrow)"
@@ -205,65 +232,93 @@ export default function AutoPhase({data, setData}: {
             <div className="grid grid-cols-4 gap-3">
                 {[1, 2, 5, 10].map(v => (
                     <button
-                        key={`p${v}`}
-                        onClick={() => addFuel(v)}
-                        className="bg-green-600 text-white text-xl py-4 rounded-lg"
+                        key={v}
+                        onClick={() => {
+                            addFuelShot(v)
+                            pulse(setShotPulse, 'up')
+                        }}
+                        className={`py-2 rounded text-sm ${
+                            shotPulse === 'up'
+                                ? "bg-green-700"
+                                : "bg-zinc-800"
+                        }`}
                     >
                         +{v}
                     </button>
                 ))}
-                {[1, 2, 5, 10].map(v => (
-                    <button
-                        key={`m${v}`}
-                        onClick={() => addFuel(-v)}
-                        className="bg-red-600 text-white text-xl py-4 rounded-lg"
-                    >
-                        -{v}
-                    </button>
-                ))}
+
+                <button
+                    onClick={() => {
+                        undoFuelShot()
+                        pulse(setShotPulse, 'down')
+                    }}
+                    className={`col-span-4 py-2 rounded ${
+                        shotPulse === 'down'
+                            ? "bg-red-700"
+                            : "bg-zinc-800"
+                    }`}
+                >
+                    UNDO
+                </button>
             </div>
 
-            <div className="text-center text-4xl font-bold">{fuel}</div>
+            <div className="text-center text-sm font-bold">
+                Fired: {fuelShot}
+            </div>
 
-            {/* Buttons */}
             <div className="grid grid-cols-4 gap-3">
                 {[1, 2, 5, 10].map(v => (
                     <button
-                        key={`p${v}`}
-                        onClick={() => addFuel(v)}
-                        className="bg-green-600 text-white text-xl py-4 rounded-lg"
+                        key={v}
+                        onClick={() => {
+                            addFuelScored(v)
+                            pulse(setScorePulse, 'up')
+                        }}
+                        className={`py-2 rounded text-sm ${
+                            scorePulse === 'up'
+                                ? "bg-green-700"
+                                : "bg-zinc-800"
+                        }`}
                     >
                         +{v}
                     </button>
                 ))}
-                {[1, 2, 5, 10].map(v => (
-                    <button
-                        key={`m${v}`}
-                        onClick={() => addFuel(-v)}
-                        className="bg-red-600 text-white text-xl py-4 rounded-lg"
-                    >
-                        -{v}
-                    </button>
-                ))}
+
+                <button
+                    onClick={() => {
+                        undoFuelScored()
+                        pulse(setScorePulse, 'down')
+                    }}
+                    className={`col-span-4 py-2 rounded ${
+                        scorePulse === 'down'
+                            ? "bg-red-700"
+                            : "bg-zinc-800"
+                    }`}
+                >
+                    UNDO
+                </button>
             </div>
 
-            <div className="text-center text-4xl font-bold">{fuel}</div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="text-center text-sm font-bold">
+                Scored: {fuelScored}
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
                 <button
                     onClick={() => {
                         setShots(arr => {
-                            let updated = [...arr]
+                            const updated = [...arr]
 
                             // If current shot exists, commit it first
-                            if (fuel > 0) {
+                            if (fuelShot > 0) {
                                 const s: Shots = {
-                                    x,
-                                    y,
-                                    xPrime,
-                                    yPrime,
-                                    fuelShot: fuel,
-                                    fuelScored: 0
+                                    x1: x1,
+                                    y1: y1,
+                                    x2: x2,
+                                    y2: y2,
+                                    fuelShot: fuelShot,
+                                    fuelScored: fuelScored
                                 }
 
                                 if (shotIndex === null) updated.push(s)
@@ -280,23 +335,27 @@ export default function AutoPhase({data, setData}: {
                             const s = updated[newIndex]
 
                             setShotIndex(newIndex)
-                            setX(s.x)
-                            setY(s.y)
-                            setXPrime(s.xPrime)
-                            setYPrime(s.yPrime)
-                            setFuel(s.fuelShot)
+                            setX1(s.x1)
+                            setY1(s.y1)
+                            setX2(s.x2)
+                            setY2(s.y2)
+                            setFuelShotStack([s.fuelShot])
+                            setFuelScoredStack([s.fuelScored])
 
                             return updated
                         })
                     }}
-                    className="bg-purple-600 text-white text-xl py-4 rounded-xl"
+                    className="bg-purple-600 text-white text-sm py-2 rounded-xl"
                 >
                     Back
                 </button>
 
                 <button
-                    onClick={() => setFuel(0)}
-                    className="bg-gray-700 text-white text-xl py-4 rounded-xl"
+                    onClick={() => {
+                        setFuelShotStack([])
+                        setFuelScoredStack([])
+                    }}
+                    className="bg-gray-700 text-white text-sm py-2 rounded-xl"
                 >
                     Clear
                 </button>

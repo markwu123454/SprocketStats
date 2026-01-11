@@ -1,10 +1,10 @@
 import type {AllianceType, MatchType} from "@/types"
 
 export type Shots = {
-    x: number
-    y: number
-    xPrime: number
-    yPrime: number
+    x1: number
+    y1: number
+    x2: number
+    y2: number
     fuelShot: number
     fuelScored: number
 }
@@ -57,7 +57,7 @@ export const createDefaultScoutingData = (): Omit<MatchScoutingData, "scouter"> 
 
         auto: {
             shootLocation: [],
-            climbed: false,
+            climb: "none",
         },
 
         teleop: {

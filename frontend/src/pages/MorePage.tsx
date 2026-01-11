@@ -9,14 +9,18 @@ import CardLayoutWrapper from "@/components/wrappers/CardLayoutWrapper.tsx"
 export default function MorePage() {
     const navigate = useNavigate()
     const [theme, setThemeState] = useState<Settings["theme"]>(() => getSettingSync("theme"))
+
     const [orientation, setOrientationState] = useState<Settings["field_orientation"]>(
         () => getSettingSync("field_orientation") ?? "0"
     )
-
     const [visualAngle, setVisualAngle] = useState<number>(() => {
         const o = getSettingSync("field_orientation") ?? "0"
         return Number(o)
     })
+
+    const [deviceType, setDeviceType] = useState<Settings["match_scouting_device_type"]>(
+        () => getSettingSync("match_scouting_device_type") ?? "mobile"
+    )
 
     const ROTATE_STEP = 180  // temporary
 
@@ -35,11 +39,14 @@ export default function MorePage() {
         const load = async () => {
             const t = await getSetting("theme")
             const f = await getSetting("field_orientation")
+            const d = await getSetting("match_scouting_device_type")
+
             if (t) setThemeState(t)
             if (f) {
                 setOrientationState(f)
                 setVisualAngle(Number(f))
             }
+            if (d) setDeviceType(d)
         }
         void load()
     }, [])
@@ -51,6 +58,9 @@ export default function MorePage() {
     useEffect(() => {
         void setSetting({field_orientation: orientation})
     }, [orientation])
+    useEffect(() => {
+        if (deviceType) void setSetting({match_scouting_device_type: deviceType})
+    }, [deviceType])
 
     // Apply theme class to root
     useEffect(() => {
@@ -84,16 +94,14 @@ export default function MorePage() {
                 <div className="space-y-3">
                     <button
                         onClick={() => navigate("/candy")}
-                        className="w-full px-4 py-2 rounded-md border transition
-                               theme-border theme-button-bg/50 theme-text hover:theme-button-hover"
+                        className="w-full px-4 py-2 rounded-md border transition theme-border theme-button-bg/50 theme-text hover:theme-button-hover"
                     >
                         Candy Data
                     </button>
 
                     <button
                         onClick={() => navigate("/countdown")}
-                        className="w-full px-4 py-2 rounded-md border transition
-                               theme-border theme-button-bg/50 theme-text hover:theme-button-hover"
+                        className="w-full px-4 py-2 rounded-md border transition theme-border theme-button-bg/50 theme-text hover:theme-button-hover"
                     >
                         2026 Sprocket Countdown
                     </button>
@@ -193,6 +201,38 @@ export default function MorePage() {
                         </div>
                     </div>
                 </div>
+
+                {/* Match Scouting Device */}
+                <div className="space-y-1">
+                    <Label className="theme-subtext-color">
+                        Match Scouting Device
+                    </Label>
+
+                    <Select
+                        value={deviceType}
+                        onValueChange={(val) =>
+                            setDeviceType(val as Settings["match_scouting_device_type"])
+                        }
+                    >
+                        <SelectTrigger
+                            className="w-full border rounded-md transition theme-button-bg theme-border theme-text theme-button-hover"
+                        >
+                            <SelectValue placeholder="Select device"/>
+                        </SelectTrigger>
+
+                        <SelectContent
+                            className="rounded-md shadow-lg transition theme-border theme-button-bg"
+                        >
+                            <SelectItem value="mobile" className="theme-text">
+                                Phone
+                            </SelectItem>
+                            <SelectItem value="tablet" className="theme-text">
+                                Tablet
+                            </SelectItem>
+                        </SelectContent>
+                    </Select>
+                </div>
+
             </div>
         </CardLayoutWrapper>
     )
