@@ -10,7 +10,7 @@ import threading
 import traceback
 from contextlib import asynccontextmanager
 from pprint import pformat
-from typing import Callable
+from typing import Callable, cast
 import logging
 
 import dotenv
@@ -128,6 +128,10 @@ def run_in_thread(fn):
 
 
 def run_async(coro):
+    """
+    Runs an async function
+    coro: The coroutine object
+    """
     async def wrapper():
         try:
             await coro
@@ -589,8 +593,7 @@ def python_help():
             log(f"  type: {type(obj).__name__}")
 
 
-python_globals["help"] = python_help
-
+cast(dict[str, object], python_globals)["help"] = python_help
 
 def inject_module_functions(module, target_globals, *, prefix=None):
     """
@@ -610,7 +613,7 @@ def refresh_python_globals():
         """Send a message through websocket."""
         run_coro(ws_send(msg))
 
-    python_globals.update({
+    cast(dict[str, object], python_globals).update({
         "downloaded_data": downloaded_data,
         "calc_result": calc_result,
         "settings": settings,
@@ -618,7 +621,8 @@ def refresh_python_globals():
         "pretty_log": pretty_log,
         "validate_env": validate_env,
         "inject_ws": handle_ws_message,
-        "send_ws": send_ws_sync
+        "send_ws": send_ws_sync,
+        "run_async": run_async,
     })
 
     fn.log = log
@@ -627,6 +631,7 @@ def refresh_python_globals():
     fn.calc_result = calc_result
     fn.get_connection = get_connection
     fn.print = log # overriding builtins
+    fn.run_async = run_async
 
     inject_module_functions(fn, python_globals)
 

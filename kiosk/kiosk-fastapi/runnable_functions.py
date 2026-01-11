@@ -281,7 +281,9 @@ def counts_appearances(downloaded_data):
     for team, count in sorted(robot_counts.items(), key=lambda x: x[1], reverse=True):
         print(f"  - Team {team}: {count}")
 
+
 SPECIAL_CHARS = "!@#$%^&*_-+=?"
+
 
 def generate_password(team_number: int, team_name: str) -> str:
     # Split and scramble word order
@@ -304,70 +306,96 @@ def generate_password(team_number: int, team_name: str) -> str:
 
     return "".join(chars)
 
-async def generate_guest_profile():
-    conn = get_connection()
-    cursor = conn.cursor()
+async def _generate_guest_profile_async(event_key: str):
+    print("running")
+    conn = await get_connection()
+    created = []
+    print("got conn")
+    try:
+        print("about to open file")
 
-    with open("team_names.json", "r") as f:
-        team_names = json.load(f)
+        with open("team_names.json", "rb") as f:
+            team_names = json.load(f)
 
-    matches = await cursor.fetch("""
-        SELECT match_type,
-               match_number,
-               red1, red2, red3,
-               blue1, blue2, blue3
-        FROM matches
-        WHERE event_key = (
-            SELECT current_event
-            FROM metadata
-            LIMIT 1
-        );
-    """)
+        print("fetching")
 
-    partner_data = {}
+        matches = await conn.fetch("""
+            SELECT match_type,
+                   match_number,
+                   red1, red2, red3,
+                   blue1, blue2, blue3
+            FROM matches
+            WHERE event_key = $1;
+        """, event_key)
+        print("fetched")
+        partner_data = {}
 
-    for m in matches:
-        match_key = f"{m['match_type']}{m['match_number']}"
-        red = [m["red1"], m["red2"], m["red3"]]
-        blue = [m["blue1"], m["blue2"], m["blue3"]]
+        for m in matches:
+            match_key = f"{m['match_type']}{m['match_number']}"
+            red = [m["red1"], m["red2"], m["red3"]]
+            blue = [m["blue1"], m["blue2"], m["blue3"]]
 
-        if 3473 in red:
-            alliance = red
-        elif 3473 in blue:
-            alliance = blue
-        else:
-            continue
-
-        for partner in alliance:
-            if partner == 3473:
+            if 3473 in red:
+                alliance = red
+            elif 3473 in blue:
+                alliance = blue
+            else:
                 continue
 
-            entry = partner_data.setdefault(
-                partner, {"teams": set(), "matches": set()}
-            )
+            for partner in alliance:
+                if partner == 3473:
+                    continue
 
-            entry["teams"].update(map(str, red + blue))
-            entry["matches"].add(match_key)
+                entry = partner_data.setdefault(
+                    partner, {"teams": set(), "matches": set()}
+                )
 
-    for partner, data in partner_data.items():
-        team_name = team_names.get(str(partner), f"Team {partner}")
-        password = generate_password(partner, team_name)
+                entry["teams"].update(map(str, red + blue))
+                entry["matches"].add(match_key)
+        print(f"found: {partner_data}")
+        async with conn.transaction():
+            for partner, data in partner_data.items():
+                team_name = team_names.get(str(partner), f"Team {partner}")
+                print(f"generating password for {team_name}, {partner}")
+                password = generate_password(partner, team_name)
 
-        permissions = {
-            "team": sorted(data["teams"]),
-            "match": sorted(data["matches"]),
-            "ranking": False,
-            "alliance": False
-        }
+                permissions = {
+                    "team": sorted(data["teams"]),
+                    "match": sorted(data["matches"]),
+                    "ranking": False,
+                    "alliance": False
+                }
+                print("uploading")
+                await conn.execute("""
+                    INSERT INTO guests (password, name, permissions, expire_date)
+                    VALUES ($1, $2, $3::jsonb, $4)
+                    ON CONFLICT (password) DO UPDATE;
+                """,
+                    password,
+                    team_name,
+                    json.dumps(permissions),
+                    datetime(2026, 6, 1)
+                )
 
-        await cursor.execute("""
-            INSERT INTO guests (password, name, permissions, expire_date)
-            VALUES (%s, %s, %s::jsonb, %s);
-        """, (
-            password,
-            team_name,
-            json.dumps(permissions),
-            datetime(2026, 6, 1)
-        ))
+                created.append({
+                    "team": team_name,
+                    "password": password,
+                    "permissions": permissions
+                })
+                print(f"finished {team_name}")
 
-    await conn.commit()
+        return created
+
+    finally:
+        await conn.close()
+
+def generate_guest_profile(event_key):
+    """
+    Sync wrapper. Prompts for event key and runs guest generation.
+    """
+    async def runner():
+        return await _generate_guest_profile_async(event_key)
+
+    results = run_async(runner())
+
+    return results

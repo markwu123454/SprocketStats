@@ -9,23 +9,44 @@ import CardLayoutWrapper from "@/components/wrappers/CardLayoutWrapper.tsx"
 export default function MorePage() {
     const navigate = useNavigate()
     const [theme, setThemeState] = useState<Settings["theme"]>(() => getSettingSync("theme"))
+
     const [orientation, setOrientationState] = useState<Settings["field_orientation"]>(
-        () => getSettingSync("field_orientation")
+        () => getSettingSync("field_orientation") ?? "0"
     )
-    const [angle, setAngle] = useState<number>(
-        () => (getSettingSync("field_orientation") === "180" ? 180 : 0)
+    const [visualAngle, setVisualAngle] = useState<number>(() => {
+        const o = getSettingSync("field_orientation") ?? "0"
+        return Number(o)
+    })
+
+    const [deviceType, setDeviceType] = useState<Settings["match_scouting_device_type"]>(
+        () => getSettingSync("match_scouting_device_type") ?? "mobile"
     )
+
+    const ROTATE_STEP = 180  // temporary
+
+    const rotate = (dir: 1 | -1) => {
+        setOrientationState(o => {
+            const next = (Number(o) + dir * ROTATE_STEP + 360) % 360
+            return String(next) as Settings["field_orientation"]
+        })
+
+        setVisualAngle(a => a + dir * ROTATE_STEP)
+    }
+
 
     // Load saved settings
     useEffect(() => {
         const load = async () => {
             const t = await getSetting("theme")
             const f = await getSetting("field_orientation")
+            const d = await getSetting("match_scouting_device_type")
+
             if (t) setThemeState(t)
             if (f) {
                 setOrientationState(f)
-                setAngle(f === "180" ? 180 : 0)
+                setVisualAngle(Number(f))
             }
+            if (d) setDeviceType(d)
         }
         void load()
     }, [])
@@ -37,6 +58,9 @@ export default function MorePage() {
     useEffect(() => {
         void setSetting({field_orientation: orientation})
     }, [orientation])
+    useEffect(() => {
+        if (deviceType) void setSetting({match_scouting_device_type: deviceType})
+    }, [deviceType])
 
     // Apply theme class to root
     useEffect(() => {
@@ -70,16 +94,14 @@ export default function MorePage() {
                 <div className="space-y-3">
                     <button
                         onClick={() => navigate("/candy")}
-                        className="w-full px-4 py-2 rounded-md border transition
-                               theme-border theme-button-bg/50 theme-text hover:theme-button-hover"
+                        className="w-full px-4 py-2 rounded-md border transition theme-border theme-button-bg/50 theme-text hover:theme-button-hover"
                     >
                         Candy Data
                     </button>
 
                     <button
                         onClick={() => navigate("/countdown")}
-                        className="w-full px-4 py-2 rounded-md border transition
-                               theme-border theme-button-bg/50 theme-text hover:theme-button-hover"
+                        className="w-full px-4 py-2 rounded-md border transition theme-border theme-button-bg/50 theme-text hover:theme-button-hover"
                     >
                         2026 Sprocket Countdown
                     </button>
@@ -146,11 +168,11 @@ export default function MorePage() {
                             transition-transform duration-700 ease-in-out
                         "
                             style={{
-                                transform: `rotate(${angle}deg)`,
+                                transform: `rotate(${visualAngle}deg)`,
                             }}
                         >
                             <img
-                                src="/seasons/2025/Field.png"
+                                src="/seasons/2026/Field.png"
                                 alt="Field orientation preview"
                                 className="absolute inset-0 w-full h-full object-contain
                                        pointer-events-none select-none"
@@ -160,14 +182,8 @@ export default function MorePage() {
                         <div className="flex gap-6 mt-2">
                             <button
                                 type="button"
-                                onClick={() => {
-                                    setAngle((a) => a - 180)
-                                    setOrientationState((o) =>
-                                        o === "0" ? "180" : "0"
-                                    )
-                                }}
-                                className="p-2 rounded-full border transition
-                                       hover:theme-button-hover theme-border"
+                                onClick={() => rotate(-1)}
+                                className="p-2 rounded-full border transition hover:theme-button-hover theme-border"
                                 title="Rotate Counterclockwise"
                             >
                                 <RotateCcw className="w-5 h-5 theme-text"/>
@@ -175,21 +191,48 @@ export default function MorePage() {
 
                             <button
                                 type="button"
-                                onClick={() => {
-                                    setAngle((a) => a + 180)
-                                    setOrientationState((o) =>
-                                        o === "0" ? "180" : "0"
-                                    )
-                                }}
-                                className="p-2 rounded-full border transition
-                                       hover:theme-button-hover theme-border"
+                                onClick={() => rotate(1)}
+                                className="p-2 rounded-full border transition hover:theme-button-hover theme-border"
                                 title="Rotate Clockwise"
                             >
                                 <RotateCw className="w-5 h-5 theme-text"/>
                             </button>
+
                         </div>
                     </div>
                 </div>
+
+                {/* Match Scouting Device */}
+                <div className="space-y-1">
+                    <Label className="theme-subtext-color">
+                        Match Scouting Device
+                    </Label>
+
+                    <Select
+                        value={deviceType}
+                        onValueChange={(val) =>
+                            setDeviceType(val as Settings["match_scouting_device_type"])
+                        }
+                    >
+                        <SelectTrigger
+                            className="w-full border rounded-md transition theme-button-bg theme-border theme-text theme-button-hover"
+                        >
+                            <SelectValue placeholder="Select device"/>
+                        </SelectTrigger>
+
+                        <SelectContent
+                            className="rounded-md shadow-lg transition theme-border theme-button-bg"
+                        >
+                            <SelectItem value="mobile" className="theme-text">
+                                Phone
+                            </SelectItem>
+                            <SelectItem value="tablet" className="theme-text">
+                                Tablet
+                            </SelectItem>
+                        </SelectContent>
+                    </Select>
+                </div>
+
             </div>
         </CardLayoutWrapper>
     )

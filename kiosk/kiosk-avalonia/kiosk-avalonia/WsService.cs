@@ -16,7 +16,7 @@ public sealed class WsService
             try
             {
                 await Client.ConnectAsync("ws://127.0.0.1:8000/ws");
-                Console.WriteLine("WS connected");
+                Console.WriteLine("WS connected");  
                 return true;
             }
             catch (Exception ex)

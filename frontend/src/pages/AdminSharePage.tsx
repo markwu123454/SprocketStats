@@ -2,7 +2,6 @@ import {useState, useRef, useEffect} from "react";
 import {Share2, Maximize, Printer} from "lucide-react";
 import QRCodeStyling from "qr-code-styling";
 import {useAPI} from "@/hooks/useAPI.ts";
-import SearchDropdown from "@/components/ui/searchDropdown.tsx"
 
 type GuestAdminInfo = {
     password: string
@@ -23,6 +22,8 @@ export default function AdminSharePage() {
     const [selectedGuest, setSelectedGuest] = useState<GuestAdminInfo | null>(null)
     const [finalPassword, setFinalPassword] = useState<string | null>(null);
     const [mode, setMode] = useState<"normal" | "fullscreen" | "print">("normal");
+    const [guestQuery, setGuestQuery] = useState("");
+    const [guestOpen, setGuestOpen] = useState(false);
 
     const qrRef = useRef<HTMLDivElement | null>(null);
     const qr = useRef<QRCodeStyling | null>(null);
@@ -30,6 +31,10 @@ export default function AdminSharePage() {
     let guestUrl = "https://sprocketstats.io/guest";
     guestUrl = "https://sprocketstats.vercel.app/guest";
     const fullLink = finalPassword ? `${guestUrl}?pw=${finalPassword}` : guestUrl;
+
+    const filteredGuests = guests.filter(g =>
+        g.name.toLowerCase().includes(guestQuery.toLowerCase())
+    );
 
     useEffect(() => {
         getAllGuest().then(setGuests).catch(console.error)
@@ -189,19 +194,50 @@ export default function AdminSharePage() {
 
             {/* STEP 1 — Guest Selection */}
             {!finalPassword && (
-                <div className="flex flex-col items-center mt-32 px-4">
-                    <h1 className="text-3xl font-bold mb-6">Select Guest</h1>
+                <div className="flex flex-col items-center mt-32 px-4 text-black">
+                    <h1 className="text-3xl font-bold mb-6 text-white">Select Guest</h1>
 
-                    <SearchDropdown
-                        items={guests}
-                        displayKey="name"
-                        placeholder="Search guest name…"
-                        onSelect={(guest: GuestAdminInfo) => {
-                            setSelectedGuest(guest)
-                            setFinalPassword(guest.password)
-                        }}
-                        className="w-full max-w-md text-black"
-                    />
+                    <div className="relative w-full max-w-md">
+                        <input
+                            type="text"
+                            value={guestQuery}
+                            placeholder="Search guest name…"
+                            onFocus={() => setGuestOpen(true)}
+                            onChange={(e) => {
+                                setGuestQuery(e.target.value);
+                                setGuestOpen(true);
+                            }}
+                            onBlur={() => setTimeout(() => setGuestOpen(false), 100)}
+                            className="w-full bg-purple-900/40 border border-purple-700 rounded-xl
+                   px-4 py-3 text-purple-100 placeholder-purple-400
+                   focus:outline-none focus:ring-2 focus:ring-purple-500"
+                        />
+
+                        {guestOpen && filteredGuests.length > 0 && (
+                            <ul
+                                className="absolute z-20 mt-2 w-full bg-purple-950
+                       border border-purple-700 rounded-xl
+                       max-h-60 overflow-y-auto scrollbar-purple"
+                            >
+                                {filteredGuests.map((guest) => (
+                                    <li
+                                        key={guest.password}
+                                        onMouseDown={() => {
+                                            setSelectedGuest(guest);
+                                            setFinalPassword(guest.password);
+                                            setGuestQuery(guest.name);
+                                            setGuestOpen(false);
+                                        }}
+                                        className="px-4 py-3 cursor-pointer
+                               hover:bg-purple-800/50
+                               text-purple-200"
+                                    >
+                                        {guest.name}
+                                    </li>
+                                ))}
+                            </ul>
+                        )}
+                    </div>
 
                     {selectedGuest && (
                         <p className="text-purple-300 text-lg">

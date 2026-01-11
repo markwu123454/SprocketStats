@@ -10,7 +10,7 @@ const ThemeContext = createContext<ThemeContextType | null>(null)
 
 export default function ThemeProvider({ children }: { children: ReactNode }) {
     const [theme, setThemeState] = useState<Settings["theme"]>(() =>
-        getSettingSync("theme", "2025")
+        getSettingSync("theme")
     )
 
     // Async load for Dexie consistency
