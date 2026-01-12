@@ -78,6 +78,7 @@ DB_NAME = "data"
 
 _sentinel = object()
 
+
 async def _setup_codecs(conn: asyncpg.Connection):
     """Register JSON and JSONB codecs for transparent dict <-> JSON conversion."""
     await conn.set_type_codec("jsonb", encoder=json.dumps, decoder=json.loads, schema="pg_catalog")
@@ -140,51 +141,51 @@ async def init_db():
                                CREATE TABLE IF NOT EXISTS match_scouting
                                (
                                    event_key
-                                   TEXT
-                                   NOT
-                                   NULL,
+                                       TEXT
+                                       NOT
+                                           NULL,
                                    match
-                                   INTEGER
-                                   NOT
-                                   NULL,
+                                       INTEGER
+                                       NOT
+                                           NULL,
                                    match_type
-                                   TEXT
-                                   NOT
-                                   NULL,
+                                       TEXT
+                                       NOT
+                                           NULL,
                                    team
-                                   TEXT
-                                   NOT
-                                   NULL,
+                                       TEXT
+                                       NOT
+                                           NULL,
                                    alliance
-                                   TEXT
-                                   NOT
-                                   NULL,
+                                       TEXT
+                                       NOT
+                                           NULL,
                                    scouter
-                                   TEXT
-                                   NOT
-                                   NULL,
+                                       TEXT
+                                       NOT
+                                           NULL,
                                    status
-                                   TEXT
-                                   NOT
-                                   NULL,
+                                       TEXT
+                                       NOT
+                                           NULL,
                                    data
-                                   JSONB
-                                   NOT
-                                   NULL,
+                                       JSONB
+                                       NOT
+                                           NULL,
                                    last_modified
-                                   TIMESTAMPTZ
-                                   DEFAULT
-                                   now
-                               (
-                               ),
+                                       TIMESTAMPTZ
+                                       DEFAULT
+                                           now
+                                           (
+                                           ),
                                    PRIMARY KEY
-                               (
-                                   match,
-                                   match_type,
-                                   team,
-                                   scouter
-                               )
-                                   );
+                                       (
+                                        match,
+                                        match_type,
+                                        team,
+                                        scouter
+                                           )
+                               );
                                """)
             await conn.execute("CREATE INDEX IF NOT EXISTS idx_match_scouting_team ON match_scouting (team)")
             await conn.execute("""
@@ -199,36 +200,36 @@ async def init_db():
                                CREATE TABLE IF NOT EXISTS pit_scouting
                                (
                                    event_key
-                                   TEXT
-                                   NOT
-                                   NULL,
+                                       TEXT
+                                       NOT
+                                           NULL,
                                    team
-                                   TEXT
-                                   NOT
-                                   NULL,
+                                       TEXT
+                                       NOT
+                                           NULL,
                                    scouter
-                                   TEXT,
+                                       TEXT,
                                    status
-                                   TEXT
-                                   NOT
-                                   NULL,
+                                       TEXT
+                                       NOT
+                                           NULL,
                                    data
-                                   JSONB
-                                   NOT
-                                   NULL,
+                                       JSONB
+                                       NOT
+                                           NULL,
                                    last_modified
-                                   TIMESTAMPTZ
-                                   DEFAULT
-                                   now
-                               (
-                               ),
+                                       TIMESTAMPTZ
+                                       DEFAULT
+                                           now
+                                           (
+                                           ),
                                    PRIMARY KEY
-                               (
-                                   event_key,
-                                   team,
-                                   scouter
-                               )
-                                   );
+                                       (
+                                        event_key,
+                                        team,
+                                        scouter
+                                           )
+                               );
                                """)
             await conn.execute("CREATE INDEX IF NOT EXISTS idx_pit_scouting_team ON pit_scouting (team)")
             await conn.execute("""
@@ -243,17 +244,17 @@ async def init_db():
                                CREATE TABLE IF NOT EXISTS processed_data
                                (
                                    event_key
-                                   TEXT
-                                   NOT
-                                   NULL,
+                                       TEXT
+                                       NOT
+                                           NULL,
                                    time_added
-                                   TIMESTAMPTZ
-                                   NOT
-                                   NULL,
+                                       TIMESTAMPTZ
+                                       NOT
+                                           NULL,
                                    data
-                                   JSONB
-                                   NOT
-                                   NULL
+                                       JSONB
+                                       NOT
+                                           NULL
                                );
                                """)
 
@@ -264,49 +265,49 @@ async def init_db():
                                CREATE TABLE IF NOT EXISTS matches
                                (
                                    key
-                                   TEXT
-                                   PRIMARY
-                                   KEY,
+                                       TEXT
+                                       PRIMARY
+                                           KEY,
                                    event_key
-                                   TEXT
-                                   NOT
-                                   NULL,
+                                       TEXT
+                                       NOT
+                                           NULL,
                                    match_type
-                                   TEXT
-                                   NOT
-                                   NULL,
+                                       TEXT
+                                       NOT
+                                           NULL,
                                    match_number
-                                   INTEGER,
+                                       INTEGER,
                                    set_number
-                                   INTEGER,
+                                       INTEGER,
                                    scheduled_time
-                                   TIMESTAMPTZ,
+                                       TIMESTAMPTZ,
                                    actual_time
-                                   TIMESTAMPTZ,
+                                       TIMESTAMPTZ,
                                    red1
-                                   INTEGER,
+                                       INTEGER,
                                    red2
-                                   INTEGER,
+                                       INTEGER,
                                    red3
-                                   INTEGER,
+                                       INTEGER,
                                    blue1
-                                   INTEGER,
+                                       INTEGER,
                                    blue2
-                                   INTEGER,
+                                       INTEGER,
                                    blue3
-                                   INTEGER,
+                                       INTEGER,
                                    red1_scouter
-                                   TEXT,
+                                       TEXT,
                                    red2_scouter
-                                   TEXT,
+                                       TEXT,
                                    red3_scouter
-                                   TEXT,
+                                       TEXT,
                                    blue1_scouter
-                                   TEXT,
+                                       TEXT,
                                    blue2_scouter
-                                   TEXT,
+                                       TEXT,
                                    blue3_scouter
-                                   TEXT
+                                       TEXT
                                );
                                """)
 
@@ -317,70 +318,69 @@ async def init_db():
                                CREATE TABLE IF NOT EXISTS matches_tba
                                (
                                    match_key
-                                   TEXT
-                                   PRIMARY
-                                   KEY,
+                                       TEXT
+                                       PRIMARY
+                                           KEY,
                                    event_key
-                                   TEXT
-                                   NOT
-                                   NULL,
+                                       TEXT
+                                       NOT
+                                           NULL,
                                    comp_level
-                                   TEXT
-                                   NOT
-                                   NULL,
+                                       TEXT
+                                       NOT
+                                           NULL,
                                    set_number
-                                   INTEGER,
+                                       INTEGER,
                                    match_number
-                                   INTEGER,
+                                       INTEGER,
                                    time
-                                   BIGINT,
+                                       BIGINT,
                                    actual_time
-                                   BIGINT,
+                                       BIGINT,
                                    predicted_time
-                                   BIGINT,
+                                       BIGINT,
                                    post_result_time
-                                   BIGINT,
+                                       BIGINT,
                                    winning_alliance
-                                   TEXT,
+                                       TEXT,
                                    red_teams
-                                   TEXT[]
-                                   NOT
-                                   NULL,
+                                       TEXT[]
+                                       NOT
+                                           NULL,
                                    blue_teams
-                                   TEXT
-                               []
-                                   NOT
-                                   NULL,
+                                       TEXT[]
+                                       NOT
+                                           NULL,
                                    red_score
-                                   INTEGER,
+                                       INTEGER,
                                    blue_score
-                                   INTEGER,
+                                       INTEGER,
                                    red_rp
-                                   INTEGER,
+                                       INTEGER,
                                    blue_rp
-                                   INTEGER,
+                                       INTEGER,
                                    red_auto_points
-                                   INTEGER,
+                                       INTEGER,
                                    blue_auto_points
-                                   INTEGER,
+                                       INTEGER,
                                    red_teleop_points
-                                   INTEGER,
+                                       INTEGER,
                                    blue_teleop_points
-                                   INTEGER,
+                                       INTEGER,
                                    red_endgame_points
-                                   INTEGER,
+                                       INTEGER,
                                    blue_endgame_points
-                                   INTEGER,
+                                       INTEGER,
                                    score_breakdown
-                                   JSONB,
+                                       JSONB,
                                    videos
-                                   JSONB,
+                                       JSONB,
                                    last_update
-                                   TIMESTAMP,
+                                       TIMESTAMP,
                                    red_coopertition_criteria
-                                   BOOLEAN,
+                                       BOOLEAN,
                                    blue_coopertition_criteria
-                                   BOOLEAN
+                                       BOOLEAN
                                );
                                """)
 
@@ -391,7 +391,7 @@ async def init_db():
                                CREATE TABLE IF NOT EXISTS metadata
                                (
                                    current_event
-                                   TEXT
+                                       TEXT
                                );
                                """)
 
@@ -402,15 +402,15 @@ async def init_db():
                                CREATE TABLE IF NOT EXISTS teams
                                (
                                    team_number
-                                   INTEGER
-                                   PRIMARY
-                                   KEY,
+                                       INTEGER
+                                       PRIMARY
+                                           KEY,
                                    nickname
-                                   TEXT,
+                                       TEXT,
                                    rookie_year
-                                   INTEGER,
+                                       INTEGER,
                                    last_updated
-                                   TIMESTAMP
+                                       TIMESTAMP
                                );
                                """)
 
@@ -421,11 +421,11 @@ async def init_db():
                                CREATE TABLE IF NOT EXISTS misc
                                (
                                    id
-                                   INTEGER
-                                   PRIMARY
-                                   KEY,
+                                       INTEGER
+                                       PRIMARY
+                                           KEY,
                                    candy_cache
-                                   TEXT
+                                       TEXT
                                );
                                """)
 
@@ -436,70 +436,70 @@ async def init_db():
                                CREATE TABLE IF NOT EXISTS users
                                (
                                    email
-                                   TEXT
-                                   PRIMARY
-                                   KEY,
+                                       TEXT
+                                       PRIMARY
+                                           KEY,
                                    name
-                                   TEXT
-                                   NOT
-                                   NULL,
+                                       TEXT
+                                       NOT
+                                           NULL,
                                    approval
-                                   TEXT,
+                                       TEXT,
                                    perm_dev
-                                   BOOLEAN
-                                   NOT
-                                   NULL
-                                   DEFAULT
-                                   FALSE,
+                                       BOOLEAN
+                                       NOT
+                                           NULL
+                                       DEFAULT
+                                           FALSE,
                                    perm_admin
-                                   BOOLEAN
-                                   NOT
-                                   NULL
-                                   DEFAULT
-                                   FALSE,
+                                       BOOLEAN
+                                       NOT
+                                           NULL
+                                       DEFAULT
+                                           FALSE,
                                    perm_match_scout
-                                   BOOLEAN
-                                   NOT
-                                   NULL
-                                   DEFAULT
-                                   FALSE,
+                                       BOOLEAN
+                                       NOT
+                                           NULL
+                                       DEFAULT
+                                           FALSE,
                                    perm_pit_scout
-                                   BOOLEAN
-                                   NOT
-                                   NULL
-                                   DEFAULT
-                                   FALSE,
+                                       BOOLEAN
+                                       NOT
+                                           NULL
+                                       DEFAULT
+                                           FALSE,
                                    created_at
-                                   TIMESTAMPTZ
-                                   DEFAULT
-                                   now
-                               (
-                               )
-                                   );
+                                       TIMESTAMPTZ
+                                       DEFAULT
+                                           now
+                                           (
+                                           )
+                               );
                                """)
 
             await conn.execute("""
                                CREATE TABLE IF NOT EXISTS guests
                                (
                                    password
-                                   TEXT
-                                   PRIMARY
-                                   KEY,
+                                       TEXT
+                                       PRIMARY
+                                           KEY,
                                    name
-                                   TEXT
-                                   NOT
-                                   NULL,
+                                       TEXT
+                                       NOT
+                                           NULL,
                                    permissions
-                                   JSONB
-                                   NOT
-                                   NULL,
+                                       JSONB
+                                       NOT
+                                           NULL,
                                    expire_date
-                                   TIMESTAMPTZ
-                                   DEFAULT
-                                   now
-                               (
-                               )
-                                   );
+                                       TIMESTAMPTZ
+                                       DEFAULT
+                                           now
+                                           (
+                                           )
+                               );
                                """)
 
             # ---------------------------------------------------
@@ -509,17 +509,17 @@ async def init_db():
                                CREATE TABLE IF NOT EXISTS sessions
                                (
                                    uuid
-                                   TEXT
-                                   PRIMARY
-                                   KEY,
+                                       TEXT
+                                       PRIMARY
+                                           KEY,
                                    data
-                                   JSONB
-                                   NOT
-                                   NULL,
+                                       JSONB
+                                       NOT
+                                           NULL,
                                    expires
-                                   TIMESTAMPTZ
-                                   NOT
-                                   NULL
+                                       TIMESTAMPTZ
+                                       NOT
+                                           NULL
                                );
                                """)
             await conn.execute("""
@@ -551,7 +551,7 @@ async def get_match_info(match_type: str, match_number: int, set_number: int = 1
                                     AND match_type = $1
                                     AND match_number = $2
                                     AND set_number = $3
-                                      LIMIT 1
+                                  LIMIT 1
                                   """, match_type, match_number, set_number)
 
         if not row:
@@ -589,7 +589,7 @@ async def add_match_scouting(
         await conn.execute("""
                            INSERT INTO match_scouting (event_key, match, match_type, team,
                                                        alliance, scouter, status, data, last_modified)
-                           VALUES ((SELECT current_event FROM metadata LIMIT 1), $1, $2, $3, $4, $5, $6, $7, $8 )
+                           VALUES ((SELECT current_event FROM metadata LIMIT 1), $1, $2, $3, $4, $5, $6, $7, $8)
                            """,
                            match,
                            m_type.value,
@@ -626,10 +626,9 @@ async def update_match_scouting(
                                         AND match = $1
                                         AND match_type = $2
                                         AND team = $3
-                                        AND scouter IS NOT DISTINCT
-                                      FROM $4
+                                        AND scouter IS NOT DISTINCT FROM $4
                                           FOR
-                                      UPDATE
+                                              UPDATE
                                       """, match, m_type.value, str(team), scouter)
 
             if not row:
@@ -755,7 +754,7 @@ async def get_match_scouters_schedule(
                                     AND match_type = $1
                                     AND match_number = $2
                                     AND set_number = $3
-                                      LIMIT 1
+                                  LIMIT 1
                                   """, match_type.value, match_number, set_number)
 
         if not row:
@@ -835,9 +834,11 @@ async def get_scouters_match_schedule(
                                 WHERE event_key = COALESCE(
                                         $1,
                                         (SELECT current_event FROM metadata LIMIT 1)
-            )
+                                                  )
                                   AND (
-                                    red1_scouter IS NOT DISTINCT FROM $2 OR red2_scouter IS NOT DISTINCT FROM $2 OR red3_scouter IS NOT DISTINCT FROM $2 OR blue1_scouter IS NOT DISTINCT FROM $2 OR blue2_scouter IS NOT DISTINCT FROM $2 OR blue3_scouter IS NOT DISTINCT FROM $2
+                                    red1_scouter IS NOT DISTINCT FROM $2 OR red2_scouter IS NOT DISTINCT FROM $2 OR
+                                    red3_scouter IS NOT DISTINCT FROM $2 OR blue1_scouter IS NOT DISTINCT FROM $2 OR
+                                    blue2_scouter IS NOT DISTINCT FROM $2 OR blue3_scouter IS NOT DISTINCT FROM $2
                                     )
                                 ORDER BY match_type, match_number, set_number
                                 """, event_key, scouter)
@@ -942,11 +943,29 @@ async def get_all_matches() -> list[Dict[str, Any]]:
     conn = await get_db_connection(DB_NAME)
     try:
         rows = await conn.fetch("""
-                                SELECT key, event_key, match_type, match_number, set_number, scheduled_time, actual_time, red1, red2, red3, blue1, blue2, blue3, red1_scouter, red2_scouter, red3_scouter, blue1_scouter, blue2_scouter, blue3_scouter
+                                SELECT key,
+                                       event_key,
+                                       match_type,
+                                       match_number,
+                                       set_number,
+                                       scheduled_time,
+                                       actual_time,
+                                       red1,
+                                       red2,
+                                       red3,
+                                       blue1,
+                                       blue2,
+                                       blue3,
+                                       red1_scouter,
+                                       red2_scouter,
+                                       red3_scouter,
+                                       blue1_scouter,
+                                       blue2_scouter,
+                                       blue3_scouter
                                 FROM matches
                                 WHERE event_key = (SELECT current_event
-                                    FROM metadata
-                                    LIMIT 1)
+                                                   FROM metadata
+                                                   LIMIT 1)
                                 ORDER BY match_type, match_number, set_number
                                 """)
 
@@ -1123,7 +1142,7 @@ async def add_pit_scouting(
     try:
         await conn.execute("""
                            INSERT INTO pit_scouting (event_key, team, scouter, status, data, last_modified)
-                           VALUES ((SELECT current_event FROM metadata LIMIT 1), $1, $2, $3, $4, $5 )
+                           VALUES ((SELECT current_event FROM metadata LIMIT 1), $1, $2, $3, $4, $5)
                            """, str(team), scouter, status.value, data, datetime.now(timezone.utc))
     except UniqueViolationError:
         raise HTTPException(status_code=409, detail="Pit scouting entry already exists")
@@ -1156,7 +1175,7 @@ async def update_pit_scouting(
                                         AND team = $1
                                         AND scouter = $2
                                           FOR
-                                      UPDATE
+                                              UPDATE
                                       """, str(team), scouter)
             if not row:
                 raise HTTPException(status_code=400, detail="Pit scouting entry not found")
@@ -1295,13 +1314,12 @@ async def add_tba_match(match_data: dict):
                                        $15, $16, $17, $18,
                                        $19, $20,
                                        $21, $22,
-                                       $23, $24, NOW()) ON CONFLICT (match_key) DO
-                               UPDATE SET
-                                   red_score = EXCLUDED.red_score,
-                                   blue_score = EXCLUDED.blue_score,
-                                   score_breakdown = EXCLUDED.score_breakdown,
-                                   videos = EXCLUDED.videos,
-                                   last_update = NOW();
+                                       $23, $24, NOW())
+                               ON CONFLICT (match_key) DO UPDATE SET red_score       = EXCLUDED.red_score,
+                                                                     blue_score      = EXCLUDED.blue_score,
+                                                                     score_breakdown = EXCLUDED.score_breakdown,
+                                                                     videos          = EXCLUDED.videos,
+                                                                     last_update     = NOW();
                                """, (
                                    key, event_key, comp_level, set_number, match_number,
                                    time_val, actual_time, predicted_time, post_result_time,
@@ -1333,7 +1351,8 @@ async def get_tba_match(match_key: str) -> Optional[dict]:
         row = await conn.fetchrow("""
                                   SELECT *
                                   FROM matches_tba
-                                  WHERE match_key = $1 LIMIT 1
+                                  WHERE match_key = $1
+                                  LIMIT 1
                                   """, match_key)
 
         if not row:
@@ -1443,9 +1462,10 @@ async def add_session(session_id: str, session_data: Dict[str, Any], expires_dt:
         async with conn.transaction():
             await conn.execute("""
                                INSERT INTO sessions (uuid, data, expires)
-                               VALUES ($1, $2, $3) ON CONFLICT (uuid) DO
-                               UPDATE
-                                   SET data = EXCLUDED.data, expires = EXCLUDED.expires
+                               VALUES ($1, $2, $3)
+                               ON CONFLICT (uuid) DO UPDATE
+                                   SET data    = EXCLUDED.data,
+                                       expires = EXCLUDED.expires
                                """, session_id, session_data, expires_dt)
     except PostgresError as e:
         logger.error("Failed to add session: %s", e)
@@ -1555,13 +1575,39 @@ async def get_user_by_email(email: str) -> Optional[dict]:
 async def create_user_if_missing(email: str, name: str):
     conn = await get_db_connection(DB_NAME)
     try:
-        existing = await conn.fetchrow("SELECT email FROM users WHERE email=$1", email)
-        if existing:
-            return
-        await conn.execute("""
-                           INSERT INTO users (email, name, approval)
-                           VALUES ($1, $2, 'pending')
-                           """, email, name)
+        async with conn.transaction():
+
+            defaults = await conn.fetchrow("""
+                                           SELECT new_login_default
+                                           FROM metadata
+                                           LIMIT 1 FOR SHARE
+                                           """)
+
+            if not defaults:
+                raise RuntimeError("metadata.new_login_default missing")
+
+            cfg = defaults["new_login_default"]
+
+            await conn.execute("""
+                               INSERT INTO users (email,
+                                                  name,
+                                                  approval,
+                                                  perm_dev,
+                                                  perm_admin,
+                                                  perm_match_scout,
+                                                  perm_pit_scout)
+                               VALUES ($1, $2, $3, $4, $5, $6, $7)
+                               ON CONFLICT (email) DO NOTHING
+                               """,
+                               email,
+                               name,
+                               cfg["approval"],
+                               cfg["perm_dev"],
+                               cfg["perm_admin"],
+                               cfg["perm_match_scout"],
+                               cfg["perm_pit_scout"],
+                               )
+
     finally:
         await release_db_connection(DB_NAME, conn)
 
@@ -1615,7 +1661,8 @@ async def set_misc(key: str, value: str):
             # 3. Ensure row id=1 exists
             await conn.execute("""
                                INSERT INTO misc (id)
-                               VALUES (1) ON CONFLICT (id) DO NOTHING
+                               VALUES (1)
+                               ON CONFLICT (id) DO NOTHING
                                """)
 
             # 4. Update column
@@ -1823,7 +1870,7 @@ async def get_person_sessions(
         session_rows = await conn.fetch("""
                                         SELECT uuid, expires
                                         FROM sessions
-                                        WHERE data ->>'email' = $1
+                                        WHERE data ->> 'email' = $1
                                         ORDER BY expires DESC
                                         """, resolved_email)
 
@@ -1841,11 +1888,12 @@ async def get_person_sessions(
     finally:
         await release_db_connection(DB_NAME, conn)
 
+
 # =================== Attendance ===================
 
 async def record_attendance_event(
-    email: str,
-    action: enums.AttendanceAction,
+        email: str,
+        action: enums.AttendanceAction,
 ) -> None:
     """
     Append a validated attendance event.
@@ -1869,8 +1917,7 @@ async def record_attendance_event(
             from attendance
             where email = $1
             order by time desc
-            limit 1
-            for update
+            limit 1 for update
             """,
             email,
         )
@@ -1907,6 +1954,8 @@ async def compute_attendance_totals() -> list[Dict[str, Any]]:
             "email": str,
             "name": str,
             "total_seconds": float,
+            "above_min_seconds": float,
+            "is_checked_in": bool,
           },
           ...
         ]
@@ -1918,20 +1967,19 @@ async def compute_attendance_totals() -> list[Dict[str, Any]]:
     try:
         rows = await conn.fetch(
             """
-            SELECT
-                a.email,
-                u.name,
-                a.action,
-                a.time
+            SELECT a.email,
+                   u.name,
+                   a.action,
+                   a.time
             FROM attendance a
-            JOIN users u ON u.email = a.email
+                     JOIN users u ON u.email = a.email
             ORDER BY a.email, a.time ASC
             """
         )
 
-        totals: Dict[str, float] = defaultdict(float)      # keyed by email
-        open_checkins: Dict[str, datetime] = {}            # email → start time
-        names: Dict[str, str] = {}                         # email → name
+        totals: Dict[str, float] = defaultdict(float)
+        open_checkins: Dict[str, datetime] = {}  # email → check-in time
+        names: Dict[str, str] = {}
 
         now = datetime.now(timezone.utc)
 
@@ -1946,7 +1994,7 @@ async def compute_attendance_totals() -> list[Dict[str, Any]]:
 
             elif action == "checkout":
                 start = open_checkins.pop(email, None)
-                if start:
+                if start is not None:
                     totals[email] += (t - start).total_seconds()
 
         # Count time for anyone still checked in
@@ -1960,14 +2008,14 @@ async def compute_attendance_totals() -> list[Dict[str, Any]]:
                 "email": email,
                 "name": names.get(email),
                 "total_seconds": totals[email],
-                "above_min_seconds": totals[email]-(max_seconds/2),
+                "above_min_seconds": totals[email] - (max_seconds / 2),
+                "is_checked_in": email in open_checkins,
             }
             for email in totals
         ]
 
     finally:
         await release_db_connection(DB_NAME, conn)
-
 
 
 # =================== Data ===================
@@ -1983,7 +2031,8 @@ async def get_processed_data(event_key: Optional[str] = None) -> Optional[dict]:
                                   SELECT data
                                   FROM processed_data
                                   WHERE event_key = COALESCE($1, (SELECT current_event FROM metadata LIMIT 1))
-                                  ORDER BY time_added DESC LIMIT 1
+                                  ORDER BY time_added DESC
+                                  LIMIT 1
                                   """, event_key)
 
         return row["data"] if row else None

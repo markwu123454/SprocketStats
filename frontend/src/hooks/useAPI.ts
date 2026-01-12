@@ -787,12 +787,14 @@ export function useAPI() {
         name: string | null
         total_seconds: number
         above_min_seconds: number
+        is_checked_in: boolean
     }[]> => {
         const res = await apiRequest<{
             email: string
             name: string | null
             total_seconds: number
             above_min_seconds: number
+            is_checked_in: boolean
         }[]>("/attendance")
         return res ?? []
     }

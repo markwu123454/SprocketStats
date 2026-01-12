@@ -150,7 +150,7 @@ async def login(request: Request, body: dict):
     await db.create_user_if_missing(email, name)
     user = await db.get_user_by_email(email)
 
-    if user["approval"] != "approved":
+    if user["approval"] != "approved" and user["approval"] != "autoapproved":
         raise HTTPException(status_code=403, detail="User pending approval")
 
     # --- build session ---
@@ -165,7 +165,6 @@ async def login(request: Request, body: dict):
             "admin": user["perm_admin"],
             "match_scouting": user["perm_match_scout"],
             "pit_scouting": user["perm_pit_scout"],
-            "guest_access": user["perm_guest_access"] if isinstance(user["perm_guest_access"], dict) else {},
         },
         "expires": expires_dt.isoformat(),
     }
