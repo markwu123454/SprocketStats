@@ -781,6 +781,44 @@ export function useAPI() {
         }
     };
 
+    // --- GET /attendance ---
+    const getAttendance = async (): Promise<{
+        email: string
+        name: string | null
+        total_seconds: number
+        above_min_seconds: number
+    }[]> => {
+        const res = await apiRequest<{
+            email: string
+            name: string | null
+            total_seconds: number
+            above_min_seconds: number
+        }[]>("/attendance")
+        return res ?? []
+    }
+
+    // --- POST /attendance/checkin ---
+    const checkin = async (): Promise<{
+        status: "checked_in"
+    } | null> => {
+        return await apiRequest<{
+            status: "checked_in"
+        }>("/attendance/checkin", {
+            method: "POST",
+        })
+    }
+
+    // --- POST /attendance/checkout ---
+    const checkout = async (): Promise<{
+        status: "checked_out"
+    } | null> => {
+        return await apiRequest<{
+            status: "checked_out"
+        }>("/attendance/checkout", {
+            method: "POST",
+        })
+    }
+
     return {
         login,
         logout,
@@ -806,5 +844,9 @@ export function useAPI() {
         getFeatureFlags,
         getAllGuest,
         scoutingAction,
+        getAttendance,
+        checkin,
+        checkout,
+
     };
 }

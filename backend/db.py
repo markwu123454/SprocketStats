@@ -47,6 +47,8 @@ To add a new database function to this module, follow these steps:
    - Confirm it correctly handles both success and error conditions.
 """
 import socket
+from collections import defaultdict
+
 import asyncpg
 import json
 import time
@@ -1797,12 +1799,12 @@ async def get_person_sessions(
             idx = 1
 
             if email:
-                query += f" AND email = ${idx}";
-                params.append(email);
+                query += f" AND email = ${idx}"
+                params.append(email)
                 idx += 1
             if name:
-                query += f" AND name = ${idx}";
-                params.append(name);
+                query += f" AND name = ${idx}"
+                params.append(name)
                 idx += 1
 
             rows = await conn.fetch(query, *params)
@@ -1838,6 +1840,134 @@ async def get_person_sessions(
         return {}
     finally:
         await release_db_connection(DB_NAME, conn)
+
+# =================== Attendance ===================
+
+async def record_attendance_event(
+    email: str,
+    action: enums.AttendanceAction,
+) -> None:
+    """
+    Append a validated attendance event.
+
+    Enforces:
+      - No double check-in
+      - No double check-out
+      - No checkout before first check-in
+      - Race-condition safe via row locking
+    """
+    conn = await get_db_connection(DB_NAME)
+
+    if action not in ("checkin", "checkout"):
+        raise ValueError("Invalid attendance action")
+
+    async with conn.transaction():
+        # Lock this user's attendance stream
+        row = await conn.fetchrow(
+            """
+            select action
+            from attendance
+            where email = $1
+            order by time desc
+            limit 1
+            for update
+            """,
+            email,
+        )
+
+        last_action = row["action"] if row else None
+
+        # Enforce valid transitions
+        if action == "checkin":
+            if last_action == "checkin":
+                raise ValueError("User already checked in")
+
+        elif action == "checkout":
+            if last_action is None:
+                raise ValueError("User has never checked in")
+            if last_action == "checkout":
+                raise ValueError("User already checked out")
+
+        # Insert the event
+        await conn.execute(
+            """
+            insert into attendance (email, action)
+            values ($1, $2)
+            """,
+            email,
+            action,
+        )
+
+
+async def compute_attendance_totals() -> list[Dict[str, Any]]:
+    """
+    Returns:
+        [
+          {
+            "email": str,
+            "name": str,
+            "total_seconds": float,
+          },
+          ...
+        ]
+
+    If someone is currently checked in, time is counted up to now.
+    """
+    conn = await get_db_connection(DB_NAME)
+
+    try:
+        rows = await conn.fetch(
+            """
+            SELECT
+                a.email,
+                u.name,
+                a.action,
+                a.time
+            FROM attendance a
+            JOIN users u ON u.email = a.email
+            ORDER BY a.email, a.time ASC
+            """
+        )
+
+        totals: Dict[str, float] = defaultdict(float)      # keyed by email
+        open_checkins: Dict[str, datetime] = {}            # email → start time
+        names: Dict[str, str] = {}                         # email → name
+
+        now = datetime.now(timezone.utc)
+
+        for r in rows:
+            email = r["email"]
+            names[email] = r["name"]
+            action = r["action"]
+            t = r["time"]
+
+            if action == "checkin":
+                open_checkins[email] = t
+
+            elif action == "checkout":
+                start = open_checkins.pop(email, None)
+                if start:
+                    totals[email] += (t - start).total_seconds()
+
+        # Count time for anyone still checked in
+        for email, start in open_checkins.items():
+            totals[email] += (now - start).total_seconds()
+
+        max_seconds = max(totals.values(), default=0)
+
+        return [
+            {
+                "email": email,
+                "name": names.get(email),
+                "total_seconds": totals[email],
+                "above_min_seconds": totals[email]-(max_seconds/2),
+            }
+            for email in totals
+        ]
+
+    finally:
+        await release_db_connection(DB_NAME, conn)
+
 
 
 # =================== Data ===================

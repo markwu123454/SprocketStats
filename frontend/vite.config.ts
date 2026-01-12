@@ -74,7 +74,7 @@ export default defineConfig({
                         urlPattern: ({request}) => request.mode === "navigate",
                         handler: "NetworkFirst",
                         options: {
-                            cacheName: "html-cache-v26.0.0",
+                            cacheName: "html-cache-v26.0.1",
                             networkTimeoutSeconds: 10,
                             expiration: {
                                 maxEntries: 10,

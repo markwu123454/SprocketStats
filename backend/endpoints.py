@@ -879,6 +879,37 @@ async def get_pit_scout_status(team: int):
     }
 
 
+# === Attendance ===
+
+@router.get("/attendance")
+async def admin_get_attendance(
+    _: enums.SessionInfo = Depends(db.require_permission("admin")),
+):
+    return await db.compute_attendance_totals()
+
+
+@router.post("/attendance/checkin")
+async def attendance_checkin(
+    session: enums.SessionInfo = Depends(db.require_session()),
+):
+    try:
+        await db.record_attendance_event(session.email, "checkin")
+        return {"status": "checked_in"}
+    except ValueError as e:
+        raise HTTPException(status_code=409, detail=str(e))
+
+
+@router.post("/attendance/checkout")
+async def attendance_checkout(
+    session: enums.SessionInfo = Depends(db.require_session()),
+):
+    try:
+        await db.record_attendance_event(session.email, "checkout")
+        return {"status": "checked_out"}
+    except ValueError as e:
+        raise HTTPException(status_code=409, detail=str(e))
+
+
 # === Data ===
 
 def filter_processed_data(data: dict, perms: dict) -> dict:

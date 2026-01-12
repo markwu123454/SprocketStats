@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, Literal
 from pydantic import BaseModel
 
 
@@ -59,3 +59,5 @@ class SessionInfo(BaseModel):
 
 class PasscodeBody(BaseModel):
     passcode: str
+
+AttendanceAction = Literal["checkin", "checkout"]
