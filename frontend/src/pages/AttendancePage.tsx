@@ -53,28 +53,26 @@ export default function AttendancePage() {
 
     useEffect(() => {
         let cancelled = false
+        let timeout: number | null = null
 
-        const tick = async () => {
-            if (!cancelled) {
-                try {
-                    await load()
-                } catch {
-                    /* swallow – UI already handles error state */
+        const poll = async () => {
+            try {
+                await load()
+            } finally {
+                if (!cancelled) {
+                    timeout = window.setTimeout(poll, 5000)
                 }
             }
         }
 
-        // initial fetch
-        void tick()
-
-        // poll every 5s
-        const id = setInterval(() => {
-            void tick()
-        }, 5000)
+        // start immediately
+        void poll()
 
         return () => {
             cancelled = true
-            clearInterval(id)
+            if (timeout !== null) {
+                clearTimeout(timeout)
+            }
         }
     }, [load])
 
