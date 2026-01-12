@@ -18,7 +18,7 @@ async def lifespan(app: FastAPI):
     print("Starting up...")
 
     # Initialize the databases
-    await db.init_db()
+    #await db.init_db()
     await tba.get_db_pool()
 
     yield
