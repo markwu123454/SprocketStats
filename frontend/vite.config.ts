@@ -54,7 +54,7 @@ export default defineConfig({
                             request.destination === "style",
                         handler: "StaleWhileRevalidate",
                         options: {
-                            cacheName: "assets-cache-v26.0.0",
+                            cacheName: "assets-cache-v26.0.2",
                         },
                     },
 
@@ -62,10 +62,10 @@ export default defineConfig({
                         urlPattern: ({request}) => request.destination === "image",
                         handler: "CacheFirst",
                         options: {
-                            cacheName: "images-cache-v26.0.0",
+                            cacheName: "images-cache-v26.0.2",
                             expiration: {
                                 maxEntries: 100,
-                                maxAgeSeconds: 60 * 60 * 24 * 30,
+                                maxAgeSeconds: 60 * 60 * 24 * 2,
                             },
                         },
                     },
@@ -74,7 +74,7 @@ export default defineConfig({
                         urlPattern: ({request}) => request.mode === "navigate",
                         handler: "NetworkFirst",
                         options: {
-                            cacheName: "html-cache-v26.0.1",
+                            cacheName: "html-cache-v26.0.2",
                             networkTimeoutSeconds: 10,
                             expiration: {
                                 maxEntries: 10,
