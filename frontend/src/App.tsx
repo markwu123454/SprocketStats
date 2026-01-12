@@ -24,6 +24,7 @@ import TeamDataPage from "@/pages/data/TeamDataPage.tsx"
 import AdminSharePage from "@/pages/AdminSharePage.tsx";
 import MatchDataPredPage from "@/pages/data/MatchDataPredPage.tsx";
 import CountdownPage from "@/pages/CountdownPage.tsx";
+import AttendancePage from "@/pages/AttendancePage.tsx";
 
 export default function App() {
     return (
@@ -38,6 +39,8 @@ export default function App() {
                         <Route path="/candy" element={<CandyDataPage/>}/>
 
                         <Route path="/countdown" element={<CountdownPage/>}/>
+
+                        <Route path="/attendance" element={<AttendancePage/>}/>
 
                         <Route path="/more" element={<MorePage/>}/>
 

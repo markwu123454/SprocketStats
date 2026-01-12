@@ -1,5 +1,5 @@
 import {useEffect, useState} from "react"
-import {useNavigate} from "react-router-dom"
+import {Link, useNavigate} from "react-router-dom"
 import {ArrowLeft, RotateCcw, RotateCw} from "lucide-react"
 import {getSetting, getSettingSync, setSetting, type Settings} from "@/db/settingsDb.ts"
 import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from "@/components/ui/select"
@@ -92,19 +92,26 @@ export default function MorePage() {
                 </h2>
 
                 <div className="space-y-3">
-                    <button
-                        onClick={() => navigate("/candy")}
-                        className="w-full px-4 py-2 rounded-md border transition theme-border theme-button-bg/50 theme-text hover:theme-button-hover"
+                    <Link
+                        to="/candy"
+                        className="block w-full px-4 py-2 rounded-md border transition theme-border theme-button-bg/50 theme-text hover:theme-button-hover text-center"
                     >
                         Candy Data
-                    </button>
+                    </Link>
 
-                    <button
-                        onClick={() => navigate("/countdown")}
-                        className="w-full px-4 py-2 rounded-md border transition theme-border theme-button-bg/50 theme-text hover:theme-button-hover"
+                    <Link
+                        to="/countdown"
+                        className="block w-full px-4 py-2 rounded-md border transition theme-border theme-button-bg/50 theme-text hover:theme-button-hover text-center"
                     >
                         2026 Sprocket Countdown
-                    </button>
+                    </Link>
+
+                    <Link
+                        to="/attendance"
+                        className="block w-full px-4 py-2 rounded-md border transition theme-border theme-button-bg/50 theme-text hover:theme-button-hover text-center"
+                    >
+                        Attendance
+                    </Link>
                 </div>
             </div>
 

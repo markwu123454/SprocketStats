@@ -712,6 +712,114 @@ export function useAPI() {
         return await apiRequest("/admin/get_guests") ?? []
     }
 
+    const scoutingAction = async (
+        match: number,
+        team: number | null,
+        matchType: MatchType,
+        alliance: "red" | "blue",
+        action:
+            | "info"
+            | "claim"
+            | "unclaim"
+            | "switch"
+            | "set_pre"
+            | "set_auto"
+            | "set_teleop"
+            | "set_post"
+            | "set_submitted"
+    ): Promise<{
+        action: "success" | "fail" | "noop";
+        match: {
+            team: number;
+            scouterName: string;
+            scouterEmail: string | null;
+            assignedScouterName: string;
+            assignedScouterEmail: string | null;
+        }[];
+    } | null> => {
+        try {
+            const query = new URLSearchParams({action});
+            if (team !== null) query.set("team", String(team));
+
+            const res = await fetch(
+                `${BASE_URL}/scouting/${matchType}/${match}/${alliance}?${query.toString()}`,
+                {
+                    method: "POST",
+                    headers: getAuthHeaders(),
+                }
+            );
+
+            if (!res.ok) {
+                console.warn("scoutingAction failed:", res.status);
+                return null;
+            }
+
+            const data = await res.json();
+
+            if (
+                !data ||
+                !Array.isArray(data.match) ||
+                !["success", "fail", "noop"].includes(data.action)
+            ) {
+                console.error("Invalid scouting response shape", data);
+                return null;
+            }
+
+            return data as {
+                action: "success" | "fail" | "noop";
+                match: {
+                    team: number;
+                    scouterName: string;
+                    scouterEmail: string | null;
+                    assignedScouterName: string;
+                    assignedScouterEmail: string | null;
+                }[];
+            };
+        } catch (err) {
+            console.error("scoutingAction error:", err);
+            return null;
+        }
+    };
+
+    // --- GET /attendance ---
+    const getAttendance = async (): Promise<{
+        email: string
+        name: string | null
+        total_seconds: number
+        above_min_seconds: number
+        is_checked_in: boolean
+    }[]> => {
+        const res = await apiRequest<{
+            email: string
+            name: string | null
+            total_seconds: number
+            above_min_seconds: number
+            is_checked_in: boolean
+        }[]>("/attendance")
+        return res ?? []
+    }
+
+    // --- POST /attendance/checkin ---
+    const checkin = async (): Promise<{
+        status: "checked_in"
+    } | null> => {
+        return await apiRequest<{
+            status: "checked_in"
+        }>("/attendance/checkin", {
+            method: "POST",
+        })
+    }
+
+    // --- POST /attendance/checkout ---
+    const checkout = async (): Promise<{
+        status: "checked_out"
+    } | null> => {
+        return await apiRequest<{
+            status: "checked_out"
+        }>("/attendance/checkout", {
+            method: "POST",
+        })
+    }
 
     return {
         login,
@@ -737,5 +845,10 @@ export function useAPI() {
         updateMatchSchedule,
         getFeatureFlags,
         getAllGuest,
+        scoutingAction,
+        getAttendance,
+        checkin,
+        checkout,
+
     };
 }

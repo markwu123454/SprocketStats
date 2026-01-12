@@ -4,7 +4,7 @@ import time
 import uuid
 from datetime import datetime, timezone, timedelta
 from typing import Optional, Dict, Any, List
-from fastapi import Depends, HTTPException, Body, APIRouter, Request, Query, status
+from fastapi import Depends, HTTPException, Body, APIRouter, Request, Query
 from pydantic import BaseModel
 from starlette.responses import HTMLResponse
 from google.oauth2 import id_token
@@ -150,7 +150,7 @@ async def login(request: Request, body: dict):
     await db.create_user_if_missing(email, name)
     user = await db.get_user_by_email(email)
 
-    if user["approval"] != "approved":
+    if user["approval"] != "approved" and user["approval"] != "autoapproved":
         raise HTTPException(status_code=403, detail="User pending approval")
 
     # --- build session ---
@@ -165,7 +165,6 @@ async def login(request: Request, body: dict):
             "admin": user["perm_admin"],
             "match_scouting": user["perm_match_scout"],
             "pit_scouting": user["perm_pit_scout"],
-            "guest_access": user["perm_guest_access"] if isinstance(user["perm_guest_access"], dict) else {},
         },
         "expires": expires_dt.isoformat(),
     }
@@ -207,7 +206,7 @@ async def get_feature_flags():
 
 @router.get("/admin/matches/active")
 async def admin_active_matches(
-    _: enums.SessionInfo = Depends(db.require_permission("admin")),
+        _: enums.SessionInfo = Depends(db.require_permission("admin")),
 ):
     """
     Returns all matches where at least one team is in
@@ -324,19 +323,6 @@ async def admin_active_matches(
     return result
 
 
-@router.get("/team/{team}")
-async def get_pit_scout_status(team: int):
-    """
-    Returns whether the team has already been pit-scouted for the current event.
-    """
-    pit_records = await db.get_pit_scouting(team=team)
-    scouted = len(pit_records) > 0
-
-    return {
-        "scouted": scouted
-    }
-
-
 @router.get("/latency")
 async def get_latency(request: Request) -> Dict[str, Any]:
     # t2 — timestamp when request arrives at server
@@ -369,79 +355,317 @@ async def get_latency(request: Request) -> Dict[str, Any]:
 
 # === Match scouting ===
 
-@router.patch("/scouting/{m_type}/{match}/{team}/claim")
-async def claim_team(
+@router.post("/scouting/{m_type}/{match}/{alliance}")
+async def scouting(
         m_type: enums.MatchType,
         match: int,
-        team: int,
+        alliance: enums.AllianceType,
+        action: str = Query(...),
+        team: int | None = Query(None),
         session: enums.SessionInfo = Depends(db.require_permission("match_scouting")),
 ):
-    """
-    Claims a team for the given scouter.
-    Automatically sets its state to PRE.
-    Fails if already claimed by someone else.
-    """
+    scouter_email = session.email
 
-    scouter = session.email
+    # -----------------------------
+    # BOOTSTRAP MATCH ROWS
+    # -----------------------------
+    match_row = await db.get_match_info(m_type.value, match)
+    if not match_row:
+        raise HTTPException(status_code=404, detail="Match not found in database")
 
-    rows = await db.get_match_scouting(match=match, m_type=m_type, team=team)
-    if not rows:
-        raise HTTPException(status_code=404, detail="Entry not found")
-
-    # Race-safe: only claim if currently unclaimed
-    updated = await db.update_match_scouting(
-        match=match,
-        m_type=m_type,
-        team=team,
-        scouter="__NONE__",
-        scouter_new=scouter,
-        status=enums.StatusType.PRE,  # ← set to PRE automatically
-        data=None,
+    # Teams for this alliance
+    alliance_teams = (
+        match_row["red"] if alliance == enums.AllianceType.RED else match_row["blue"]
     )
 
-    if not updated:
-        raise HTTPException(status_code=409, detail="Already claimed by another scouter")
+    # Create missing rows
+    for t in alliance_teams:
+        if t is None:
+            continue
+        existing = await db.get_match_scouting(match=match, m_type=m_type, team=t)
+        if not existing:
+            await db.add_match_scouting(
+                match=match,
+                m_type=m_type,
+                team=t,
+                alliance=alliance,
+                status=enums.StatusType.UNCLAIMED,
+                data={}
+            )
 
-    return {"status": "claimed", "team": team, "scouter": scouter, "phase": "pre"}
+    # -----------------------------
+    # LOAD STATE
+    # -----------------------------
+    rows = await db.get_match_scouting(match=match, m_type=m_type)
+    teams = {int(r["team"]): r for r in rows}
 
+    entry = teams.get(team) if team is not None else None
 
-@router.patch("/scouting/{m_type}/{match}/{team}/unclaim")
-async def unclaim_team(
-        m_type: enums.MatchType,
-        match: int,
-        team: int,
-        session: enums.SessionInfo = Depends(db.require_permission("match_scouting")),
-        _body: str | None = Body(None)
-):
-    """
-    Unclaims a team if the requester currently owns it.
-    Also resets its state to UNCLAIMED.
-    """
-
-    scouter = session.email
-
-    rows = await db.get_match_scouting(match=match, m_type=m_type, team=team)
-    if not rows:
-        raise HTTPException(status_code=404, detail="Entry not found")
-    entry = rows[0]
-
-    if entry["scouter"] != scouter:
-        raise HTTPException(status_code=403, detail="Cannot unclaim another scouter's team")
-
-    updated = await db.update_match_scouting(
-        match=match,
-        m_type=m_type,
-        team=team,
-        scouter=scouter,
-        scouter_new="__NONE__",
-        status=enums.StatusType.UNCLAIMED,
-        data=None,
+    current_scouter = entry["scouter"] if entry else None
+    current_status = (
+        enums.StatusType(entry["status"])
+        if entry else enums.StatusType.UNCLAIMED
     )
 
-    if not updated:
-        raise HTTPException(status_code=409, detail="Failed to unclaim (possible race)")
+    result = "noop"
+    message = None
 
-    return {"status": "unclaimed", "team": team}
+    # -----------------------------
+    # ACTIONS
+    # -----------------------------
+    try:
+        if action == "info":
+            result = "success"
+
+
+        elif team is None:
+            result = "fail"
+            message = "This action requires a team to be specified."
+
+
+        # ---- CLAIM ----
+        elif action == "claim":
+            if current_scouter is None:
+                updated = await db.update_match_scouting(
+                    match=match,
+                    m_type=m_type,
+                    team=team,
+                    scouter=None,
+                    scouter_new=scouter_email,
+                    status=enums.StatusType.PRE,
+                    data=None,
+                )
+                if updated:
+                    result = "success"
+                else:
+                    result = "fail"
+                    message = "Failed to claim: database update rejected."
+            else:
+                result = "fail"
+                message = "Team is already claimed by another scouter."
+
+        # ---- UNCLAIM ----
+        elif action == "unclaim":
+            print(current_scouter, scouter_email)
+            if current_scouter == scouter_email:
+                updated = await db.update_match_scouting(
+                    match=match,
+                    m_type=m_type,
+                    team=team,
+                    scouter=scouter_email,
+                    scouter_new=None,
+                    status=enums.StatusType.UNCLAIMED,
+                    data=None,
+                )
+                if updated:
+                    result = "success"
+                else:
+                    result = "fail"
+                    message = "Failed to unclaim: database update rejected."
+            else:
+                result = "fail"
+                message = "You do not own this team."
+
+        # ---- SWITCH TEAM ----
+        elif action == "switch":
+            if team is None:
+                result = "fail"
+                message = "Target team must be specified."
+            else:
+                # Find the team this scouter currently owns in this match+alliance
+                owned = None
+                for t, r in teams.items():
+                    if r["scouter"] == scouter_email:
+                        owned = t
+                        break
+
+                if not owned:
+                    result = "fail"
+                    message = "You do not currently own any team in this match."
+
+                elif owned == team:
+                    result = "fail"
+                    message = "You already own this team."
+
+                else:
+                    target = teams.get(team)
+
+                    if not target or target["scouter"] is not None:
+                        result = "fail"
+                        message = "Target team is already claimed."
+
+                    else:
+                        # Release old team
+                        released = await db.update_match_scouting(
+                            match=match,
+                            m_type=m_type,
+                            team=owned,
+                            scouter=scouter_email,
+                            scouter_new=None,
+                            status=enums.StatusType.UNCLAIMED,
+                            data=None,
+                        )
+
+                        if not released:
+                            result = "fail"
+                            message = "Failed to release current team."
+                        else:
+                            # Claim new team
+                            claimed = await db.update_match_scouting(
+                                match=match,
+                                m_type=m_type,
+                                team=team,
+                                scouter=None,
+                                scouter_new=scouter_email,
+                                status=enums.StatusType.PRE,
+                                data=None,
+                            )
+
+                            if claimed:
+                                result = "success"
+                            else:
+                                # Rollback release if claim failed
+                                await db.update_match_scouting(
+                                    match=match,
+                                    m_type=m_type,
+                                    team=owned,
+                                    scouter=None,
+                                    scouter_new=scouter_email,
+                                    status=current_status,
+                                    data=None,
+                                )
+                                result = "fail"
+                                message = "Switch failed; original team restored."
+
+
+        # ---- PHASE ----
+        elif action.startswith("set_"):
+            if current_scouter != scouter_email:
+                result = "fail"
+                message = "You do not own this team."
+            else:
+                new_status = enums.StatusType(action.replace("set_", "").upper())
+
+                order = [
+                    enums.StatusType.PRE,
+                    enums.StatusType.AUTO,
+                    enums.StatusType.TELEOP,
+                    enums.StatusType.POST,
+                    enums.StatusType.SUBMITTED,
+                ]
+
+                ok = (
+                        (current_status == enums.StatusType.UNCLAIMED and new_status == enums.StatusType.PRE)
+                        or (
+                                current_status in order
+                                and new_status in order
+                                and order.index(new_status) >= order.index(current_status)
+                        )
+                )
+
+                if ok:
+                    await db.update_match_scouting(
+                        match=match,
+                        m_type=m_type,
+                        team=team,
+                        scouter=scouter_email,
+                        scouter_new=scouter_email,
+                        status=new_status,
+                        data=None,
+                    )
+                    result = "success"
+                else:
+                    result = "fail"
+                    message = f"Invalid phase transition from {current_status.value} to {new_status.value}."
+
+        else:
+            result = "fail"
+            message = "Unknown action."
+            if current_scouter == scouter_email:
+                updated = await db.update_match_scouting(
+                    match=match,
+                    m_type=m_type,
+                    team=team,
+                    scouter=scouter_email,
+                    scouter_new=None,
+                    status=enums.StatusType.UNCLAIMED,
+                    data=None,
+                )
+
+
+
+    except Exception as e:
+        result = "fail"
+        message = "Internal error while processing request."
+
+    # -----------------------------
+    # ALWAYS RETURN FULL STATE (ONLY THIS ALLIANCE)
+    # -----------------------------
+    rows = await db.get_match_scouting(match=match, m_type=m_type)
+
+    # Team numbers in correct DS order
+    alliance_teams = (
+        match_row["red"] if alliance == enums.AllianceType.RED else match_row["blue"]
+    )
+
+    # Index scouting rows by team
+    by_team = {int(r["team"]): r for r in rows}
+
+    # Assigned scouters (already DS-ordered)
+    assigned = await db.get_match_scouters_schedule(
+        match_type=m_type,
+        match_number=match,
+        alliance=alliance,
+    )
+
+    # Collect all emails we need to resolve
+    emails = set()
+    for t in alliance_teams:
+        if t is None:
+            continue
+        r = by_team.get(t)
+        if r and r["scouter"]:
+            emails.add(r["scouter"])
+
+    if assigned:
+        for e in assigned:
+            if e:
+                emails.add(e)
+
+    # Resolve users
+    user_map = {}
+    for email in emails:
+        u = await db.get_user_by_email(email)
+        if u:
+            user_map[email] = u["name"]
+
+    # Build alliance-only response in DS order
+    match_state = []
+
+    for i, team_num in enumerate(alliance_teams):
+        if team_num is None:
+            continue
+
+        r = by_team.get(team_num)
+
+        scouter = r["scouter"] if r else None
+
+        assigned_email = assigned[i] if assigned and i < len(assigned) else None
+
+        match_state.append({
+            "team": team_num,
+            "scouterEmail": scouter,
+            "scouterName": user_map.get(scouter),
+            "assignedScouterEmail": assigned_email,
+            "assignedScouterName": user_map.get(assigned_email),
+            "status": r["status"] if r else enums.StatusType.UNCLAIMED.value,
+        })
+
+    return {
+        "action": result,
+        "message": message,
+        "match": match_state,
+    }
 
 
 @router.post("/scouting/{m_type}/{match}/{team}/unclaim-beacon")
@@ -467,129 +691,11 @@ async def unclaim_team_beacon(
         m_type=m_type,
         team=team,
         scouter=scouter,
-        scouter_new="__NONE__",
+        scouter_new=None,
         status=enums.StatusType.UNCLAIMED,
         data=None,
     )
     return {"status": "unclaimed", "team": team}
-
-
-@router.patch("/scouting/{m_type}/{match}/{team}/state")
-async def update_state(
-        m_type: enums.MatchType,
-        match: int,
-        team: int,
-        status: enums.StatusType = Query(...),
-        session: enums.SessionInfo = Depends(db.require_permission("match_scouting")),
-):
-    """
-    Updates the phase/state (pre, auto, teleop, post, submitted).
-    Only the current scouter can update their own team's phase.
-    Allows UNCLAIMED → PRE for initialization.
-    """
-
-    scouter = session.email
-
-    # --- Fetch entry ---
-    rows = await db.get_match_scouting(match=match, m_type=m_type, team=team)
-    if not rows:
-        raise HTTPException(status_code=404, detail="Entry not found")
-    entry = rows[0]
-
-    current_scouter = entry["scouter"]
-    current_status = entry["status"]
-    try:
-        current_status = (
-            current_status
-            if isinstance(entry["status"], enums.StatusType)
-            else enums.StatusType(entry["status"])
-        )
-    except ValueError:
-        raise HTTPException(status_code=400, detail=f"Invalid stored status: {entry['status']}")
-
-    # --- Access control ---
-    if current_scouter != scouter:
-        raise HTTPException(status_code=403, detail="Only current scouter may update state")
-
-    # --- Valid progression order ---
-    allowed_order = [
-        enums.StatusType.PRE,
-        enums.StatusType.AUTO,
-        enums.StatusType.TELEOP,
-        enums.StatusType.POST,
-        enums.StatusType.SUBMITTED,
-    ]
-
-    # --- Handle UNCLAIMED safely ---
-    if current_status == enums.StatusType.UNCLAIMED:
-        # Allow transition to PRE only
-        if status != enums.StatusType.PRE:
-            raise HTTPException(status_code=400, detail="First phase after UNCLAIMED must be PRE")
-    else:
-        # Validate both are valid phases
-        if current_status not in allowed_order or status not in allowed_order:
-            raise HTTPException(status_code=400, detail=f"Invalid phase transition: {current_status} → {status}")
-
-    # --- Apply update ---
-    await db.update_match_scouting(
-        match=match,
-        m_type=m_type,
-        team=team,
-        scouter=scouter,
-        scouter_new=scouter,  # no ownership change
-        status=status,
-        data=None,
-    )
-
-    return {"status": "updated", "team": team, "phase": status}
-
-
-@router.patch("/scouting/{m_type}/{match}/{team}")
-async def update_match(
-    m_type: enums.MatchType,
-    match: int,
-    team: int,
-    body: Dict[str, Any] = Body(...),
-    session: enums.SessionInfo = Depends(db.require_permission("match_scouting")),
-):
-    scouter = session.email
-
-    rows = await db.get_match_scouting(match=match, m_type=m_type, team=team)
-    if not rows:
-        raise HTTPException(status_code=404, detail="Entry not found")
-
-    entry = rows[0]
-
-    if entry["scouter"] != scouter:
-        raise HTTPException(status_code=403, detail="Not your team")
-
-    # Extract status if provided
-    status: Optional[enums.StatusType] = None
-    if "status" in body and body["status"] is not None:
-        status = enums.StatusType(body["status"])
-
-    # Strip meta fields
-    data = {
-        k: v for k, v in body.items()
-        if k not in {"match", "match_type", "team", "teamNumber", "scouter", "status"}
-    }
-
-    await db.update_match_scouting(
-        match=match,
-        m_type=m_type,
-        team=team,
-        scouter=scouter,
-        status=status,
-        data=data,
-    )
-
-    return {
-        "status": "patched",
-        "scouter": scouter,
-        "phase": status.value if status else entry["status"],
-        "changed_scouter": False,
-    }
-
 
 
 @router.post("/scouting/{m_type}/{match}/{team}/submit")
@@ -637,131 +743,9 @@ async def submit_data(
 
     return {"status": "submitted"}
 
-
-@router.get("/match/{m_type}/{match}/{alliance}")
-async def get_match_info(
-        m_type: enums.MatchType,
-        match: int,
-        alliance: enums.AllianceType,
-        _: enums.SessionInfo = Depends(db.require_permission("match_scouting"))
-):
-    """
-    Retrieves match info directly from DB using metadata.current_event.
-    """
-    # Fetch match info automatically scoped to current_event
-    match_row = await db.get_match_info(m_type.value, match)
-    if not match_row:
-        raise HTTPException(status_code=404, detail="Match not found in database")
-
-    # Extract alliance teams
-    if alliance == enums.AllianceType.RED:
-        team_numbers = [t for t in match_row["red"] if t is not None]
-    else:  # guaranteed alliance == enums.AllianceType.BLUE
-        team_numbers = [t for t in match_row["blue"] if t is not None]
-
-    # Ensure each team has a match_scouting entry
-    for t in team_numbers:
-        existing = await db.get_match_scouting(match=match, m_type=m_type, team=str(t))
-        if not existing:
-            await db.add_match_scouting(
-                match=match,
-                m_type=m_type,
-                team=t,
-                alliance=alliance,
-                scouter=None,
-                status=enums.StatusType.UNCLAIMED,
-                data={}
-            )
-
-    return {
-        "teams": [
-            {
-                "number": int(t),
-                "name": f"Team {t}",
-                "scouter": (await db.get_match_scouting(match=match, m_type=m_type, team=t))[0].get("scouter")
-            }
-            for t in team_numbers
-        ]
-    }
-
-
-@router.get("/match/{m_type}/{match}/{alliance}/state")
-async def get_scouter_state(
-    m_type: enums.MatchType,
-    match: int,
-    alliance: enums.AllianceType,
-    _: enums.SessionInfo = Depends(db.require_permission("match_scouting")),
-):
-    # --------------------------------------------------
-    # 1. Current scouting state (existing behavior)
-    # --------------------------------------------------
-    entries = await db.get_match_scouting(match=match, m_type=m_type)
-    relevant = [e for e in entries if e["alliance"] == alliance.value]
-
-    teams: dict[str, dict[str, str | None]] = {}
-    for e in relevant:
-        scouter = e.get("scouter")
-        person = await db.get_person_sessions(email=scouter) if scouter else {}
-
-        teams[str(e["team"])] = {
-            "scouter": scouter,
-            "name": person.get("name"),
-            "assigned_scouter": None,
-            "assigned_name": None,
-        }
-
-    # --------------------------------------------------
-    # 2. Scheduled scouters (from matches table)
-    # --------------------------------------------------
-    assigned_scouters = await db.get_match_scouters_schedule(
-        match_type=m_type,
-        match_number=match,
-        alliance=alliance,
-    )
-
-    if assigned_scouters is None:
-        return {"teams": teams}  # match exists in scouting but not schedule
-
-    # Fetch teams in correct driver-station order
-    match_info = await db.get_match_info(
-        match_type=m_type.value,
-        match_number=match,
-    )
-    if not match_info:
-        return {"teams": teams}
-
-    ordered_teams = (
-        match_info["red"]
-        if alliance == enums.AllianceType.RED
-        else match_info["blue"]
-    )
-
-    # --------------------------------------------------
-    # 3. Merge assigned scouters into existing structure
-    # --------------------------------------------------
-    for team, assigned in zip(ordered_teams, assigned_scouters):
-        team_key = str(team)
-        if team_key not in teams:
-            teams[team_key] = {
-                "scouter": None,
-                "name": None,
-                "assigned_scouter": None,
-                "assigned_name": None,
-            }
-
-        assigned_person = (
-            await db.get_person_sessions(email=assigned) if assigned else {}
-        )
-
-        teams[team_key]["assigned_scouter"] = assigned
-        teams[team_key]["assigned_name"] = assigned_person.get("name")
-
-    return {"teams": teams}
-
-
 @router.get("/scouter/schedule")
 async def get_scouter_match_schedule(
-    session: enums.SessionInfo = Depends(db.require_permission("match_scouting")),
+        session: enums.SessionInfo = Depends(db.require_permission("match_scouting")),
 ):
     """
     Return all matches a scouter is assigned to scout for the current event.
@@ -791,7 +775,7 @@ async def get_scouter_match_schedule(
 
 @router.get("/matches/schedule")
 async def get_all_matches(
-    _: enums.SessionInfo = Depends(db.require_permission("admin")),
+        _: enums.SessionInfo = Depends(db.require_permission("admin")),
 ):
     """
     Return all matches for the current event,
@@ -830,8 +814,8 @@ class BulkMatchUpdate(BaseModel):
 
 @router.patch("/matches/schedule")
 async def update_match_schedule(
-    payload: BulkMatchUpdate = Body(...),
-    _: enums.SessionInfo = Depends(db.require_permission("admin")),
+        payload: BulkMatchUpdate = Body(...),
+        _: enums.SessionInfo = Depends(db.require_permission("admin")),
 ):
     """
     Bulk update match schedule, teams, and scouter assignments.
@@ -879,6 +863,50 @@ async def submit_pit_data(
     )
 
     return {"status": "submitted", "team": team}
+
+
+@router.get("/team/{team}")
+async def get_pit_scout_status(team: int):
+    """
+    Returns whether the team has already been pit-scouted for the current event.
+    """
+    pit_records = await db.get_pit_scouting(team=team)
+    scouted = len(pit_records) > 0
+
+    return {
+        "scouted": scouted
+    }
+
+
+# === Attendance ===
+
+@router.get("/attendance")
+async def admin_get_attendance(
+    _: enums.SessionInfo = Depends(db.require_permission("admin")),
+):
+    return await db.compute_attendance_totals()
+
+
+@router.post("/attendance/checkin")
+async def attendance_checkin(
+    session: enums.SessionInfo = Depends(db.require_session()),
+):
+    try:
+        await db.record_attendance_event(session.email, "checkin")
+        return {"status": "checked_in"}
+    except ValueError as e:
+        raise HTTPException(status_code=409, detail=str(e))
+
+
+@router.post("/attendance/checkout")
+async def attendance_checkout(
+    session: enums.SessionInfo = Depends(db.require_session()),
+):
+    try:
+        await db.record_attendance_event(session.email, "checkout")
+        return {"status": "checked_out"}
+    except ValueError as e:
+        raise HTTPException(status_code=409, detail=str(e))
 
 
 # === Data ===
@@ -941,8 +969,8 @@ def filter_processed_data(data: dict, perms: dict) -> dict:
 
 @router.get("/data/processed/admin")
 async def get_data_processed_admin(
-    event_key: Optional[str] = None,
-    _: enums.SessionInfo = Depends(db.require_permission("admin")),
+        event_key: Optional[str] = None,
+        _: enums.SessionInfo = Depends(db.require_permission("admin")),
 ):
     # Load data
     result = await db.get_processed_data(event_key)
@@ -965,8 +993,8 @@ async def get_data_processed_admin(
 
 @router.get("/data/processed/guest")
 async def get_data_processed_guest(
-    event_key: Optional[str] = None,
-    guest=Depends(db.require_guest_password()),
+        event_key: Optional[str] = None,
+        guest=Depends(db.require_guest_password()),
 ):
     # Load data
     result = await db.get_processed_data(event_key)
@@ -982,9 +1010,10 @@ async def get_data_processed_guest(
         "permissions": perms,
     }
 
+
 @router.get("/admin/get_guests")
 async def admin_get_guests(
-    _: enums.SessionInfo = Depends(db.require_permission("admin")),
+        _: enums.SessionInfo = Depends(db.require_permission("admin")),
 ):
     """
     Admin-only endpoint.

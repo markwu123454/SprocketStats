@@ -47,11 +47,13 @@ To add a new database function to this module, follow these steps:
    - Confirm it correctly handles both success and error conditions.
 """
 import socket
+from collections import defaultdict
+
 import asyncpg
 import json
 import time
 import logging
-from typing import Dict, Any, Optional, Callable, Annotated, Awaitable, List
+from typing import Dict, Any, Optional, Callable, Annotated, Awaitable
 import dotenv
 from fastapi import HTTPException, Header, Depends
 from datetime import datetime, timezone
@@ -74,14 +76,13 @@ DB_DSN = os.getenv("DATABASE_URL")
 _pools: dict[str, asyncpg.Pool] = {}
 DB_NAME = "data"
 
-
-S_NONE = "__NONE__"  # sentinel stored when scouter is logically NULL
+_sentinel = object()
 
 
 async def _setup_codecs(conn: asyncpg.Connection):
     """Register JSON and JSONB codecs for transparent dict <-> JSON conversion."""
     await conn.set_type_codec("jsonb", encoder=json.dumps, decoder=json.loads, schema="pg_catalog")
-    await conn.set_type_codec("json",  encoder=json.dumps, decoder=json.loads, schema="pg_catalog")
+    await conn.set_type_codec("json", encoder=json.dumps, decoder=json.loads, schema="pg_catalog")
 
 
 async def get_db_connection(db: str) -> asyncpg.Connection:
@@ -120,18 +121,9 @@ async def close_pool():
     _pools.clear()
 
 
-def _to_db_scouter(s: Optional[str]) -> str:
-    """Convert None scouter value to the sentinel string '__NONE__'."""
-    return S_NONE if s is None else s
-
-
-def _from_db_scouter(s: str) -> Optional[str]:
-    """Convert sentinel '__NONE__' string back to None."""
-    return None if s == S_NONE else s
-
-
 # =================== Schema Init ===================
 
+# TODO: update this to match db schema
 async def init_db():
     """
     Initialize all required tables in the 'data' database
@@ -146,164 +138,367 @@ async def init_db():
             # match_scouting
             # ---------------------------------------------------
             await conn.execute("""
-                CREATE TABLE IF NOT EXISTS match_scouting (
-                    event_key TEXT NOT NULL,
-                    match INTEGER NOT NULL,
-                    match_type TEXT NOT NULL,
-                    team TEXT NOT NULL,
-                    alliance TEXT NOT NULL,
-                    scouter TEXT NOT NULL,
-                    status TEXT NOT NULL,
-                    data JSONB NOT NULL,
-                    last_modified TIMESTAMPTZ DEFAULT now(),
-                    PRIMARY KEY (match, match_type, team, scouter)
-                );
-            """)
+                               CREATE TABLE IF NOT EXISTS match_scouting
+                               (
+                                   event_key
+                                       TEXT
+                                       NOT
+                                           NULL,
+                                   match
+                                       INTEGER
+                                       NOT
+                                           NULL,
+                                   match_type
+                                       TEXT
+                                       NOT
+                                           NULL,
+                                   team
+                                       TEXT
+                                       NOT
+                                           NULL,
+                                   alliance
+                                       TEXT
+                                       NOT
+                                           NULL,
+                                   scouter
+                                       TEXT
+                                       NOT
+                                           NULL,
+                                   status
+                                       TEXT
+                                       NOT
+                                           NULL,
+                                   data
+                                       JSONB
+                                       NOT
+                                           NULL,
+                                   last_modified
+                                       TIMESTAMPTZ
+                                       DEFAULT
+                                           now
+                                           (
+                                           ),
+                                   PRIMARY KEY
+                                       (
+                                        match,
+                                        match_type,
+                                        team,
+                                        scouter
+                                           )
+                               );
+                               """)
             await conn.execute("CREATE INDEX IF NOT EXISTS idx_match_scouting_team ON match_scouting (team)")
             await conn.execute("""
-                CREATE INDEX IF NOT EXISTS idx_ms_lookup
-                ON match_scouting (match, match_type, team, scouter);
-            """)
+                               CREATE INDEX IF NOT EXISTS idx_ms_lookup
+                                   ON match_scouting (match, match_type, team, scouter);
+                               """)
 
             # ---------------------------------------------------
             # pit_scouting
             # ---------------------------------------------------
             await conn.execute("""
-                CREATE TABLE IF NOT EXISTS pit_scouting (
-                    event_key TEXT NOT NULL,
-                    team TEXT NOT NULL,
-                    scouter TEXT,
-                    status TEXT NOT NULL,
-                    data JSONB NOT NULL,
-                    last_modified TIMESTAMPTZ DEFAULT now(),
-                    PRIMARY KEY (event_key, team, scouter)
-                );
-            """)
+                               CREATE TABLE IF NOT EXISTS pit_scouting
+                               (
+                                   event_key
+                                       TEXT
+                                       NOT
+                                           NULL,
+                                   team
+                                       TEXT
+                                       NOT
+                                           NULL,
+                                   scouter
+                                       TEXT,
+                                   status
+                                       TEXT
+                                       NOT
+                                           NULL,
+                                   data
+                                       JSONB
+                                       NOT
+                                           NULL,
+                                   last_modified
+                                       TIMESTAMPTZ
+                                       DEFAULT
+                                           now
+                                           (
+                                           ),
+                                   PRIMARY KEY
+                                       (
+                                        event_key,
+                                        team,
+                                        scouter
+                                           )
+                               );
+                               """)
             await conn.execute("CREATE INDEX IF NOT EXISTS idx_pit_scouting_team ON pit_scouting (team)")
             await conn.execute("""
-                CREATE INDEX IF NOT EXISTS idx_pit_lookup
-                ON pit_scouting (event_key, team, scouter);
-            """)
+                               CREATE INDEX IF NOT EXISTS idx_pit_lookup
+                                   ON pit_scouting (event_key, team, scouter);
+                               """)
 
             # ---------------------------------------------------
             # processed_data
             # ---------------------------------------------------
             await conn.execute("""
-                CREATE TABLE IF NOT EXISTS processed_data (
-                    event_key TEXT NOT NULL,
-                    time_added TIMESTAMPTZ NOT NULL,
-                    data JSONB NOT NULL
-                );
-            """)
+                               CREATE TABLE IF NOT EXISTS processed_data
+                               (
+                                   event_key
+                                       TEXT
+                                       NOT
+                                           NULL,
+                                   time_added
+                                       TIMESTAMPTZ
+                                       NOT
+                                           NULL,
+                                   data
+                                       JSONB
+                                       NOT
+                                           NULL
+                               );
+                               """)
 
             # ---------------------------------------------------
             # matches
             # ---------------------------------------------------
             await conn.execute("""
-                CREATE TABLE IF NOT EXISTS matches (
-                    key TEXT PRIMARY KEY,
-                    event_key TEXT NOT NULL,
-                    match_type TEXT NOT NULL,
-                    match_number INTEGER,
-                    set_number INTEGER,
-                    scheduled_time TIMESTAMPTZ,
-                    actual_time TIMESTAMPTZ,
-                    red1 INTEGER, red2 INTEGER, red3 INTEGER,
-                    blue1 INTEGER, blue2 INTEGER, blue3 INTEGER,
-                    red1_scouter TEXT, red2_scouter TEXT, red3_scouter TEXT,
-                    blue1_scouter TEXT, blue2_scouter TEXT, blue3_scouter TEXT
-                );
-            """)
+                               CREATE TABLE IF NOT EXISTS matches
+                               (
+                                   key
+                                       TEXT
+                                       PRIMARY
+                                           KEY,
+                                   event_key
+                                       TEXT
+                                       NOT
+                                           NULL,
+                                   match_type
+                                       TEXT
+                                       NOT
+                                           NULL,
+                                   match_number
+                                       INTEGER,
+                                   set_number
+                                       INTEGER,
+                                   scheduled_time
+                                       TIMESTAMPTZ,
+                                   actual_time
+                                       TIMESTAMPTZ,
+                                   red1
+                                       INTEGER,
+                                   red2
+                                       INTEGER,
+                                   red3
+                                       INTEGER,
+                                   blue1
+                                       INTEGER,
+                                   blue2
+                                       INTEGER,
+                                   blue3
+                                       INTEGER,
+                                   red1_scouter
+                                       TEXT,
+                                   red2_scouter
+                                       TEXT,
+                                   red3_scouter
+                                       TEXT,
+                                   blue1_scouter
+                                       TEXT,
+                                   blue2_scouter
+                                       TEXT,
+                                   blue3_scouter
+                                       TEXT
+                               );
+                               """)
 
             # ---------------------------------------------------
             # matches_tba
             # ---------------------------------------------------
             await conn.execute("""
-                CREATE TABLE IF NOT EXISTS matches_tba (
-                    match_key TEXT PRIMARY KEY,
-                    event_key TEXT NOT NULL,
-                    comp_level TEXT NOT NULL,
-                    set_number INTEGER,
-                    match_number INTEGER,
-                    time BIGINT,
-                    actual_time BIGINT,
-                    predicted_time BIGINT,
-                    post_result_time BIGINT,
-                    winning_alliance TEXT,
-                    red_teams TEXT[] NOT NULL,
-                    blue_teams TEXT[] NOT NULL,
-                    red_score INTEGER,
-                    blue_score INTEGER,
-                    red_rp INTEGER,
-                    blue_rp INTEGER,
-                    red_auto_points INTEGER,
-                    blue_auto_points INTEGER,
-                    red_teleop_points INTEGER,
-                    blue_teleop_points INTEGER,
-                    red_endgame_points INTEGER,
-                    blue_endgame_points INTEGER,
-                    score_breakdown JSONB,
-                    videos JSONB,
-                    last_update TIMESTAMP,
-                    red_coopertition_criteria BOOLEAN,
-                    blue_coopertition_criteria BOOLEAN
-                );
-            """)
+                               CREATE TABLE IF NOT EXISTS matches_tba
+                               (
+                                   match_key
+                                       TEXT
+                                       PRIMARY
+                                           KEY,
+                                   event_key
+                                       TEXT
+                                       NOT
+                                           NULL,
+                                   comp_level
+                                       TEXT
+                                       NOT
+                                           NULL,
+                                   set_number
+                                       INTEGER,
+                                   match_number
+                                       INTEGER,
+                                   time
+                                       BIGINT,
+                                   actual_time
+                                       BIGINT,
+                                   predicted_time
+                                       BIGINT,
+                                   post_result_time
+                                       BIGINT,
+                                   winning_alliance
+                                       TEXT,
+                                   red_teams
+                                       TEXT[]
+                                       NOT
+                                           NULL,
+                                   blue_teams
+                                       TEXT[]
+                                       NOT
+                                           NULL,
+                                   red_score
+                                       INTEGER,
+                                   blue_score
+                                       INTEGER,
+                                   red_rp
+                                       INTEGER,
+                                   blue_rp
+                                       INTEGER,
+                                   red_auto_points
+                                       INTEGER,
+                                   blue_auto_points
+                                       INTEGER,
+                                   red_teleop_points
+                                       INTEGER,
+                                   blue_teleop_points
+                                       INTEGER,
+                                   red_endgame_points
+                                       INTEGER,
+                                   blue_endgame_points
+                                       INTEGER,
+                                   score_breakdown
+                                       JSONB,
+                                   videos
+                                       JSONB,
+                                   last_update
+                                       TIMESTAMP,
+                                   red_coopertition_criteria
+                                       BOOLEAN,
+                                   blue_coopertition_criteria
+                                       BOOLEAN
+                               );
+                               """)
 
             # ---------------------------------------------------
             # metadata
             # ---------------------------------------------------
             await conn.execute("""
-                CREATE TABLE IF NOT EXISTS metadata (
-                    current_event TEXT
-                );
-            """)
+                               CREATE TABLE IF NOT EXISTS metadata
+                               (
+                                   current_event
+                                       TEXT
+                               );
+                               """)
 
             # ---------------------------------------------------
             # teams
             # ---------------------------------------------------
             await conn.execute("""
-                CREATE TABLE IF NOT EXISTS teams (
-                    team_number INTEGER PRIMARY KEY,
-                    nickname TEXT,
-                    rookie_year INTEGER,
-                    last_updated TIMESTAMP
-                );
-            """)
+                               CREATE TABLE IF NOT EXISTS teams
+                               (
+                                   team_number
+                                       INTEGER
+                                       PRIMARY
+                                           KEY,
+                                   nickname
+                                       TEXT,
+                                   rookie_year
+                                       INTEGER,
+                                   last_updated
+                                       TIMESTAMP
+                               );
+                               """)
 
             # ---------------------------------------------------
             # misc
             # ---------------------------------------------------
             await conn.execute("""
-                CREATE TABLE IF NOT EXISTS misc (
-                    id INTEGER PRIMARY KEY,
-                    candy_cache TEXT
-                );
-            """)
+                               CREATE TABLE IF NOT EXISTS misc
+                               (
+                                   id
+                                       INTEGER
+                                       PRIMARY
+                                           KEY,
+                                   candy_cache
+                                       TEXT
+                               );
+                               """)
 
             # ---------------------------------------------------
             # users
             # ---------------------------------------------------
             await conn.execute("""
-                CREATE TABLE IF NOT EXISTS users (
-                    email TEXT PRIMARY KEY,
-                    name TEXT NOT NULL,
-                    approval TEXT,
-                    perm_dev BOOLEAN NOT NULL DEFAULT FALSE,
-                    perm_admin BOOLEAN NOT NULL DEFAULT FALSE,
-                    perm_match_scout BOOLEAN NOT NULL DEFAULT FALSE,
-                    perm_pit_scout BOOLEAN NOT NULL DEFAULT FALSE,
-                    created_at TIMESTAMPTZ DEFAULT now()
-                );
-            """)
+                               CREATE TABLE IF NOT EXISTS users
+                               (
+                                   email
+                                       TEXT
+                                       PRIMARY
+                                           KEY,
+                                   name
+                                       TEXT
+                                       NOT
+                                           NULL,
+                                   approval
+                                       TEXT,
+                                   perm_dev
+                                       BOOLEAN
+                                       NOT
+                                           NULL
+                                       DEFAULT
+                                           FALSE,
+                                   perm_admin
+                                       BOOLEAN
+                                       NOT
+                                           NULL
+                                       DEFAULT
+                                           FALSE,
+                                   perm_match_scout
+                                       BOOLEAN
+                                       NOT
+                                           NULL
+                                       DEFAULT
+                                           FALSE,
+                                   perm_pit_scout
+                                       BOOLEAN
+                                       NOT
+                                           NULL
+                                       DEFAULT
+                                           FALSE,
+                                   created_at
+                                       TIMESTAMPTZ
+                                       DEFAULT
+                                           now
+                                           (
+                                           )
+                               );
+                               """)
 
             await conn.execute("""
                                CREATE TABLE IF NOT EXISTS guests
                                (
-                                   password         TEXT PRIMARY KEY,
-                                   name             TEXT    NOT NULL,
-                                   permissions      JSONB NOT NULL,
-                                   expire_date       TIMESTAMPTZ DEFAULT now()
+                                   password
+                                       TEXT
+                                       PRIMARY
+                                           KEY,
+                                   name
+                                       TEXT
+                                       NOT
+                                           NULL,
+                                   permissions
+                                       JSONB
+                                       NOT
+                                           NULL,
+                                   expire_date
+                                       TIMESTAMPTZ
+                                       DEFAULT
+                                           now
+                                           (
+                                           )
                                );
                                """)
 
@@ -311,16 +506,26 @@ async def init_db():
             # sessions
             # ---------------------------------------------------
             await conn.execute("""
-                CREATE TABLE IF NOT EXISTS sessions (
-                    uuid TEXT PRIMARY KEY,
-                    data JSONB NOT NULL,
-                    expires TIMESTAMPTZ NOT NULL
-                );
-            """)
+                               CREATE TABLE IF NOT EXISTS sessions
+                               (
+                                   uuid
+                                       TEXT
+                                       PRIMARY
+                                           KEY,
+                                   data
+                                       JSONB
+                                       NOT
+                                           NULL,
+                                   expires
+                                       TIMESTAMPTZ
+                                       NOT
+                                           NULL
+                               );
+                               """)
             await conn.execute("""
-                CREATE INDEX IF NOT EXISTS idx_sessions_expires
-                ON sessions (expires);
-            """)
+                               CREATE INDEX IF NOT EXISTS idx_sessions_expires
+                                   ON sessions (expires);
+                               """)
 
     except Exception as e:
         logger.error("Failed to initialize schema: %s", e)
@@ -340,14 +545,14 @@ async def get_match_info(match_type: str, match_number: int, set_number: int = 1
     conn = await get_db_connection(DB_NAME)
     try:
         row = await conn.fetchrow("""
-            SELECT *
-            FROM matches
-            WHERE event_key = (SELECT current_event FROM metadata LIMIT 1)
-              AND match_type = $1
-              AND match_number = $2
-              AND set_number = $3
-            LIMIT 1
-        """, match_type, match_number, set_number)
+                                  SELECT *
+                                  FROM matches
+                                  WHERE event_key = (SELECT current_event FROM metadata LIMIT 1)
+                                    AND match_type = $1
+                                    AND match_number = $2
+                                    AND set_number = $3
+                                  LIMIT 1
+                                  """, match_type, match_number, set_number)
 
         if not row:
             return None
@@ -371,123 +576,141 @@ async def get_match_info(match_type: str, match_number: int, set_number: int = 1
 
 
 async def add_match_scouting(
-    match: int,
-    m_type: enums.MatchType,
-    team: int | str,
-    alliance: enums.AllianceType,
-    scouter: str | None,
-    status: enums.StatusType,
-    data: Dict[str, Any],
+        match: int,
+        m_type: enums.MatchType,
+        team: int | str,
+        alliance: enums.AllianceType,
+        status: enums.StatusType,
+        data: Dict[str, Any],
+        scouter: str | None = None,
 ):
-    """Insert a new match scouting entry using current_event from metadata."""
     conn = await get_db_connection(DB_NAME)
     try:
         await conn.execute("""
-            INSERT INTO match_scouting (
-                event_key, match, match_type, team, alliance, scouter, status, data, last_modified
-            )
-            VALUES (
-                (SELECT current_event FROM metadata LIMIT 1),
-                $1, $2, $3, $4, $5, $6, $7, $8
-            )
-        """, match, m_type.value, str(team), alliance.value,
-             _to_db_scouter(scouter), status.value, data, datetime.now(timezone.utc))
+                           INSERT INTO match_scouting (event_key, match, match_type, team,
+                                                       alliance, scouter, status, data, last_modified)
+                           VALUES ((SELECT current_event FROM metadata LIMIT 1), $1, $2, $3, $4, $5, $6, $7, $8)
+                           """,
+                           match,
+                           m_type.value,
+                           str(team),
+                           alliance.value,
+                           scouter,
+                           status.value,
+                           data,
+                           datetime.now(timezone.utc),
+                           )
     except UniqueViolationError:
         raise HTTPException(status_code=409, detail="Match scouting entry already exists")
-    except PostgresError as e:
-        logger.error("Failed to add match scouting data: %s", e)
-        raise HTTPException(status_code=500, detail=f"Failed to add match scouting data: {e}")
     finally:
         await release_db_connection(DB_NAME, conn)
 
 
 async def update_match_scouting(
-    match: int,
-    m_type: enums.MatchType,
-    team: int | str,
-    scouter: Optional[str],
-    status: Optional[enums.StatusType] = None,
-    data: Optional[Dict[str, Any]] = None,
-    scouter_new: Optional[str] = None,
+        match: int,
+        m_type: enums.MatchType,
+        team: int | str,
+        scouter: Optional[str],
+        status: Optional[enums.StatusType] = None,
+        data: Optional[Dict[str, Any]] = None,
+        scouter_new: Optional[str] = _sentinel,
 ):
-    """
-    Update an existing match scouting entry.
-    Uses current_event from metadata.
-    Raises 400 if entry not found or 409 on conflicting reassignment.
-    """
     conn = await get_db_connection(DB_NAME)
     try:
         async with conn.transaction():
+
             row = await conn.fetchrow("""
-                SELECT data, status
-                FROM match_scouting
-                WHERE event_key = (SELECT current_event FROM metadata LIMIT 1)
-                  AND match = $1 AND match_type = $2 AND team = $3 AND (scouter = $4 OR scouter = $5)
-                FOR UPDATE
-            """, match, m_type.value, str(team), _to_db_scouter(scouter), _to_db_scouter(scouter_new))
+                                      SELECT id, data, status
+                                      FROM match_scouting
+                                      WHERE event_key = (SELECT current_event FROM metadata LIMIT 1)
+                                        AND match = $1
+                                        AND match_type = $2
+                                        AND team = $3
+                                        AND scouter IS NOT DISTINCT FROM $4
+                                          FOR
+                                              UPDATE
+                                      """, match, m_type.value, str(team), scouter)
+
             if not row:
                 raise HTTPException(status_code=400, detail="Match scouting entry not found")
 
             current_data: Dict[str, Any] = row["data"]
             if data:
                 current_data |= data
+
             new_status = status.value if status else row["status"]
-            new_scouter_db = _to_db_scouter(scouter_new) if scouter_new is not None else _to_db_scouter(scouter)
+            new_scouter = scouter_new if scouter_new is not _sentinel else scouter
 
             try:
                 await conn.execute("""
-                    UPDATE match_scouting
-                    SET data=$1, status=$2, last_modified=$3, scouter=$4
-                    WHERE event_key = (SELECT current_event FROM metadata LIMIT 1)
-                      AND match = $5 AND match_type = $6 AND team = $7 AND scouter = $8
-                """, current_data, new_status, datetime.now(timezone.utc), new_scouter_db,
-                     match, m_type.value, str(team), _to_db_scouter(scouter))
+                                   UPDATE match_scouting
+                                   SET data          = $1,
+                                       status        = $2,
+                                       last_modified = $3,
+                                       scouter       = $4
+                                   WHERE id = $5
+                                   """,
+                                   current_data,
+                                   new_status,
+                                   datetime.now(timezone.utc),
+                                   new_scouter,
+                                   row["id"],
+                                   )
             except UniqueViolationError:
                 raise HTTPException(status_code=409, detail="Target scouter row already exists")
+
             return True
     finally:
         await release_db_connection(DB_NAME, conn)
 
 
 async def get_match_scouting(
-    match: Optional[int] = None,
-    m_type: Optional[enums.MatchType] = None,
-    team: Optional[int | str] = None,
-    scouter: Optional[str] = "__NOTPASSED__",
+        match: Optional[int] = None,
+        m_type: Optional[enums.MatchType] = None,
+        team: Optional[int | str] = None,
+        scouter: Optional[str] = None,
 ) -> list[Dict[str, Any]]:
-    """
-    Fetch match scouting records scoped by current_event from metadata.
-    Any combination of parameters can be supplied.
-    """
     conn = await get_db_connection(DB_NAME)
     try:
         query = """
-            SELECT *
-            FROM match_scouting
-            WHERE event_key = (SELECT current_event FROM metadata LIMIT 1)
-        """
+                SELECT *
+                FROM match_scouting
+                WHERE event_key = (SELECT current_event FROM metadata LIMIT 1) \
+                """
         params: list[Any] = []
         idx = 1
 
         if match is not None:
-            query += f" AND match = ${idx}"; params.append(match); idx += 1
+            query += f" AND match = ${idx}"
+            params.append(match)
+            idx += 1
+
         if m_type is not None:
-            query += f" AND match_type = ${idx}"; params.append(m_type.value); idx += 1
+            query += f" AND match_type = ${idx}"
+            params.append(m_type.value)
+            idx += 1
+
         if team is not None:
-            query += f" AND team = ${idx}"; params.append(str(team)); idx += 1
-        if scouter != "__NOTPASSED__":
-            query += f" AND scouter = ${idx}"; params.append(_to_db_scouter(scouter if scouter != "" else None)); idx += 1
+            query += f" AND team = ${idx}"
+            params.append(str(team))
+            idx += 1
+
+        if scouter is not None:
+            query += f" AND scouter IS NOT DISTINCT FROM ${idx}"
+            params.append(scouter if scouter != "" else None)
+            idx += 1
 
         rows = await conn.fetch(query, *params)
 
         return [
             {
+                "id": r["id"],
                 "event_key": r["event_key"],
                 "match": r["match"],
                 "match_type": r["match_type"],
                 "team": r["team"],
                 "alliance": r["alliance"],
-                "scouter": _from_db_scouter(r["scouter"]),
+                "scouter": r["scouter"],  # None stays None
                 "status": r["status"],
                 "data": r["data"],
                 "last_modified": r["last_modified"],
@@ -502,10 +725,10 @@ async def get_match_scouting(
 
 
 async def get_match_scouters_schedule(
-    match_type: enums.MatchType,
-    match_number: int,
-    alliance: enums.AllianceType,
-    set_number: int = 1,
+        match_type: enums.MatchType,
+        match_number: int,
+        alliance: enums.AllianceType,
+        set_number: int = 1,
 ) -> Optional[list[Optional[str]]]:
     """
     Fetch the 3 assigned scouters for a given alliance in a match,
@@ -520,16 +743,19 @@ async def get_match_scouters_schedule(
     conn = await get_db_connection(DB_NAME)
     try:
         row = await conn.fetchrow("""
-            SELECT
-                red1_scouter, red2_scouter, red3_scouter,
-                blue1_scouter, blue2_scouter, blue3_scouter
-            FROM matches
-            WHERE event_key = (SELECT current_event FROM metadata LIMIT 1)
-              AND match_type = $1
-              AND match_number = $2
-              AND set_number = $3
-            LIMIT 1
-        """, match_type.value, match_number, set_number)
+                                  SELECT red1_scouter,
+                                         red2_scouter,
+                                         red3_scouter,
+                                         blue1_scouter,
+                                         blue2_scouter,
+                                         blue3_scouter
+                                  FROM matches
+                                  WHERE event_key = (SELECT current_event FROM metadata LIMIT 1)
+                                    AND match_type = $1
+                                    AND match_number = $2
+                                    AND set_number = $3
+                                  LIMIT 1
+                                  """, match_type.value, match_number, set_number)
 
         if not row:
             return None
@@ -560,8 +786,8 @@ async def get_match_scouters_schedule(
 
 
 async def get_scouters_match_schedule(
-    scouter: str,
-    event_key: Optional[str] = None,
+        scouter: str,
+        event_key: Optional[str] = None,
 ) -> list[Dict[str, Any]]:
     """
     Fetch the full match schedule for a given scouter.
@@ -589,25 +815,33 @@ async def get_scouters_match_schedule(
     conn = await get_db_connection(DB_NAME)
     try:
         rows = await conn.fetch("""
-            SELECT
-                match_type,
-                match_number,
-                set_number,
-                red1, red2, red3,
-                blue1, blue2, blue3,
-                red1_scouter, red2_scouter, red3_scouter,
-                blue1_scouter, blue2_scouter, blue3_scouter
-            FROM matches
-            WHERE event_key = COALESCE(
-                $1,
-                (SELECT current_event FROM metadata LIMIT 1)
-            )
-              AND (
-                   red1_scouter = $2 OR red2_scouter = $2 OR red3_scouter = $2
-                OR blue1_scouter = $2 OR blue2_scouter = $2 OR blue3_scouter = $2
-              )
-            ORDER BY match_type, match_number, set_number
-        """, event_key, scouter)
+                                SELECT match_type,
+                                       match_number,
+                                       set_number,
+                                       red1,
+                                       red2,
+                                       red3,
+                                       blue1,
+                                       blue2,
+                                       blue3,
+                                       red1_scouter,
+                                       red2_scouter,
+                                       red3_scouter,
+                                       blue1_scouter,
+                                       blue2_scouter,
+                                       blue3_scouter
+                                FROM matches
+                                WHERE event_key = COALESCE(
+                                        $1,
+                                        (SELECT current_event FROM metadata LIMIT 1)
+                                                  )
+                                  AND (
+                                    red1_scouter IS NOT DISTINCT FROM $2 OR red2_scouter IS NOT DISTINCT FROM $2 OR
+                                    red3_scouter IS NOT DISTINCT FROM $2 OR blue1_scouter IS NOT DISTINCT FROM $2 OR
+                                    blue2_scouter IS NOT DISTINCT FROM $2 OR blue3_scouter IS NOT DISTINCT FROM $2
+                                    )
+                                ORDER BY match_type, match_number, set_number
+                                """, event_key, scouter)
 
         results: list[Dict[str, Any]] = []
 
@@ -750,12 +984,12 @@ async def get_all_matches() -> list[Dict[str, Any]]:
                 "blue1": r["blue1"],
                 "blue2": r["blue2"],
                 "blue3": r["blue3"],
-                "red1_scouter": _from_db_scouter(r["red1_scouter"]),
-                "red2_scouter": _from_db_scouter(r["red2_scouter"]),
-                "red3_scouter": _from_db_scouter(r["red3_scouter"]),
-                "blue1_scouter": _from_db_scouter(r["blue1_scouter"]),
-                "blue2_scouter": _from_db_scouter(r["blue2_scouter"]),
-                "blue3_scouter": _from_db_scouter(r["blue3_scouter"]),
+                "red1_scouter": r["red1_scouter"],
+                "red2_scouter": r["red2_scouter"],
+                "red3_scouter": r["red3_scouter"],
+                "blue1_scouter": r["blue1_scouter"],
+                "blue2_scouter": r["blue2_scouter"],
+                "blue3_scouter": r["blue3_scouter"],
             }
             for r in rows
         ]
@@ -786,12 +1020,12 @@ async def get_match_scout_users() -> list[Dict[str, str]]:
     conn = await get_db_connection(DB_NAME)
     try:
         rows = await conn.fetch("""
-            SELECT email, name
-            FROM users
-            WHERE perm_match_scout = TRUE
-              AND approval = 'approved'
-            ORDER BY name
-        """)
+                                SELECT email, name
+                                FROM users
+                                WHERE perm_match_scout = TRUE
+                                  AND approval = 'approved'
+                                ORDER BY name
+                                """)
 
         return [
             {
@@ -828,8 +1062,9 @@ class MatchUpdate(BaseModel):
     blue2_scouter: str | None = None
     blue3_scouter: str | None = None
 
+
 async def update_matches_bulk(
-    updates: list[MatchUpdate]
+        updates: list[MatchUpdate]
 ) -> None:
     if not updates:
         return
@@ -842,7 +1077,7 @@ async def update_matches_bulk(
             """
             SELECT *
             FROM matches
-            WHERE key = ANY($1)
+            WHERE key = ANY ($1)
             """,
             keys,
         )
@@ -872,19 +1107,19 @@ async def update_matches_bulk(
                 (
                     u.key,
                     u.scheduled_time if u.scheduled_time is not None else current_by_key[u.key]["scheduled_time"],
-                    u.actual_time    if u.actual_time    is not None else current_by_key[u.key]["actual_time"],
-                    u.red1           if u.red1           is not None else current_by_key[u.key]["red1"],
-                    u.red2           if u.red2           is not None else current_by_key[u.key]["red2"],
-                    u.red3           if u.red3           is not None else current_by_key[u.key]["red3"],
-                    u.blue1          if u.blue1          is not None else current_by_key[u.key]["blue1"],
-                    u.blue2          if u.blue2          is not None else current_by_key[u.key]["blue2"],
-                    u.blue3          if u.blue3          is not None else current_by_key[u.key]["blue3"],
-                    u.red1_scouter   if u.red1_scouter   is not None else current_by_key[u.key]["red1_scouter"],
-                    u.red2_scouter   if u.red2_scouter   is not None else current_by_key[u.key]["red2_scouter"],
-                    u.red3_scouter   if u.red3_scouter   is not None else current_by_key[u.key]["red3_scouter"],
-                    u.blue1_scouter  if u.blue1_scouter  is not None else current_by_key[u.key]["blue1_scouter"],
-                    u.blue2_scouter  if u.blue2_scouter  is not None else current_by_key[u.key]["blue2_scouter"],
-                    u.blue3_scouter  if u.blue3_scouter  is not None else current_by_key[u.key]["blue3_scouter"],
+                    u.actual_time if u.actual_time is not None else current_by_key[u.key]["actual_time"],
+                    u.red1 if u.red1 is not None else current_by_key[u.key]["red1"],
+                    u.red2 if u.red2 is not None else current_by_key[u.key]["red2"],
+                    u.red3 if u.red3 is not None else current_by_key[u.key]["red3"],
+                    u.blue1 if u.blue1 is not None else current_by_key[u.key]["blue1"],
+                    u.blue2 if u.blue2 is not None else current_by_key[u.key]["blue2"],
+                    u.blue3 if u.blue3 is not None else current_by_key[u.key]["blue3"],
+                    u.red1_scouter if u.red1_scouter is not None else current_by_key[u.key]["red1_scouter"],
+                    u.red2_scouter if u.red2_scouter is not None else current_by_key[u.key]["red2_scouter"],
+                    u.red3_scouter if u.red3_scouter is not None else current_by_key[u.key]["red3_scouter"],
+                    u.blue1_scouter if u.blue1_scouter is not None else current_by_key[u.key]["blue1_scouter"],
+                    u.blue2_scouter if u.blue2_scouter is not None else current_by_key[u.key]["blue2_scouter"],
+                    u.blue3_scouter if u.blue3_scouter is not None else current_by_key[u.key]["blue3_scouter"],
                 )
                 for u in updates
             ],
@@ -894,27 +1129,21 @@ async def update_matches_bulk(
         await release_db_connection(DB_NAME, conn)
 
 
-
 # =================== Pit Scouting ===================
 
 async def add_pit_scouting(
-    team: int | str,
-    scouter: str | None,
-    status: enums.StatusType,
-    data: Dict[str, Any],
+        team: int | str,
+        scouter: str,
+        status: enums.StatusType,
+        data: Dict[str, Any],
 ):
     """Insert a new pit scouting entry using current_event from metadata."""
     conn = await get_db_connection(DB_NAME)
     try:
         await conn.execute("""
-            INSERT INTO pit_scouting (
-                event_key, team, scouter, status, data, last_modified
-            )
-            VALUES (
-                (SELECT current_event FROM metadata LIMIT 1),
-                $1, $2, $3, $4, $5
-            )
-        """, str(team), _to_db_scouter(scouter), status.value, data, datetime.now(timezone.utc))
+                           INSERT INTO pit_scouting (event_key, team, scouter, status, data, last_modified)
+                           VALUES ((SELECT current_event FROM metadata LIMIT 1), $1, $2, $3, $4, $5)
+                           """, str(team), scouter, status.value, data, datetime.now(timezone.utc))
     except UniqueViolationError:
         raise HTTPException(status_code=409, detail="Pit scouting entry already exists")
     except PostgresError as e:
@@ -925,11 +1154,11 @@ async def add_pit_scouting(
 
 
 async def update_pit_scouting(
-    team: int | str,
-    scouter: Optional[str],
-    status: Optional[enums.StatusType] = None,
-    data: Optional[Dict[str, Any]] = None,
-    scouter_new: Optional[str] = None,
+        team: int | str,
+        scouter: Optional[str],
+        status: Optional[enums.StatusType] = None,
+        data: Optional[Dict[str, Any]] = None,
+        scouter_new: Optional[str] = None,
 ):
     """
     Update an existing pit scouting entry.
@@ -940,12 +1169,14 @@ async def update_pit_scouting(
     try:
         async with conn.transaction():
             row = await conn.fetchrow("""
-                SELECT data, status
-                FROM pit_scouting
-                WHERE event_key = (SELECT current_event FROM metadata LIMIT 1)
-                  AND team = $1 AND scouter = $2
-                FOR UPDATE
-            """, str(team), _to_db_scouter(scouter))
+                                      SELECT data, status
+                                      FROM pit_scouting
+                                      WHERE event_key = (SELECT current_event FROM metadata LIMIT 1)
+                                        AND team = $1
+                                        AND scouter = $2
+                                          FOR
+                                              UPDATE
+                                      """, str(team), scouter)
             if not row:
                 raise HTTPException(status_code=400, detail="Pit scouting entry not found")
 
@@ -953,16 +1184,20 @@ async def update_pit_scouting(
             if data:
                 current_data |= data
             new_status = status.value if status else row["status"]
-            new_scouter_db = _to_db_scouter(scouter_new) if scouter_new is not None else _to_db_scouter(scouter)
+            new_scouter_db = scouter_new if scouter_new is not None else scouter
 
             try:
                 await conn.execute("""
-                    UPDATE pit_scouting
-                    SET data=$1, status=$2, last_modified=$3, scouter=$4
-                    WHERE event_key = (SELECT current_event FROM metadata LIMIT 1)
-                      AND team = $5 AND scouter = $6
-                """, current_data, new_status, datetime.now(timezone.utc), new_scouter_db,
-                     str(team), _to_db_scouter(scouter))
+                                   UPDATE pit_scouting
+                                   SET data=$1,
+                                       status=$2,
+                                       last_modified=$3,
+                                       scouter=$4
+                                   WHERE event_key = (SELECT current_event FROM metadata LIMIT 1)
+                                     AND team = $5
+                                     AND scouter = $6
+                                   """, current_data, new_status, datetime.now(timezone.utc), new_scouter_db,
+                                   str(team), scouter)
             except UniqueViolationError:
                 raise HTTPException(status_code=409, detail="Target scouter row already exists")
             return True
@@ -970,7 +1205,10 @@ async def update_pit_scouting(
         await release_db_connection(DB_NAME, conn)
 
 
-async def get_pit_scouting(team: Optional[int | str] = None, scouter: Optional[str] = "__NOTPASSED__",) -> list[Dict[str, Any]]:
+async def get_pit_scouting(
+        team: Optional[int | str] = None,
+        scouter: Optional[str] = None
+) -> list[Dict[str, Any]]:
     """
     Fetch pit scouting records scoped by current_event from metadata.
     Any combination of parameters can be supplied.
@@ -978,17 +1216,21 @@ async def get_pit_scouting(team: Optional[int | str] = None, scouter: Optional[s
     conn = await get_db_connection(DB_NAME)
     try:
         query = """
-            SELECT *
-            FROM pit_scouting
-            WHERE event_key = (SELECT current_event FROM metadata LIMIT 1)
-        """
+                SELECT *
+                FROM pit_scouting
+                WHERE event_key = (SELECT current_event FROM metadata LIMIT 1) \
+                """
         params: list[Any] = []
         idx = 1
 
         if team is not None:
-            query += f" AND team = ${idx}"; params.append(str(team)); idx += 1
-        if scouter != "__NOTPASSED__":
-            query += f" AND scouter = ${idx}"; params.append(_to_db_scouter(scouter if scouter != "" else None)); idx += 1
+            query += f" AND team = ${idx}"
+            params.append(str(team))
+            idx += 1
+        if not scouter:
+            query += f" AND scouter = ${idx}"
+            params.append(scouter)
+            idx += 1
 
         rows = await conn.fetch(query, *params)
 
@@ -996,7 +1238,7 @@ async def get_pit_scouting(team: Optional[int | str] = None, scouter: Optional[s
             {
                 "event_key": r["event_key"],
                 "team": r["team"],
-                "scouter": _from_db_scouter(r["scouter"]),
+                "scouter": r["scouter"],
                 "status": r["status"],
                 "data": r["data"],
                 "last_modified": r["last_modified"],
@@ -1006,23 +1248,6 @@ async def get_pit_scouting(team: Optional[int | str] = None, scouter: Optional[s
     except PostgresError as e:
         logger.error("Failed to fetch pit scouting data: %s", e)
         raise HTTPException(status_code=500, detail=f"Failed to fetch pit scouting data: {e}")
-    finally:
-        await release_db_connection(DB_NAME, conn)
-
-
-async def delete_pit_scouting(team: int | str, scouter: Optional[str]) -> bool:
-    """Delete a pit scouting record."""
-    conn = await get_db_connection(DB_NAME)
-    try:
-        result = await conn.execute("""
-            DELETE FROM pit_scouting
-            WHERE event_key = (SELECT current_event FROM metadata LIMIT 1)
-              AND team = $1 AND scouter = $2
-        """, str(team), _to_db_scouter(scouter))
-        return result == "DELETE 1"
-    except PostgresError as e:
-        logger.error("Failed to delete pit scouting data: %s", e)
-        raise HTTPException(status_code=500, detail=f"Failed to delete pit scouting data: {e}")
     finally:
         await release_db_connection(DB_NAME, conn)
 
@@ -1076,39 +1301,34 @@ async def add_tba_match(match_data: dict):
 
             # UPSERT (insert or update existing)
             await conn.execute("""
-                INSERT INTO matches_tba (
-                    match_key, event_key, comp_level, set_number, match_number,
-                    time, actual_time, predicted_time, post_result_time,
-                    winning_alliance, red_teams, blue_teams, red_score, blue_score,
-                    red_rp, blue_rp, red_auto_points, blue_auto_points,
-                    red_teleop_points, blue_teleop_points,
-                    red_endgame_points, blue_endgame_points,
-                    score_breakdown, videos, last_update
-                )
-                VALUES (
-                    $1, $2, $3, $4, $5,
-                    $6, $7, $8, $9,
-                    $10, $11, $12, $13, $14,
-                    $15, $16, $17, $18,
-                    $19, $20,
-                    $21, $22,
-                    $23, $24, NOW()
-                )
-                ON CONFLICT (match_key) DO UPDATE SET
-                    red_score = EXCLUDED.red_score,
-                    blue_score = EXCLUDED.blue_score,
-                    score_breakdown = EXCLUDED.score_breakdown,
-                    videos = EXCLUDED.videos,
-                    last_update = NOW();
-            """, (
-                key, event_key, comp_level, set_number, match_number,
-                time_val, actual_time, predicted_time, post_result_time,
-                winning_alliance, red_teams, blue_teams, red_score, blue_score,
-                red_rp, blue_rp, red_auto, blue_auto,
-                red_teleop, blue_teleop,
-                red_endgame, blue_endgame,
-                json.dumps(score_breakdown), json.dumps(videos)
-            ))
+                               INSERT INTO matches_tba (match_key, event_key, comp_level, set_number, match_number,
+                                                        time, actual_time, predicted_time, post_result_time,
+                                                        winning_alliance, red_teams, blue_teams, red_score, blue_score,
+                                                        red_rp, blue_rp, red_auto_points, blue_auto_points,
+                                                        red_teleop_points, blue_teleop_points,
+                                                        red_endgame_points, blue_endgame_points,
+                                                        score_breakdown, videos, last_update)
+                               VALUES ($1, $2, $3, $4, $5,
+                                       $6, $7, $8, $9,
+                                       $10, $11, $12, $13, $14,
+                                       $15, $16, $17, $18,
+                                       $19, $20,
+                                       $21, $22,
+                                       $23, $24, NOW())
+                               ON CONFLICT (match_key) DO UPDATE SET red_score       = EXCLUDED.red_score,
+                                                                     blue_score      = EXCLUDED.blue_score,
+                                                                     score_breakdown = EXCLUDED.score_breakdown,
+                                                                     videos          = EXCLUDED.videos,
+                                                                     last_update     = NOW();
+                               """, (
+                                   key, event_key, comp_level, set_number, match_number,
+                                   time_val, actual_time, predicted_time, post_result_time,
+                                   winning_alliance, red_teams, blue_teams, red_score, blue_score,
+                                   red_rp, blue_rp, red_auto, blue_auto,
+                                   red_teleop, blue_teleop,
+                                   red_endgame, blue_endgame,
+                                   json.dumps(score_breakdown), json.dumps(videos)
+                               ))
 
     except UniqueViolationError:
         raise HTTPException(status_code=409, detail=f"Match {key} already exists.")
@@ -1129,11 +1349,11 @@ async def get_tba_match(match_key: str) -> Optional[dict]:
     conn = await get_db_connection(DB_NAME)
     try:
         row = await conn.fetchrow("""
-            SELECT *
-            FROM matches_tba
-            WHERE match_key = $1
-            LIMIT 1
-        """, match_key)
+                                  SELECT *
+                                  FROM matches_tba
+                                  WHERE match_key = $1
+                                  LIMIT 1
+                                  """, match_key)
 
         if not row:
             return None
@@ -1181,11 +1401,11 @@ async def get_tba_event_matches(event_key: str) -> list[dict]:
     conn = await get_db_connection(DB_NAME)
     try:
         rows = await conn.fetch("""
-            SELECT *
-            FROM matches_tba
-            WHERE event_key = $1
-            ORDER BY comp_level, set_number, match_number
-        """, event_key)
+                                SELECT *
+                                FROM matches_tba
+                                WHERE event_key = $1
+                                ORDER BY comp_level, set_number, match_number
+                                """, event_key)
 
         return [
             {
@@ -1241,11 +1461,12 @@ async def add_session(session_id: str, session_data: Dict[str, Any], expires_dt:
     try:
         async with conn.transaction():
             await conn.execute("""
-                INSERT INTO sessions (uuid, data, expires)
-                VALUES ($1, $2, $3)
-                ON CONFLICT (uuid) DO UPDATE
-                SET data = EXCLUDED.data, expires = EXCLUDED.expires
-            """, session_id, session_data, expires_dt)
+                               INSERT INTO sessions (uuid, data, expires)
+                               VALUES ($1, $2, $3)
+                               ON CONFLICT (uuid) DO UPDATE
+                                   SET data    = EXCLUDED.data,
+                                       expires = EXCLUDED.expires
+                               """, session_id, session_data, expires_dt)
     except PostgresError as e:
         logger.error("Failed to add session: %s", e)
         raise HTTPException(status_code=500, detail=f"Failed to add session: {e}")
@@ -1354,13 +1575,39 @@ async def get_user_by_email(email: str) -> Optional[dict]:
 async def create_user_if_missing(email: str, name: str):
     conn = await get_db_connection(DB_NAME)
     try:
-        existing = await conn.fetchrow("SELECT email FROM users WHERE email=$1", email)
-        if existing:
-            return
-        await conn.execute("""
-            INSERT INTO users (email, name, approval)
-            VALUES ($1, $2, 'pending')
-        """, email, name)
+        async with conn.transaction():
+
+            defaults = await conn.fetchrow("""
+                                           SELECT new_login_default
+                                           FROM metadata
+                                           LIMIT 1 FOR SHARE
+                                           """)
+
+            if not defaults:
+                raise RuntimeError("metadata.new_login_default missing")
+
+            cfg = defaults["new_login_default"]
+
+            await conn.execute("""
+                               INSERT INTO users (email,
+                                                  name,
+                                                  approval,
+                                                  perm_dev,
+                                                  perm_admin,
+                                                  perm_match_scout,
+                                                  perm_pit_scout)
+                               VALUES ($1, $2, $3, $4, $5, $6, $7)
+                               ON CONFLICT (email) DO NOTHING
+                               """,
+                               email,
+                               name,
+                               cfg["approval"],
+                               cfg["perm_dev"],
+                               cfg["perm_admin"],
+                               cfg["perm_match_scout"],
+                               cfg["perm_pit_scout"],
+                               )
+
     finally:
         await release_db_connection(DB_NAME, conn)
 
@@ -1401,12 +1648,11 @@ async def set_misc(key: str, value: str):
 
             # 1. Check if column already exists
             col_exists = await conn.fetchval("""
-                SELECT EXISTS (
-                    SELECT 1 FROM information_schema.columns
-                    WHERE table_name = 'misc'
-                      AND column_name = $1
-                )
-            """, key)
+                                             SELECT EXISTS (SELECT 1
+                                                            FROM information_schema.columns
+                                                            WHERE table_name = 'misc'
+                                                              AND column_name = $1)
+                                             """, key)
 
             # 2. Create column if missing
             if not col_exists:
@@ -1414,9 +1660,10 @@ async def set_misc(key: str, value: str):
 
             # 3. Ensure row id=1 exists
             await conn.execute("""
-                INSERT INTO misc (id) VALUES (1)
-                ON CONFLICT (id) DO NOTHING
-            """)
+                               INSERT INTO misc (id)
+                               VALUES (1)
+                               ON CONFLICT (id) DO NOTHING
+                               """)
 
             # 4. Update column
             await conn.execute(
@@ -1444,12 +1691,11 @@ async def get_misc(key: str) -> Optional[str]:
     try:
         # 1. Confirm column exists
         col_exists = await conn.fetchval("""
-            SELECT EXISTS (
-                SELECT 1 FROM information_schema.columns
-                WHERE table_name = 'misc'
-                  AND column_name = $1
-            )
-        """, key)
+                                         SELECT EXISTS (SELECT 1
+                                                        FROM information_schema.columns
+                                                        WHERE table_name = 'misc'
+                                                          AND column_name = $1)
+                                         """, key)
 
         if not col_exists:
             return None
@@ -1515,7 +1761,7 @@ async def measure_db_latency() -> Dict[str, Any]:
 
         # 3. Combined metric if both layers succeeded
         roundtrip_ns = (tcp_latency_ns + db_query_latency_ns) \
-                       if tcp_latency_ns is not None and db_query_latency_ns is not None else None
+            if tcp_latency_ns is not None and db_query_latency_ns is not None else None
 
         return {
             "tcp_latency_ns": tcp_latency_ns,
@@ -1531,9 +1777,9 @@ async def measure_db_latency() -> Dict[str, Any]:
 
 
 async def get_person_sessions(
-    name: Optional[str] = None,
-    email: Optional[str] = None,
-    session_id: Optional[str] = None,
+        name: Optional[str] = None,
+        email: Optional[str] = None,
+        session_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     Resolve a person using optional filters (name, email, session_id).
@@ -1600,9 +1846,13 @@ async def get_person_sessions(
             idx = 1
 
             if email:
-                query += f" AND email = ${idx}"; params.append(email); idx += 1
+                query += f" AND email = ${idx}"
+                params.append(email)
+                idx += 1
             if name:
-                query += f" AND name = ${idx}"; params.append(name); idx += 1
+                query += f" AND name = ${idx}"
+                params.append(name)
+                idx += 1
 
             rows = await conn.fetch(query, *params)
 
@@ -1618,11 +1868,11 @@ async def get_person_sessions(
         # 3. Fetch all sessions for the resolved email
         # ------------------------------------------------------
         session_rows = await conn.fetch("""
-            SELECT uuid, expires
-            FROM sessions
-            WHERE data->>'email' = $1
-            ORDER BY expires DESC
-        """, resolved_email)
+                                        SELECT uuid, expires
+                                        FROM sessions
+                                        WHERE data ->> 'email' = $1
+                                        ORDER BY expires DESC
+                                        """, resolved_email)
 
         ordered_session_ids = [r["uuid"] for r in session_rows]
 
@@ -1639,6 +1889,135 @@ async def get_person_sessions(
         await release_db_connection(DB_NAME, conn)
 
 
+# =================== Attendance ===================
+
+async def record_attendance_event(
+        email: str,
+        action: enums.AttendanceAction,
+) -> None:
+    """
+    Append a validated attendance event.
+
+    Enforces:
+      - No double check-in
+      - No double check-out
+      - No checkout before first check-in
+      - Race-condition safe via row locking
+    """
+    conn = await get_db_connection(DB_NAME)
+
+    if action not in ("checkin", "checkout"):
+        raise ValueError("Invalid attendance action")
+
+    async with conn.transaction():
+        # Lock this user's attendance stream
+        row = await conn.fetchrow(
+            """
+            select action
+            from attendance
+            where email = $1
+            order by time desc
+            limit 1 for update
+            """,
+            email,
+        )
+
+        last_action = row["action"] if row else None
+
+        # Enforce valid transitions
+        if action == "checkin":
+            if last_action == "checkin":
+                raise ValueError("User already checked in")
+
+        elif action == "checkout":
+            if last_action is None:
+                raise ValueError("User has never checked in")
+            if last_action == "checkout":
+                raise ValueError("User already checked out")
+
+        # Insert the event
+        await conn.execute(
+            """
+            insert into attendance (email, action)
+            values ($1, $2)
+            """,
+            email,
+            action,
+        )
+
+
+async def compute_attendance_totals() -> list[Dict[str, Any]]:
+    """
+    Returns:
+        [
+          {
+            "email": str,
+            "name": str,
+            "total_seconds": float,
+            "above_min_seconds": float,
+            "is_checked_in": bool,
+          },
+          ...
+        ]
+
+    If someone is currently checked in, time is counted up to now.
+    """
+    conn = await get_db_connection(DB_NAME)
+
+    try:
+        rows = await conn.fetch(
+            """
+            SELECT a.email,
+                   u.name,
+                   a.action,
+                   a.time
+            FROM attendance a
+                     JOIN users u ON u.email = a.email
+            ORDER BY a.email, a.time ASC
+            """
+        )
+
+        totals: Dict[str, float] = defaultdict(float)
+        open_checkins: Dict[str, datetime] = {}  # email → check-in time
+        names: Dict[str, str] = {}
+
+        now = datetime.now(timezone.utc)
+
+        for r in rows:
+            email = r["email"]
+            names[email] = r["name"]
+            action = r["action"]
+            t = r["time"]
+
+            if action == "checkin":
+                open_checkins[email] = t
+
+            elif action == "checkout":
+                start = open_checkins.pop(email, None)
+                if start is not None:
+                    totals[email] += (t - start).total_seconds()
+
+        # Count time for anyone still checked in
+        for email, start in open_checkins.items():
+            totals[email] += (now - start).total_seconds()
+
+        max_seconds = max(totals.values(), default=0)
+
+        return [
+            {
+                "email": email,
+                "name": names.get(email),
+                "total_seconds": totals[email],
+                "above_min_seconds": totals[email] - (max_seconds / 2),
+                "is_checked_in": email in open_checkins,
+            }
+            for email in totals
+        ]
+
+    finally:
+        await release_db_connection(DB_NAME, conn)
+
+
 # =================== Data ===================
 
 async def get_processed_data(event_key: Optional[str] = None) -> Optional[dict]:
@@ -1649,12 +2028,12 @@ async def get_processed_data(event_key: Optional[str] = None) -> Optional[dict]:
     conn = await get_db_connection(DB_NAME)
     try:
         row = await conn.fetchrow("""
-            SELECT data
-            FROM processed_data
-            WHERE event_key = COALESCE($1, (SELECT current_event FROM metadata LIMIT 1))
-            ORDER BY time_added DESC
-            LIMIT 1
-        """, event_key)
+                                  SELECT data
+                                  FROM processed_data
+                                  WHERE event_key = COALESCE($1, (SELECT current_event FROM metadata LIMIT 1))
+                                  ORDER BY time_added DESC
+                                  LIMIT 1
+                                  """, event_key)
 
         return row["data"] if row else None
 
@@ -1675,6 +2054,7 @@ def require_session() -> Callable[..., Awaitable[enums.SessionInfo]]:
             name=s["name"],
             permissions=enums.SessionPermissions(**s["permissions"]),
         )
+
     return dep
 
 
@@ -1683,10 +2063,12 @@ def require_permission(required: str) -> Callable[..., Awaitable[enums.SessionIn
     FastAPI dependency: validates an existing session and ensures
     the user has a given permission flag (e.g. 'admin' or 'dev').
     """
+
     async def dep(session: enums.SessionInfo = Depends(require_session())) -> enums.SessionInfo:
         if not getattr(session.permissions, required, False):
             raise HTTPException(status_code=403, detail=f"Missing '{required}' permission")
         return session
+
     return dep
 
 
@@ -1717,13 +2099,12 @@ async def get_all_guests() -> list[Dict[str, Any]]:
     conn = await get_db_connection(DB_NAME)
     try:
         rows = await conn.fetch("""
-            SELECT
-                password,
-                name,
-                permissions,
-                expire_date
-            FROM guests
-        """)
+                                SELECT password,
+                                       name,
+                                       permissions,
+                                       expire_date
+                                FROM guests
+                                """)
 
         return [
             {
@@ -1746,7 +2127,6 @@ async def get_all_guests() -> list[Dict[str, Any]]:
         await release_db_connection(DB_NAME, conn)
 
 
-
 def require_guest_password() -> Callable[..., Awaitable[dict]]:
     """
     FastAPI dependency:
@@ -1754,6 +2134,7 @@ def require_guest_password() -> Callable[..., Awaitable[dict]]:
     - Validates password exists in guests table
     - Returns { name: str, perms: dict }
     """
+
     async def dep(x_guest_password: Annotated[str, Header(alias="x-guest-password")]) -> dict:
         if not x_guest_password:
             raise HTTPException(status_code=401, detail="Guest password required")
