@@ -24,6 +24,7 @@ export default function AttendancePage() {
     const [status, setStatus] = useState<null | "in" | "out" | "error">(null)
 
     const myEmail = getScouterEmail()
+    const isLoggedIn = Boolean(myEmail)
 
     const myRow = useMemo(
         () => rows.find(r => r.email === myEmail),
@@ -86,36 +87,34 @@ export default function AttendancePage() {
     /* ---------------- column defs ---------------- */
 
     const columnDefs = useMemo<ColDef<AttendanceRow>[]>(() => [
-        {headerName: "Name", field: "name"},
+        {headerName: "Name", field: "name", flex: 1},
 
         {
             headerName: "Status",
-            width: 120,
-            valueGetter: p => p.data!.isCheckedIn ? "In" : "Out",
+            flex: 1,
+            valueGetter: p => (p.data!.isCheckedIn ? "In" : "Out"),
             cellClass: p =>
                 p.data!.isCheckedIn
                     ? "text-green-600 font-bold"
-                    : "text-gray-500"
+                    : "text-gray-500",
         },
 
         {
             headerName: "Hours",
-            width: 140,
-            valueGetter: p =>
-                (p.data!.totalSeconds / 3600).toFixed(2)
+            flex: 1,
+            valueGetter: p => (p.data!.totalSeconds / 3600).toFixed(2),
         },
 
         {
-            headerName: "Time above minimum threshold",
-            width: 250,
-            valueGetter: p =>
-                (p.data!.aboveMinSeconds / 3600).toFixed(2),
+            headerName: "Time above min",
+            flex: 1,
+            valueGetter: p => (p.data!.aboveMinSeconds / 3600).toFixed(2),
             cellClass: p =>
-                p.value >= 0
+                Number(p.value) >= 0
                     ? "text-green-600 font-bold"
-                    : "text-red-600 font-bold"
-        }
-    ], [loading])
+                    : "text-red-600 font-bold",
+        },
+    ], [loading]);
 
     /* ---------------- render ---------------- */
 
@@ -140,7 +139,7 @@ export default function AttendancePage() {
                     <div className="flex items-center justify-between p-3 rounded-md shadow theme-bg theme-border">
                         <div className="flex gap-2">
                             <button
-                                disabled={loading || isCheckedIn}
+                                disabled={loading || isCheckedIn || !isLoggedIn}
                                 onClick={handleCheckIn}
                                 className="flex items-center gap-2 px-3 py-1.5 rounded theme-button-bg theme-text hover:theme-button-hover disabled:opacity-30"
                             >
@@ -149,7 +148,7 @@ export default function AttendancePage() {
                             </button>
 
                             <button
-                                disabled={loading || !isCheckedIn}
+                                disabled={loading || !isCheckedIn || !isLoggedIn}
                                 onClick={handleCheckOut}
                                 className="flex items-center gap-2 px-3 py-1.5 rounded theme-button-bg theme-text hover:theme-button-hover disabled:opacity-30"
                             >
@@ -160,9 +159,24 @@ export default function AttendancePage() {
 
                         {/* Status feedback */}
                         <div className="text-sm font-semibold">
-                            {status === "in" && <span className="text-green-600">Checked in</span>}
-                            {status === "out" && <span className="text-blue-600">Checked out</span>}
-                            {status === "error" && <span className="text-red-600">Update failed</span>}
+                            {!isLoggedIn && (
+                                <span className="text-yellow-600">
+                                    Login first to check in or out.{" "}
+                                    <Link to="/" className="underline hover:opacity-80">
+                                        Go to login
+                                    </Link>
+                                </span>
+                            )}
+
+                            {isLoggedIn && status === "in" && (
+                                <span className="text-green-600">Checked in</span>
+                            )}
+                            {isLoggedIn && status === "out" && (
+                                <span className="text-blue-600">Checked out</span>
+                            )}
+                            {isLoggedIn && status === "error" && (
+                                <span className="text-red-600">Update failed</span>
+                            )}
                         </div>
                     </div>
 
