@@ -10,7 +10,7 @@ export default function PrePhase({data, setData}: {
     setData: React.Dispatch<React.SetStateAction<MatchScoutingData>>
 }) {
     // === Hooks / API ===
-    const {claimTeam, unclaimTeam, getTeamList, getScouterState, getScouterSchedule} = useAPI()
+    const {scoutingAction, getScouterSchedule} = useAPI()
     const {isOnline, serverOnline} = useClientEnvironment()
 
     // === Local State ===
@@ -30,28 +30,67 @@ export default function PrePhase({data, setData}: {
     const scouterEmail = getScouterEmail()!
     const inputRef = useRef<HTMLInputElement>(null)
 
+    const ready =
+        isOnline &&
+        serverOnline &&
+        match_type !== null &&
+        match !== null &&
+        match > 0 &&
+        alliance !== null
+
+    const applyScoutingResult = (
+        res: Awaited<ReturnType<typeof scoutingAction>>
+    ) => {
+        if (!res?.match) return
+
+        setTeamList(prev =>
+            !prev
+                ? prev
+                : prev.map(t => {
+                    const row = res.match.find(r => r.team === t.number)
+                    if (!row) return t
+                    return {
+                        ...t,
+                        scouter: row.scouterEmail,
+                        name: row.scouterName,
+                        assigned_scouter: row.assignedScouterEmail,
+                        assigned_name: row.assignedScouterName,
+                    }
+                })
+        )
+    }
+
     // === Load team list from server ===
     useEffect(() => {
-        if (!(isOnline && serverOnline) || !match || !alliance) {
-            setTeamList([]) // reset when not ready
-            return
-        }
+        if (!ready) return
+
         let alive = true
         setLoadingTeams(true)
 
         void (async () => {
-            const teams = await getTeamList(match, match_type, alliance)
-            if (alive) {
-                setTeamList(teams)
-                setLoadingTeams(false)
-            }
+            // any team number works; backend bootstraps rows
+            const res = await scoutingAction(match, null, match_type, alliance, "info")
+
+            if (!alive || !res?.match) return
+
+            setTeamList(
+                res.match.map(r => ({
+                    number: r.team,
+                    name: teamNames[r.team] ?? `Team ${r.team}`,
+                    logo: `/teams/team_icons/${r.team}.png`,
+                    scouter: r.scouterEmail,
+                    assigned_scouter: r.assignedScouterEmail,
+                    assigned_name: r.assignedScouterName,
+                }))
+            )
+
+            setLoadingTeams(false)
         })()
 
-        // cancel stale updates
         return () => {
             alive = false
         }
-    }, [match, alliance, match_type, isOnline, serverOnline])
+    }, [isOnline, serverOnline, match, match_type, alliance])
 
     useEffect(() => {
         let alive = true;
@@ -73,43 +112,29 @@ export default function PrePhase({data, setData}: {
 
     // === Live refresh of scouter claim state ===
     useEffect(() => {
-        if (!(isOnline && serverOnline) || !match || !alliance) return
+        if (!ready || !teamList?.length) return
+
         let alive = true
         let ticking = false
 
         const tick = async () => {
             if (ticking) return
             ticking = true
-            const state = await getScouterState(match, match_type, alliance)
-            if (alive && state) {
-                const teamsMap = state.teams
-                // merge new scouter data into local list
-                setTeamList(prev =>
-                    !prev
-                        ? prev
-                        : prev.map(t =>
-                            t.number in teamsMap
-                                ? {
-                                    ...t,
-                                    scouter: teamsMap[t.number].scouter,
-                                    name: teamsMap[t.number].name,
-                                    assigned_scouter: teamsMap[t.number].assigned_scouter,
-                                    assigned_name: teamsMap[t.number].assigned_name,
-                                }
-                                : t
-                        )
-                )
-            }
+
+            const res = await scoutingAction(match, null, match_type, alliance, "info")
+
+            if (alive) applyScoutingResult(res)
+
             ticking = false
         }
 
         void tick()
-        const id = setInterval(tick, 1000) // 1s poll interval
+        const id = setInterval(tick, 1000)
         return () => {
             alive = false
             clearInterval(id)
         }
-    }, [isOnline, serverOnline, match, alliance, match_type])
+    }, [isOnline, serverOnline, match, match_type, teamList?.length])
 
     useEffect(() => {
         setManualEntry(data.manualTeam ?? false)
@@ -165,12 +190,15 @@ export default function PrePhase({data, setData}: {
 
     // === Auto-unclaim previous team when match/alliance changes ===
     useEffect(() => {
+        if (!ready) return
         if (!isOnline || !serverOnline) return
         if (!match || !teamNumber) return
 
         void (async () => {
             try {
-                await unclaimTeam(match, teamNumber, match_type, scouterEmail)
+                applyScoutingResult(
+                    await scoutingAction(match, teamNumber, match_type, alliance, "unclaim")
+                )
             } finally {
                 setData(d => ({...d, teamNumber: null}))
             }
@@ -190,47 +218,43 @@ export default function PrePhase({data, setData}: {
 
     const handleTeamSelect = async (newTeamNumber: number) => {
         if (claiming) return
+        if (!ready || !match) return
 
         setClaiming(true)
         const attemptId = ++claimAttemptRef.current
         const previousTeam = teamNumber
 
         try {
-            // unclaim previous team first (server-side)
-            if (match && previousTeam !== null && previousTeam !== newTeamNumber) {
-                await unclaimTeam(match, previousTeam, match_type, scouterEmail)
+            let res
+
+            // Already owns a team → switch atomically
+            if (previousTeam !== null && previousTeam !== newTeamNumber) {
+                res = await scoutingAction(match, newTeamNumber, match_type, alliance, "switch")
             }
-
-            // attempt claim
-            if (!match) return
-            const ok = await claimTeam(match, newTeamNumber, match_type, scouterEmail)
-
-            if (claimAttemptRef.current !== attemptId) return
-
-            if (!ok) {
-                setData(d => ({...d, teamNumber: null}))
+            // No team yet → normal claim
+            else if (previousTeam === null) {
+                res = await scoutingAction(match, newTeamNumber, match_type, alliance, "claim")
+            }
+            // Clicking the same team → no-op
+            else {
+                setClaiming(false)
                 return
             }
 
-            setData(d => ({...d, teamNumber: newTeamNumber}))
-        } catch (err) {
-            console.error("Claim failed — selection aborted", err)
+            if (claimAttemptRef.current !== attemptId) return
 
-            // rollback hard: ensure no team is selected
-            if (claimAttemptRef.current === attemptId) {
+            applyScoutingResult(res)
+
+            if (res?.action === "success") {
+                setData(d => ({...d, teamNumber: newTeamNumber}))
+            } else {
+                // server rejected → trust server state
                 setData(d => ({...d, teamNumber: null}))
             }
-
-            // optional: re-claim previous team
-            if (match && previousTeam !== null) {
-                try {
-                    await claimTeam(match, previousTeam, match_type, scouterEmail)
-                    if (claimAttemptRef.current === attemptId) {
-                        setData(d => ({...d, teamNumber: previousTeam}))
-                    }
-                } catch {
-                    // swallow — better to be unclaimed than inconsistent
-                }
+        } catch (e) {
+            console.error("Team selection failed", e)
+            if (claimAttemptRef.current === attemptId) {
+                setData(d => ({...d, teamNumber: null}))
             }
         } finally {
             if (claimAttemptRef.current === attemptId) {
@@ -238,6 +262,7 @@ export default function PrePhase({data, setData}: {
             }
         }
     }
+
 
     // === UI ===
     return (
@@ -258,8 +283,9 @@ export default function PrePhase({data, setData}: {
                             disabled={claiming}
                             onClick={() => {
                                 // unclaim before switching type
-                                if ((isOnline && serverOnline) && match && teamNumber !== null) {
-                                    void unclaimTeam(match, teamNumber, match_type, scouterEmail)
+                                if ((isOnline && serverOnline) && match && teamNumber !== null && ready) {
+                                    void scoutingAction(match, teamNumber, match_type, alliance, "unclaim")
+                                        .then(applyScoutingResult)
                                 }
                                 // update match type; clear team if changed
                                 setData(d => ({
@@ -312,8 +338,9 @@ export default function PrePhase({data, setData}: {
                             key={color}
                             disabled={claiming}
                             onClick={() => {
-                                if ((isOnline && serverOnline) && match && teamNumber !== null) {
-                                    void unclaimTeam(match, teamNumber, match_type, scouterEmail)
+                                if ((isOnline && serverOnline) && match && teamNumber !== null && ready) {
+                                    void scoutingAction(match, teamNumber, match_type, alliance, "unclaim")
+                                        .then(applyScoutingResult)
                                 }
                                 // update alliance; clear team if switching sides
                                 setData(d => ({
@@ -340,17 +367,21 @@ export default function PrePhase({data, setData}: {
                             onClick={async () => {
                                 if (!manualEntry) {
                                     // entering manual mode — unclaim current
-                                    if ((isOnline && serverOnline) && match && teamNumber !== null) {
+                                    if ((isOnline && serverOnline) && match && teamNumber !== null && ready) {
                                         setLastClaimedTeam(teamNumber)
-                                        await unclaimTeam(match, teamNumber, match_type, scouterEmail)
+                                        applyScoutingResult(
+                                            await scoutingAction(match, teamNumber, match_type, alliance, "unclaim")
+                                        )
                                         setData(d => ({...d, teamNumber: null}))
                                     }
                                     setManualEntry(true)
                                     setData(d => ({...d, manualTeam: true}))
                                 } else {
                                     // leaving manual mode — restore last claim
-                                    if ((isOnline && serverOnline) && match && lastClaimedTeam !== null) {
-                                        await claimTeam(match, lastClaimedTeam, match_type, scouterEmail)
+                                    if ((isOnline && serverOnline) && match && lastClaimedTeam !== null && ready) {
+                                        applyScoutingResult(
+                                            await scoutingAction(match, lastClaimedTeam, match_type, alliance, "claim")
+                                        )
                                         setData(d => ({...d, teamNumber: lastClaimedTeam}))
                                     }
                                     setManualEntry(false)

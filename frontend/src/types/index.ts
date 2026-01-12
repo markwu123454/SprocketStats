@@ -3,7 +3,7 @@ export type {
 } from "@/components/seasons/2026/yearConfig"
 
 export type MatchType = 'qm' | 'sf' | 'f' | null
-export type AllianceType = 'red' | 'blue' | null
+export type  AllianceType = 'red' | 'blue' | null
 
 // TODO: maybe merge phase and scouting status?
 export type Phase = 'pre' | 'auto' | 'teleop' | 'post'

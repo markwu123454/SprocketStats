@@ -422,7 +422,7 @@ async def update_match_scouting(
                 SELECT data, status
                 FROM match_scouting
                 WHERE event_key = (SELECT current_event FROM metadata LIMIT 1)
-                  AND match = $1 AND match_type = $2 AND team = $3 AND (scouter = $4 OR scouter = $5)
+                  AND match = $1 AND match_type = $2 AND team = $3 AND scouter = $4
                 FOR UPDATE
             """, match, m_type.value, str(team), _to_db_scouter(scouter), _to_db_scouter(scouter_new))
             if not row:
