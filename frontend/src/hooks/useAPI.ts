@@ -821,6 +821,17 @@ export function useAPI() {
         })
     }
 
+    // --- GET /attendance/status ---
+    const getAttendanceStatus = async (): Promise<{
+        is_checked_in: boolean
+        meeting_active: boolean
+    } | null> => {
+        return await apiRequest<{
+            is_checked_in: boolean
+            meeting_active: boolean
+        }>("/attendance/status")
+    }
+
     return {
         login,
         logout,
@@ -849,6 +860,6 @@ export function useAPI() {
         getAttendance,
         checkin,
         checkout,
-
+        getAttendanceStatus,
     };
 }

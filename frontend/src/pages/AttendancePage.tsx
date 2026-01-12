@@ -15,7 +15,7 @@ type AttendanceRow = {
 }
 
 export default function AttendancePage() {
-    const {getAttendance, checkin, checkout} = useAPI()
+    const {getAttendance, getAttendanceStatus, checkin, checkout} = useAPI()
 
     const [rows, setRows] = useState<AttendanceRow[]>([])
     const [loading, setLoading] = useState(false)
@@ -24,12 +24,13 @@ export default function AttendancePage() {
     const myEmail = getScouterEmail()
     const isLoggedIn = Boolean(myEmail)
 
-    const myRow = useMemo(
-        () => rows.find(r => r.email === myEmail),
-        [rows, myEmail]
-    )
+    const [myStatus, setMyStatus] = useState<{
+        is_checked_in: boolean
+        meeting_active: boolean
+    } | null>(null)
 
-    const isCheckedIn = myRow?.isCheckedIn ?? false
+    const isCheckedIn = myStatus?.is_checked_in ?? false
+    const meetingActive = myStatus?.meeting_active ?? false
 
     /* ---------------- stable poller ---------------- */
 
@@ -46,26 +47,36 @@ export default function AttendancePage() {
         inFlightRef.current = true
 
         try {
-            const data = await apiRef.current.getAttendance()
-            if (!data) return
+            const [data, status] = await Promise.all([
+                apiRef.current.getAttendance(),
+                getAttendanceStatus(),
+            ])
 
-            const mapped: AttendanceRow[] = data.map(r => ({
-                email: r.email,
-                name: r.name,
-                totalSeconds: r.total_seconds,
-                aboveMinSeconds: r.above_min_seconds,
-                isCheckedIn: r.is_checked_in,
-            }))
+            if (data) {
+                const mapped: AttendanceRow[] = data.map(r => ({
+                    email: r.email,
+                    name: r.name,
+                    totalSeconds: r.total_seconds,
+                    aboveMinSeconds: r.above_min_seconds,
+                    isCheckedIn: r.is_checked_in,
+                }))
+                setRows(mapped)
+            }
 
-            setRows(mapped)
+            if (status) {
+                setMyStatus({
+                    is_checked_in: status.is_checked_in,
+                    meeting_active: status.meeting_active,
+                })
+            }
         } finally {
             inFlightRef.current = false
         }
-    }, [])
+    }, [getAttendanceStatus])
 
     useEffect(() => {
         // run immediately
-        pollOnce()
+        void pollOnce()
 
         // then every 5 seconds — one timer, no duplication
         timerRef.current = window.setInterval(pollOnce, 5000)
@@ -76,7 +87,7 @@ export default function AttendancePage() {
                 timerRef.current = null
             }
         }
-    }, [pollOnce])
+    }, [])
 
     /* ---------------- actions ---------------- */
 
@@ -169,10 +180,12 @@ export default function AttendancePage() {
                 <div className="w-full h-full flex flex-col gap-3">
 
                     {/* Action bar */}
-                    <div className="flex items-center justify-between p-3 rounded-md shadow theme-bg theme-border">
-                        <div className="flex gap-2">
+                    <div className="flex flex-col gap-2 p-3 rounded-md shadow theme-bg theme-border">
+
+                        {/* Action row */}
+                        <div className="flex items-center gap-2">
                             <button
-                                disabled={loading || isCheckedIn || !isLoggedIn}
+                                disabled={loading || !isLoggedIn || isCheckedIn}
                                 onClick={handleCheckIn}
                                 className="flex items-center gap-2 px-3 py-1.5 rounded theme-button-bg theme-text hover:theme-button-hover disabled:opacity-30"
                             >
@@ -181,7 +194,7 @@ export default function AttendancePage() {
                             </button>
 
                             <button
-                                disabled={loading || !isCheckedIn || !isLoggedIn}
+                                disabled={loading || !isLoggedIn || !isCheckedIn}
                                 onClick={handleCheckOut}
                                 className="flex items-center gap-2 px-3 py-1.5 rounded theme-button-bg theme-text hover:theme-button-hover disabled:opacity-30"
                             >
@@ -190,7 +203,8 @@ export default function AttendancePage() {
                             </button>
                         </div>
 
-                        <div className="text-sm font-semibold">
+                        {/* Unified status row */}
+                        <div className="text-sm font-medium min-h-5">
                             {!isLoggedIn && (
                                 <span className="text-yellow-600">
                                     Login first to check in or out.{" "}
@@ -200,12 +214,20 @@ export default function AttendancePage() {
                                 </span>
                             )}
 
+                            {/* isLoggedIn && !meetingActive && (
+                                <span className="text-yellow-600">
+                                    A meeting is not currently active.
+                                </span>
+                            ) */}
+
                             {isLoggedIn && status === "in" && (
                                 <span className="text-green-600">Checked in</span>
                             )}
+
                             {isLoggedIn && status === "out" && (
                                 <span className="text-blue-600">Checked out</span>
                             )}
+
                             {isLoggedIn && status === "error" && (
                                 <span className="text-red-600">Update failed</span>
                             )}

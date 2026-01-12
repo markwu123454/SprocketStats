@@ -908,6 +908,20 @@ async def attendance_checkout(
     except ValueError as e:
         raise HTTPException(status_code=409, detail=str(e))
 
+@router.get("/attendance/status")
+async def attendance_status(
+    session: enums.SessionInfo = Depends(db.require_session()),
+):
+    user_email = session.email
+
+    user_checked_in = await db.is_user_currently_checked_in(user_email)
+    meeting_checked_in = await db.is_user_currently_checked_in("meeting time", 15*60)
+
+    return {
+        "is_checked_in": user_checked_in,
+        "meeting_active": meeting_checked_in,
+    }
+
 
 # === Data ===
 

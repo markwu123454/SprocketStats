@@ -8,7 +8,7 @@ To add a new database function to this module, follow these steps:
 2. **Acquire a database connection**
    - Always use:
      ```python
-     conn = await get_db_connection(DB_NAME)
+     pool, conn = await get_db_connection(DB_NAME)
      ```
      This ensures the connection pool and JSON codecs are used properly.
 
@@ -22,7 +22,7 @@ To add a new database function to this module, follow these steps:
          logger.error("Your descriptive message: %s", e)
          raise HTTPException(status_code=500, detail="Your descriptive message")
      finally:
-         await release_db_connection(DB_NAME, conn)
+         await release_db_connection(pool, conn)
      ```
    - Use `fetchrow`, `fetch`, or `execute` depending on the operation.
 
@@ -85,33 +85,29 @@ async def _setup_codecs(conn: asyncpg.Connection):
     await conn.set_type_codec("json", encoder=json.dumps, decoder=json.loads, schema="pg_catalog")
 
 
-async def get_db_connection(db: str) -> asyncpg.Connection:
-    """
-    Acquire a connection from a cached pool for the given database.
-    Lazily creates a pool if not already initialized.
-    Uses DATABASE_URL from environment and SSL (for Neon).
-    """
+async def get_db_connection(db: str) -> tuple[asyncpg.Pool, asyncpg.Connection]:
     pool = _pools.get(db)
     if pool is None:
         dsn = os.getenv("DATABASE_URL")
         if not dsn:
-            raise RuntimeError("DATABASE_URL not set in environment")
+            raise RuntimeError("DATABASE_URL not set")
+
         pool = await asyncpg.create_pool(
             dsn=dsn,
             min_size=1,
             max_size=10,
             init=_setup_codecs,
-            ssl=ssl.create_default_context(cafile=certifi.where()),  # Neon requires SSL
+            ssl=ssl.create_default_context(cafile=certifi.where()),
         )
         _pools[db] = pool
-    return await pool.acquire()
+
+    conn = await pool.acquire()
+    return pool, conn
 
 
-async def release_db_connection(db: str, conn: asyncpg.Connection):
-    """Release a connection back to its pool."""
-    pool = _pools.get(db)
-    if pool is not None:
-        await pool.release(conn)
+
+async def release_db_connection(pool: asyncpg.Pool, conn: asyncpg.Connection):
+    await pool.release(conn)
 
 
 async def close_pool():
@@ -130,7 +126,7 @@ async def init_db():
     using the updated schema.
     """
 
-    conn = await get_db_connection(DB_NAME)
+    pool, conn = await get_db_connection(DB_NAME)
     try:
         async with conn.transaction():
 
@@ -532,7 +528,7 @@ async def init_db():
         logger.error("Failed to initialize schema: %s", e)
         raise HTTPException(status_code=500, detail=f"Failed to initialize schema: {e}")
     finally:
-        await release_db_connection(DB_NAME, conn)
+        await release_db_connection(pool, conn)
 
 
 # =================== Match Scouting ===================
@@ -543,7 +539,7 @@ async def get_match_info(match_type: str, match_number: int, set_number: int = 1
     automatically using the current event key from metadata.
     Returns team numbers and times for the current event.
     """
-    conn = await get_db_connection(DB_NAME)
+    pool, conn = await get_db_connection(DB_NAME)
     try:
         row = await conn.fetchrow("""
                                   SELECT *
@@ -573,7 +569,7 @@ async def get_match_info(match_type: str, match_number: int, set_number: int = 1
         logger.error("Failed to fetch match info: %s", e)
         raise HTTPException(status_code=500, detail=f"Failed to fetch match info: {e}")
     finally:
-        await release_db_connection(DB_NAME, conn)
+        await release_db_connection(pool, conn)
 
 
 async def add_match_scouting(
@@ -585,7 +581,7 @@ async def add_match_scouting(
         data: Dict[str, Any],
         scouter: str | None = None,
 ):
-    conn = await get_db_connection(DB_NAME)
+    pool, conn = await get_db_connection(DB_NAME)
     try:
         await conn.execute("""
                            INSERT INTO match_scouting (event_key, match, match_type, team,
@@ -604,7 +600,7 @@ async def add_match_scouting(
     except UniqueViolationError:
         raise HTTPException(status_code=409, detail="Match scouting entry already exists")
     finally:
-        await release_db_connection(DB_NAME, conn)
+        await release_db_connection(pool, conn)
 
 
 async def update_match_scouting(
@@ -616,7 +612,7 @@ async def update_match_scouting(
         data: Optional[Dict[str, Any]] = None,
         scouter_new: Optional[str] = _sentinel,
 ):
-    conn = await get_db_connection(DB_NAME)
+    pool, conn = await get_db_connection(DB_NAME)
     try:
         async with conn.transaction():
 
@@ -663,7 +659,7 @@ async def update_match_scouting(
 
             return True
     finally:
-        await release_db_connection(DB_NAME, conn)
+        await release_db_connection(pool, conn)
 
 
 async def get_match_scouting(
@@ -672,7 +668,7 @@ async def get_match_scouting(
         team: Optional[int | str] = None,
         scouter: Optional[str] = None,
 ) -> list[Dict[str, Any]]:
-    conn = await get_db_connection(DB_NAME)
+    pool, conn = await get_db_connection(DB_NAME)
     try:
         query = """
                 SELECT *
@@ -723,7 +719,7 @@ async def get_match_scouting(
         logger.error("Failed to fetch match scouting data: %s", e)
         raise HTTPException(status_code=500, detail=f"Failed to fetch match scouting data: {e}")
     finally:
-        await release_db_connection(DB_NAME, conn)
+        await release_db_connection(pool, conn)
 
 
 async def get_match_scouters_schedule(
@@ -742,7 +738,7 @@ async def get_match_scouters_schedule(
     Returns None if the match does not exist.
     """
 
-    conn = await get_db_connection(DB_NAME)
+    pool, conn = await get_db_connection(DB_NAME)
     try:
         row = await conn.fetchrow("""
                                   SELECT red1_scouter,
@@ -784,7 +780,7 @@ async def get_match_scouters_schedule(
             detail="Failed to fetch match scouters"
         )
     finally:
-        await release_db_connection(DB_NAME, conn)
+        await release_db_connection(pool, conn)
 
 
 async def get_scouters_match_schedule(
@@ -814,7 +810,7 @@ async def get_scouters_match_schedule(
         ]
     """
 
-    conn = await get_db_connection(DB_NAME)
+    pool, conn = await get_db_connection(DB_NAME)
     try:
         rows = await conn.fetch("""
                                 SELECT match_type,
@@ -907,7 +903,7 @@ async def get_scouters_match_schedule(
             detail="Failed to fetch scouter match schedule"
         )
     finally:
-        await release_db_connection(DB_NAME, conn)
+        await release_db_connection(pool, conn)
 
 
 async def get_all_matches() -> list[Dict[str, Any]]:
@@ -940,7 +936,7 @@ async def get_all_matches() -> list[Dict[str, Any]]:
             ...
         ]
     """
-    conn = await get_db_connection(DB_NAME)
+    pool, conn = await get_db_connection(DB_NAME)
     try:
         rows = await conn.fetch("""
                                 SELECT key, event_key, match_type, match_number, set_number, scheduled_time, actual_time, red1, red2, red3, blue1, blue2, blue3, red1_scouter, red2_scouter, red3_scouter, blue1_scouter, blue2_scouter, blue3_scouter
@@ -983,7 +979,7 @@ async def get_all_matches() -> list[Dict[str, Any]]:
             detail="Failed to fetch matches"
         )
     finally:
-        await release_db_connection(DB_NAME, conn)
+        await release_db_connection(pool, conn)
 
 
 async def get_match_scout_users() -> list[Dict[str, str]]:
@@ -999,7 +995,7 @@ async def get_match_scout_users() -> list[Dict[str, str]]:
             ...
         ]
     """
-    conn = await get_db_connection(DB_NAME)
+    pool, conn = await get_db_connection(DB_NAME)
     try:
         rows = await conn.fetch("""
                                 SELECT email, name
@@ -1024,7 +1020,7 @@ async def get_match_scout_users() -> list[Dict[str, str]]:
             detail="Failed to fetch match scout users"
         )
     finally:
-        await release_db_connection(DB_NAME, conn)
+        await release_db_connection(pool, conn)
 
 
 class MatchUpdate(BaseModel):
@@ -1051,7 +1047,7 @@ async def update_matches_bulk(
     if not updates:
         return
 
-    conn = await get_db_connection(DB_NAME)
+    pool, conn = await get_db_connection(DB_NAME)
     try:
         # Fetch current rows
         keys = [u.key for u in updates]
@@ -1108,7 +1104,7 @@ async def update_matches_bulk(
         )
 
     finally:
-        await release_db_connection(DB_NAME, conn)
+        await release_db_connection(pool, conn)
 
 
 # =================== Pit Scouting ===================
@@ -1120,7 +1116,7 @@ async def add_pit_scouting(
         data: Dict[str, Any],
 ):
     """Insert a new pit scouting entry using current_event from metadata."""
-    conn = await get_db_connection(DB_NAME)
+    pool, conn = await get_db_connection(DB_NAME)
     try:
         await conn.execute("""
                            INSERT INTO pit_scouting (event_key, team, scouter, status, data, last_modified)
@@ -1132,7 +1128,7 @@ async def add_pit_scouting(
         logger.error("Failed to add pit scouting data: %s", e)
         raise HTTPException(status_code=500, detail=f"Failed to add pit scouting data: {e}")
     finally:
-        await release_db_connection(DB_NAME, conn)
+        await release_db_connection(pool, conn)
 
 
 async def update_pit_scouting(
@@ -1147,7 +1143,7 @@ async def update_pit_scouting(
     Uses current_event from metadata.
     Raises 400 if entry not found or 409 on conflicting reassignment.
     """
-    conn = await get_db_connection(DB_NAME)
+    pool, conn = await get_db_connection(DB_NAME)
     try:
         async with conn.transaction():
             row = await conn.fetchrow("""
@@ -1184,7 +1180,7 @@ async def update_pit_scouting(
                 raise HTTPException(status_code=409, detail="Target scouter row already exists")
             return True
     finally:
-        await release_db_connection(DB_NAME, conn)
+        await release_db_connection(pool, conn)
 
 
 async def get_pit_scouting(
@@ -1195,7 +1191,7 @@ async def get_pit_scouting(
     Fetch pit scouting records scoped by current_event from metadata.
     Any combination of parameters can be supplied.
     """
-    conn = await get_db_connection(DB_NAME)
+    pool, conn = await get_db_connection(DB_NAME)
     try:
         query = """
                 SELECT *
@@ -1231,7 +1227,7 @@ async def get_pit_scouting(
         logger.error("Failed to fetch pit scouting data: %s", e)
         raise HTTPException(status_code=500, detail=f"Failed to fetch pit scouting data: {e}")
     finally:
-        await release_db_connection(DB_NAME, conn)
+        await release_db_connection(pool, conn)
 
 
 # =================== TBA data =========================
@@ -1245,7 +1241,7 @@ async def add_tba_match(match_data: dict):
         match_data: Full JSON from TBA's /match/{match_key} endpoint.
     """
 
-    conn = await get_db_connection(DB_NAME)
+    pool, conn = await get_db_connection(DB_NAME)
     try:
         async with conn.transaction():
             # Extract core fields
@@ -1318,7 +1314,7 @@ async def add_tba_match(match_data: dict):
         logger.error("Failed to cache TBA match %s: %s", match_data.get("key"), e)
         raise HTTPException(status_code=500, detail="Database error while caching match")
     finally:
-        await release_db_connection(DB_NAME, conn)
+        await release_db_connection(pool, conn)
 
     return {"status": "ok", "match_key": match_data.get("key")}
 
@@ -1328,7 +1324,7 @@ async def get_tba_match(match_key: str) -> Optional[dict]:
     Retrieve a single TBA match record from `tba_matches` by match_key.
     Returns None if not found.
     """
-    conn = await get_db_connection(DB_NAME)
+    pool, conn = await get_db_connection(DB_NAME)
     try:
         row = await conn.fetchrow("""
                                   SELECT *
@@ -1371,7 +1367,7 @@ async def get_tba_match(match_key: str) -> Optional[dict]:
         logger.error("Failed to fetch TBA match %s: %s", match_key, e)
         raise HTTPException(status_code=500, detail=f"Failed to fetch TBA match {match_key}: {e}")
     finally:
-        await release_db_connection(DB_NAME, conn)
+        await release_db_connection(pool, conn)
 
 
 async def get_tba_event_matches(event_key: str) -> list[dict]:
@@ -1379,7 +1375,7 @@ async def get_tba_event_matches(event_key: str) -> list[dict]:
     Retrieve all TBA matches for a given event_key.
     Returns an empty list if the event has no cached matches.
     """
-    conn = await get_db_connection(DB_NAME)
+    pool, conn = await get_db_connection(DB_NAME)
     try:
         rows = await conn.fetch("""
                                 SELECT *
@@ -1423,7 +1419,7 @@ async def get_tba_event_matches(event_key: str) -> list[dict]:
         logger.error("Failed to fetch matches for event %s: %s", event_key, e)
         raise HTTPException(status_code=500, detail=f"Failed to fetch matches for event {event_key}: {e}")
     finally:
-        await release_db_connection(DB_NAME, conn)
+        await release_db_connection(pool, conn)
 
 
 # =================== Sessions (same DB) ===================
@@ -1438,7 +1434,7 @@ async def add_session(session_id: str, session_data: Dict[str, Any], expires_dt:
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid UUID format")
 
-    conn = await get_db_connection(DB_NAME)
+    pool, conn = await get_db_connection(DB_NAME)
     try:
         async with conn.transaction():
             await conn.execute("""
@@ -1452,7 +1448,7 @@ async def add_session(session_id: str, session_data: Dict[str, Any], expires_dt:
         logger.error("Failed to add session: %s", e)
         raise HTTPException(status_code=500, detail=f"Failed to add session: {e}")
     finally:
-        await release_db_connection(DB_NAME, conn)
+        await release_db_connection(pool, conn)
 
 
 async def get_session_data(session_id: str) -> Optional[Dict[str, Any]]:
@@ -1462,7 +1458,7 @@ async def get_session_data(session_id: str) -> Optional[Dict[str, Any]]:
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid UUID format")
 
-    conn = await get_db_connection(DB_NAME)
+    pool, conn = await get_db_connection(DB_NAME)
     try:
         row = await conn.fetchrow("SELECT data FROM sessions WHERE uuid = $1", session_id)
         return row["data"] if row else None
@@ -1470,7 +1466,7 @@ async def get_session_data(session_id: str) -> Optional[Dict[str, Any]]:
         logger.error("Failed to fetch session data: %s", e)
         raise HTTPException(status_code=500, detail=f"Failed to fetch session data: {e}")
     finally:
-        await release_db_connection(DB_NAME, conn)
+        await release_db_connection(pool, conn)
 
 
 async def delete_session(session_id: str):
@@ -1480,26 +1476,26 @@ async def delete_session(session_id: str):
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid UUID format")
 
-    conn = await get_db_connection(DB_NAME)
+    pool, conn = await get_db_connection(DB_NAME)
     try:
         await conn.execute("DELETE FROM sessions WHERE uuid = $1", session_id)
     except PostgresError as e:
         logger.error("Failed to delete session: %s", e)
         raise HTTPException(status_code=500, detail=f"Failed to delete session: {e}")
     finally:
-        await release_db_connection(DB_NAME, conn)
+        await release_db_connection(pool, conn)
 
 
 async def delete_all_sessions():
     """Delete all rows in the sessions table."""
-    conn = await get_db_connection(DB_NAME)
+    pool, conn = await get_db_connection(DB_NAME)
     try:
         await conn.execute("TRUNCATE sessions")
     except PostgresError as e:
         logger.error("Failed to delete all sessions: %s", e)
         raise HTTPException(status_code=500, detail=f"Failed to delete all sessions: {e}")
     finally:
-        await release_db_connection(DB_NAME, conn)
+        await release_db_connection(pool, conn)
 
 
 async def verify_uuid(x_uuid: str, required: Optional[str] = None) -> Dict[str, Any]:
@@ -1514,7 +1510,7 @@ async def verify_uuid(x_uuid: str, required: Optional[str] = None) -> Dict[str, 
         logger.warning("Invalid UUID format")
         raise HTTPException(status_code=400, detail="Invalid UUID format")
 
-    conn = await get_db_connection(DB_NAME)
+    pool, conn = await get_db_connection(DB_NAME)
     try:
         row = await conn.fetchrow(
             "SELECT data, expires FROM sessions WHERE uuid = $1",
@@ -1541,20 +1537,20 @@ async def verify_uuid(x_uuid: str, required: Optional[str] = None) -> Dict[str, 
         logger.error("Database error verifying UUID: %s", e)
         raise HTTPException(status_code=500, detail="Database error verifying UUID")
     finally:
-        await release_db_connection(DB_NAME, conn)
+        await release_db_connection(pool, conn)
 
 
 async def get_user_by_email(email: str) -> Optional[dict]:
-    conn = await get_db_connection(DB_NAME)
+    pool, conn = await get_db_connection(DB_NAME)
     try:
         row = await conn.fetchrow("SELECT * FROM users WHERE email = $1", email)
         return dict(row) if row else None
     finally:
-        await release_db_connection(DB_NAME, conn)
+        await release_db_connection(pool, conn)
 
 
 async def create_user_if_missing(email: str, name: str):
-    conn = await get_db_connection(DB_NAME)
+    pool, conn = await get_db_connection(DB_NAME)
     try:
         async with conn.transaction():
 
@@ -1588,27 +1584,27 @@ async def create_user_if_missing(email: str, name: str):
                                )
 
     finally:
-        await release_db_connection(DB_NAME, conn)
+        await release_db_connection(pool, conn)
 
 
 async def get_feature_flags():
-    conn = await get_db_connection(DB_NAME)
+    pool, conn = await get_db_connection(DB_NAME)
     try:
         metadata = await conn.fetchrow("SELECT feature_flags FROM metadata LIMIT 1")
         if metadata:
             return metadata
     finally:
-        await release_db_connection(DB_NAME, conn)
+        await release_db_connection(pool, conn)
 
 
 async def get_metadata():
-    conn = await get_db_connection(DB_NAME)
+    pool, conn = await get_db_connection(DB_NAME)
     try:
         metadata = await conn.fetchrow("SELECT * FROM metadata LIMIT 1")
         if metadata:
             return metadata
     finally:
-        await release_db_connection(DB_NAME, conn)
+        await release_db_connection(pool, conn)
 
 
 async def set_misc(key: str, value: str):
@@ -1616,7 +1612,7 @@ async def set_misc(key: str, value: str):
     Ensure a misc column exists for `key`, then store its value in row id=1.
     Dynamically creates new TEXT columns as needed.
     """
-    conn = await get_db_connection(DB_NAME)
+    pool, conn = await get_db_connection(DB_NAME)
 
     # Basic validation: key must be a valid SQL identifier
     if not key.isidentifier():
@@ -1653,7 +1649,7 @@ async def set_misc(key: str, value: str):
         logger.error("Failed to write misc key: %s", e)
         raise HTTPException(status_code=500, detail=f"Failed to write misc key: {e}")
     finally:
-        await release_db_connection(DB_NAME, conn)
+        await release_db_connection(pool, conn)
 
 
 async def get_misc(key: str) -> Optional[str]:
@@ -1661,7 +1657,7 @@ async def get_misc(key: str) -> Optional[str]:
     Retrieve the stored value for a dynamic misc key.
     Returns None if the key or row is missing.
     """
-    conn = await get_db_connection(DB_NAME)
+    pool, conn = await get_db_connection(DB_NAME)
 
     if not key.isidentifier():
         raise HTTPException(status_code=400, detail="Invalid key name")
@@ -1689,7 +1685,7 @@ async def get_misc(key: str) -> Optional[str]:
         logger.error("Failed to read misc key: %s", e)
         raise HTTPException(status_code=500, detail=f"Failed to read misc key: {e}")
     finally:
-        await release_db_connection(DB_NAME, conn)
+        await release_db_connection(pool, conn)
 
 
 async def measure_db_latency() -> Dict[str, Any]:
@@ -1700,7 +1696,7 @@ async def measure_db_latency() -> Dict[str, Any]:
     Returns nanoseconds.
     """
 
-    conn = await get_db_connection(DB_NAME)
+    pool, conn = await get_db_connection(DB_NAME)
     dsn = DB_DSN  # now correctly loaded via :contentReference[oaicite:0]{index=0}
     host = None
 
@@ -1751,7 +1747,7 @@ async def measure_db_latency() -> Dict[str, Any]:
         logger.error("Latency measurement failed: %s", e)
         raise HTTPException(status_code=500, detail="Failed to measure database latency")
     finally:
-        await release_db_connection(DB_NAME, conn)
+        await release_db_connection(pool, conn)
 
 
 async def get_person_sessions(
@@ -1775,7 +1771,7 @@ async def get_person_sessions(
       - Returns {} for all ambiguous or invalid cases.
     """
 
-    conn = await get_db_connection(DB_NAME)
+    pool, conn = await get_db_connection(DB_NAME)
     try:
         resolved_email = None
         resolved_name = None
@@ -1864,7 +1860,7 @@ async def get_person_sessions(
         # On *any* unexpected failure, return empty dict safely
         return {}
     finally:
-        await release_db_connection(DB_NAME, conn)
+        await release_db_connection(pool, conn)
 
 
 # =================== Attendance ===================
@@ -1873,7 +1869,7 @@ async def record_attendance_event(email: str, action: str) -> None:
     if action not in ("checkin", "checkout"):
         raise ValueError("Invalid attendance action")
 
-    conn = await get_db_connection(DB_NAME)
+    pool, conn = await get_db_connection(DB_NAME)
     try:
         async with conn.transaction():
 
@@ -1920,10 +1916,10 @@ async def record_attendance_event(email: str, action: str) -> None:
             raise ValueError("Invalid checkout state")
 
     finally:
-        await release_db_connection(DB_NAME, conn)
+        await release_db_connection(pool, conn)
 
 async def compute_attendance_totals() -> list[dict]:
-    conn = await get_db_connection(DB_NAME)
+    pool, conn = await get_db_connection(DB_NAME)
     try:
         await conn.execute("SET TRANSACTION ISOLATION LEVEL READ COMMITTED")
 
@@ -2034,7 +2030,42 @@ async def compute_attendance_totals() -> list[dict]:
         ]
 
     finally:
-        await release_db_connection(DB_NAME, conn)
+        await release_db_connection(pool, conn)
+
+
+async def is_user_currently_checked_in(
+    email: str,
+    future_offset_seconds: int = 0,
+) -> bool:
+    """
+    Returns True if the user's most recent attendance action as of (now + offset)
+    is 'checkin'.
+
+    If future_offset_seconds > 0, checkins that occur within that many seconds
+    in the future will be treated as if they already happened.
+    """
+    pool, conn = await get_db_connection(DB_NAME)
+    try:
+        row = await conn.fetchrow(
+            """
+            SELECT action
+            FROM attendance
+            WHERE email = $1
+              AND time <= (NOW() + ($2 * INTERVAL '1 second'))
+            ORDER BY time DESC
+            LIMIT 1
+            """,
+            email,
+            future_offset_seconds,
+        )
+
+        if not row:
+            return False
+
+        return row["action"] == "checkin"
+
+    finally:
+        await release_db_connection(pool, conn)
 
 
 # =================== Data ===================
@@ -2044,7 +2075,7 @@ async def get_processed_data(event_key: Optional[str] = None) -> Optional[dict]:
     Retrieve the most recent processed_data JSONB entry.
     If event_key is not provided, uses current_event from metadata directly in SQL.
     """
-    conn = await get_db_connection(DB_NAME)
+    pool, conn = await get_db_connection(DB_NAME)
     try:
         row = await conn.fetchrow("""
                                   SELECT data
@@ -2059,7 +2090,7 @@ async def get_processed_data(event_key: Optional[str] = None) -> Optional[dict]:
         logger.error("Failed to fetch processed data: %s", e)
         raise HTTPException(status_code=500, detail=f"Failed to fetch processed data: {e}")
     finally:
-        await release_db_connection(DB_NAME, conn)
+        await release_db_connection(pool, conn)
 
 
 # =================== FastAPI dependencies ===================
@@ -2095,7 +2126,7 @@ async def get_guest(password: str) -> Optional[dict]:
     Retrieve a guest record by password.
     Returns dict {password, name, perms, created_at} or None.
     """
-    conn = await get_db_connection(DB_NAME)
+    pool, conn = await get_db_connection(DB_NAME)
     try:
         row = await conn.fetchrow(
             "SELECT password, name, permissions, expire_date FROM guests WHERE password = $1",
@@ -2106,7 +2137,7 @@ async def get_guest(password: str) -> Optional[dict]:
         logger.error("Failed to fetch guest: %s", e)
         raise HTTPException(status_code=500, detail="Database error retrieving guest")
     finally:
-        await release_db_connection(DB_NAME, conn)
+        await release_db_connection(pool, conn)
 
 
 async def get_all_guests() -> list[Dict[str, Any]]:
@@ -2114,7 +2145,7 @@ async def get_all_guests() -> list[Dict[str, Any]]:
     Fetch all guest records.
     """
 
-    conn = await get_db_connection(DB_NAME)
+    pool, conn = await get_db_connection(DB_NAME)
     try:
         rows = await conn.fetch("""
                                 SELECT password,
@@ -2142,7 +2173,7 @@ async def get_all_guests() -> list[Dict[str, Any]]:
             detail="Failed to fetch guest records"
         )
     finally:
-        await release_db_connection(DB_NAME, conn)
+        await release_db_connection(pool, conn)
 
 
 def require_guest_password() -> Callable[..., Awaitable[dict]]:
