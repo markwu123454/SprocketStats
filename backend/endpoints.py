@@ -4,7 +4,7 @@ import time
 import uuid
 from datetime import datetime, timezone, timedelta
 from typing import Optional, Dict, Any, List
-from fastapi import Depends, HTTPException, Body, APIRouter, Request, Query, status
+from fastapi import Depends, HTTPException, Body, APIRouter, Request, Query
 from pydantic import BaseModel
 from starlette.responses import HTMLResponse
 from google.oauth2 import id_token
@@ -324,19 +324,6 @@ async def admin_active_matches(
     return result
 
 
-@router.get("/team/{team}")
-async def get_pit_scout_status(team: int):
-    """
-    Returns whether the team has already been pit-scouted for the current event.
-    """
-    pit_records = await db.get_pit_scouting(team=team)
-    scouted = len(pit_records) > 0
-
-    return {
-        "scouted": scouted
-    }
-
-
 @router.get("/latency")
 async def get_latency(request: Request) -> Dict[str, Any]:
     # t2 — timestamp when request arrives at server
@@ -368,6 +355,7 @@ async def get_latency(request: Request) -> Dict[str, Any]:
 
 
 # === Match scouting ===
+
 @router.post("/scouting/{m_type}/{match}/{alliance}")
 async def scouting(
         m_type: enums.MatchType,
@@ -402,7 +390,6 @@ async def scouting(
                 m_type=m_type,
                 team=t,
                 alliance=alliance,
-                scouter="__NONE__",
                 status=enums.StatusType.UNCLAIMED,
                 data={}
             )
@@ -444,7 +431,7 @@ async def scouting(
                     match=match,
                     m_type=m_type,
                     team=team,
-                    scouter="__NONE__",
+                    scouter=None,
                     scouter_new=scouter_email,
                     status=enums.StatusType.PRE,
                     data=None,
@@ -467,7 +454,7 @@ async def scouting(
                     m_type=m_type,
                     team=team,
                     scouter=scouter_email,
-                    scouter_new="__NONE__",
+                    scouter_new=None,
                     status=enums.StatusType.UNCLAIMED,
                     data=None,
                 )
@@ -515,7 +502,7 @@ async def scouting(
                             m_type=m_type,
                             team=owned,
                             scouter=scouter_email,
-                            scouter_new="__NONE__",
+                            scouter_new=None,
                             status=enums.StatusType.UNCLAIMED,
                             data=None,
                         )
@@ -529,7 +516,7 @@ async def scouting(
                                 match=match,
                                 m_type=m_type,
                                 team=team,
-                                scouter="__NONE__",
+                                scouter=None,
                                 scouter_new=scouter_email,
                                 status=enums.StatusType.PRE,
                                 data=None,
@@ -543,7 +530,7 @@ async def scouting(
                                     match=match,
                                     m_type=m_type,
                                     team=owned,
-                                    scouter="__NONE__",
+                                    scouter=None,
                                     scouter_new=scouter_email,
                                     status=current_status,
                                     data=None,
@@ -601,7 +588,7 @@ async def scouting(
                     m_type=m_type,
                     team=team,
                     scouter=scouter_email,
-                    scouter_new="__NONE__",
+                    scouter_new=None,
                     status=enums.StatusType.UNCLAIMED,
                     data=None,
                 )
@@ -705,7 +692,7 @@ async def unclaim_team_beacon(
         m_type=m_type,
         team=team,
         scouter=scouter,
-        scouter_new="__NONE__",
+        scouter_new=None,
         status=enums.StatusType.UNCLAIMED,
         data=None,
     )
@@ -877,6 +864,19 @@ async def submit_pit_data(
     )
 
     return {"status": "submitted", "team": team}
+
+
+@router.get("/team/{team}")
+async def get_pit_scout_status(team: int):
+    """
+    Returns whether the team has already been pit-scouted for the current event.
+    """
+    pit_records = await db.get_pit_scouting(team=team)
+    scouted = len(pit_records) > 0
+
+    return {
+        "scouted": scouted
+    }
 
 
 # === Data ===

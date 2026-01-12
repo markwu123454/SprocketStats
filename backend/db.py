@@ -74,6 +74,7 @@ DB_DSN = os.getenv("DATABASE_URL")
 _pools: dict[str, asyncpg.Pool] = {}
 DB_NAME = "data"
 
+_sentinel = object()
 
 async def _setup_codecs(conn: asyncpg.Connection):
     """Register JSON and JSONB codecs for transparent dict <-> JSON conversion."""
@@ -577,9 +578,9 @@ async def add_match_scouting(
         m_type: enums.MatchType,
         team: int | str,
         alliance: enums.AllianceType,
-        scouter: str | None,
         status: enums.StatusType,
         data: Dict[str, Any],
+        scouter: str | None = None,
 ):
     conn = await get_db_connection(DB_NAME)
     try:
@@ -610,7 +611,7 @@ async def update_match_scouting(
         scouter: Optional[str],
         status: Optional[enums.StatusType] = None,
         data: Optional[Dict[str, Any]] = None,
-        scouter_new: Optional[str] = None,
+        scouter_new: Optional[str] = _sentinel,
 ):
     conn = await get_db_connection(DB_NAME)
     try:
@@ -637,7 +638,7 @@ async def update_match_scouting(
                 current_data |= data
 
             new_status = status.value if status else row["status"]
-            new_scouter = scouter_new if scouter_new is not None else scouter
+            new_scouter = scouter_new if scouter_new is not _sentinel else scouter
 
             try:
                 await conn.execute("""
