@@ -1,5 +1,5 @@
 import {ArrowLeft, Check, X} from "lucide-react"
-import {useCallback, useEffect, useMemo, useState} from "react"
+import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 import {useAPI, getScouterEmail} from "@/hooks/useAPI"
 import {AgGridReact} from "ag-grid-react"
 import {type ColDef, themeQuartz} from "ag-grid-community"
@@ -14,13 +14,11 @@ type AttendanceRow = {
     isCheckedIn: boolean
 }
 
-
 export default function AttendancePage() {
     const {getAttendance, checkin, checkout} = useAPI()
 
     const [rows, setRows] = useState<AttendanceRow[]>([])
     const [loading, setLoading] = useState(false)
-
     const [status, setStatus] = useState<null | "in" | "out" | "error">(null)
 
     const myEmail = getScouterEmail()
@@ -33,48 +31,52 @@ export default function AttendancePage() {
 
     const isCheckedIn = myRow?.isCheckedIn ?? false
 
-    /* ---------------- data load ---------------- */
+    /* ---------------- stable poller ---------------- */
 
-    const load = useCallback(async () => {
-        const data = await getAttendance()
-        if (!data) return null
-
-        const mapped = data.map(r => ({
-            email: r.email,
-            name: r.name,
-            totalSeconds: r.total_seconds,
-            aboveMinSeconds: r.above_min_seconds,
-            isCheckedIn: r.is_checked_in
-        }))
-
-        setRows(mapped)
-        return mapped.find(r => r.email === myEmail) ?? null
-    }, [getAttendance, myEmail])
+    const apiRef = useRef({getAttendance})
+    const inFlightRef = useRef(false)
+    const timerRef = useRef<number | null>(null)
 
     useEffect(() => {
-        let cancelled = false
-        let timeout: number | null = null
+        apiRef.current.getAttendance = getAttendance
+    }, [getAttendance])
 
-        const poll = async () => {
-            try {
-                await load()
-            } finally {
-                if (!cancelled) {
-                    timeout = window.setTimeout(poll, 5000)
-                }
-            }
+    const pollOnce = useCallback(async () => {
+        if (inFlightRef.current) return
+        inFlightRef.current = true
+
+        try {
+            const data = await apiRef.current.getAttendance()
+            if (!data) return
+
+            const mapped: AttendanceRow[] = data.map(r => ({
+                email: r.email,
+                name: r.name,
+                totalSeconds: r.total_seconds,
+                aboveMinSeconds: r.above_min_seconds,
+                isCheckedIn: r.is_checked_in,
+            }))
+
+            setRows(mapped)
+        } finally {
+            inFlightRef.current = false
         }
+    }, [])
 
-        // start immediately
-        void poll()
+    useEffect(() => {
+        // run immediately
+        pollOnce()
+
+        // then every 5 seconds — one timer, no duplication
+        timerRef.current = window.setInterval(pollOnce, 5000)
 
         return () => {
-            cancelled = true
-            if (timeout !== null) {
-                clearTimeout(timeout)
+            if (timerRef.current) {
+                clearInterval(timerRef.current)
+                timerRef.current = null
             }
         }
-    }, [load])
+    }, [pollOnce])
 
     /* ---------------- actions ---------------- */
 
@@ -82,7 +84,8 @@ export default function AttendancePage() {
         try {
             setLoading(true)
             await checkin()
-            const me = await load()
+            await pollOnce()
+            const me = rows.find(r => r.email === myEmail)
             setStatus(me?.isCheckedIn ? "in" : "error")
         } catch {
             setStatus("error")
@@ -95,7 +98,8 @@ export default function AttendancePage() {
         try {
             setLoading(true)
             await checkout()
-            const me = await load()
+            await pollOnce()
+            const me = rows.find(r => r.email === myEmail)
             setStatus(!me?.isCheckedIn ? "out" : "error")
         } catch {
             setStatus("error")
@@ -104,7 +108,7 @@ export default function AttendancePage() {
         }
     }
 
-    /* ---------------- column defs ---------------- */
+    /* ---------------- columns ---------------- */
 
     const columnDefs = useMemo<ColDef<AttendanceRow>[]>(() => [
         {headerName: "Name", field: "name", flex: 1},
@@ -134,7 +138,7 @@ export default function AttendancePage() {
                     ? "text-green-600 font-bold"
                     : "text-red-600 font-bold",
         },
-    ], [loading]);
+    ], [])
 
     /* ---------------- render ---------------- */
 
@@ -148,7 +152,6 @@ export default function AttendancePage() {
                     >
                         <ArrowLeft className="h-5 w-5"/>
                     </Link>
-
                     <span>Attendance</span>
                 </div>
             }
@@ -177,7 +180,6 @@ export default function AttendancePage() {
                             </button>
                         </div>
 
-                        {/* Status feedback */}
                         <div className="text-sm font-semibold">
                             {!isLoggedIn && (
                                 <span className="text-yellow-600">
@@ -200,7 +202,6 @@ export default function AttendancePage() {
                         </div>
                     </div>
 
-                    {/* Grid */}
                     <div className="flex-1 rounded-md shadow theme-bg theme-border">
                         <AgGridReact
                             theme={themeQuartz}
@@ -208,11 +209,12 @@ export default function AttendancePage() {
                             columnDefs={columnDefs}
                             rowHeight={42}
                             animateRows
+
+                            getRowId={params => params.data.email}
                         />
                     </div>
                 </div>
             }
-
         />
     )
 }
