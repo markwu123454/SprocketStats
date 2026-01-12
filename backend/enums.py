@@ -48,7 +48,6 @@ class SessionPermissions(BaseModel):
     admin: bool
     match_scouting: bool
     pit_scouting: bool
-    guest_access: Dict[str, Any]  # JSONB field (dict form in DB)
 
 
 class SessionInfo(BaseModel):
