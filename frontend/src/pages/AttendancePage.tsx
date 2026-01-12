@@ -1,5 +1,5 @@
 import {ArrowLeft, Check, X} from "lucide-react"
-import {useEffect, useMemo, useState} from "react"
+import {useCallback, useEffect, useMemo, useState} from "react"
 import {useAPI, getScouterEmail} from "@/hooks/useAPI"
 import {AgGridReact} from "ag-grid-react"
 import {type ColDef, themeQuartz} from "ag-grid-community"
@@ -35,7 +35,7 @@ export default function AttendancePage() {
 
     /* ---------------- data load ---------------- */
 
-    const load = async () => {
+    const load = useCallback(async () => {
         const data = await getAttendance()
         if (!data) return null
 
@@ -48,13 +48,35 @@ export default function AttendancePage() {
         }))
 
         setRows(mapped)
-
         return mapped.find(r => r.email === myEmail) ?? null
-    }
+    }, [getAttendance, myEmail])
 
     useEffect(() => {
-        void load()
-    }, [])
+        let cancelled = false
+
+        const tick = async () => {
+            if (!cancelled) {
+                try {
+                    await load()
+                } catch {
+                    /* swallow – UI already handles error state */
+                }
+            }
+        }
+
+        // initial fetch
+        void tick()
+
+        // poll every 5s
+        const id = setInterval(() => {
+            void tick()
+        }, 5000)
+
+        return () => {
+            cancelled = true
+            clearInterval(id)
+        }
+    }, [load])
 
     /* ---------------- actions ---------------- */
 
