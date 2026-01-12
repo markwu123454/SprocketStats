@@ -882,7 +882,7 @@ async def get_pit_scout_status(team: int):
 
 @router.get("/attendance")
 async def admin_get_attendance(
-    _: enums.SessionInfo = Depends(db.require_permission("admin")),
+    _: enums.SessionInfo = Depends(db.require_session()),
 ):
     return await db.compute_attendance_totals()
 
