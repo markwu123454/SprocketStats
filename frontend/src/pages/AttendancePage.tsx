@@ -83,10 +83,15 @@ export default function AttendancePage() {
     const handleCheckIn = async () => {
         try {
             setLoading(true)
-            await checkin()
-            await pollOnce()
-            const me = rows.find(r => r.email === myEmail)
-            setStatus(me?.isCheckedIn ? "in" : "error")
+
+            const res = await checkin()
+
+            if (res?.status === "checked_in") {
+                setStatus("in")
+                await pollOnce()   // update grid
+            } else {
+                setStatus("error")
+            }
         } catch {
             setStatus("error")
         } finally {
@@ -97,10 +102,15 @@ export default function AttendancePage() {
     const handleCheckOut = async () => {
         try {
             setLoading(true)
-            await checkout()
-            await pollOnce()
-            const me = rows.find(r => r.email === myEmail)
-            setStatus(!me?.isCheckedIn ? "out" : "error")
+
+            const res = await checkout()
+
+            if (res?.status === "checked_out") {
+                setStatus("out")
+                await pollOnce()   // update grid
+            } else {
+                setStatus("error")
+            }
         } catch {
             setStatus("error")
         } finally {
