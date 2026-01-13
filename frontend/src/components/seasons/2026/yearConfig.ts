@@ -105,6 +105,12 @@ export const pitQuestions = [
         options: ["Defense", "Offense", "Both"],
     },
     {
+        key: "role",
+        label: "Average amount of fuel scored by human players",
+        type: "text",
+        placeholder: "eg. 5, 67, 100",
+    },
+    {
         key: "autonStart",
         label: "Auton start location",
         type: "select",
