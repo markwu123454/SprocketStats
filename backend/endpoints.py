@@ -956,7 +956,7 @@ async def attendance_status(
     user_email = session.email
 
     user_checked_in = await db.is_user_currently_checked_in(user_email)
-    meeting_checked_in = await db.is_user_currently_checked_in("meeting time", 15 * 60)
+    meeting_checked_in = await db.is_user_currently_checked_in("meeting time")
 
     return {
         "is_checked_in": user_checked_in,
