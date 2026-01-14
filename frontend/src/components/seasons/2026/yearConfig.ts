@@ -93,30 +93,64 @@ export const pitQuestions = [
     {key: "camera", label: "Robot Photos", type: "camera"},
 
     {key: "drivebase", label: "Drivebase Type", placeholder: "e.g. Swerve, Tank", type: "text"},
-
+{
+        key: "robotSpeed",
+        label: "Robot Speed",
+        type: "text",
+        placeholder: "eg. Slow, Fast"
+    },
+{
+        key: "driverSkill",
+        label: "Driver Skill",
+        type: "text",
+        placeholder: "eg. Experienced, Amateur"
+    },
     {section: "Mechanism & Manipulation"},
-
+    {
+        key: "fuelCapability",
+        label: "Amount of fuel that can be held at once",
+        type: "text",
+        placeholder: "eg. 8, 10, ∞"
+    },
+{
+        key: "intake",
+        label: "Robot Intake Location",
+        type: "select",
+        options: ["Depo", "Outpost", "Neutral Zone"],
+    },
+{
+        key: "intakeType",
+        label: "Intake Type",
+        type: "select",
+        options: ["Under Bumper", "Between Bumper", "Over Bumper", "Outpost"],
+    },
     {section: "Strategy & Function"},
 
     {
         key: "role",
-        label: "Defense or Offense",
+        label: "Preferred Travel",
         type: "select",
-        options: ["Defense", "Offense", "Both"],
+        options: ["Trench", "Bump"],
     },
     {
-        key: "role",
+        key: "fuel",
         label: "Average amount of fuel scored by human players",
         type: "text",
-        placeholder: "eg. 5, 67, 100",
+        placeholder: "eg. 5, 10",
     },
     {
         key: "autonStart",
         label: "Auton start location",
         type: "select",
-        options: ["Center Field", "Processor Side", "Opposite Side"],
+        options: ["Center", "Depot Side", "Outpost Side"],
     },
     {key: "climb", label: "Level capable of climbing to", type: "select", options: ["None", "L1", "L2", "L3"]},
+    {
+        key: "climbTime",
+        label: "Time it takes to climb",
+        type: "text",
+        placeholder: "eg. 0:30, 1:25",
+    },
 
     {section: "Programming"},
 
@@ -129,4 +163,11 @@ export const pitQuestions = [
 
     },
     {key: "comments", label: "Robot name", type: "text", placeholder: "e.g. Nautilus"},
+    {
+        key: "addcomments",
+        label: "Additional Comments",
+        type: "text",
+        placeholder: "Anything else"
+
+    },
 ]
