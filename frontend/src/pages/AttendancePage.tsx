@@ -6,6 +6,7 @@ import {type ColDef, themeQuartz} from "ag-grid-community"
 import {HeaderFooterLayoutWrapper} from "@/components/wrappers/HeaderFooterLayoutWrapper"
 import {Link} from "react-router-dom"
 import {useClientEnvironment} from "@/hooks/useClientEnvironment.ts";
+import useFeatureFlags from "@/hooks/useFeatureFlags.ts";
 
 type AttendanceRow = {
     email: string
@@ -18,6 +19,7 @@ type AttendanceRow = {
 export default function AttendancePage() {
     const {getAttendance, getAttendanceStatus, checkin, checkout} = useAPI()
     const {serverOnline} = useClientEnvironment()
+    const featureFlags = useFeatureFlags()
 
     const [rows, setRows] = useState<AttendanceRow[]>([])
     const [loading, setLoading] = useState(false)
@@ -133,35 +135,41 @@ export default function AttendancePage() {
 
     /* ---------------- columns ---------------- */
 
-    const columnDefs = useMemo<ColDef<AttendanceRow>[]>(() => [
-        {headerName: "Name", field: "name", flex: 1},
+    const columnDefs = useMemo<ColDef<AttendanceRow>[]>(() => {
+        const cols: ColDef<AttendanceRow>[] = [
+            {headerName: "Name", field: "name", flex: 1},
 
-        {
-            headerName: "Status",
-            flex: 1,
-            valueGetter: p => (p.data!.isCheckedIn ? "In" : "Out"),
-            cellClass: p =>
-                p.data!.isCheckedIn
-                    ? "text-green-600 font-bold"
-                    : "text-gray-500",
-        },
+            {
+                headerName: "Status",
+                flex: 1,
+                valueGetter: p => (p.data!.isCheckedIn ? "In" : "Out"),
+                cellClass: p =>
+                    p.data!.isCheckedIn
+                        ? "text-green-600 font-bold"
+                        : "text-gray-500",
+            },
 
-        {
-            headerName: "Hours",
-            flex: 1,
-            valueGetter: p => (p.data!.totalSeconds / 3600).toFixed(2),
-        },
+            {
+                headerName: "Hours",
+                flex: 1,
+                valueGetter: p => (p.data!.totalSeconds / 3600).toFixed(2),
+            },
+        ]
 
-        {
-            headerName: "Time above min",
-            flex: 1,
-            valueGetter: p => (p.data!.aboveMinSeconds / 3600).toFixed(2),
-            cellClass: p =>
-                Number(p.value) >= 0
-                    ? "text-green-600 font-bold"
-                    : "text-red-600 font-bold",
-        },
-    ], [])
+        if (featureFlags.showAttendanceTimeForComp) {
+            cols.push({
+                headerName: "Time above min",
+                flex: 1,
+                valueGetter: p => (p.data!.aboveMinSeconds / 3600).toFixed(2),
+                cellClass: p =>
+                    Number(p.value) >= 0
+                        ? "text-green-600 font-bold"
+                        : "text-red-600 font-bold",
+            })
+        }
+
+        return cols
+    }, [featureFlags.showAttendanceTimeForComp])
 
     /* ---------------- render ---------------- */
 

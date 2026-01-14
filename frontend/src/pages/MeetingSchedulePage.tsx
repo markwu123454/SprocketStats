@@ -36,7 +36,7 @@ export default function MeetingSchedulePage() {
             header={
                 <div className="flex items-center gap-4 text-xl theme-text w-full">
                     <Link
-                        to="/more"
+                        to="/admin"
                         className="flex items-center p-2 rounded-md theme-button-bg hover:theme-button-hover"
                     >
                         <ArrowLeft className="h-5 w-5"/>
@@ -68,7 +68,10 @@ export default function MeetingSchedulePage() {
                                     key={block.id}
                                     block={block}
                                     onDelete={async () => {
-                                        await deleteMeetingTimeBlock(block.id)
+                                        await deleteMeetingTimeBlock({
+                                            start: block.start,
+                                            end: block.end,
+                                        })
                                         setBlocks(b => b.filter(x => x.id !== block.id))
                                     }}
                                 />
@@ -154,7 +157,7 @@ function AddBlockModal({
             <div className="w-96 p-4 rounded shadow theme-bg theme-border flex flex-col gap-3">
                 <div className="text-lg font-semibold theme-text">Add time block</div>
 
-                <div className="text-sm theme-text">Starting time: </div>
+                <div className="text-sm theme-text">Starting time:</div>
 
                 <input
                     type="datetime-local"
@@ -163,7 +166,7 @@ function AddBlockModal({
                     onChange={e => setStart(e.target.value)}
                 />
 
-                <div className="text-sm theme-text">Ending time: </div>
+                <div className="text-sm theme-text">Ending time:</div>
 
                 <input
                     type="datetime-local"
