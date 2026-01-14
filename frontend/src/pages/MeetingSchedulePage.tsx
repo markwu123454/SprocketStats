@@ -3,11 +3,21 @@ import {useEffect, useMemo, useState} from "react"
 import {HeaderFooterLayoutWrapper} from "@/components/wrappers/HeaderFooterLayoutWrapper"
 import {useAPI} from "@/hooks/useAPI"
 import {Link} from "react-router-dom"
+import {DateTime} from "luxon"
 
 type TimeBlock = {
     id: string
     start: string
     end: string
+}
+
+const LA_TZ = "America/Los_Angeles"
+
+function laLocalToUTCISO(local: string) {
+    return DateTime
+        .fromISO(local, {zone: "America/Los_Angeles"})
+        .toUTC()
+        .toISO()
 }
 
 export default function MeetingSchedulePage() {
@@ -26,7 +36,8 @@ export default function MeetingSchedulePage() {
     const sorted = useMemo(
         () =>
             [...blocks].sort(
-                (a, b) => new Date(a.start).getTime() - new Date(b.start).getTime()
+                (a, b) =>
+                    Date.parse(a.start) - Date.parse(b.start)
             ),
         [blocks]
     )
@@ -89,11 +100,9 @@ export default function MeetingSchedulePage() {
                         <AddBlockModal
                             onClose={() => setShowForm(false)}
                             onSave={async (start, end) => {
-                                setLoading(true)
-                                const created = await addMeetingTimeBlock({start, end})
-                                setBlocks(b => [...b, created])
-                                setLoading(false)
-                                setShowForm(false)
+                                await addMeetingTimeBlock({start, end})
+                                const events = await getMeetingSchedule()
+                                setBlocks(toBlocks(events))
                             }}
                         />
                     )}
@@ -110,19 +119,32 @@ function BlockRow({
     block: TimeBlock
     onDelete: () => void
 }) {
-    const start = new Date(block.start)
-    const end = new Date(block.end)
+    function formatTimeLA(iso: string) {
+        return new Intl.DateTimeFormat("en-US", {
+            hour: "2-digit",
+            minute: "2-digit",
+            timeZone: LA_TZ,
+        }).format(new Date(iso))
+    }
+
+    function formatDateLA(iso: string) {
+        return new Intl.DateTimeFormat("en-US", {
+            year: "numeric",
+            month: "2-digit",
+            day: "2-digit",
+            timeZone: LA_TZ,
+        }).format(new Date(iso))
+    }
 
     return (
         <div className="flex items-center justify-between p-3 hover:bg-black/5">
             <div className="flex flex-col">
         <span className="font-medium">
-          {start.toLocaleTimeString([], {hour: "2-digit", minute: "2-digit"})} –{" "}
-            {end.toLocaleTimeString([], {hour: "2-digit", minute: "2-digit"})}
+            {formatTimeLA(block.start)} – {formatTimeLA(block.end)}
         </span>
                 <span className="text-xs text-gray-500">
-          {start.toLocaleDateString()}
-        </span>
+                    {formatDateLA(block.start)}
+                </span>
             </div>
 
             <button
@@ -140,16 +162,39 @@ function AddBlockModal({
                            onSave,
                        }: {
     onClose: () => void
-    onSave: (start: string, end: string) => void
+    onSave: (start: string, end: string) => Promise<void>
 }) {
     const [start, setStart] = useState("")
     const [end, setEnd] = useState("")
     const [error, setError] = useState<string | null>(null)
+    const [saving, setSaving] = useState(false)
 
-    function submit() {
-        if (!start || !end) return setError("Both fields required")
-        if (new Date(end) <= new Date(start)) return setError("End must be after start")
-        onSave(start, end)
+    async function submit() {
+        setError(null)
+
+        if (!start || !end) {
+            setError("Both fields are required")
+            return
+        }
+
+        const startISO = laLocalToUTCISO(start)
+        const endISO = laLocalToUTCISO(end)
+
+        if (new Date(endISO) <= new Date(startISO)) {
+            setError("End must be after start")
+            return
+        }
+
+        try {
+            setSaving(true)
+            await onSave(startISO, endISO)
+            onClose() // close only on success
+        } catch (err) {
+            console.error(err)
+            setError("Failed to save time block. Please adjust and try again.")
+        } finally {
+            setSaving(false)
+        }
     }
 
     return (
@@ -158,34 +203,35 @@ function AddBlockModal({
                 <div className="text-lg font-semibold theme-text">Add time block</div>
 
                 <div className="text-sm theme-text">Starting time:</div>
-
                 <input
                     type="datetime-local"
                     className="theme-bg theme-border rounded px-2 py-1"
                     value={start}
                     onChange={e => setStart(e.target.value)}
+                    disabled={saving}
                 />
 
                 <div className="text-sm theme-text">Ending time:</div>
-
                 <input
                     type="datetime-local"
                     className="theme-bg theme-border rounded px-2 py-1"
                     value={end}
                     onChange={e => setEnd(e.target.value)}
+                    disabled={saving}
                 />
 
                 {error && <div className="text-sm text-red-600">{error}</div>}
 
                 <div className="flex justify-end gap-2">
-                    <button onClick={onClose} className="px-3 py-1 theme-text">
+                    <button onClick={onClose} className="px-3 py-1 theme-text" disabled={saving}>
                         Cancel
                     </button>
                     <button
                         onClick={submit}
-                        className="px-3 py-1 rounded theme-button-bg theme-text hover:theme-button-hover"
+                        disabled={saving}
+                        className="px-3 py-1 rounded theme-button-bg theme-text hover:theme-button-hover disabled:opacity-50"
                     >
-                        Save
+                        {saving ? "Saving…" : "Save"}
                     </button>
                 </div>
             </div>

@@ -17,16 +17,17 @@ type AttendanceRow = {
 }
 
 export default function AttendancePage() {
-    const {getAttendance, getAttendanceStatus, checkin, checkout} = useAPI()
-    const {serverOnline} = useClientEnvironment()
+    const {getAttendance, getAttendanceStatus, checkin, checkout, verify} = useAPI()
+
+    const {serverOnline, isOnline} = useClientEnvironment()
     const featureFlags = useFeatureFlags()
+
+    const [authChecked, setAuthChecked] = useState(false)
+    const [isLoggedIn, setIsLoggedIn] = useState(false)
 
     const [rows, setRows] = useState<AttendanceRow[]>([])
     const [loading, setLoading] = useState(false)
     const [status, setStatus] = useState<null | "in" | "out" | "error">(null)
-
-    const myEmail = getScouterEmail()
-    const isLoggedIn = Boolean(myEmail)
 
     const [myStatus, setMyStatus] = useState<{
         is_checked_in: boolean
@@ -45,6 +46,21 @@ export default function AttendancePage() {
     useEffect(() => {
         apiRef.current.getAttendance = getAttendance
     }, [getAttendance])
+
+    useEffect(() => {
+        const runVerify = async () => {
+            try {
+                const res = await verify()
+                setIsLoggedIn(Boolean(res?.success))
+            } catch {
+                setIsLoggedIn(false)
+            } finally {
+                setAuthChecked(true)
+            }
+        }
+
+        void runVerify()
+    }, [verify])
 
     const pollOnce = useCallback(async () => {
         if (inFlightRef.current) return
@@ -92,6 +108,70 @@ export default function AttendancePage() {
             }
         }
     }, [])
+
+    const statusMessage = useMemo<{
+        text: string
+        className: string
+    } | null>(() => {
+        // 1. Action results
+        if (isLoggedIn && status === "in") {
+            return {text: "Checked in", className: "text-green-600"}
+        }
+
+        if (isLoggedIn && status === "out") {
+            return {text: "Checked out", className: "text-blue-600"}
+        }
+
+        if (isLoggedIn && status === "error") {
+            return {text: "Update failed", className: "text-red-600"}
+        }
+
+        // 2. Offline states
+        if (!isOnline) {
+            return {
+                text: "You are offline",
+                className: "text-red-600",
+            }
+        }
+
+        if (!serverOnline) {
+            return {
+                text: "Server is not online, please wait ~ 1 minute",
+                className: "text-red-600",
+            }
+        }
+
+        // 3. Not logged in
+        if (!isLoggedIn) {
+            return {
+                text: "Login first to check in or out.",
+                className: "text-yellow-600",
+            }
+        }
+
+        // 4. Meeting state
+        return meetingActive
+            ? {
+                text: "A meeting is currently active",
+                className: "text-green-600",
+            }
+            : {
+                text: "No meeting is currently active",
+                className: "text-gray-500",
+            }
+    }, [
+        isLoggedIn,
+        status,
+        isOnline,
+        serverOnline,
+        meetingActive,
+    ])
+
+    useEffect(() => {
+        if (status === null) return
+        const t = setTimeout(() => setStatus(null), 3000)
+        return () => clearTimeout(t)
+    }, [status])
 
     /* ---------------- actions ---------------- */
 
@@ -216,49 +296,19 @@ export default function AttendancePage() {
 
                         {/* Unified status row */}
                         <div className="text-sm font-medium min-h-5">
-                            {/* Not logged in */}
-                            {!isLoggedIn && (
-                                <span className="text-yellow-600">
-                                    Login first to check in or out.{" "}
-                                    <Link to="/" className="underline hover:opacity-80">
-                                        Go to login
-                                    </Link>
+                            {statusMessage && (
+                                <span className={statusMessage.className}>
+                                    {statusMessage.text}
+                                    {!isLoggedIn && (
+                                        <>
+                                            {" "}
+                                            <Link to="/" className="underline hover:opacity-80">
+                                                Go to login
+                                            </Link>
+                                        </>
+                                    )}
                                 </span>
                             )}
-
-                            {/* Action results */}
-                            {isLoggedIn && status === "in" && (
-                                <span className="text-green-600">Checked in</span>
-                            )}
-
-                            {isLoggedIn && status === "out" && (
-                                <span className="text-blue-600">Checked out</span>
-                            )}
-
-                            {isLoggedIn && status === "error" && (
-                                <span className="text-red-600">Update failed</span>
-                            )}
-
-                            {/* Server state (only if no other message is active) */}
-                            {isLoggedIn && status === null && !serverOnline && (
-                                <span className="text-red-600">
-                                    Server is not online, please wait ~ 1 minute
-                                </span>
-                            )}
-
-                            {/* Meeting state (only if no other message is active AND server is online) */}
-                            {isLoggedIn && status === null && serverOnline && (
-                                meetingActive ? (
-                                    <span className="text-green-600">
-                                        A meeting is currently active
-                                    </span>
-                                ) : (
-                                    <span className="text-gray-500">
-                                        No meeting is currently active
-                                    </span>
-                                )
-                            )}
-
                         </div>
                     </div>
 
