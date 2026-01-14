@@ -1918,6 +1918,7 @@ async def record_attendance_event(email: str, action: str) -> None:
     finally:
         await release_db_connection(pool, conn)
 
+
 async def compute_attendance_totals() -> list[dict]:
     pool, conn = await get_db_connection(DB_NAME)
     try:
@@ -2012,11 +2013,16 @@ async def compute_attendance_totals() -> list[dict]:
                         totals[email] += seconds
                         break  # only first meeting counts
 
-        max_seconds = max(totals.values(), default=0)
+        # ------------------------------------------------------------
+        # 5. max_seconds = elapsed meeting time only (no future time)
+        # ------------------------------------------------------------
+        max_seconds = 0.0
 
-        meeting_active = any(
-            m_start <= now <= m_end for m_start, m_end in meeting_intervals
-        )
+        for m_start, m_end in meeting_intervals:
+            if m_start >= now:
+                continue  # meeting hasn't started yet
+            effective_end = min(m_end, now)
+            max_seconds += (effective_end - m_start).total_seconds()
 
         return [
             {
@@ -2024,7 +2030,7 @@ async def compute_attendance_totals() -> list[dict]:
                 "name": names.get(email),
                 "total_seconds": totals[email],
                 "above_min_seconds": totals[email] - (max_seconds / 2),
-                "is_checked_in": (email in open_checkins) and meeting_active,
+                "is_checked_in": email in open_checkins,
             }
             for email in totals
         ]
@@ -2063,6 +2069,135 @@ async def is_user_currently_checked_in(
             return False
 
         return row["action"] == "checkin"
+
+    finally:
+        await release_db_connection(pool, conn)
+
+async def get_meeting_time_events() -> list[dict]:
+    """
+    Returns all checkin / checkout events for the special
+    'meeting time' user in chronological order.
+    """
+    pool, conn = await get_db_connection(DB_NAME)
+    try:
+        rows = await conn.fetch(
+            """
+            SELECT action, time
+            FROM attendance
+            WHERE email = 'meeting time'
+            ORDER BY time ASC
+            """
+        )
+
+        return [
+            {
+                "action": r["action"],
+                "time": r["time"],
+            }
+            for r in rows
+        ]
+
+    finally:
+        await release_db_connection(pool, conn)
+
+async def add_meeting_time_block(start: datetime, end: datetime) -> None:
+    """
+    Atomically inserts a meeting time checkin + checkout pair.
+
+    Guarantees:
+    - start < end
+    - no overlap with existing meeting time intervals
+    """
+    if start >= end:
+        raise ValueError("Meeting end must be after start")
+
+    pool, conn = await get_db_connection(DB_NAME)
+    try:
+        async with conn.transaction():
+
+            # Prevent overlapping meeting blocks
+            overlap = await conn.fetchval(
+                """
+                SELECT 1
+                FROM attendance a1
+                JOIN attendance a2
+                  ON a1.email = 'meeting time'
+                 AND a2.email = 'meeting time'
+                 AND a1.action = 'checkin'
+                 AND a2.action = 'checkout'
+                 AND a2.time > a1.time
+                 AND tstzrange(a1.time, a2.time)
+                     && tstzrange($1, $2)
+                LIMIT 1
+                """,
+                start,
+                end,
+            )
+
+            if overlap:
+                raise ValueError("Meeting time overlaps existing meeting")
+
+            # Insert the block
+            await conn.execute(
+                """
+                INSERT INTO attendance (email, action, time)
+                VALUES
+                  ('meeting time', 'checkin',  $1),
+                  ('meeting time', 'checkout', $2)
+                """,
+                start,
+                end,
+            )
+
+    finally:
+        await release_db_connection(pool, conn)
+
+
+async def delete_meeting_time_block(start: datetime, end: datetime) -> None:
+    """
+    Deletes exactly one meeting-time block (checkin + checkout).
+
+    The pair must exist and must match exactly.
+    """
+    pool, conn = await get_db_connection(DB_NAME)
+    try:
+        async with conn.transaction():
+
+            # Verify the block exists as a valid pair
+            exists = await conn.fetchval(
+                """
+                SELECT 1
+                FROM attendance a1
+                JOIN attendance a2
+                  ON a1.email = 'meeting time'
+                 AND a2.email = 'meeting time'
+                 AND a1.action = 'checkin'
+                 AND a2.action = 'checkout'
+                 AND a1.time = $1
+                 AND a2.time = $2
+                 AND a2.time > a1.time
+                LIMIT 1
+                """,
+                start,
+                end,
+            )
+
+            if not exists:
+                raise ValueError("Meeting block not found")
+
+            # Delete both rows atomically
+            await conn.execute(
+                """
+                DELETE FROM attendance
+                WHERE email = 'meeting time'
+                  AND (
+                        (action = 'checkin'  AND time = $1)
+                     OR (action = 'checkout' AND time = $2)
+                  )
+                """,
+                start,
+                end,
+            )
 
     finally:
         await release_db_connection(pool, conn)

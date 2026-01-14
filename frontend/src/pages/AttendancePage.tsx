@@ -5,6 +5,7 @@ import {AgGridReact} from "ag-grid-react"
 import {type ColDef, themeQuartz} from "ag-grid-community"
 import {HeaderFooterLayoutWrapper} from "@/components/wrappers/HeaderFooterLayoutWrapper"
 import {Link} from "react-router-dom"
+import {useClientEnvironment} from "@/hooks/useClientEnvironment.ts";
 
 type AttendanceRow = {
     email: string
@@ -16,6 +17,7 @@ type AttendanceRow = {
 
 export default function AttendancePage() {
     const {getAttendance, getAttendanceStatus, checkin, checkout} = useAPI()
+    const {serverOnline} = useClientEnvironment()
 
     const [rows, setRows] = useState<AttendanceRow[]>([])
     const [loading, setLoading] = useState(false)
@@ -205,6 +207,7 @@ export default function AttendancePage() {
 
                         {/* Unified status row */}
                         <div className="text-sm font-medium min-h-5">
+                            {/* Not logged in */}
                             {!isLoggedIn && (
                                 <span className="text-yellow-600">
                                     Login first to check in or out.{" "}
@@ -214,12 +217,7 @@ export default function AttendancePage() {
                                 </span>
                             )}
 
-                            {/* isLoggedIn && !meetingActive && (
-                                <span className="text-yellow-600">
-                                    A meeting is not currently active.
-                                </span>
-                            ) */}
-
+                            {/* Action results */}
                             {isLoggedIn && status === "in" && (
                                 <span className="text-green-600">Checked in</span>
                             )}
@@ -231,6 +229,27 @@ export default function AttendancePage() {
                             {isLoggedIn && status === "error" && (
                                 <span className="text-red-600">Update failed</span>
                             )}
+
+                            {/* Server state (only if no other message is active) */}
+                            {isLoggedIn && status === null && !serverOnline && (
+                                <span className="text-red-600">
+                                    Server is not online, please wait ~ 1 minute
+                                </span>
+                            )}
+
+                            {/* Meeting state (only if no other message is active AND server is online) */}
+                            {isLoggedIn && status === null && serverOnline && (
+                                meetingActive ? (
+                                    <span className="text-green-600">
+                                        A meeting is currently active
+                                    </span>
+                                ) : (
+                                    <span className="text-gray-500">
+                                        No meeting is currently active
+                                    </span>
+                                )
+                            )}
+
                         </div>
                     </div>
 

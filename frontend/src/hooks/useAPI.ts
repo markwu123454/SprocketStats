@@ -789,23 +789,14 @@ export function useAPI() {
         above_min_seconds: number
         is_checked_in: boolean
     }[]> => {
-        const res = await apiRequest<{
-            email: string
-            name: string | null
-            total_seconds: number
-            above_min_seconds: number
-            is_checked_in: boolean
-        }[]>("/attendance")
-        return res ?? []
+        return await apiRequest("/attendance") ?? []
     }
 
     // --- POST /attendance/checkin ---
     const checkin = async (): Promise<{
         status: "checked_in"
     } | null> => {
-        return await apiRequest<{
-            status: "checked_in"
-        }>("/attendance/checkin", {
+        return await apiRequest("/attendance/checkin", {
             method: "POST",
         })
     }
@@ -814,9 +805,7 @@ export function useAPI() {
     const checkout = async (): Promise<{
         status: "checked_out"
     } | null> => {
-        return await apiRequest<{
-            status: "checked_out"
-        }>("/attendance/checkout", {
+        return await apiRequest("/attendance/checkout", {
             method: "POST",
         })
     }
@@ -826,10 +815,39 @@ export function useAPI() {
         is_checked_in: boolean
         meeting_active: boolean
     } | null> => {
-        return await apiRequest<{
-            is_checked_in: boolean
-            meeting_active: boolean
-        }>("/attendance/status")
+        return await apiRequest("/attendance/status")
+    }
+
+    // --- GET /attendance/meeting-time ---
+    const getMeetingSchedule = async (): Promise<{
+        action: "checkin" | "checkout"
+        time: string
+    } | null> => {
+        return await apiRequest("/attendance/meeting-time")
+    }
+
+    const addMeetingTimeBlock = async (
+        block: {
+            start: string
+            end: string
+        }
+    ): Promise<{ status: string } | null> => {
+        return await apiRequest<{ status: string }>("/attendance/meeting-time", {
+            method: "POST",
+            body: block,
+        })
+    }
+
+    const deleteMeetingTimeBlock = async (
+        block: {
+            start: string
+            end: string
+        }
+    ): Promise<{ status: string } | null> => {
+        return await apiRequest<{ status: string }>("/attendance/meeting-time", {
+            method: "DELETE",
+            body: block,
+        })
     }
 
     return {
@@ -861,5 +879,8 @@ export function useAPI() {
         checkin,
         checkout,
         getAttendanceStatus,
+        getMeetingSchedule,
+        addMeetingTimeBlock,
+        deleteMeetingTimeBlock,
     };
 }
