@@ -153,6 +153,7 @@ export default function AttendancePage() {
                 headerName: "Hours",
                 flex: 1,
                 valueGetter: p => (p.data!.totalSeconds / 3600).toFixed(2),
+                sort: "desc",
             },
         ]
 
