@@ -56,7 +56,7 @@ import logging
 from typing import Dict, Any, Optional, Callable, Annotated, Awaitable
 import dotenv
 from fastapi import HTTPException, Header, Depends
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 import uuid
 from asyncpg import PostgresError
 from asyncpg.exceptions import UniqueViolationError
@@ -1918,6 +1918,7 @@ async def record_attendance_event(email: str, action: str) -> None:
     finally:
         await release_db_connection(pool, conn)
 
+EARLY_CHECKIN_GRACE = timedelta(minutes=15)
 
 async def compute_attendance_totals() -> list[dict]:
     pool, conn = await get_db_connection(DB_NAME)
@@ -1988,11 +1989,29 @@ async def compute_attendance_totals() -> list[dict]:
         # ------------------------------------------------------------
         # 3. Overlap helper
         # ------------------------------------------------------------
-        def overlap(a_start, a_end, b_start, b_end):
-            start = max(a_start, b_start)
-            end = min(a_end, b_end)
-            if start < end:
-                return (end - start).total_seconds()
+        def overlap_with_grace(s_start, s_end, m_start, m_end):
+            # session ends before meeting starts
+            if s_end <= m_start:
+                return 0
+
+            # session starts after meeting ends
+            if s_start >= m_end:
+                return 0
+
+            # session starts before meeting
+            if s_start < m_start:
+                # meeting must start within 15 minutes after check-in
+                if m_start - s_start > EARLY_CHECKIN_GRACE:
+                    return 0
+                effective_start = m_start
+            else:
+                effective_start = s_start
+
+            effective_end = min(s_end, m_end)
+
+            if effective_start < effective_end:
+                return (effective_end - effective_start).total_seconds()
+
             return 0
 
         # ------------------------------------------------------------
@@ -2008,7 +2027,7 @@ async def compute_attendance_totals() -> list[dict]:
                     if m_start >= s_end:
                         break
 
-                    seconds = overlap(s_start, s_end, m_start, m_end)
+                    seconds = overlap_with_grace(s_start, s_end, m_start, m_end)
                     if seconds > 0:
                         totals[email] += seconds
                         break  # only first meeting counts

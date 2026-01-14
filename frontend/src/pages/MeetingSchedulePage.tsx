@@ -20,11 +20,21 @@ function laLocalToUTCISO(local: string) {
         .toISO()
 }
 
+function getWeekKeyLA(iso: string) {
+    const dt = DateTime.fromISO(iso, {zone: LA_TZ})
+
+    // Move to end of Sunday for that week
+    const endOfSunday = dt
+        .endOf("day")
+        .plus({days: 7 - dt.weekday}) // weekday: Mon=1 … Sun=7
+
+    return endOfSunday.toISODate() // stable grouping key
+}
+
 export default function MeetingSchedulePage() {
     const {getMeetingSchedule, addMeetingTimeBlock, deleteMeetingTimeBlock} = useAPI()
 
     const [blocks, setBlocks] = useState<TimeBlock[]>([])
-    const [loading, setLoading] = useState(false)
     const [showForm, setShowForm] = useState(false)
 
     useEffect(() => {
@@ -37,7 +47,7 @@ export default function MeetingSchedulePage() {
         () =>
             [...blocks].sort(
                 (a, b) =>
-                    Date.parse(a.start) - Date.parse(b.start)
+                    Date.parse(b.start) - Date.parse(a.start)
             ),
         [blocks]
     )
@@ -74,19 +84,32 @@ export default function MeetingSchedulePage() {
                     {/* Schedule list */}
                     <div className="flex-1 rounded-md shadow theme-bg theme-border overflow-auto">
                         <div className="divide-y theme-border">
-                            {sorted.map(block => (
-                                <BlockRow
-                                    key={block.id}
-                                    block={block}
-                                    onDelete={async () => {
-                                        await deleteMeetingTimeBlock({
-                                            start: block.start,
-                                            end: block.end,
-                                        })
-                                        setBlocks(b => b.filter(x => x.id !== block.id))
-                                    }}
-                                />
-                            ))}
+                            {sorted.map((block, index) => {
+                                const prev = sorted[index - 1]
+
+                                const isNewWeek =
+                                    !prev ||
+                                    getWeekKeyLA(block.start) !== getWeekKeyLA(prev.start)
+
+                                return (
+                                    <div key={block.id}>
+                                        {isNewWeek && (
+                                            <div className="h-3 bg-transparent border-t-2 theme-border"/>
+                                        )}
+
+                                        <BlockRow
+                                            block={block}
+                                            onDelete={async () => {
+                                                await deleteMeetingTimeBlock({
+                                                    start: block.start,
+                                                    end: block.end,
+                                                })
+                                                setBlocks(b => b.filter(x => x.id !== block.id))
+                                            }}
+                                        />
+                                    </div>
+                                )
+                            })}
 
                             {sorted.length === 0 && (
                                 <div className="p-6 text-sm text-gray-500">
@@ -94,6 +117,7 @@ export default function MeetingSchedulePage() {
                                 </div>
                             )}
                         </div>
+
                     </div>
 
                     {showForm && (
@@ -129,6 +153,7 @@ function BlockRow({
 
     function formatDateLA(iso: string) {
         return new Intl.DateTimeFormat("en-US", {
+            weekday: "long",
             year: "numeric",
             month: "2-digit",
             day: "2-digit",
