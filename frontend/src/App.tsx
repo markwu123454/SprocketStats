@@ -26,6 +26,7 @@ import MatchDataPredPage from "@/pages/data/MatchDataPredPage.tsx";
 import CountdownPage from "@/pages/CountdownPage.tsx";
 import AttendancePage from "@/pages/AttendancePage.tsx";
 import MeetingSchedulePage from "@/pages/MeetingSchedulePage.tsx";
+import A from "@/components/seasons/2026/ABtest/A.tsx" // temporary
 
 export default function App() {
     return (
@@ -34,6 +35,8 @@ export default function App() {
                 <div className="h-screen flex flex-col min-h-0">
                     <Routes>
                         <Route path="/" element={<HomePage/>}/>
+
+                        <Route path="/ABtest" element = {<A/>}/>
 
                         <Route path="/ping" element={<PingPage/>}/>
 
