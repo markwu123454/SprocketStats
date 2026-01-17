@@ -1919,6 +1919,8 @@ async def record_attendance_event(email: str, action: str) -> None:
         await release_db_connection(pool, conn)
 
 EARLY_CHECKIN_GRACE = timedelta(minutes=15)
+LATE_CHECKOUT_GRACE = timedelta(hours=2)
+LATE_CHECKOUT_MULTIPLIER = 0.875
 
 async def compute_attendance_totals() -> list[dict]:
     pool, conn = await get_db_connection(DB_NAME)
@@ -1940,40 +1942,33 @@ async def compute_attendance_totals() -> list[dict]:
         now = datetime.now(timezone.utc)
 
         # ------------------------------------------------------------
-        # 1. Build meeting intervals
+        # 1. Single pass: meetings + user sessions
         # ------------------------------------------------------------
-        meeting_intervals = []
+        meeting_intervals: list[tuple] = []
         meeting_start = None
 
-        for r in rows:
-            if r["email"] == "meeting time":
-                if r["action"] == "checkin":
-                    meeting_start = r["time"]
-                elif r["action"] == "checkout" and meeting_start:
-                    meeting_intervals.append((meeting_start, r["time"]))
-                    meeting_start = None
-
-        if meeting_start:
-            meeting_intervals.append((meeting_start, now))
-
-        # ------------------------------------------------------------
-        # 2. Build user sessions
-        # ------------------------------------------------------------
         user_sessions = defaultdict(list)
         open_checkins = {}
         names = {}
 
         for r in rows:
             email = r["email"]
-            if email == "meeting time":
-                continue
-
-            names[email] = r["name"]
             action = r["action"]
             t = r["time"]
 
+            # --- meetings ---
+            if email == "meeting time":
+                if action == "checkin":
+                    meeting_start = t
+                elif action == "checkout" and meeting_start:
+                    meeting_intervals.append((meeting_start, t))
+                    meeting_start = None
+                continue
+
+            # --- users ---
+            names[email] = r["name"]
+
             if action == "checkin":
-                # Ignore nested checkins
                 if email not in open_checkins:
                     open_checkins[email] = t
 
@@ -1982,76 +1977,97 @@ async def compute_attendance_totals() -> list[dict]:
                 if start:
                     user_sessions[email].append((start, t))
 
-        # still checked in → until now
+        # open meetings / sessions extend to now
+        if meeting_start:
+            meeting_intervals.append((meeting_start, now))
+
         for email, start in open_checkins.items():
             user_sessions[email].append((start, now))
+
+        if not meeting_intervals:
+            return []
+
+        # ------------------------------------------------------------
+        # 2. Precompute meeting metadata
+        # ------------------------------------------------------------
+        meeting_meta = []
+        for i, (m_start, m_end) in enumerate(meeting_intervals):
+            late_limit = m_end + LATE_CHECKOUT_GRACE
+            next_pre = (
+                meeting_intervals[i + 1][0] - EARLY_CHECKIN_GRACE
+                if i + 1 < len(meeting_intervals)
+                else None
+            )
+            meeting_meta.append((m_start, m_end, late_limit, next_pre))
 
         # ------------------------------------------------------------
         # 3. Overlap helper
         # ------------------------------------------------------------
         def overlap_with_grace(s_start, s_end, m_start, m_end):
-            # session ends before meeting starts
-            if s_end <= m_start:
+            if s_end <= m_start or s_start >= m_end:
                 return 0
 
-            # session starts after meeting ends
-            if s_start >= m_end:
+            if s_start < m_start and (m_start - s_start) > EARLY_CHECKIN_GRACE:
                 return 0
 
-            # session starts before meeting
-            if s_start < m_start:
-                # meeting must start within 15 minutes after check-in
-                if m_start - s_start > EARLY_CHECKIN_GRACE:
-                    return 0
-                effective_start = m_start
-            else:
-                effective_start = s_start
-
-            effective_end = min(s_end, m_end)
-
-            if effective_start < effective_end:
-                return (effective_end - effective_start).total_seconds()
-
-            return 0
+            start = max(s_start, m_start)
+            end = min(s_end, m_end)
+            return max(0, (end - start).total_seconds())
 
         # ------------------------------------------------------------
-        # 4. Compute totals using FIRST overlapping meeting only
+        # 4. Compute totals (two-pointer scan)
         # ------------------------------------------------------------
-        totals = defaultdict(float)
+        totals = {}
 
         for email, sessions in user_sessions.items():
+            total = 0.0
+            m_idx = 0
+
             for s_start, s_end in sessions:
-                for m_start, m_end in meeting_intervals:
+                while m_idx < len(meeting_meta):
+                    m_start, m_end, late_limit, next_pre = meeting_meta[m_idx]
+
                     if m_end <= s_start:
+                        m_idx += 1
                         continue
                     if m_start >= s_end:
                         break
 
                     seconds = overlap_with_grace(s_start, s_end, m_start, m_end)
-                    if seconds > 0:
-                        totals[email] += seconds
-                        break  # only first meeting counts
+                    if seconds:
+                        if s_end > late_limit or (next_pre and s_end > next_pre):
+                            seconds *= LATE_CHECKOUT_MULTIPLIER
+                        total += seconds
+                        break
+
+                    m_idx += 1
+
+            if total:
+                totals[email] = total
 
         # ------------------------------------------------------------
-        # 5. max_seconds = elapsed meeting time only (no future time)
+        # 5. Maximum possible seconds (elapsed meetings only)
         # ------------------------------------------------------------
         max_seconds = 0.0
-
         for m_start, m_end in meeting_intervals:
             if m_start >= now:
-                continue  # meeting hasn't started yet
-            effective_end = min(m_end, now)
-            max_seconds += (effective_end - m_start).total_seconds()
+                break
+            max_seconds += (min(m_end, now) - m_start).total_seconds()
 
+        half_max = max_seconds / 2
+
+        # ------------------------------------------------------------
+        # 6. Final result
+        # ------------------------------------------------------------
         return [
             {
                 "email": email,
                 "name": names.get(email),
-                "total_seconds": totals[email],
-                "above_min_seconds": totals[email] - (max_seconds / 2),
+                "total_seconds": total,
+                "above_min_seconds": total - half_max,
                 "is_checked_in": email in open_checkins,
             }
-            for email in totals
+            for email, total in totals.items()
         ]
 
     finally:
