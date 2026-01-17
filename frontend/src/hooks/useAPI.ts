@@ -867,6 +867,16 @@ export function useAPI() {
         })
     }
 
+    // Example usage in your frontend code
+    async function savePushSettings(endpoint: string, settings: Record<string, boolean>) {
+        return await apiRequest<{ status: string }>("/push/selection", {
+            method: "PUT",
+            body: {
+                endpoint: endpoint,
+                settings: settings
+            }
+        });
+    }
 
     return {
         login,
@@ -901,5 +911,6 @@ export function useAPI() {
         addMeetingTimeBlock,
         deleteMeetingTimeBlock,
         subscribePushNotif,
+        savePushSettings,
     };
 }

@@ -1,5 +1,7 @@
 from fastapi import Depends, HTTPException, APIRouter
 import enums, db
+from pydantic import BaseModel
+from typing import Dict, Any
 
 router = APIRouter()
 
@@ -72,3 +74,41 @@ async def update_push_notification(
 
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+class PushSelectionPayload(BaseModel):
+    settings: Dict[str, Any]
+
+
+@router.put("/push/selection")
+async def select_push_notification(
+        payload: dict,
+        session: enums.SessionInfo = Depends(db.require_session()),
+):
+    """
+    Updates the settings JSONB column for a specific push subscription.
+    Expected payload: { "endpoint": "...", "settings": { ... } }
+    """
+    # 1. Extract the endpoint (required to locate the row)
+    # Note: Adjust the path if your TS payload puts endpoint inside a 'subscription' object
+    endpoint = payload.get("endpoint") or payload.get("subscription", {}).get("endpoint")
+
+    if not endpoint:
+        raise HTTPException(status_code=400, detail="Missing endpoint in payload")
+
+    # 2. Extract the settings dictionary
+    settings_data = payload.get("settings")
+    if settings_data is None:
+        raise HTTPException(status_code=400, detail="Missing settings data")
+
+    # 3. Call your existing DB function
+    # We pass 'settings' inside the updates dict so COALESCE($6, settings) works
+    updated = await db.update_push_subscription(
+        email=session.email,
+        endpoint=endpoint,
+        updates={"settings": settings_data}
+    )
+
+    if not updated:
+        raise HTTPException(status_code=404, detail="Subscription not found for this user")
+
+    return {"status": "settings_updated"}
