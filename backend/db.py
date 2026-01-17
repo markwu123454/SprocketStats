@@ -2238,6 +2238,131 @@ async def delete_meeting_time_block(start: datetime, end: datetime) -> None:
         await release_db_connection(pool, conn)
 
 
+# =================== Push notif ===================
+
+async def create_push_subscription(
+    *,
+    email: str,
+    payload: dict,
+) -> None:
+    """
+    Creates or replaces a push notification subscription.
+
+    Guarantees:
+    - One row per endpoint
+    - Idempotent for retries
+    - iOS subscriptions must be installed PWAs
+    """
+
+    sub = payload["subscription"]
+    endpoint = sub["endpoint"]
+    keys = sub.get("keys") or {}
+
+    if not keys.get("p256dh") or not keys.get("auth"):
+        raise ValueError("Invalid push subscription keys")
+
+    os = payload.get("os")
+    is_ios_pwa = payload.get("isIOSPWA")
+
+    if os == "iOS" and not is_ios_pwa:
+        raise ValueError("iOS push requires installed PWA")
+
+    pool, conn = await get_db_connection(DB_NAME)
+    try:
+        await conn.execute(
+            """
+            INSERT INTO push_notif (
+                email,
+                endpoint,
+                p256dh,
+                auth,
+                device_type,
+                browser,
+                os,
+                is_pwa,
+                is_ios_pwa,
+                enabled,
+                updated_at
+            )
+            VALUES (
+                $1, $2, $3, $4, $5, $6, $7, $8, $9, true, now()
+            )
+            ON CONFLICT (endpoint)
+            DO UPDATE SET
+                email        = EXCLUDED.email,
+                p256dh       = EXCLUDED.p256dh,
+                auth         = EXCLUDED.auth,
+                device_type  = EXCLUDED.device_type,
+                browser      = EXCLUDED.browser,
+                os           = EXCLUDED.os,
+                is_pwa       = EXCLUDED.is_pwa,
+                is_ios_pwa   = EXCLUDED.is_ios_pwa,
+                enabled      = true,
+                updated_at   = now()
+            """,
+            email,
+            endpoint,
+            keys["p256dh"],
+            keys["auth"],
+            payload.get("deviceType"),
+            payload.get("browser"),
+            payload.get("os"),
+            payload.get("isPWA"),
+            payload.get("isIOSPWA"),
+        )
+
+    finally:
+        await release_db_connection(pool, conn)
+
+async def update_push_subscription(
+    *,
+    email: str,
+    endpoint: str,
+    updates: dict,
+) -> bool:
+    """
+    Updates an existing push subscription.
+
+    Returns:
+    - True if updated
+    - False if not found
+    """
+
+    pool, conn = await get_db_connection(DB_NAME)
+    try:
+        result = await conn.execute(
+            """
+            UPDATE push_notif
+            SET
+                device_type = COALESCE($1, device_type),
+                browser     = COALESCE($2, browser),
+                os          = COALESCE($3, os),
+                is_pwa      = COALESCE($4, is_pwa),
+                is_ios_pwa  = COALESCE($5, is_ios_pwa),
+                settings    = COALESCE($6, settings),
+                enabled     = COALESCE($7, enabled),
+                updated_at  = now()
+            WHERE endpoint = $8
+              AND email = $9
+            """,
+            updates.get("deviceType"),
+            updates.get("browser"),
+            updates.get("os"),
+            updates.get("isPWA"),
+            updates.get("isIOSPWA"),
+            updates.get("settings"),
+            updates.get("enabled"),
+            endpoint,
+            email,
+        )
+
+        return result != "UPDATE 0"
+
+    finally:
+        await release_db_connection(pool, conn)
+
+
+
 # =================== Data ===================
 
 async def get_processed_data(event_key: Optional[str] = None) -> Optional[dict]:
