@@ -11,7 +11,17 @@ from starlette.staticfiles import StaticFiles
 
 import db
 import tba_db as tba
-import endpoints
+from endpoints import (
+    admin,
+    attendance,
+    auth,
+    data,
+    general,
+    match_scouting,
+    pit_scouting,
+    push_notification,
+)
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -53,4 +63,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(endpoints.router)
+app.include_router(admin.router)
+app.include_router(attendance.router)
+app.include_router(auth.router)
+app.include_router(data.router)
+app.include_router(general.router)
+app.include_router(match_scouting.router)
+app.include_router(pit_scouting.router)
+app.include_router(push_notification.router)
