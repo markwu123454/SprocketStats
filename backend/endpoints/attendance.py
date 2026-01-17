@@ -90,3 +90,7 @@ async def attendance_status(
         "is_checked_in": user_checked_in,
         "meeting_active": meeting_checked_in,
     }
+
+@router.get("/cron/attendance")
+async def cron_attendance():
+    pass
