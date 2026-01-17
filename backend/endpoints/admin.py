@@ -6,16 +6,12 @@ import enums, db
 
 router = APIRouter()
 
+
 # === Admin ===
 
 @router.get("/metadata")
 async def get_metadata(_: enums.SessionInfo = Depends(db.require_permission("admin"))):
     return await db.get_metadata()
-
-
-@router.get("/metadata/feature_flags")
-async def get_feature_flags():
-    return await db.get_feature_flags()
 
 
 @router.get("/admin/matches/active")
@@ -47,13 +43,6 @@ async def admin_active_matches(
         }
     }
     """
-
-    ACTIVE_PHASES = {
-        enums.StatusType.PRE.value,
-        enums.StatusType.AUTO.value,
-        enums.StatusType.TELEOP.value,
-        enums.StatusType.POST.value,
-    }
 
     rows = await db.get_match_scouting()
 
@@ -89,7 +78,10 @@ async def admin_active_matches(
             continue
 
         # Include match if ANY team is active
-        if not any(e["status"] in ACTIVE_PHASES for e in entries):
+        if not any(e["status"] in {enums.StatusType.PRE.value,
+            enums.StatusType.AUTO.value,
+            enums.StatusType.TELEOP.value,
+            enums.StatusType.POST.value} for e in entries):
             continue
 
         match_info = await db.get_match_info(m_type.value, match)

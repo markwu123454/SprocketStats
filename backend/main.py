@@ -56,7 +56,7 @@ combined_regex = "|".join(regex_patterns) if regex_patterns else None
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # wildcard matching enabled (won't emit literal * due to credentials=True)
+    allow_origins=[],
     allow_origin_regex=combined_regex,
     allow_credentials=True,
     allow_methods=["*"],

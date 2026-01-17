@@ -10,7 +10,7 @@ import enums
 router = APIRouter()
 
 @router.post("/auth/login")
-async def login(request: Request, body: dict):
+async def login(_: Request, body: dict):
     """
     Authenticates via Google ID token and issues a session.
     """
@@ -72,6 +72,6 @@ async def verify(session: enums.SessionInfo = Depends(db.require_session())):
     return {
         "email": session.email,
         "name": session.name,
-        "permissions": session.permissions.dict(),
+        "permissions": session.permissions.model_dump(),
     }
 

@@ -1,6 +1,8 @@
 from fastapi import APIRouter
 from starlette.responses import HTMLResponse
 
+import db
+
 router = APIRouter()
 
 @router.get("/", response_class=HTMLResponse)
@@ -101,3 +103,8 @@ def root():
 @router.get("/ping")
 def ping():
     return {"ping": "pong"}
+
+
+@router.get("/metadata/feature_flags")
+async def get_feature_flags():
+    return await db.get_feature_flags()
