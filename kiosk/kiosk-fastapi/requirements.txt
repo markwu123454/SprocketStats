@@ -3,3 +3,4 @@ asyncpg
 python-dotenv
 certifi
 uvicorn
+websockets
