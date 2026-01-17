@@ -1,6 +1,6 @@
 import {ArrowLeft, Check, X} from "lucide-react"
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
-import {useAPI, getScouterEmail} from "@/hooks/useAPI"
+import {useAPI} from "@/hooks/useAPI"
 import {AgGridReact} from "ag-grid-react"
 import {type ColDef, themeQuartz} from "ag-grid-community"
 import {HeaderFooterLayoutWrapper} from "@/components/wrappers/HeaderFooterLayoutWrapper"
@@ -16,18 +16,52 @@ type AttendanceRow = {
     isCheckedIn: boolean
 }
 
+const JOKE_STORAGE_KEY = "attendance_joke_cooldown"
+const JOKE_COOLDOWN_COUNT = 50
+const JOKE_PROBABILITY = 400
+
+function getJokeCooldown(): number {
+    const raw = localStorage.getItem(JOKE_STORAGE_KEY)
+    const parsed = Number(raw)
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : 0
+}
+
+function setJokeCooldown(value: number) {
+    if (value <= 0) {
+        localStorage.removeItem(JOKE_STORAGE_KEY)
+    } else {
+        localStorage.setItem(JOKE_STORAGE_KEY, String(value))
+    }
+}
+
+function shouldShowJoke(): boolean {
+    const cooldown = getJokeCooldown()
+    if (cooldown > 0) {
+        setJokeCooldown(cooldown - 1)
+        return false
+    }
+
+    const hit = Math.floor(Math.random() * JOKE_PROBABILITY) === 0
+    if (hit) {
+        setJokeCooldown(JOKE_COOLDOWN_COUNT)
+    }
+
+    return hit
+}
+
 export default function AttendancePage() {
     const {getAttendance, getAttendanceStatus, checkin, checkout, verify} = useAPI()
 
     const {serverOnline, isOnline} = useClientEnvironment()
     const featureFlags = useFeatureFlags()
 
-    const [authChecked, setAuthChecked] = useState(false)
     const [isLoggedIn, setIsLoggedIn] = useState(false)
 
     const [rows, setRows] = useState<AttendanceRow[]>([])
     const [loading, setLoading] = useState(false)
-    const [status, setStatus] = useState<null | "in" | "out" | "error">(null)
+    const [status, setStatus] = useState<
+        null | "in" | "out" | "error" | "joke"
+    >(null)
 
     const [myStatus, setMyStatus] = useState<{
         is_checked_in: boolean
@@ -54,8 +88,6 @@ export default function AttendancePage() {
                 setIsLoggedIn(Boolean(res?.success))
             } catch {
                 setIsLoggedIn(false)
-            } finally {
-                setAuthChecked(true)
             }
         }
 
@@ -120,6 +152,13 @@ export default function AttendancePage() {
 
         if (isLoggedIn && status === "out") {
             return {text: "Checked out", className: "text-blue-600"}
+        }
+
+        if (isLoggedIn && status === "joke") {
+            return {
+                text: "Team Sprocket value your service. Attendance is expected tomorrow.",
+                className: "text-purple-600 font-semibold",
+            }
         }
 
         if (isLoggedIn && status === "error") {
@@ -201,8 +240,12 @@ export default function AttendancePage() {
             const res = await checkout()
 
             if (res?.status === "checked_out") {
-                setStatus("out")
-                await pollOnce()   // update grid
+                if (shouldShowJoke()) {
+                    setStatus("joke")
+                } else {
+                    setStatus("out")
+                }
+                await pollOnce()
             } else {
                 setStatus("error")
             }
@@ -232,18 +275,20 @@ export default function AttendancePage() {
             {
                 headerName: "Hours",
                 flex: 1,
-                valueGetter: p => (p.data!.totalSeconds / 3600).toFixed(2),
+                valueGetter: p => p.data!.totalSeconds / 3600, // number
+                valueFormatter: p => p.value.toFixed(2),       // display only
                 sort: "desc",
-            },
+            }
         ]
 
         if (featureFlags.showAttendanceTimeForComp) {
             cols.push({
                 headerName: "Time above min",
                 flex: 1,
-                valueGetter: p => (p.data!.aboveMinSeconds / 3600).toFixed(2),
+                valueGetter: p => p.data!.aboveMinSeconds / 3600,
+                valueFormatter: p => p.value.toFixed(2),
                 cellClass: p =>
-                    Number(p.value) >= 0
+                    p.value >= 0
                         ? "text-green-600 font-bold"
                         : "text-red-600 font-bold",
             })

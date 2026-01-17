@@ -850,6 +850,24 @@ export function useAPI() {
         })
     }
 
+    // --- POST /push/subscribe ---
+    const subscribePushNotif = async (payload: {
+        subscription: PushSubscription
+        os: "iOS" | "Android" | "Windows" | "macOS" | "Linux" | "Other"
+        browser: "Chrome" | "Safari" | "Firefox" | "Edge" | "Other"
+        deviceType: "mobile" | "tablet" | "desktop"
+        isPWA: boolean
+        isIOSPWA: boolean
+    }): Promise<{
+        status: "subscribed"
+    } | null> => {
+        return await apiRequest("/push/subscribe", {
+            method: "POST",
+            body: payload,
+        })
+    }
+
+
     return {
         login,
         logout,
@@ -882,5 +900,6 @@ export function useAPI() {
         getMeetingSchedule,
         addMeetingTimeBlock,
         deleteMeetingTimeBlock,
+        subscribePushNotif,
     };
 }
