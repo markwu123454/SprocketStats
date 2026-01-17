@@ -275,18 +275,20 @@ export default function AttendancePage() {
             {
                 headerName: "Hours",
                 flex: 1,
-                valueGetter: p => (p.data!.totalSeconds / 3600).toFixed(2),
+                valueGetter: p => p.data!.totalSeconds / 3600, // number
+                valueFormatter: p => p.value.toFixed(2),       // display only
                 sort: "desc",
-            },
+            }
         ]
 
         if (featureFlags.showAttendanceTimeForComp) {
             cols.push({
                 headerName: "Time above min",
                 flex: 1,
-                valueGetter: p => (p.data!.aboveMinSeconds / 3600).toFixed(2),
+                valueGetter: p => p.data!.aboveMinSeconds / 3600,
+                valueFormatter: p => p.value.toFixed(2),
                 cellClass: p =>
-                    Number(p.value) >= 0
+                    p.value >= 0
                         ? "text-green-600 font-bold"
                         : "text-red-600 font-bold",
             })
