@@ -1,7 +1,7 @@
 import {useEffect, useState} from "react";
 import {useAPI} from "@/hooks/useAPI.ts";
 import {Link} from "react-router-dom";
-import {ArrowLeft} from "lucide-react";
+import {ArrowLeft, Trash2} from "lucide-react";
 import ReactJsonView from "@microlink/react-json-view";
 import {getSetting, getSettingSync, type Settings} from "@/db/settingsDb.ts";
 import {HeaderFooterLayoutWrapper} from "@/components/wrappers/HeaderFooterLayoutWrapper.tsx";
@@ -175,12 +175,32 @@ export default function DevPage() {
         })();
     }, []);
 
+    const deleteLocalStorageKey = (key: string) => {
+        window.localStorage.removeItem(key);
+
+        setStorage(prev => {
+            const next = {...prev.local};
+            delete next[key];
+            return {...prev, local: next};
+        });
+    };
+
+    const deleteCookie = (name: string) => {
+        document.cookie = `${name}=; Max-Age=0; path=/`;
+
+        setStorage(prev => {
+            const next = {...prev.cookies};
+            delete next[name];
+            return {...prev, cookies: next};
+        });
+    };
+
     return (
         <HeaderFooterLayoutWrapper
             header={
                 <>
                     <Link to="/"
-                            className="flex items-center gap-2 hover:opacity-80 transition">
+                          className="flex items-center gap-2 hover:opacity-80 transition">
                         <ArrowLeft className="w-5 h-5"/>
                         <span className="text-sm font-medium">Back</span>
                     </Link>
@@ -213,9 +233,19 @@ export default function DevPage() {
                                 <p className="opacity-60">No LocalStorage keys found.</p>}
 
                             {Object.entries(storage.local).map(([k, v]) => (
-                                <div key={k}
-                                     className="flex justify-between border-b py-1 truncate min-w-0 theme-border">
-                                    <span className="truncate max-w-[75%]">{k}: {v}</span>
+                                <div
+                                    key={k}
+                                    className="flex justify-between items-center border-b py-1 gap-2 theme-border"
+                                >
+                                    <span className="truncate">{k}: {v}</span>
+
+                                    <button
+                                        onClick={() => deleteLocalStorageKey(k)}
+                                        title="Delete"
+                                        className="text-red-400 hover:text-red-300 p-1 rounded transition"
+                                    >
+                                        <Trash2 className="w-3.5 h-3.5"/>
+                                    </button>
                                 </div>
                             ))}
                         </div>
@@ -233,9 +263,22 @@ export default function DevPage() {
                                 <p className="opacity-60">No cookies found.</p>}
 
                             {Object.entries(storage.cookies).map(([k, v]) => (
-                                <div key={k}
-                                     className="border-b py-1 truncate max-w-full min-w-0 theme-border">{k}: {v}</div>
+                                <div
+                                    key={k}
+                                    className="flex justify-between items-center border-b py-1 gap-2 theme-border"
+                                >
+                                    <span className="truncate">{k}: {v}</span>
+
+                                    <button
+                                        onClick={() => deleteCookie(k)}
+                                        title="Delete"
+                                        className="text-red-400 hover:text-red-300 p-1 rounded transition"
+                                    >
+                                        <Trash2 className="w-3.5 h-3.5"/>
+                                    </button>
+                                </div>
                             ))}
+
                         </div>
                     </div>
 
@@ -322,7 +365,7 @@ export default function DevPage() {
                     </div>
 
                 </section>
-        }
+            }
             footer={
                 <>
                     <a href="/" className="truncate min-w-0 underline max-w-[40%]">
