@@ -9,7 +9,6 @@ from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from starlette.staticfiles import StaticFiles
 
-import db
 import tba_db as tba
 from endpoints import (
     admin,
@@ -20,6 +19,7 @@ from endpoints import (
     match_scouting,
     pit_scouting,
     push_notification,
+    cron,
 )
 
 
@@ -71,3 +71,4 @@ app.include_router(general.router)
 app.include_router(match_scouting.router)
 app.include_router(pit_scouting.router)
 app.include_router(push_notification.router)
+app.include_router(cron.router)

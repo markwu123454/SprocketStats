@@ -194,9 +194,10 @@ export function useAPI() {
 
 
     // --- Endpoint: GET /auth/verify ---
-    const verify = useCallback(async (): Promise<{
+    const checkSession = useCallback(async (): Promise<{
         success: boolean
         name: string
+        email: string
         permissions: {
             dev: boolean
             admin: boolean
@@ -212,6 +213,7 @@ export function useAPI() {
             if (!res.ok) return {
                 success: false,
                 name: "",
+                email: "",
                 permissions: {
                     dev: false,
                     admin: false,
@@ -225,6 +227,7 @@ export function useAPI() {
             return {
                 success: true,
                 name: json.name,
+                email: json.email,
                 permissions: json.permissions ?? {
                     dev: false,
                     admin: false,
@@ -236,6 +239,7 @@ export function useAPI() {
             return {
                 success: false,
                 name: "",
+                email: "",
                 permissions: {
                     dev: false,
                     admin: false,
@@ -244,8 +248,7 @@ export function useAPI() {
                 },
             }
         }
-    }, []) // <-- stable identity
-
+    }, [])
 
     // --- Endpoint: GET /admin/matches/active ---
     const getActiveMatches = async (): Promise<{
@@ -867,12 +870,23 @@ export function useAPI() {
         })
     }
 
+    // Example usage in your frontend code
+    async function savePushSettings(endpoint: string, settings: Record<string, boolean>) {
+        return await apiRequest<{ status: string }>("/push/selection", {
+            method: "PUT",
+            body: {
+                endpoint: endpoint,
+                settings: settings
+            }
+        });
+    }
 
     return {
         login,
         logout,
         getMetadata,
-        verify,
+        /** @deprecated Use checkSession() via useAuth instead */
+        verify: checkSession,
         ping,
         claimTeam,
         unclaimTeam,
@@ -901,5 +915,7 @@ export function useAPI() {
         addMeetingTimeBlock,
         deleteMeetingTimeBlock,
         subscribePushNotif,
+        savePushSettings,
+        checkSession,
     };
 }

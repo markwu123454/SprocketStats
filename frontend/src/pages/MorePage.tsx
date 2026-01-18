@@ -5,10 +5,23 @@ import {getSetting, getSettingSync, setSetting, type Settings} from "@/db/settin
 import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from "@/components/ui/select"
 import {Label} from "@/components/ui/label"
 import CardLayoutWrapper from "@/components/wrappers/CardLayoutWrapper.tsx"
+import {usePushNotifications} from "@/hooks/usePushNotifications.ts";
+
 
 export default function MorePage() {
     const navigate = useNavigate()
     const [theme, setThemeState] = useState<Settings["theme"]>(() => getSettingSync("theme"))
+
+    const {
+        register: registerPush,
+        canRegister,
+        isIOSBlocked,
+        status: pushStatus,
+    } = usePushNotifications()
+
+    const notificationsEnabled = pushStatus === "granted"
+    const pushPromptState = localStorage.getItem("push_prompt_state")
+    const pushGrantedPersisted = pushPromptState === "2"
 
     const [orientation, setOrientationState] = useState<Settings["field_orientation"]>(
         () => getSettingSync("field_orientation") ?? "0"
@@ -33,6 +46,25 @@ export default function MorePage() {
         setVisualAngle(a => a + dir * ROTATE_STEP)
     }
 
+    const [features, setFeatures] = useState({
+        attendance: getSettingSync("attendance") ?? false,
+        match_scouting: getSettingSync("match_scouting") ?? false,
+    })
+
+    useEffect(() => {
+        const load = async () => {
+            // ... existing load logic ...
+            const att = await getSetting("attendance")
+            const ms = await getSetting("match_scouting")
+
+            setFeatures({
+                attendance: !!att,
+                match_scouting: !!ms
+            })
+        }
+        void load()
+    }, [])
+
 
     // Load saved settings
     useEffect(() => {
@@ -40,6 +72,14 @@ export default function MorePage() {
             const t = await getSetting("theme")
             const f = await getSetting("field_orientation")
             const d = await getSetting("match_scouting_device_type")
+            const att = await getSetting("attendance")
+            const ms = await getSetting("match_scouting")
+
+            setFeatures({
+                attendance: !!att,
+                match_scouting: !!ms
+            })
+
 
             if (t) setThemeState(t)
             if (f) {
@@ -68,6 +108,15 @@ export default function MorePage() {
         root.classList.remove("theme-2026", "theme-2025", "theme-dark", "theme-light", "theme-3473")
         root.classList.add(`theme-${theme}`)
     }, [theme])
+    useEffect(() => {
+        void setSetting({
+            attendance: features.attendance,
+            match_scouting: features.match_scouting
+        })
+    }, [features])
+    const handleFeatureChange = (key: keyof typeof features, value: boolean) => {
+        setFeatures(prev => ({...prev, [key]: value}))
+    }
 
     return (
         <CardLayoutWrapper showLogo={false}>
@@ -239,7 +288,79 @@ export default function MorePage() {
                         </SelectContent>
                     </Select>
                 </div>
+                <hr className="my-6 theme-border"/>
 
+                <hr className="my-6 theme-border"/>
+
+                {/* Notification Settings */}
+                <div className="space-y-3">
+                    <h2 className="text-sm font-semibold uppercase tracking-wide theme-subtext-color">
+                        Notifications
+                    </h2>
+
+                    {!pushGrantedPersisted && (
+                        <div className="space-y-1">
+                            <button
+                                disabled={!canRegister || notificationsEnabled}
+                                onClick={async () => {
+                                    await registerPush()
+                                }}
+                                className={`w-full px-4 py-3 rounded-md border transition-all duration-200
+                theme-border theme-button-bg theme-text flex justify-between items-center
+                ${notificationsEnabled ? "opacity-50 cursor-not-allowed" : "hover:opacity-90"}
+            `}
+                            >
+            <span className="font-medium">
+                Enable Notifications
+            </span>
+                                <span className="text-xs uppercase font-bold">
+                {notificationsEnabled ? "Enabled" : "Disabled"}
+            </span>
+                            </button>
+
+                            {isIOSBlocked && !notificationsEnabled && (
+                                <p className="text-xs text-yellow-400">
+                                    On iOS, notifications require installing the app to your home screen.
+                                </p>
+                            )}
+                        </div>
+                    )}
+
+                    {/* Category Toggles */}
+                    <div className="grid grid-cols-1 gap-3 pt-2">
+                        <button
+                            disabled={!notificationsEnabled}
+                            onClick={() =>
+                                handleFeatureChange("attendance", !features.attendance)
+                            }
+                            className={`w-full px-4 py-3 rounded-md border transition-all duration-200
+                flex justify-between items-center theme-border theme-button-bg theme-text
+                ${notificationsEnabled ? "hover:opacity-90" : "opacity-40 cursor-not-allowed"}
+            `}
+                        >
+                            <span className="font-medium">Attendance Notifications</span>
+                            <span className="text-xs uppercase font-bold">
+                {features.attendance ? "On" : "Off"}
+            </span>
+                        </button>
+
+                        <button
+                            disabled={!notificationsEnabled}
+                            onClick={() =>
+                                handleFeatureChange("match_scouting", !features.match_scouting)
+                            }
+                            className={`w-full px-4 py-3 rounded-md border transition-all duration-200
+                flex justify-between items-center theme-border theme-button-bg theme-text
+                ${notificationsEnabled ? "hover:opacity-90" : "opacity-40 cursor-not-allowed"}
+            `}
+                        >
+                            <span className="font-medium">Match Scouting Notifications</span>
+                            <span className="text-xs uppercase font-bold">
+                {features.match_scouting ? "On" : "Off"}
+            </span>
+                        </button>
+                    </div>
+                </div>
             </div>
         </CardLayoutWrapper>
     )
