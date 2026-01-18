@@ -105,7 +105,7 @@ export default function MorePage() {
     // Apply theme class to root
     useEffect(() => {
         const root = document.documentElement
-        root.classList.remove("theme-2026", "theme-2025", "theme-dark", "theme-light", "theme-3473")
+        root.classList.remove("theme-2026", "theme-2025", "theme-dark", "theme-light", "theme-3473", "theme-968")
         root.classList.add(`theme-${theme}`)
     }, [theme])
     useEffect(() => {
@@ -192,7 +192,7 @@ export default function MorePage() {
                             className="rounded-md shadow-lg transition
                                    theme-border theme-button-bg"
                         >
-                            {["dark", "light", "2025", "2026", "3473"].map((val) => (
+                            {["dark", "light", "2025", "2026", "3473", "968"].map((val) => (
                                 <SelectItem
                                     key={val}
                                     value={val}
@@ -200,7 +200,9 @@ export default function MorePage() {
                                 >
                                     {val === "3473"
                                         ? "Team 3473 (Sprocket)"
-                                        : val.charAt(0).toUpperCase() + val.slice(1)}
+                                        : val === "968"
+                                            ? "Team 968 (RAWC)"
+                                            : val.charAt(0).toUpperCase() + val.slice(1)}
                                 </SelectItem>
                             ))}
                         </SelectContent>

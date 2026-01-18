@@ -2,7 +2,7 @@ import Dexie, {type Table} from "dexie"
 
 // 1. Typed settings object
 export type Settings = {
-    theme?: "dark" | "light" | "2025" | "2026" | "3473"
+    theme?: "dark" | "light" | "2025" | "2026" | "3473" | "968"
     field_orientation?: "0" | "90" | "180" | "270"
     match_scouting_device_type?: "mobile" | "tablet"
 } & Record<string, string | boolean | number | undefined>
