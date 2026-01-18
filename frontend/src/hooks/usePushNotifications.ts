@@ -43,16 +43,28 @@ export function usePushNotifications() {
             setPermission(perm)
 
             if (perm !== "granted") {
+                localStorage.setItem("push_prompt_state", "3")
                 setStatus("denied")
                 return
             }
 
             const registration = await registerServiceWorker()
 
+            const existing = await registration.pushManager.getSubscription()
+
+            const currentKey = import.meta.env.VITE_VAPID_KEY
+            const storedKey = localStorage.getItem("vapid_public_key")
+
+            if (existing && storedKey !== currentKey) {
+                await existing.unsubscribe()
+            }
+
             const subscription = await subscribeToPush(
                 registration,
-                import.meta.env.VITE_VAPID_KEY
+                currentKey
             )
+
+            localStorage.setItem("vapid_public_key", currentKey)
 
             await subscribePushNotif({
                 subscription,
@@ -63,6 +75,7 @@ export function usePushNotifications() {
                 isIOSPWA: env.isIOSPWA,
             })
 
+            localStorage.setItem("push_prompt_state", "2")
             setStatus("granted")
         } catch (err) {
             console.error("Push registration failed", err)

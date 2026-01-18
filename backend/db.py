@@ -2361,6 +2361,36 @@ async def update_push_subscription(
     finally:
         await release_db_connection(pool, conn)
 
+async def fetch_push_subscriptions_for_setting(
+    *,
+    setting_key: str,
+    setting_value: bool = True,
+) -> list[dict]:
+    """
+    Fetch enabled push subscriptions that opted into a given setting.
+    """
+
+    pool, conn = await get_db_connection(DB_NAME)
+    try:
+        rows = await conn.fetch(
+            """
+            SELECT
+                endpoint,
+                p256dh,
+                auth
+            FROM push_notif
+            WHERE enabled = true
+              AND settings ->> $1 = $2
+            """,
+            setting_key,
+            "true" if setting_value else "false",
+        )
+
+        return [dict(row) for row in rows]
+
+    finally:
+        await release_db_connection(pool, conn)
+
 
 
 # =================== Data ===================

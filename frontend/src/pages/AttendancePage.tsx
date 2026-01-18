@@ -7,6 +7,7 @@ import {HeaderFooterLayoutWrapper} from "@/components/wrappers/HeaderFooterLayou
 import {Link} from "react-router-dom"
 import {useClientEnvironment} from "@/hooks/useClientEnvironment.ts";
 import useFeatureFlags from "@/hooks/useFeatureFlags.ts";
+import {useAuth} from "@/hooks/useAuth.ts";
 
 type AttendanceRow = {
     email: string
@@ -50,12 +51,10 @@ function shouldShowJoke(): boolean {
 }
 
 export default function AttendancePage() {
-    const {getAttendance, getAttendanceStatus, checkin, checkout, verify} = useAPI()
-
+    const {getAttendance, getAttendanceStatus, checkin, checkout} = useAPI()
+    const {isAuthenticated, refresh} = useAuth()
     const {serverOnline, isOnline} = useClientEnvironment()
     const featureFlags = useFeatureFlags()
-
-    const [isLoggedIn, setIsLoggedIn] = useState(false)
 
     const [rows, setRows] = useState<AttendanceRow[]>([])
     const [loading, setLoading] = useState(false)
@@ -82,20 +81,11 @@ export default function AttendancePage() {
     }, [getAttendance])
 
     useEffect(() => {
-        const runVerify = async () => {
-            try {
-                const res = await verify()
-                setIsLoggedIn(Boolean(res?.success))
-            } catch {
-                setIsLoggedIn(false)
-            }
-        }
-
-        void runVerify()
-    }, [verify])
+        void refresh()
+    }, [refresh])
 
     const pollOnce = useCallback(async () => {
-        if (inFlightRef.current) return
+        if (!isAuthenticated || inFlightRef.current) return
         inFlightRef.current = true
 
         try {
@@ -124,13 +114,11 @@ export default function AttendancePage() {
         } finally {
             inFlightRef.current = false
         }
-    }, [getAttendanceStatus])
+    }, [getAttendanceStatus, isAuthenticated])
 
     useEffect(() => {
-        // run immediately
         void pollOnce()
 
-        // then every 5 seconds — one timer, no duplication
         timerRef.current = window.setInterval(pollOnce, 5000)
 
         return () => {
@@ -139,6 +127,7 @@ export default function AttendancePage() {
                 timerRef.current = null
             }
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [])
 
     const statusMessage = useMemo<{
@@ -146,22 +135,22 @@ export default function AttendancePage() {
         className: string
     } | null>(() => {
         // 1. Action results
-        if (isLoggedIn && status === "in") {
+        if (isAuthenticated && status === "in") {
             return {text: "Checked in", className: "text-green-600"}
         }
 
-        if (isLoggedIn && status === "out") {
+        if (isAuthenticated && status === "out") {
             return {text: "Checked out", className: "text-blue-600"}
         }
 
-        if (isLoggedIn && status === "joke") {
+        if (isAuthenticated && status === "joke") {
             return {
                 text: "Team Sprocket value your service. Attendance is expected tomorrow.",
                 className: "text-purple-600 font-semibold",
             }
         }
 
-        if (isLoggedIn && status === "error") {
+        if (isAuthenticated && status === "error") {
             return {text: "Update failed", className: "text-red-600"}
         }
 
@@ -181,7 +170,7 @@ export default function AttendancePage() {
         }
 
         // 3. Not logged in
-        if (!isLoggedIn) {
+        if (!isAuthenticated) {
             return {
                 text: "Login first to check in or out.",
                 className: "text-yellow-600",
@@ -199,7 +188,7 @@ export default function AttendancePage() {
                 className: "text-gray-500",
             }
     }, [
-        isLoggedIn,
+        isAuthenticated,
         status,
         isOnline,
         serverOnline,
@@ -321,7 +310,7 @@ export default function AttendancePage() {
                         {/* Action row */}
                         <div className="flex items-center gap-2">
                             <button
-                                disabled={loading || !isLoggedIn || isCheckedIn}
+                                disabled={loading || !isAuthenticated || isCheckedIn}
                                 onClick={handleCheckIn}
                                 className="flex items-center gap-2 px-3 py-1.5 rounded theme-button-bg theme-text hover:theme-button-hover disabled:opacity-30"
                             >
@@ -330,7 +319,7 @@ export default function AttendancePage() {
                             </button>
 
                             <button
-                                disabled={loading || !isLoggedIn || !isCheckedIn}
+                                disabled={loading || !isAuthenticated || !isCheckedIn}
                                 onClick={handleCheckOut}
                                 className="flex items-center gap-2 px-3 py-1.5 rounded theme-button-bg theme-text hover:theme-button-hover disabled:opacity-30"
                             >
@@ -344,7 +333,7 @@ export default function AttendancePage() {
                             {statusMessage && (
                                 <span className={statusMessage.className}>
                                     {statusMessage.text}
-                                    {!isLoggedIn && (
+                                    {!isAuthenticated && (
                                         <>
                                             {" "}
                                             <Link to="/" className="underline hover:opacity-80">
