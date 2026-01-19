@@ -1,5 +1,5 @@
 import {ArrowLeft, Check, X} from "lucide-react"
-import {useCallback, useEffect, useMemo, useRef, useState} from "react"
+import React, {useCallback, useEffect, useMemo, useRef, useState} from "react"
 import {useAPI} from "@/hooks/useAPI"
 import {AgGridReact} from "ag-grid-react"
 import {type ColDef, themeQuartz} from "ag-grid-community"
@@ -8,6 +8,7 @@ import {Link} from "react-router-dom"
 import {useClientEnvironment} from "@/hooks/useClientEnvironment.ts";
 import useFeatureFlags from "@/hooks/useFeatureFlags.ts";
 import {useAuth} from "@/hooks/useAuth.ts";
+import {QRCodeScanner} from "@/components/ui/QRCodeScanner.tsx";
 
 type AttendanceRow = {
     email: string
@@ -17,37 +18,33 @@ type AttendanceRow = {
     isCheckedIn: boolean
 }
 
-const JOKE_STORAGE_KEY = "attendance_joke_cooldown"
-const JOKE_COOLDOWN_COUNT = 50
-const JOKE_PROBABILITY = 400
+function getLocation(): Promise<{
+    latitude: number
+    longitude: number
+    accuracy: number
+} | null> {
+    return new Promise(resolve => {
+        if (!navigator.geolocation) {
+            resolve(null)
+            return
+        }
 
-function getJokeCooldown(): number {
-    const raw = localStorage.getItem(JOKE_STORAGE_KEY)
-    const parsed = Number(raw)
-    return Number.isFinite(parsed) && parsed > 0 ? parsed : 0
-}
-
-function setJokeCooldown(value: number) {
-    if (value <= 0) {
-        localStorage.removeItem(JOKE_STORAGE_KEY)
-    } else {
-        localStorage.setItem(JOKE_STORAGE_KEY, String(value))
-    }
-}
-
-function shouldShowJoke(): boolean {
-    const cooldown = getJokeCooldown()
-    if (cooldown > 0) {
-        setJokeCooldown(cooldown - 1)
-        return false
-    }
-
-    const hit = Math.floor(Math.random() * JOKE_PROBABILITY) === 0
-    if (hit) {
-        setJokeCooldown(JOKE_COOLDOWN_COUNT)
-    }
-
-    return hit
+        navigator.geolocation.getCurrentPosition(
+            pos => {
+                resolve({
+                    latitude: pos.coords.latitude,
+                    longitude: pos.coords.longitude,
+                    accuracy: pos.coords.accuracy,
+                })
+            },
+            () => resolve(null),
+            {
+                enableHighAccuracy: false,
+                timeout: 3000,
+                maximumAge: 30_000,
+            }
+        )
+    })
 }
 
 export default function AttendancePage() {
@@ -58,6 +55,13 @@ export default function AttendancePage() {
 
     const [rows, setRows] = useState<AttendanceRow[]>([])
     const [loading, setLoading] = useState(false)
+    const [scanning, setScanning] = useState(false)
+    const [scanMode, setScanMode] = useState<"checkin" | "checkout" | null>(null)
+    const locationPromiseRef = useRef<Promise<{
+        latitude: number
+        longitude: number
+        accuracy: number
+    } | null> | null>(null)
     const [status, setStatus] = useState<
         null | "in" | "out" | "error" | "joke"
     >(null)
@@ -133,7 +137,8 @@ export default function AttendancePage() {
     const statusMessage = useMemo<{
         text: string
         className: string
-    } | null>(() => {
+    } | null>
+    (() => {
         // 1. Action results
         if (isAuthenticated && status === "in") {
             return {text: "Checked in", className: "text-green-600"}
@@ -203,45 +208,70 @@ export default function AttendancePage() {
 
     /* ---------------- actions ---------------- */
 
-    const handleCheckIn = async () => {
-        try {
-            setLoading(true)
-
-            const res = await checkin()
-
-            if (res?.status === "checked_in") {
-                setStatus("in")
-                await pollOnce()   // update grid
-            } else {
-                setStatus("error")
-            }
-        } catch {
-            setStatus("error")
-        } finally {
-            setLoading(false)
-        }
+    const handleCheckIn = () => {
+        locationPromiseRef.current = getLocation()
+        setScanMode("checkin")
+        setScanning(true)
     }
 
-    const handleCheckOut = async () => {
+    const handleCheckOut = () => {
+        locationPromiseRef.current = getLocation()
+        setScanMode("checkout")
+        setScanning(true)
+    }
+
+    const handleScanResult = async (qrToken: string) => {
+        if (loading || !scanMode) return
+
         try {
             setLoading(true)
+            setScanning(false)
 
-            const res = await checkout()
+            const location =
+                (await locationPromiseRef.current) ?? null
 
-            if (res?.status === "checked_out") {
-                if (shouldShowJoke()) {
-                    setStatus("joke")
+            locationPromiseRef.current = null
+
+            if (scanMode === "checkin") {
+                const res = await checkin({
+                    qrToken,
+                    location: location ?? {
+                        latitude: 0,
+                        longitude: 0,
+                        accuracy: Infinity,
+                    },
+                })
+
+                if (res?.status === "checked_in") {
+                    setStatus("in")
+                    await pollOnce()
                 } else {
-                    setStatus("out")
+                    setStatus("error")
                 }
-                await pollOnce()
-            } else {
-                setStatus("error")
+            }
+
+            if (scanMode === "checkout") {
+                const res = await checkout({
+                    qrToken,
+                    location: location ?? {
+                        latitude: 0,
+                        longitude: 0,
+                        accuracy: Infinity,
+                    },
+                })
+
+                if (res?.status === "checked_out") {
+                    setStatus("out")
+                    await pollOnce()
+                } else {
+                    setStatus("error")
+                }
             }
         } catch {
             setStatus("error")
         } finally {
             setLoading(false)
+            setScanMode(null)
         }
     }
 
@@ -286,79 +316,120 @@ export default function AttendancePage() {
         return cols
     }, [featureFlags.showAttendanceTimeForComp])
 
+
     /* ---------------- render ---------------- */
 
     return (
-        <HeaderFooterLayoutWrapper
-            header={
-                <div className="flex items-center gap-4 text-xl theme-text w-full">
-                    <Link
-                        to="/more"
-                        className="flex items-center p-2 rounded-md theme-button-bg hover:theme-button-hover"
-                    >
-                        <ArrowLeft className="h-5 w-5"/>
-                    </Link>
-                    <span>Attendance</span>
-                </div>
-            }
-            body={
-                <div className="w-full h-full flex flex-col gap-3">
+        <>
+            {scanning && scanMode ? (
+                <ScannerView
+                    mode={scanMode}
+                    onResult={handleScanResult}
+                    onCancel={() => {
+                        setScanning(false)
+                        setScanMode(null)
+                    }}
+                />
+            ) : <HeaderFooterLayoutWrapper
+                header={
+                    <div className="flex items-center gap-4 text-xl theme-text w-full">
+                        <Link
+                            to="/more"
+                            className="flex items-center p-2 rounded-md theme-button-bg hover:theme-button-hover"
+                        >
+                            <ArrowLeft className="h-5 w-5"/>
+                        </Link>
+                        <span>Attendance</span>
+                    </div>
+                }
+                body={
+                    <div className="w-full h-full flex flex-col gap-3">
 
-                    {/* Action bar */}
-                    <div className="flex flex-col gap-2 p-3 rounded-md shadow theme-bg theme-border">
+                        {/* Action bar */}
+                        <div className="flex flex-col gap-2 p-3 rounded-md shadow theme-bg theme-border">
 
-                        {/* Action row */}
-                        <div className="flex items-center gap-2">
-                            <button
-                                disabled={loading || !isAuthenticated || isCheckedIn}
-                                onClick={handleCheckIn}
-                                className="flex items-center gap-2 px-3 py-1.5 rounded theme-button-bg theme-text hover:theme-button-hover disabled:opacity-30"
-                            >
-                                <Check size={16}/>
-                                Check In
-                            </button>
+                            {/* Action row */}
+                            <div className="flex items-center gap-2">
+                                <button
+                                    disabled={loading || !isAuthenticated || isCheckedIn}
+                                    onClick={handleCheckIn}
+                                    className="flex items-center gap-2 px-3 py-1.5 rounded theme-button-bg theme-text hover:theme-button-hover disabled:opacity-30"
+                                >
+                                    <Check size={16}/>
+                                    Check In
+                                </button>
 
-                            <button
-                                disabled={loading || !isAuthenticated || !isCheckedIn}
-                                onClick={handleCheckOut}
-                                className="flex items-center gap-2 px-3 py-1.5 rounded theme-button-bg theme-text hover:theme-button-hover disabled:opacity-30"
-                            >
-                                <X size={16}/>
-                                Check Out
-                            </button>
-                        </div>
+                                <button
+                                    disabled={loading || !isAuthenticated || !isCheckedIn}
+                                    onClick={handleCheckOut}
+                                    className="flex items-center gap-2 px-3 py-1.5 rounded theme-button-bg theme-text hover:theme-button-hover disabled:opacity-30"
+                                >
+                                    <X size={16}/>
+                                    Check Out
+                                </button>
+                            </div>
 
-                        {/* Unified status row */}
-                        <div className="text-sm font-medium min-h-5">
-                            {statusMessage && (
-                                <span className={statusMessage.className}>
+                            {/* Unified status row */}
+                            <div className="text-sm font-medium min-h-5">
+                                {statusMessage && (
+                                    <span className={statusMessage.className}>
                                     {statusMessage.text}
-                                    {!isAuthenticated && (
-                                        <>
-                                            {" "}
-                                            <Link to="/" className="underline hover:opacity-80">
-                                                Go to login
-                                            </Link>
-                                        </>
-                                    )}
+                                        {!isAuthenticated && (
+                                            <>
+                                                {" "}
+                                                <Link to="/" className="underline hover:opacity-80">
+                                                    Go to login
+                                                </Link>
+                                            </>
+                                        )}
                                 </span>
-                            )}
+                                )}
+                            </div>
+                        </div>
+
+                        <div className="flex-1 rounded-md shadow theme-bg theme-border">
+                            <AgGridReact
+                                theme={themeQuartz}
+                                rowData={rows}
+                                columnDefs={columnDefs}
+                                rowHeight={42}
+                                animateRows
+
+                                getRowId={params => params.data.email}
+                            />
                         </div>
                     </div>
-
-                    <div className="flex-1 rounded-md shadow theme-bg theme-border">
-                        <AgGridReact
-                            theme={themeQuartz}
-                            rowData={rows}
-                            columnDefs={columnDefs}
-                            rowHeight={42}
-                            animateRows
-
-                            getRowId={params => params.data.email}
-                        />
-                    </div>
-                </div>
-            }
-        />
+                }
+            />}
+        </>
     )
 }
+
+const ScannerView = React.memo(function ScannerView({
+                                                            mode,
+                                                            onResult,
+                                                            onCancel,
+                                                        }: {
+        mode: "checkin" | "checkout"
+        onResult: (token: string) => void
+        onCancel: () => void
+    }) {
+        return (
+            <div className="fixed inset-0 z-50 theme-bg p-4">
+                <div className="text-sm mb-2">
+                    {mode === "checkin"
+                        ? "Scan check-in QR"
+                        : "Scan check-out QR"}
+                </div>
+
+                <QRCodeScanner onResult={onResult}/>
+
+                <button
+                    className="mt-3 underline text-sm"
+                    onClick={onCancel}
+                >
+                    Cancel
+                </button>
+            </div>
+        )
+    })

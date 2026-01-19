@@ -796,22 +796,45 @@ export function useAPI() {
     }
 
     // --- POST /attendance/checkin ---
-    const checkin = async (): Promise<{
-        status: "checked_in"
-    } | null> => {
+    const checkin = async (
+        payload: {
+            location: {
+                latitude: number
+                longitude: number
+                accuracy: number
+            }
+            qrToken: string
+        }
+    ): Promise<{ status: "checked_in" } | null> => {
         return await apiRequest("/attendance/checkin", {
             method: "POST",
+            body: JSON.stringify(payload),
+            headers: {
+                "Content-Type": "application/json",
+            },
         })
     }
 
-    // --- POST /attendance/checkout ---
-    const checkout = async (): Promise<{
-        status: "checked_out"
-    } | null> => {
+// --- POST /attendance/checkout ---
+    const checkout = async (
+        payload: {
+            location: {
+                latitude: number
+                longitude: number
+                accuracy: number
+            }
+            qrToken: string
+        }
+    ): Promise<{ status: "checked_out" } | null> => {
         return await apiRequest("/attendance/checkout", {
             method: "POST",
+            body: JSON.stringify(payload),
+            headers: {
+                "Content-Type": "application/json",
+            },
         })
     }
+
 
     // --- GET /attendance/status ---
     const getAttendanceStatus = async (): Promise<{

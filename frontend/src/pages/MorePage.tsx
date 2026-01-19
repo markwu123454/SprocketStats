@@ -358,11 +358,20 @@ export default function MorePage() {
                         >
                             <span className="font-medium">Match Scouting Notifications</span>
                             <span className="text-xs uppercase font-bold">
-                {features.match_scouting ? "On" : "Off"}
-            </span>
+                                {features.match_scouting ? "On" : "Off"}
+                            </span>
                         </button>
                     </div>
                 </div>
+            </div>
+            {/* Privacy Policy */}
+            <div className="mt-8 text-center">
+                <Link
+                    to="/privacy-policy"
+                    className="text-xs theme-subtext-color hover:underline"
+                >
+                    Privacy Policy
+                </Link>
             </div>
         </CardLayoutWrapper>
     )
