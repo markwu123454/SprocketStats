@@ -2401,6 +2401,7 @@ async def fetch_push_subscriptions_for_setting(
         rows = await conn.fetch(
             """
             SELECT
+                email,
                 endpoint,
                 p256dh,
                 auth
