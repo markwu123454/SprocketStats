@@ -1,10 +1,18 @@
-self.addEventListener("install", () => {
-    self.skipWaiting();
-});
+import {precacheAndRoute} from "workbox-precaching";
+import {clientsClaim} from "workbox-core";
 
-self.addEventListener("activate", () => {
-    self.clients.claim();
-});
+self.skipWaiting();
+clientsClaim();
+
+// REQUIRED — injected at build time
+precacheAndRoute(self.__WB_MANIFEST);
+
+registerRoute(
+    ({request}) => request.mode === "navigate",
+    new NetworkFirst({
+        cacheName: "html-cache",
+    })
+);
 
 self.addEventListener("push", event => {
     let data = {};

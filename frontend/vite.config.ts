@@ -10,13 +10,12 @@ export default defineConfig({
         tailwindcss(),
 
         VitePWA({
-            registerType: "autoUpdate",
+            strategies: "injectManifest",
 
-            includeAssets: [
-                "favicon.ico",
-                "robots.txt",
-                "apple-touch-icon.png",
-            ],
+            srcDir: "src",
+            filename: "sw.js",
+
+            registerType: "autoUpdate",
 
             manifest: {
                 name: "Sprocketstats",
@@ -31,60 +30,6 @@ export default defineConfig({
                     {src: "/pwa/sprocket_logo_256.png", sizes: "256x256", type: "image/png"},
                     {src: "/pwa/sprocket_logo_512.png", sizes: "512x512", type: "image/png"},
                 ],
-            },
-
-            workbox: {
-                maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
-                skipWaiting: true,
-                clientsClaim: true,
-
-                globPatterns: [
-                    "**/*.webmanifest",
-                    "**/*.png",
-                    "**/*.svg",
-                    "**/*.ico",
-                ],
-
-                globIgnores: ["sw.js", "workbox-*.js"],
-
-                runtimeCaching: [
-                    {
-                        urlPattern: ({request}) =>
-                            request.destination === "script" ||
-                            request.destination === "style",
-                        handler: "StaleWhileRevalidate",
-                        options: {
-                            cacheName: "assets-cache-v26.0.2",
-                        },
-                    },
-
-                    {
-                        urlPattern: ({request}) => request.destination === "image",
-                        handler: "CacheFirst",
-                        options: {
-                            cacheName: "images-cache-v26.0.2",
-                            expiration: {
-                                maxEntries: 100,
-                                maxAgeSeconds: 60 * 60 * 24 * 2,
-                            },
-                        },
-                    },
-
-                    {
-                        urlPattern: ({request}) => request.mode === "navigate",
-                        handler: "NetworkFirst",
-                        options: {
-                            cacheName: "html-cache-v26.0.2",
-                            networkTimeoutSeconds: 10,
-                            expiration: {
-                                maxEntries: 10,
-                                maxAgeSeconds: 60 * 5,
-                            },
-                        },
-                    },
-                ],
-
-                cleanupOutdatedCaches: true,
             },
 
             injectRegister: "auto",
