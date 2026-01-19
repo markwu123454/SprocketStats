@@ -7,23 +7,32 @@ self.addEventListener("activate", () => {
 });
 
 self.addEventListener("push", event => {
-    const data = event.data?.json() ?? {};
+    let data = {};
 
-    const title = data.title ?? "Notification";
+    try {
+        data = event.data ? event.data.json() : {};
+    } catch (err) {
+        console.error("Invalid push payload", err);
+        data = {};
+    }
+
+    const title = data.title || "Notification";
     const options = {
-        body: data.body ?? "",
+        body: data.body || "",
         icon: "/pwa/sprocket_logo_192.png",
         badge: "/pwa/sprocket_logo_128.png",
-        tag: data.tag ?? "default",
+        tag: data.tag || "default",
         data: {
-            url: data.url ?? "/",
+            url: data.url || "/",
         },
+        requireInteraction: true, // important
     };
 
     event.waitUntil(
         self.registration.showNotification(title, options)
     );
 });
+
 
 self.addEventListener("notificationclick", event => {
     event.notification.close();
