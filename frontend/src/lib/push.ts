@@ -9,9 +9,6 @@ export async function subscribeToPush(
     registration: ServiceWorkerRegistration,
     vapidKey: string
 ) {
-    const existing = await registration.pushManager.getSubscription();
-    if (existing) return existing;
-
     return registration.pushManager.subscribe({
         userVisibleOnly: true,
         applicationServerKey: urlBase64ToUint8Array(vapidKey),

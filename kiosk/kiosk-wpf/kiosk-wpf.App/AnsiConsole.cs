@@ -8,7 +8,7 @@ public sealed class AnsiConsole
     private readonly List<ConsoleLine> _lines = new();
 
     private MediaColor _currentColor = MediaColor.FromRgb(255, 255, 255);
-    private int _cursorLineOffset;
+    private int _cursorRow; // 0-based index into _lines
 
     private static readonly Dictionary<int, MediaColor> AnsiColors = new()
     {
@@ -37,20 +37,18 @@ public sealed class AnsiConsole
     {
         Parse(text);
     }
-
-    public void Clear()
-    {
-        _lines.Clear();
-        _cursorLineOffset = 0;
-        _currentColor = MediaColor.FromRgb(255, 255, 255);
-    }
+    
+    private ConsoleLine CurrentLine => _lines[_cursorRow];
 
     private void Parse(string text)
     {
         if (_lines.Count == 0)
+        {
             _lines.Add(new ConsoleLine());
+            _cursorRow = 0;
+        }
 
-        var currentLine = _lines[^1];
+        var currentLine = CurrentLine;
         var buffer = new StringBuilder();
 
         void Flush()
@@ -102,22 +100,15 @@ public sealed class AnsiConsole
                     case 'A': // cursor up
                     {
                         int n = string.IsNullOrEmpty(code) ? 1 : int.Parse(code);
-                        _cursorLineOffset += n;
-                        _cursorLineOffset = Math.Min(_cursorLineOffset, _lines.Count - 1);
+                        _cursorRow = Math.Max(0, _cursorRow - n);
+                        currentLine = CurrentLine;
                         break;
                     }
 
                     case 'K': // erase line
                     {
-                        int index = _lines.Count - 1 - _cursorLineOffset;
-                        if (index >= 0 && index < _lines.Count)
-                        {
-                            _lines.RemoveAt(index);
-
-                            if (_cursorLineOffset > 0)
-                                _cursorLineOffset--;
-                        }
-
+                        CurrentLine.Spans.Clear();
+                        currentLine = CurrentLine;
                         break;
                     }
                 }
@@ -126,21 +117,21 @@ public sealed class AnsiConsole
                 continue;
             }
 
-            // newline
             if (c == '\n')
             {
                 Flush();
-                currentLine = new ConsoleLine();
-                _lines.Add(currentLine);
-                _cursorLineOffset = 0;
+                _cursorRow++;
+                if (_cursorRow == _lines.Count)
+                    _lines.Add(new ConsoleLine());
+                currentLine = _lines[_cursorRow];
                 continue;
             }
 
             if (c == '\r')
             {
                 Flush();
-                currentLine.Spans.Clear();
-                _cursorLineOffset = 0;
+                CurrentLine.Spans.Clear();
+                currentLine = CurrentLine;
                 continue;
             }
 

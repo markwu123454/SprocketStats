@@ -48,6 +48,7 @@ async def cron_attendance():
                 data=json.dumps(payload),
                 vapid_private_key=VAPID_PRIVATE_KEY,
                 vapid_claims={"sub": VAPID_SUBJECT},
+                ttl=60 * 60,
             )
             sent += 1
 
