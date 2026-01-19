@@ -6,6 +6,7 @@ import CardLayoutWrapper from "@/components/wrappers/CardLayoutWrapper.tsx"
 import useFeatureFlags from "@/hooks/useFeatureFlags.ts";
 import {usePushNotifications} from "@/hooks/usePushNotifications.ts";
 import {useAuth} from "@/hooks/useAuth.ts";
+import {useAPI} from "@/hooks/useAPI.ts";
 
 declare global {
     interface Window {
@@ -17,11 +18,19 @@ export default function HomePage() {
     const {name, permissions, error, isAuthenticated, isAuthenticating, isLoading, login, logout} = useAuth()
     const {isOnline, serverOnline} = useClientEnvironment()
     const featureFlags = useFeatureFlags()
-    const {register: registerPush, canRegister, isIOSBlocked, status: pushStatus} = usePushNotifications()
+    const {
+        register: registerPush,
+        canRegister,
+        isIOSBlocked,
+        status: pushStatus,
+        getSubscription
+    } = usePushNotifications()
+    const {savePushSettings} = useAPI()
 
     const googleDivRef = useRef<HTMLDivElement | null>(null)
     const [messageIndex, setMessageIndex] = useState<number | null>(null)
     const [showPushPrompt, setShowPushPrompt] = useState(false)
+    const [hasSubscription, setHasSubscription] = useState(false)
 
     const [theme] = useState<Settings["theme"]>(() => getSettingSync("theme"))
     const wakingUp = isOnline && !serverOnline
@@ -44,17 +53,34 @@ export default function HomePage() {
 
     const navigate = useNavigate()
 
+    const notificationsEnabled =
+        Notification.permission === "granted" && hasSubscription
+
+    useEffect(() => {
+        const hydrate = async () => {
+            if (Notification.permission !== "granted") {
+                setHasSubscription(false)
+                return
+            }
+
+            const sub = await getSubscription()
+            setHasSubscription(!!sub)
+        }
+
+        void hydrate()
+    }, [])
+
     useEffect(() => {
         if (isLoading) return
         if (!isAuthenticated) return
         if (!canRegister) return
-        if (pushStatus === "granted") return
+        if (notificationsEnabled) return
 
         const dismissed = localStorage.getItem("push_prompt_state")
         if (dismissed) return
 
         setShowPushPrompt(true)
-    }, [isLoading, isAuthenticated, canRegister, pushStatus])
+    }, [isLoading, isAuthenticated, canRegister, notificationsEnabled])
 
     // Render Google Sign-In button
     const renderGoogleButton = () => {
@@ -159,7 +185,8 @@ export default function HomePage() {
                 <div className="flex flex-col items-center space-y-2 min-h-17">
                     {loadingMessage ? (
                         <div className="flex flex-col items-center space-y-2">
-                            <div className="h-6 w-6 rounded-full border-2 border-zinc-300/30 border-t-zinc-400 animate-spin"/>
+                            <div
+                                className="h-6 w-6 rounded-full border-2 border-zinc-300/30 border-t-zinc-400 animate-spin"/>
                             <p className="text-sm theme-subtext-color">
                                 {loadingMessage}
                             </p>
@@ -302,6 +329,18 @@ export default function HomePage() {
                                 className="text-xs px-3 py-1.5 rounded theme-button-bg font-medium"
                                 onClick={async () => {
                                     await registerPush()
+
+                                    const sub = await getSubscription()
+                                    setHasSubscription(!!sub)
+
+                                    if (sub) {
+                                        // optional but recommended
+                                        await savePushSettings(sub.endpoint, {
+                                            attendance: Boolean(getSettingSync("attendance")),
+                                            match_scouting: Boolean(getSettingSync("match_scouting")),
+                                        })
+                                    }
+
                                     localStorage.setItem("push_prompt_state", "1")
                                     setShowPushPrompt(false)
                                 }}

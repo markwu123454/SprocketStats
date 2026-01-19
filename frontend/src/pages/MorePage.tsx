@@ -6,22 +6,20 @@ import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from "@/c
 import {Label} from "@/components/ui/label"
 import CardLayoutWrapper from "@/components/wrappers/CardLayoutWrapper.tsx"
 import {usePushNotifications} from "@/hooks/usePushNotifications.ts";
+import {useAPI} from "@/hooks/useAPI.ts";
 
 
 export default function MorePage() {
     const navigate = useNavigate()
     const [theme, setThemeState] = useState<Settings["theme"]>(() => getSettingSync("theme"))
+    const {savePushSettings} = useAPI()
 
     const {
         register: registerPush,
         canRegister,
         isIOSBlocked,
-        status: pushStatus,
+        getSubscription,
     } = usePushNotifications()
-
-    const notificationsEnabled = pushStatus === "granted"
-    const pushPromptState = localStorage.getItem("push_prompt_state")
-    const pushGrantedPersisted = pushPromptState === "2"
 
     const [orientation, setOrientationState] = useState<Settings["field_orientation"]>(
         () => getSettingSync("field_orientation") ?? "0"
@@ -35,6 +33,13 @@ export default function MorePage() {
         () => getSettingSync("match_scouting_device_type") ?? "mobile"
     )
 
+    const [features, setFeatures] = useState({
+        attendance: Boolean(getSettingSync("attendance")),
+        match_scouting: Boolean(getSettingSync("match_scouting")),
+    })
+
+    const [hasSubscription, setHasSubscription] = useState(false)
+
     const ROTATE_STEP = 180  // temporary
 
     const rotate = (dir: 1 | -1) => {
@@ -46,10 +51,22 @@ export default function MorePage() {
         setVisualAngle(a => a + dir * ROTATE_STEP)
     }
 
-    const [features, setFeatures] = useState({
-        attendance: getSettingSync("attendance") ?? false,
-        match_scouting: getSettingSync("match_scouting") ?? false,
-    })
+    useEffect(() => {
+        const hydrate = async () => {
+            if (Notification.permission !== "granted") {
+                setHasSubscription(false)
+                return
+            }
+
+            const sub = await getSubscription()
+            setHasSubscription(!!sub)
+        }
+
+        void hydrate()
+    }, [])
+
+    const notificationsEnabled =
+        Notification.permission === "granted" && hasSubscription
 
     useEffect(() => {
         const load = async () => {
@@ -114,9 +131,21 @@ export default function MorePage() {
             match_scouting: features.match_scouting
         })
     }, [features])
-    const handleFeatureChange = (key: keyof typeof features, value: boolean) => {
-        setFeatures(prev => ({...prev, [key]: value}))
+
+    const handleFeatureChange = async (key, value) => {
+        const next = {...features, [key]: value}
+        setFeatures(next)
+
+        void setSetting(next)
+
+        if (!notificationsEnabled) return
+
+        const sub = await getSubscription()
+        if (!sub) return
+
+        await savePushSettings(sub.endpoint, next)
     }
+
 
     return (
         <CardLayoutWrapper showLogo={false}>
@@ -169,7 +198,7 @@ export default function MorePage() {
             {/* Settings Section */}
             <div className="space-y-4">
                 <h2 className="text-sm font-semibold uppercase tracking-wide theme-subtext-color">
-                    Settings
+                    Scouting Settings
                 </h2>
 
                 {/* Theme Selection */}
@@ -292,20 +321,26 @@ export default function MorePage() {
                 </div>
                 <hr className="my-6 theme-border"/>
 
-                <hr className="my-6 theme-border"/>
-
                 {/* Notification Settings */}
                 <div className="space-y-3">
                     <h2 className="text-sm font-semibold uppercase tracking-wide theme-subtext-color">
                         Notifications
                     </h2>
 
-                    {!pushGrantedPersisted && (
+                    {!notificationsEnabled && (
                         <div className="space-y-1">
                             <button
                                 disabled={!canRegister || notificationsEnabled}
                                 onClick={async () => {
                                     await registerPush()
+
+                                    const sub = await getSubscription()
+                                    const hasSub = !!sub
+                                    setHasSubscription(hasSub)
+
+                                    if (hasSub && sub) {
+                                        await savePushSettings(sub.endpoint, features)
+                                    }
                                 }}
                                 className={`w-full px-4 py-3 rounded-md border transition-all duration-200
                 theme-border theme-button-bg theme-text flex justify-between items-center

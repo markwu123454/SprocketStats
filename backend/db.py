@@ -2135,6 +2135,32 @@ async def get_meeting_time_events() -> list[dict]:
     finally:
         await release_db_connection(pool, conn)
 
+WINDOW = timedelta(minutes=7, seconds=30)
+
+def is_near(now: datetime, target: datetime) -> bool:
+    return abs(now - target) <= WINDOW
+
+async def get_current_meeting_times() -> dict | None:
+    """
+    Returns {'start': datetime, 'end': datetime} or None.
+    Uses existing get_meeting_time_events().
+    """
+    events = await get_meeting_time_events()
+
+    start = None
+    end = None
+
+    for e in events:
+        if e["action"] == "checkin":
+            start = e["time"]
+        elif e["action"] == "checkout":
+            end = e["time"]
+
+    if not start or not end:
+        return None
+
+    return {"start": start, "end": end}
+
 async def add_meeting_time_block(start: datetime, end: datetime) -> None:
     """
     Atomically inserts a meeting time checkin + checkout pair.

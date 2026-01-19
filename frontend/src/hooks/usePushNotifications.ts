@@ -83,11 +83,19 @@ export function usePushNotifications() {
         }
     }
 
+    const getSubscription = async (): Promise<PushSubscription | null> => {
+        if (!("serviceWorker" in navigator)) return null
+        const reg = await navigator.serviceWorker.ready
+        return reg.pushManager.getSubscription()
+    }
+
+
     return {
         register,
         permission,
         status,
         canRegister,
         isIOSBlocked,
+        getSubscription,
     }
 }
