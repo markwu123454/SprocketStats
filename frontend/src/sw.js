@@ -1,5 +1,7 @@
 import {precacheAndRoute} from "workbox-precaching";
 import {clientsClaim} from "workbox-core";
+import {registerRoute} from "workbox-routing";
+import {NetworkFirst} from "workbox-strategies";
 
 self.skipWaiting();
 clientsClaim();

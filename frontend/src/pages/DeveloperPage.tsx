@@ -6,16 +6,48 @@ import ReactJsonView from "@microlink/react-json-view";
 import {getSetting, getSettingSync, type Settings} from "@/db/settingsDb.ts";
 import {HeaderFooterLayoutWrapper} from "@/components/wrappers/HeaderFooterLayoutWrapper.tsx";
 
+type DevMetadata = {
+    current_event: string;
+    feature_flags: {
+        offlineScouting: boolean;
+        pushNotificationWarning: boolean;
+    };
+};
+
+type VersionInfo = {
+    NODE_ENV?: string;
+    VERCEL_ENV?: string;
+    VERCEL_REGION?: string;
+    VERCEL_URL?: string;
+    VERCEL_IS_PREVIEW?: boolean;
+    VERCEL_GIT_COMMIT_REF?: string;
+    VERCEL_GIT_COMMIT_SHA_SHORT?: string;
+    VERCEL_GIT_COMMIT_AUTHOR_NAME?: string;
+    VERCEL_GIT_REPO_OWNER?: string;
+    VERCEL_GIT_REPO_SLUG?: string;
+    VERCEL_PROJECT_ID?: string;
+    VERCEL_DEPLOYMENT_ID?: string;
+    VERCEL_GIT_PROVIDER?: string;
+    BUILD_TIME?: string;
+    DEPLOY_TIME?: string;
+    VERCEL_RUNTIME?: string;
+    VERCEL_CONFIG_FILE?: string;
+};
+
+type IndexedDbPreview = Record<string, Record<string, unknown[]>>;
+
+
 export default function DevPage() {
     const {getMetadata, getLatency} = useAPI();
 
     const PLACEHOLDER = "—";
 
+
     const [storage, setStorage] = useState({
         local: {} as Record<string, string>,
         cookies: {} as Record<string, string>,
-        dexiePreview: {} as Record<string, any>,
-        tables: {} as Record<string, number>,
+        dexiePreview: {} as IndexedDbPreview,
+        tables: {} as Record<string, number>, // keep counts only
     });
 
     const [latency, setLatency] = useState({
@@ -26,10 +58,11 @@ export default function DevPage() {
         dbDownload: PLACEHOLDER,
     });
 
-    const [version, setVersion] = useState<Record<string, any>>({});
-    const [devMetadata, setDevMetadata] = useState<Record<string, any>>({});
+    const [version, setVersion] = useState<VersionInfo>({});
+    const [devMetadata, setDevMetadata] = useState<DevMetadata | null>(null);
     const [eventNames, setEventNames] = useState<Record<string, { full: string; short: string }>>({});
     const [theme, setThemeState] = useState<Settings["theme"]>(() => getSettingSync("theme"))
+    const [swInfo, setSwInfo] = useState<Record<string, unknown> | null>(null);
 
     const inspectIndexedDB = async () => {
         const dbs = await indexedDB.databases();
@@ -71,6 +104,11 @@ export default function DevPage() {
         setStorage(prev => ({...prev, dexiePreview: preview}));
         setStorage(prev => ({...prev, tables: counts}));
         setStorage(prev => ({...prev, tables: counts}));
+    };
+
+    const updateServiceWorker = async () => {
+        const reg = await navigator.serviceWorker.getRegistration();
+        await reg?.update();
     };
 
     const testLatency = async () => {
@@ -163,9 +201,11 @@ export default function DevPage() {
 
             try {
                 const meta = await getMetadata();
-                setDevMetadata(meta);
-                setStorage(prev => ({...prev, tables: meta.kpis ?? {},}));
-            } catch {
+                if (meta) {
+                    setDevMetadata(meta);
+                }
+            } catch (err) {
+                console.warn("Failed to load dev metadata", err);
             }
 
             const nameRes = await fetch("/teams/event_names.json");
@@ -174,6 +214,50 @@ export default function DevPage() {
             void inspectIndexedDB();
         })();
     }, []);
+
+    const inspectServiceWorker = async () => {
+        if (!("serviceWorker" in navigator)) {
+            setSwInfo({error: "Service workers not supported"});
+            return;
+        }
+
+        try {
+            const reg = await navigator.serviceWorker.getRegistration();
+
+            if (!reg) {
+                setSwInfo({status: "No service worker registered"});
+                return;
+            }
+
+            const sub = await reg.pushManager.getSubscription();
+
+            setSwInfo({
+                scope: reg.scope,
+                scriptURL:
+                    reg.active?.scriptURL ||
+                    reg.waiting?.scriptURL ||
+                    reg.installing?.scriptURL ||
+                    null,
+
+                state: {
+                    active: reg.active?.state ?? null,
+                    waiting: reg.waiting?.state ?? null,
+                    installing: reg.installing?.state ?? null,
+                },
+
+                controller: !!navigator.serviceWorker.controller,
+
+                pushSubscription: sub
+                    ? {
+                        endpoint: sub.endpoint,
+                        keys: sub.toJSON().keys,
+                    }
+                    : null,
+            });
+        } catch (err) {
+            setSwInfo({error: String(err)});
+        }
+    };
 
     const deleteLocalStorageKey = (key: string) => {
         window.localStorage.removeItem(key);
@@ -208,12 +292,16 @@ export default function DevPage() {
                     <div className="flex-1 text-center min-w-0">
                         <p className="text-lg font-bold">Developer Dashboard</p>
                         <p className="text-xs opacity-70 truncate">
-                            Active Event: {eventNames?.[devMetadata["current_event"]]?.full ?? "-"}
+                            Active Event: {
+                            devMetadata
+                                ? eventNames?.[devMetadata.current_event]?.full ?? "-"
+                                : "-"
+                        }
                         </p>
                     </div>
 
                     <div className="text-xs opacity-70 text-right whitespace-nowrap shrink-0">
-                        Event Key: {devMetadata.current_event ?? PLACEHOLDER}
+                        Event Key: {devMetadata?.current_event ?? PLACEHOLDER}
                     </div>
                 </>
             }
@@ -312,6 +400,46 @@ export default function DevPage() {
                             )}
 
                         </div>
+                    </div>
+
+                    {/* SERVICE WORKER CARD */}
+                    <div className="border rounded-xl p-4 theme-bg theme-border">
+                        <h3 className="text-xs font-semibold uppercase opacity-70">
+                            Service Worker
+                        </h3>
+
+                        <button
+                            onClick={inspectServiceWorker}
+                            className="w-full p-3 border rounded-xl text-xs mt-2 transition hover:bg-white/10 theme-border"
+                        >
+                            Inspect Service Worker
+                        </button>
+
+                        <div className="mt-3 text-xs max-h-48 overflow-auto theme-scrollbar">
+                            {swInfo ? (
+                                <ReactJsonView
+                                    src={swInfo}
+                                    collapsed={2}
+                                    theme={
+                                        theme === "2025" || theme === "3473" || theme === "dark"
+                                            ? "harmonic"
+                                            : "rjv-default"
+                                    }
+                                    style={{backgroundColor: "transparent"}}
+                                    displayDataTypes={false}
+                                    enableClipboard={false}
+                                />
+                            ) : (
+                                <p className="opacity-60">No data loaded.</p>
+                            )}
+                        </div>
+
+                        <button
+                            onClick={updateServiceWorker}
+                            className="w-full p-3 border rounded-xl text-xs mt-2 transition hover:bg-white/10 theme-border"
+                        >
+                            Force SW Update
+                        </button>
                     </div>
 
                     {/* NETWORK LATENCY CARD */}

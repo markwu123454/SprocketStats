@@ -32,10 +32,15 @@ export default defineConfig({
                 ],
             },
 
+            injectManifest: {
+                maximumFileSizeToCacheInBytes: 10 * 1024 * 1024, // 10 MB
+            },
+
             injectRegister: "auto",
 
             devOptions: {
                 enabled: false,
+                type: "module",
             },
         })
     ],
