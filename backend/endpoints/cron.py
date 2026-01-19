@@ -48,15 +48,15 @@ async def cron_attendance():
             # Near meeting start → only if NOT checked in
             if db.is_near(now, meeting["start"]) and not checked_in:
                 payload = {
-                    "title": "Meeting Starting",
-                    "body": "The meeting is about to start. Please check in.",
+                    "title": "Team Sprocket meeting starting",
+                    "body": "The meeting is about to start. Please check in if you're attending it.",
                     "url": "/attendance",
                 }
 
             # Near meeting end → only if STILL checked in
             elif db.is_near(now, meeting["end"]) and checked_in:
                 payload = {
-                    "title": "Meeting Ending",
+                    "title": "Team Sprocket meeting ending",
                     "body": "The meeting is ending soon. Please check out.",
                     "url": "/attendance",
                 }
