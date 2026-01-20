@@ -1,11 +1,12 @@
 from collections import defaultdict
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
-
-from fastapi import APIRouter, HTTPException, Response
-from pywebpush import webpush, WebPushException
+import asyncio
 import json
 import os
+
+from fastapi import APIRouter, Response
+from pywebpush import webpush, WebPushException
 
 import db
 
@@ -14,6 +15,35 @@ router = APIRouter()
 VAPID_PRIVATE_KEY = os.getenv("VAPID_PRIVATE_KEY")
 VAPID_PUBLIC_KEY = os.getenv("VAPID_PUBLIC_KEY")
 VAPID_SUBJECT = os.getenv("VAPID_SUBJECT", "mailto:admin@example.com")
+
+
+async def send_webpush(email: str, sub: dict, payload: dict) -> tuple[bool, bool]:
+    """
+    Returns:
+        (sent, should_disable_subscription)
+    """
+    try:
+        await asyncio.to_thread(
+            webpush,
+            subscription_info={
+                "endpoint": sub["endpoint"],
+                "keys": {
+                    "p256dh": sub["p256dh"],
+                    "auth": sub["auth"],
+                },
+            },
+            data=json.dumps(payload),
+            vapid_private_key=VAPID_PRIVATE_KEY,
+            vapid_claims={"sub": VAPID_SUBJECT},
+            ttl=60 * 60,
+        )
+        return True, False
+
+    except WebPushException as e:
+        disable = bool(
+            e.response and e.response.status_code in (404, 410)
+        )
+        return False, disable
 
 
 @router.get("/cron/attendance")
@@ -29,10 +59,10 @@ async def cron_attendance():
     if not meeting:
         return Response(
             content=(
-                f"Meeting attendance reminder run complete\n"
-                f"Sent: 0\n"
-                f"Failed: 0\n"
-                f"No meeting boundaries available"
+                "Meeting attendance reminder run complete\n"
+                "Sent: 0\n"
+                "Failed: 0\n"
+                "No meeting boundaries available"
             ),
             media_type="text/plain",
         )
@@ -50,13 +80,11 @@ async def cron_attendance():
             "meeting_end": meeting["end"],
         }
 
-    # Group subscriptions by user (email)
     subs_by_email: dict[str, list[dict]] = defaultdict(list)
     for sub in subs:
         subs_by_email[sub["email"]].append(sub)
 
-    sent = 0
-    failed = 0
+    tasks: list[asyncio.Task] = []
 
     for email, devices in subs_by_email.items():
         checked_in = await db.is_user_currently_checked_in(
@@ -66,7 +94,6 @@ async def cron_attendance():
 
         payload = None
 
-        # Near meeting start → only if NOT checked in
         if db.is_near(now, meeting["start"]) and not checked_in:
             payload = {
                 "title": "Team Sprocket meeting starting",
@@ -74,7 +101,6 @@ async def cron_attendance():
                 "url": "/attendance",
             }
 
-        # Near meeting end → only if STILL checked in
         elif db.is_near(now, meeting["end"]) and checked_in:
             payload = {
                 "title": "Team Sprocket meeting ending",
@@ -86,41 +112,42 @@ async def cron_attendance():
             continue
 
         for sub in devices:
-            try:
-                webpush(
-                    subscription_info={
-                        "endpoint": sub["endpoint"],
-                        "keys": {
-                            "p256dh": sub["p256dh"],
-                            "auth": sub["auth"],
-                        },
-                    },
-                    data=json.dumps(payload),
-                    vapid_private_key=VAPID_PRIVATE_KEY,
-                    vapid_claims={"sub": VAPID_SUBJECT},
-                    ttl=60 * 60,
-                )
-                sent += 1
+            tasks.append(
+                asyncio.create_task(send_webpush(email, sub, payload))
+            )
 
-            except WebPushException as e:
-                failed += 1
+    results = await asyncio.gather(*tasks, return_exceptions=False)
 
-                # Clean up dead subscriptions
-                if e.response and e.response.status_code in (404, 410):
-                    await db.update_push_subscription(
+    sent = 0
+    failed = 0
+
+    cleanup_tasks = []
+
+    for (success, disable), task in zip(results, tasks):
+        if success:
+            sent += 1
+        else:
+            failed += 1
+            if disable:
+                email, sub, _ = task.get_coro().cr_frame.f_locals.values()
+                cleanup_tasks.append(
+                    db.update_push_subscription(
                         email=email,
                         endpoint=sub["endpoint"],
                         updates={"enabled": False},
                     )
+                )
+
+    if cleanup_tasks:
+        await asyncio.gather(*cleanup_tasks)
 
     la_tz = ZoneInfo("America/Los_Angeles")
-
     start_la = meeting["start"].astimezone(la_tz)
     end_la = meeting["end"].astimezone(la_tz)
 
     return Response(
         content=(
-            f"Meeting attendance reminder run complete\n"
+            "Meeting attendance reminder run complete\n"
             f"Sent: {sent}\n"
             f"Failed: {failed}\n"
             f"Meeting start (LA): {start_la.strftime('%Y-%m-%d %I:%M %p %Z')}\n"
@@ -128,4 +155,3 @@ async def cron_attendance():
         ),
         media_type="text/plain",
     )
-

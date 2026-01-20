@@ -2135,7 +2135,7 @@ async def get_meeting_time_events() -> list[dict]:
     finally:
         await release_db_connection(pool, conn)
 
-WINDOW = timedelta(minutes=7, seconds=30)
+WINDOW = timedelta(minutes=5)
 
 def is_near(now: datetime, target: datetime) -> bool:
     return abs(now - target) <= WINDOW
