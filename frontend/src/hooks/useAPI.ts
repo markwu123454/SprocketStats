@@ -797,7 +797,7 @@ export function useAPI() {
 
     // --- POST /attendance/checkin ---
     const checkin = async (
-        payload: {
+        payload?: {
             location: {
                 latitude: number
                 longitude: number
@@ -808,7 +808,7 @@ export function useAPI() {
     ): Promise<{ status: "checked_in" } | null> => {
         return await apiRequest("/attendance/checkin", {
             method: "POST",
-            body: JSON.stringify(payload),
+            body: payload,
             headers: {
                 "Content-Type": "application/json",
             },
@@ -817,7 +817,7 @@ export function useAPI() {
 
 // --- POST /attendance/checkout ---
     const checkout = async (
-        payload: {
+        payload?: {
             location: {
                 latitude: number
                 longitude: number
@@ -828,7 +828,7 @@ export function useAPI() {
     ): Promise<{ status: "checked_out" } | null> => {
         return await apiRequest("/attendance/checkout", {
             method: "POST",
-            body: JSON.stringify(payload),
+            body: payload,
             headers: {
                 "Content-Type": "application/json",
             },

@@ -10,6 +10,8 @@ import useFeatureFlags from "@/hooks/useFeatureFlags.ts";
 import {useAuth} from "@/hooks/useAuth.ts";
 import {QRCodeScanner} from "@/components/ui/QRCodeScanner.tsx";
 
+const ENABLE_QR_AND_GEO = false // set false to bypass QR + geolocation
+
 type AttendanceRow = {
     email: string
     name: string | null
@@ -208,13 +210,23 @@ export default function AttendancePage() {
 
     /* ---------------- actions ---------------- */
 
-    const handleCheckIn = () => {
+    const handleCheckIn = async () => {
+        if (!ENABLE_QR_AND_GEO) {
+            await submitAttendance("checkin")
+            return
+        }
+
         locationPromiseRef.current = getLocation()
         setScanMode("checkin")
         setScanning(true)
     }
 
-    const handleCheckOut = () => {
+    const handleCheckOut = async () => {
+        if (!ENABLE_QR_AND_GEO) {
+            await submitAttendance("checkout")
+            return
+        }
+
         locationPromiseRef.current = getLocation()
         setScanMode("checkout")
         setScanning(true)
@@ -222,26 +234,31 @@ export default function AttendancePage() {
 
     const handleScanResult = async (qrToken: string) => {
         if (loading || !scanMode) return
+        setScanning(false)
+        await submitAttendance(scanMode, qrToken)
+    }
 
+    const submitAttendance = async (
+        mode: "checkin" | "checkout",
+        qrToken?: string
+    ) => {
         try {
             setLoading(true)
-            setScanning(false)
 
-            const location =
-                (await locationPromiseRef.current) ?? null
+            const location = ENABLE_QR_AND_GEO
+                ? (await locationPromiseRef.current) ?? {
+                latitude: 0,
+                longitude: 0,
+                accuracy: Infinity,
+            }
+                : {
+                    latitude: 0,
+                    longitude: 0,
+                    accuracy: Infinity,
+                }
 
-            locationPromiseRef.current = null
-
-            if (scanMode === "checkin") {
-                const res = await checkin({
-                    qrToken,
-                    location: location ?? {
-                        latitude: 0,
-                        longitude: 0,
-                        accuracy: Infinity,
-                    },
-                })
-
+            if (mode === "checkin") {
+                const res = await checkin({qrToken, location})
                 if (res?.status === "checked_in") {
                     setStatus("in")
                     await pollOnce()
@@ -250,16 +267,8 @@ export default function AttendancePage() {
                 }
             }
 
-            if (scanMode === "checkout") {
-                const res = await checkout({
-                    qrToken,
-                    location: location ?? {
-                        latitude: 0,
-                        longitude: 0,
-                        accuracy: Infinity,
-                    },
-                })
-
+            if (mode === "checkout") {
+                const res = await checkout({qrToken, location})
                 if (res?.status === "checked_out") {
                     setStatus("out")
                     await pollOnce()
@@ -406,30 +415,30 @@ export default function AttendancePage() {
 }
 
 const ScannerView = React.memo(function ScannerView({
-                                                            mode,
-                                                            onResult,
-                                                            onCancel,
-                                                        }: {
-        mode: "checkin" | "checkout"
-        onResult: (token: string) => void
-        onCancel: () => void
-    }) {
-        return (
-            <div className="fixed inset-0 z-50 theme-bg p-4">
-                <div className="text-sm mb-2">
-                    {mode === "checkin"
-                        ? "Scan check-in QR"
-                        : "Scan check-out QR"}
-                </div>
-
-                <QRCodeScanner onResult={onResult}/>
-
-                <button
-                    className="mt-3 underline text-sm"
-                    onClick={onCancel}
-                >
-                    Cancel
-                </button>
+                                                        mode,
+                                                        onResult,
+                                                        onCancel,
+                                                    }: {
+    mode: "checkin" | "checkout"
+    onResult: (token: string) => void
+    onCancel: () => void
+}) {
+    return (
+        <div className="fixed inset-0 z-50 theme-bg p-4">
+            <div className="text-sm mb-2">
+                {mode === "checkin"
+                    ? "Scan check-in QR"
+                    : "Scan check-out QR"}
             </div>
-        )
-    })
+
+            <QRCodeScanner onResult={onResult}/>
+
+            <button
+                className="mt-3 underline text-sm"
+                onClick={onCancel}
+            >
+                Cancel
+            </button>
+        </div>
+    )
+})
