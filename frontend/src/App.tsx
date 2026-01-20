@@ -26,6 +26,7 @@ import MatchDataPredPage from "@/pages/data/MatchDataPredPage.tsx";
 import CountdownPage from "@/pages/CountdownPage.tsx";
 import AttendancePage from "@/pages/AttendancePage.tsx";
 import MeetingSchedulePage from "@/pages/MeetingSchedulePage.tsx";
+import PrivacyPolicyPage from "@/pages/PrivacyPolicyPage.tsx";
 
 export default function App() {
     return (
@@ -44,6 +45,9 @@ export default function App() {
                         <Route path="/countdown" element={<CountdownPage/>}/>
 
                         <Route path="/attendance" element={<AttendancePage/>}/>
+
+                        <Route path="/privacy-policy" element={<PrivacyPolicyPage/>}/>
+
 
                         <Route path="/scouting/match" element={
                             <AuthWrapper permission="match_scouting" device="mobile">
