@@ -2140,7 +2140,7 @@ WINDOW = timedelta(minutes=7, seconds=30)
 def is_near(now: datetime, target: datetime) -> bool:
     return abs(now - target) <= WINDOW
 
-async def get_current_meeting_times() -> dict | None:
+async def get_latest_meeting_boundaries() -> dict | None:
     """
     Returns {'start': datetime, 'end': datetime} or None.
     Uses existing get_meeting_time_events().

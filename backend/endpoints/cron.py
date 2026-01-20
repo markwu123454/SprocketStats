@@ -25,9 +25,17 @@ async def cron_attendance():
 
     now = datetime.now(timezone.utc)
 
-    meeting = await db.get_current_meeting_times()
+    meeting = await db.get_latest_meeting_boundaries()
     if not meeting:
-        raise HTTPException(status_code=500, detail="Meeting times not configured")
+        return Response(
+            content=(
+                f"Meeting attendance reminder run complete\n"
+                f"Sent: 0\n"
+                f"Failed: 0\n"
+                f"No meeting boundaries available"
+            ),
+            media_type="text/plain",
+        )
 
     subs = await db.fetch_push_subscriptions_for_setting(
         setting_key="attendance",
