@@ -1,6 +1,8 @@
 from collections import defaultdict
 from datetime import datetime, timezone
-from fastapi import APIRouter, HTTPException
+from zoneinfo import ZoneInfo
+
+from fastapi import APIRouter, HTTPException, Response
 from pywebpush import webpush, WebPushException
 import json
 import os
@@ -103,9 +105,19 @@ async def cron_attendance():
                         updates={"enabled": False},
                     )
 
-    return {
-        "sent": sent,
-        "failed": failed,
-        "meeting_start": meeting["start"],
-        "meeting_end": meeting["end"],
-    }
+    la_tz = ZoneInfo("America/Los_Angeles")
+
+    start_la = meeting["start"].astimezone(la_tz)
+    end_la = meeting["end"].astimezone(la_tz)
+
+    return Response(
+        content=(
+            f"Meeting attendance reminder run complete\n"
+            f"Sent: {sent}\n"
+            f"Failed: {failed}\n"
+            f"Meeting start (LA): {start_la.strftime('%Y-%m-%d %I:%M %p %Z')}\n"
+            f"Meeting end   (LA): {end_la.strftime('%Y-%m-%d %I:%M %p %Z')}\n"
+        ),
+        media_type="text/plain",
+    )
+
