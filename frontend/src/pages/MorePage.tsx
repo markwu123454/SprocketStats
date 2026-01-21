@@ -5,10 +5,21 @@ import {getSetting, getSettingSync, setSetting, type Settings} from "@/db/settin
 import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from "@/components/ui/select"
 import {Label} from "@/components/ui/label"
 import CardLayoutWrapper from "@/components/wrappers/CardLayoutWrapper.tsx"
+import {usePushNotifications} from "@/hooks/usePushNotifications.ts";
+import {useAPI} from "@/hooks/useAPI.ts";
+
 
 export default function MorePage() {
     const navigate = useNavigate()
     const [theme, setThemeState] = useState<Settings["theme"]>(() => getSettingSync("theme"))
+    const {savePushSettings} = useAPI()
+
+    const {
+        register: registerPush,
+        canRegister,
+        isIOSBlocked,
+        getSubscription,
+    } = usePushNotifications()
 
     const [orientation, setOrientationState] = useState<Settings["field_orientation"]>(
         () => getSettingSync("field_orientation") ?? "0"
@@ -22,6 +33,13 @@ export default function MorePage() {
         () => getSettingSync("match_scouting_device_type") ?? "mobile"
     )
 
+    const [features, setFeatures] = useState({
+        attendance: Boolean(getSettingSync("attendance")),
+        match_scouting: Boolean(getSettingSync("match_scouting")),
+    })
+
+    const [hasSubscription, setHasSubscription] = useState(false)
+
     const ROTATE_STEP = 180  // temporary
 
     const rotate = (dir: 1 | -1) => {
@@ -33,6 +51,37 @@ export default function MorePage() {
         setVisualAngle(a => a + dir * ROTATE_STEP)
     }
 
+    useEffect(() => {
+        const hydrate = async () => {
+            if (Notification.permission !== "granted") {
+                setHasSubscription(false)
+                return
+            }
+
+            const sub = await getSubscription()
+            setHasSubscription(!!sub)
+        }
+
+        void hydrate()
+    }, [])
+
+    const notificationsEnabled =
+        Notification.permission === "granted" && hasSubscription
+
+    useEffect(() => {
+        const load = async () => {
+            // ... existing load logic ...
+            const att = await getSetting("attendance")
+            const ms = await getSetting("match_scouting")
+
+            setFeatures({
+                attendance: !!att,
+                match_scouting: !!ms
+            })
+        }
+        void load()
+    }, [])
+
 
     // Load saved settings
     useEffect(() => {
@@ -40,6 +89,14 @@ export default function MorePage() {
             const t = await getSetting("theme")
             const f = await getSetting("field_orientation")
             const d = await getSetting("match_scouting_device_type")
+            const att = await getSetting("attendance")
+            const ms = await getSetting("match_scouting")
+
+            setFeatures({
+                attendance: !!att,
+                match_scouting: !!ms
+            })
+
 
             if (t) setThemeState(t)
             if (f) {
@@ -65,9 +122,30 @@ export default function MorePage() {
     // Apply theme class to root
     useEffect(() => {
         const root = document.documentElement
-        root.classList.remove("theme-2026", "theme-2025", "theme-dark", "theme-light", "theme-3473")
+        root.classList.remove("theme-2026", "theme-2025", "theme-dark", "theme-light", "theme-3473", "theme-968")
         root.classList.add(`theme-${theme}`)
     }, [theme])
+    useEffect(() => {
+        void setSetting({
+            attendance: features.attendance,
+            match_scouting: features.match_scouting
+        })
+    }, [features])
+
+    const handleFeatureChange = async (key, value) => {
+        const next = {...features, [key]: value}
+        setFeatures(next)
+
+        void setSetting(next)
+
+        if (!notificationsEnabled) return
+
+        const sub = await getSubscription()
+        if (!sub) return
+
+        await savePushSettings(sub.endpoint, next)
+    }
+
 
     return (
         <CardLayoutWrapper showLogo={false}>
@@ -120,7 +198,7 @@ export default function MorePage() {
             {/* Settings Section */}
             <div className="space-y-4">
                 <h2 className="text-sm font-semibold uppercase tracking-wide theme-subtext-color">
-                    Settings
+                    Scouting Settings
                 </h2>
 
                 {/* Theme Selection */}
@@ -143,7 +221,7 @@ export default function MorePage() {
                             className="rounded-md shadow-lg transition
                                    theme-border theme-button-bg"
                         >
-                            {["dark", "light", "2025", "2026", "3473"].map((val) => (
+                            {["dark", "light", "2025", "2026", "3473", "968"].map((val) => (
                                 <SelectItem
                                     key={val}
                                     value={val}
@@ -151,7 +229,9 @@ export default function MorePage() {
                                 >
                                     {val === "3473"
                                         ? "Team 3473 (Sprocket)"
-                                        : val.charAt(0).toUpperCase() + val.slice(1)}
+                                        : val === "968"
+                                            ? "Team 968 (RAWC)"
+                                            : val.charAt(0).toUpperCase() + val.slice(1)}
                                 </SelectItem>
                             ))}
                         </SelectContent>
@@ -239,7 +319,94 @@ export default function MorePage() {
                         </SelectContent>
                     </Select>
                 </div>
+                <hr className="my-6 theme-border"/>
 
+                {/* Notification Settings */}
+                <div className="space-y-3">
+                    <h2 className="text-sm font-semibold uppercase tracking-wide theme-subtext-color">
+                        Notifications
+                    </h2>
+
+                    {!notificationsEnabled && (
+                        <div className="space-y-1">
+                            <button
+                                disabled={!canRegister || notificationsEnabled}
+                                onClick={async () => {
+                                    await registerPush()
+
+                                    const sub = await getSubscription()
+                                    const hasSub = !!sub
+                                    setHasSubscription(hasSub)
+
+                                    if (hasSub && sub) {
+                                        await savePushSettings(sub.endpoint, features)
+                                    }
+                                }}
+                                className={`w-full px-4 py-3 rounded-md border transition-all duration-200
+                theme-border theme-button-bg theme-text flex justify-between items-center
+                ${notificationsEnabled ? "opacity-50 cursor-not-allowed" : "hover:opacity-90"}
+            `}
+                            >
+            <span className="font-medium">
+                Enable Notifications
+            </span>
+                                <span className="text-xs uppercase font-bold">
+                {notificationsEnabled ? "Enabled" : "Disabled"}
+            </span>
+                            </button>
+
+                            {isIOSBlocked && !notificationsEnabled && (
+                                <p className="text-xs text-yellow-400">
+                                    On iOS, notifications require installing the app to your home screen.
+                                </p>
+                            )}
+                        </div>
+                    )}
+
+                    {/* Category Toggles */}
+                    <div className="grid grid-cols-1 gap-3 pt-2">
+                        <button
+                            disabled={!notificationsEnabled}
+                            onClick={() =>
+                                handleFeatureChange("attendance", !features.attendance)
+                            }
+                            className={`w-full px-4 py-3 rounded-md border transition-all duration-200
+                flex justify-between items-center theme-border theme-button-bg theme-text
+                ${notificationsEnabled ? "hover:opacity-90" : "opacity-40 cursor-not-allowed"}
+            `}
+                        >
+                            <span className="font-medium">Attendance Notifications</span>
+                            <span className="text-xs uppercase font-bold">
+                {features.attendance ? "On" : "Off"}
+            </span>
+                        </button>
+
+                        <button
+                            disabled={!notificationsEnabled}
+                            onClick={() =>
+                                handleFeatureChange("match_scouting", !features.match_scouting)
+                            }
+                            className={`w-full px-4 py-3 rounded-md border transition-all duration-200
+                flex justify-between items-center theme-border theme-button-bg theme-text
+                ${notificationsEnabled ? "hover:opacity-90" : "opacity-40 cursor-not-allowed"}
+            `}
+                        >
+                            <span className="font-medium">Match Scouting Notifications</span>
+                            <span className="text-xs uppercase font-bold">
+                                {features.match_scouting ? "On" : "Off"}
+                            </span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+            {/* Privacy Policy */}
+            <div className="mt-8 text-center">
+                <Link
+                    to="/privacy-policy"
+                    className="text-xs theme-subtext-color hover:underline"
+                >
+                    Privacy Policy
+                </Link>
             </div>
         </CardLayoutWrapper>
     )

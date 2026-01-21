@@ -51,7 +51,7 @@ def main(mode):
         build_proc.wait()
         frontend_proc = run_process(
             "FRONTEND_SERVE",
-            ["npx", "serve", "dist", "-s", "--listen", "http://0.0.0.0:3000"],
+            ["npx", "serve", "dist", "-s", "--listen", "4173"],
             frontend_dir
         )
 

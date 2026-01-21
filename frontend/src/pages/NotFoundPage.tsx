@@ -1,4 +1,5 @@
 import {useMemo, useState, useRef, useLayoutEffect} from "react"
+import {Link} from "react-router-dom";
 
 interface NotFoundPageProps {
     code?: 403 | 404 | 501 | 503
@@ -106,12 +107,12 @@ export default function NotFoundPage({code = 404}: NotFoundPageProps) {
                     className="flex flex-col md:flex-row justify-between items-start md:items-center gap-y-2 mt-2"
                     style={paraWidth ? {width: paraWidth} : {}}
                 >
-                    <a
-                        href="/"
+                    <Link
+                        to="/"
                         className="text-base sm:text-lg font-medium transition-colors duration-200 hover:underline theme-text-contrast"
                     >
                         ← Back to home
-                    </a>
+                    </Link>
 
                     {/* button that randomizes what meme you'll get */}
                     <button

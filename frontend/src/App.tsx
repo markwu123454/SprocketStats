@@ -25,6 +25,8 @@ import AdminSharePage from "@/pages/AdminSharePage.tsx";
 import MatchDataPredPage from "@/pages/data/MatchDataPredPage.tsx";
 import CountdownPage from "@/pages/CountdownPage.tsx";
 import AttendancePage from "@/pages/AttendancePage.tsx";
+import MeetingSchedulePage from "@/pages/MeetingSchedulePage.tsx";
+import PrivacyPolicyPage from "@/pages/PrivacyPolicyPage.tsx";
 
 export default function App() {
     return (
@@ -36,13 +38,16 @@ export default function App() {
 
                         <Route path="/ping" element={<PingPage/>}/>
 
+                        <Route path="/more" element={<MorePage/>}/>
+
                         <Route path="/candy" element={<CandyDataPage/>}/>
 
                         <Route path="/countdown" element={<CountdownPage/>}/>
 
                         <Route path="/attendance" element={<AttendancePage/>}/>
 
-                        <Route path="/more" element={<MorePage/>}/>
+                        <Route path="/privacy-policy" element={<PrivacyPolicyPage/>}/>
+
 
                         <Route path="/scouting/match" element={
                             <AuthWrapper permission="match_scouting" device="mobile">
@@ -62,6 +67,7 @@ export default function App() {
                                 <Route path="monitor/*" element={<MatchMonitorPage/>}/>
                                 <Route path="assignment" element={<MatchAssignmentPage/>}/>
                                 <Route path="share" element={<AdminSharePage/>}/>
+                                <Route path="schedule" element={<MeetingSchedulePage/>}/>
                             </Route>
                         </Route>
 

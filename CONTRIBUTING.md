@@ -1,15 +1,17 @@
 # Developer Handbook
 
-This document serves as a concise guide for developers working on the FRC Scouting App — covering setup, infrastructure, and collaboration rules to ensure consistent, stable development.
+This document serves as a concise guide for developers working on the FRC Scouting App — covering setup, infrastructure,
+and collaboration rules to ensure consistent, stable development.
 
 > [!WARNING]
 > **Internal Development Documentation**
-> 
+>
 > If you wish to use this project or contribute to it, please contact the owner first.
 
 ---
 
 ## Table of Contents
+
 - [Development Setup](#development-setup)
 - [Project Structure](#project-structure)
 - [Environment Variables](#environment-variables)
@@ -25,6 +27,7 @@ This document serves as a concise guide for developers working on the FRC Scouti
 
 **Installation**
 Using Node.js v22 and Python v3.11
+
 ```bash
 cd frontend
 npm install
@@ -90,15 +93,17 @@ run.py → Unified runner for managing frontend + backend dev/prod modes
 Each developer must maintain a valid `.env` file at the project root.
 Sync with `.env.example` when new variables are added.
 
-| Variable                         | Description                            | Used By            | Example Value                                                    |
-|----------------------------------|----------------------------------------|--------------------|------------------------------------------------------------------|
-| `TBA_KEY`                        | The Blue Alliance API key              | Backend / Analysis | `abc123def4567890`                                               |
-| `DATABASE_URL`                   | Neon PostgreSQL connection URL         | Backend            | `postgresql://user:pass@ep-xyz123.us-west1.aws.neon.tech/neondb` |
-| `CORS_ORIGINS`                   | Allowed CORS origins (comma-separated) | Backend            | `https://sprocketstats.com,https://localhost:5173`               |
-| `GOOGLE_APPLICATION_CREDENTIALS` | GCS key                                | Backend            | `/etc/secrets/gcs.json`                                          |
-| `VITE_GOOGLE_CLIENT_ID`          | Google OAuth client ID                 | Frontend / Backend | `1234567890-abcdefghi.apps.googleusercontent.com`                |
-| `VITE_BACKEND_URL`               | Backend URL                            | Frontend           | `https://api.sprocketstats.com`                                  |
-
+| Variable                                    | Description                            | Used By            |
+|---------------------------------------------|----------------------------------------|--------------------|
+| `TBA_KEY`                                   | The Blue Alliance API key              | Backend / Analysis |
+| `DATABASE_URL`                              | Neon PostgreSQL connection URL         | Backend / Analysis |
+| `CORS_ORIGINS`                              | Allowed CORS origins (comma-separated) | Backend            |
+| `GOOGLE_APPLICATION_CREDENTIALS`            | GCS key                                | Backend            |
+| `VAPID_PRIVATE_KEY`                         | Push notification private key          | Backend            |
+| `VAPID_SUBJECT`                             | Push notification subject email        | Backend            |
+| `GOOGLE_CLIENT_ID`, `VITE_GOOGLE_CLIENT_ID` | Google OAuth client ID                 | Frontend / Backend |
+| `VAPID_PUBLIC_KEY`, `VITE_VAPID_KEY`        | Push notification public key           | Frontend / Backend |
+| `VITE_BACKEND_URL`                          | Backend URL                            | Frontend           |
 
 **Rules:**
 
@@ -112,13 +117,15 @@ Sync with `.env.example` when new variables are added.
 
 ## Infrastructure
 
-| Service                                                                            | Purpose                        | Development           | Production                                | Cost |
-|------------------------------------------------------------------------------------|--------------------------------|-----------------------|-------------------------------------------|------|
-| **[Vercel](https://vercel.com/)**                                                  | Frontend deployment (Vite)     | http://localhost:5173 | https://sprocketstats.vercel.app          | $0   |
-| **[Render](https://render.com/)**                                                  | Backend deployment (FastAPI)   | http://localhost:8000 | https://sprocketscoutingdemo.onrender.com | $0   |
-| **[Google Identity Services(GIS)](https://console.cloud.google.com/auth/clients)** | User login & identity          | —                     | —                                         | $0   |
-| **[Neon](https://neon.com/)**                                                      | PostgreSQL serverless database | —                     | —                                         | $0   |
-| **[Google Cloud Storage(GCS)](https://console.cloud.google.com/storage)**          | Unstructured file storage      | —                     | —                                         | $0   |
+| Service                                                                            | Purpose                         | Development           | Production                       | Cost |
+|------------------------------------------------------------------------------------|---------------------------------|-----------------------|----------------------------------|------|
+| **[Vercel](https://vercel.com/)**                                                  | Frontend deployment (Vite)      | http://localhost:5173 | https://www.sprocketstats.io/    | $0   |
+| **[Render](https://render.com/)**                                                  | Backend deployment (FastAPI)    | http://localhost:8000 | https://api.sprocketstats.io/    | $0   |
+| **[Google Identity Services(GIS)](https://console.cloud.google.com/auth/clients)** | User login & identity           | —                     | —                                | $0   |
+| **[Neon](https://neon.com/)**                                                      | PostgreSQL serverless database  | —                     | —                                | $0   |
+| **[Google Cloud Storage(GCS)](https://console.cloud.google.com/storage)**          | Unstructured file storage       | —                     | —                                | $0   |
+| **[Cron jobs](https://cron-jobs.org/)**                                            | Scheduling Cron jobs            | —                     | https://status.sprocketstats.io/ | $0   |
+| **[Cloudflare](https://cloudflare.com)**                                           | Domain registration and hosting | —                     | —                                | $0   |
 
 ---
 
@@ -171,7 +178,8 @@ All work must be done on separate branches — no direct commits to `main`.
 ## Analysis Releases
 
 The `analysis/` module is a standalone executable used for ELO, ML, and data-processing tasks.
-Unlike the frontend and backend, it is **not deployed automatically** — releases are built and uploaded manually to GitHub.
+Unlike the frontend and backend, it is **not deployed automatically** — releases are built and uploaded manually to
+GitHub.
 
 ### Build
 
@@ -179,7 +187,9 @@ Unlike the frontend and backend, it is **not deployed automatically** — releas
 cd analysis
 pyinstaller build.spec
 ```
-> If you add new dependencies (e.g. `matplotlib`, `scipy`), update both `requirements.txt` and the above PyInstaller command.
+
+> If you add new dependencies (e.g. `matplotlib`, `scipy`), update both `requirements.txt` and the above PyInstaller
+> command.
 **Output:**
 
 ```
@@ -191,7 +201,6 @@ Before building:
 1. Ensure dependencies are pinned in `analysis/requirements.txt`.
 2. Update the `__version__` constant in `analysis/main.py` (format: `v<year>.<major>.<minor>` → e.g. `v25.0.0`).
 3. Test the executable locally on a clean environment.
-
 
 ### Versioning Scheme
 
@@ -215,7 +224,6 @@ Before building:
    ```
 5. Upload `dist/sprocketstat-engine.exe` to GitHub.
 6. Click **“Publish release.”**
-
 
 ### Guidelines
 
@@ -245,21 +253,20 @@ frontend/ → React + Vite web client
 │ │ │ └── populate_teams.py → Change year number
 │ ├── src/ → Main source directory
 │ │ ├── components/ 
-│ │ │ └── seasons/ → Add new folder with year number
+│ │ │ ├── seasons/ → Add new folder with year number
+│ │ │ ├── wrappers/
+│ │ │ │ └── CardLayoutWrapper.tsx → Add new animated logo
 │ │ ├── contexts/
 │ │ │ └── themeProvider.tsx → Add new year theme
 │ │ ├── db/ → Local Dexie/IndexedDB interfaces
 │ │ │ └── settingsDb.ts → Add new year theme
 │ │ ├── pages/
-│ │ │ ├── HomePage.tsx → Add new year theme
-│ │ │ ├── MatchMonitorPage.tsx → Add new year theme
 │ │ │ ├── MatchScoutingPage.tsx → Update import
-│ │ │ ├── NotFoundPage.tsx → Add new year theme
-│ │ │ ├── NotFoundPage.tsx → Add new year theme
-│ │ │ └── Settings.tsx → Add new year theme
+│ │ │ ├── PitScoutingPage.tsx → Update import
+│ │ │ └── MorePage.tsx → Add new year theme
 │ │ ├── types/
 │ │ │ └── index.ts → Update import
-│ │ └── index.css → Add new tailwind variant
+│ │ └── index.css → Add new theme
 ```
 
 ### Season Rollover Checklist

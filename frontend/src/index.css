@@ -128,6 +128,7 @@
     }
 }
 
+
 :root.theme-light {
     --theme-bg: rgb(255 255 255 / 0.70);
     --theme-border: #d4d4d8;
@@ -202,6 +203,32 @@
     --scrollbar-track: transparent;
     --scrollbar-thumb: #6d28d9;
     --scrollbar-thumb-hover: #8b5cf6;
+}
+
+:root.theme-968 {
+    /* Core surfaces */
+    --theme-bg: rgba(153, 27, 27, 0.65);        /* deep red, softened */
+    --theme-border: #611515;                   /* darker red for structure */
+    --theme-bg-page: radial-gradient(
+        80% 110% at 10% 10%,
+        #7f1d1d,
+        #450a0a
+    );
+
+    /* Text */
+    --theme-text: #fefefe;                     /* warm white, not pure */
+    --theme-h1-color: #ffffff;
+    --theme-subtext-color: #fecaca;            /* pale red, softer contrast */
+    --theme-text-contrast: #fee2e2;            /* accents, links, highlights */
+
+    /* Buttons */
+    --theme-button-bg: #dc2626;                /* brand-forward red */
+    --theme-button-hover: #ef4444;             /* brighter, but brief */
+
+    /* Scrollbar */
+    --scrollbar-track: transparent;
+    --scrollbar-thumb: #991b1b;
+    --scrollbar-thumb-hover: #dc2626;
 }
 
 
@@ -296,3 +323,18 @@
     }
 }
 
+
+@keyframes slide-up {
+  from {
+    transform: translateY(16px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.animate-slide-up {
+  animation: slide-up 200ms ease-out;
+}

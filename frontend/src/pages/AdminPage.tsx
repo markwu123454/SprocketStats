@@ -1,6 +1,6 @@
 import {useEffect, useState} from "react";
 import {useAPI} from "@/hooks/useAPI.ts";
-import {useNavigate} from "react-router-dom";
+import {Link} from "react-router-dom";
 import {
     ArrowLeft,
     Monitor,
@@ -16,7 +16,6 @@ import {
 import {HeaderFooterLayoutWrapper} from "@/components/wrappers/HeaderFooterLayoutWrapper.tsx";
 
 export default function AdminPage() {
-    const navigate = useNavigate();
     const {getMetadata} = useAPI();
 
     // --- state ---
@@ -25,13 +24,6 @@ export default function AdminPage() {
     const [eventNames, setEventNames] = useState<Record<string, { full: string; short: string }>>({});
     const [selectedMatch, setSelectedMatch] = useState("");
     const [selectedTeam, setSelectedTeam] = useState("");
-
-    const [kpis, setKpis] = useState({
-        totalMatches: "—",
-        scouted: "—",
-        pending: "—",
-        currentMatch: "—",
-    });
 
     // --- effects ---
     useEffect(() => {
@@ -45,19 +37,11 @@ export default function AdminPage() {
     useEffect(() => {
         void (async () => {
             const meta = await getMetadata();
-            setMetadata(meta);
+            if (meta) setMetadata(meta);
 
             const nameRes = await fetch("/teams/event_names.json");
             setEventNames(await nameRes.json());
 
-            if (meta.kpis) {
-                setKpis({
-                    totalMatches: String(meta.kpis.total_matches ?? "—"),
-                    scouted: String(meta.kpis.scouted ?? "—"),
-                    pending: String(meta.kpis.pending ?? "—"),
-                    currentMatch: meta.kpis.current_match ?? "—",
-                });
-            }
         })();
     }, []);
 
@@ -65,13 +49,13 @@ export default function AdminPage() {
         <HeaderFooterLayoutWrapper
             header={
                 <>
-                    <button
-                        onClick={() => navigate("/")}
+                    <Link
+                        to="/"
                         className="flex items-center gap-2 hover:opacity-80 transition theme-subtext-color"
                     >
                         <ArrowLeft className="w-5 h-5"/>
                         <span className="text-sm font-medium">Back</span>
-                    </button>
+                    </Link>
 
                     <div className="flex-1 text-center">
                         <p className="text-lg font-bold">Admin Hub</p>
@@ -91,14 +75,48 @@ export default function AdminPage() {
                     {/* LEFT: ROUTING HUB */}
                     <section className="space-y-4">
 
-                        {/* Navigation Cards */}
-                        <div onClick={() => navigate("/admin/monitor")}
-                             className="p-4 rounded-xl border cursor-pointer shadow-md transition hover:scale-[1.02] active:scale-[0.98] backdrop-blur-sm theme-bg theme-border">
+                        {/* Core Admin Navigation */}
+                        <Link
+                            to="/admin/monitor"
+                            className="block p-4 rounded-xl border cursor-pointer shadow-md transition hover:scale-[1.02] active:scale-[0.98] backdrop-blur-sm theme-bg theme-border"
+                        >
                             <div className="flex items-center gap-3 font-semibold">
                                 <Monitor className="w-5 h-5"/>
                                 Match Monitoring
                             </div>
-                        </div>
+                        </Link>
+
+                        <Link
+                            to="/admin/assignment"
+                            className="block p-4 rounded-xl border cursor-pointer shadow-md transition hover:scale-[1.02] active:scale-[0.98] backdrop-blur-sm theme-bg theme-border"
+                        >
+                            <div className="flex items-center gap-3 font-semibold">
+                                <UsersRound className="w-5 h-5"/>
+                                Match assignment
+                            </div>
+                        </Link>
+
+                        <Link
+                            to="/admin/schedule"
+                            className="block p-4 rounded-xl border cursor-pointer shadow-md transition hover:scale-[1.02] active:scale-[0.98] backdrop-blur-sm theme-bg theme-border"
+                        >
+                            <div className="flex items-center gap-3 font-semibold">
+                                <Users className="w-5 h-5"/>
+                                Attendance & Meetings
+                            </div>
+                        </Link>
+
+                        <Link
+                            to="/admin/share"
+                            className="block p-4 rounded-xl border cursor-pointer shadow-md transition hover:scale-[1.02] active:scale-[0.98] backdrop-blur-sm theme-bg theme-border"
+                        >
+                            <div className="flex items-center gap-3 font-semibold">
+                                <Share className="w-5 h-5"/>
+                                Share data
+                            </div>
+                        </Link>
+
+                        {/* --- DATA SECTION (BOTTOM) --- */}
 
                         {/* Data by Match */}
                         <div className="p-4 rounded-xl border shadow-md backdrop-blur-sm theme-bg theme-border">
@@ -111,13 +129,14 @@ export default function AdminPage() {
                                 onChange={(e) => setSelectedMatch(e.target.value)}
                                 className="w-full p-2 rounded-xl border bg-transparent focus:ring-2 theme-border"
                             />
-                            <button
-                                disabled={!selectedMatch.trim()}
-                                onClick={() => navigate(`/data/match/${selectedMatch.trim()}`)}
-                                className="w-full mt-2 p-2 rounded-xl border transition hover:bg-white/10 disabled:opacity-40 theme-border"
-                                type="button">
+                            <Link
+                                to={`/data/match/${selectedMatch.trim()}`}
+                                className={`block text-center w-full mt-2 p-2 rounded-xl border transition theme-border ${
+                                    !selectedMatch.trim() ? "pointer-events-none opacity-40" : "hover:bg-white/10"
+                                }`}
+                            >
                                 View Match
-                            </button>
+                            </Link>
                         </div>
 
                         {/* Data by Team */}
@@ -131,47 +150,38 @@ export default function AdminPage() {
                                 onChange={(e) => setSelectedTeam(e.target.value)}
                                 className="w-full p-2 rounded-xl border bg-transparent focus:ring-2 theme-border"
                             />
-                            <button
-                                disabled={!selectedTeam.trim()}
-                                onClick={() => navigate(`/data/team/${selectedTeam.trim()}`)}
-                                className="w-full mt-2 p-2 rounded-xl border transition hover:bg-white/10 disabled:opacity-40 theme-border"
-                                type="button">
+                            <Link
+                                to={`/data/team/${selectedTeam.trim()}`}
+                                className={`block text-center w-full mt-2 p-2 rounded-xl border transition theme-border ${
+                                    !selectedTeam.trim() ? "pointer-events-none opacity-40" : "hover:bg-white/10"
+                                }`}
+                            >
                                 View Team
-                            </button>
+                            </Link>
                         </div>
 
-                        <div onClick={() => navigate("/data/ranking")}
-                             className="p-4 rounded-xl border cursor-pointer shadow-md transition hover:scale-[1.02] active:scale-[0.98] backdrop-blur-sm theme-bg theme-border">
+                        <Link
+                            to="/data/ranking"
+                            className="block p-4 rounded-xl border cursor-pointer shadow-md transition hover:scale-[1.02] active:scale-[0.98] backdrop-blur-sm theme-bg theme-border"
+                        >
                             <div className="flex items-center gap-3 font-semibold">
                                 <BarChart2 className="w-5 h-5"/>
                                 Rankings
                             </div>
-                        </div>
+                        </Link>
 
-                        <div onClick={() => navigate("/data/alliance-sim")}
-                             className="p-4 rounded-xl border cursor-pointer shadow-md transition hover:scale-[1.02] active:scale-[0.98] backdrop-blur-sm theme-bg theme-border">
+                        <Link
+                            to="/data/alliance-sim"
+                            className="block p-4 rounded-xl border cursor-pointer shadow-md transition hover:scale-[1.02] active:scale-[0.98] backdrop-blur-sm theme-bg theme-border"
+                        >
                             <div className="flex items-center gap-3 font-semibold">
                                 <Activity className="w-5 h-5"/>
                                 Alliance Simulator
                             </div>
-                        </div>
+                        </Link>
 
-                        <div onClick={() => navigate("/admin/assignment")}
-                             className="p-4 rounded-xl border cursor-pointer shadow-md transition hover:scale-[1.02] active:scale-[0.98] backdrop-blur-sm theme-bg theme-border">
-                            <div className="flex items-center gap-3 font-semibold">
-                                <UsersRound className="w-5 h-5"/>
-                                Match assignment
-                            </div>
-                        </div>
-
-                        <div onClick={() => navigate("/admin/share")}
-                             className="p-4 rounded-xl border cursor-pointer shadow-md transition hover:scale-[1.02] active:scale-[0.98] backdrop-blur-sm theme-bg theme-border">
-                            <div className="flex items-center gap-3 font-semibold">
-                                <Share className="w-5 h-5"/>
-                                Share data
-                            </div>
-                        </div>
                     </section>
+
 
                     {/* RIGHT SIDEBAR */}
                     <aside className="space-y-4">
@@ -190,7 +200,6 @@ export default function AdminPage() {
                                 <Terminal className="w-4 h-4"/> Debug Values
                             </div>
                             <p className="text-xs opacity-70">Current Event Key: {metadata.current_event}</p>
-                            <p className="text-xs opacity-70">Matches Loaded: {kpis.totalMatches}</p>
                             <p className="text-xs opacity-70">Scouting Status: {metadata.scouting_status ?? "—"}</p>
                         </div>
                     </aside>

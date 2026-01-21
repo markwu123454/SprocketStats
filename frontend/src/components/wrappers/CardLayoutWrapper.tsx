@@ -50,6 +50,18 @@ export default function CardLayoutWrapper({
                     </div>
                 )}
 
+                {showLogo && theme === "968" && (
+                    <div className="fixed top-2 left-4 w-30 pointer-events-none">
+                        <img
+                            src="/static/rawc_logo.png"
+                            className="w-full h-auto"
+                            loading="lazy"
+                            decoding="async"
+                            alt="logo text"
+                        />
+                    </div>
+                )}
+
                 <div
                     className="w-full max-w-md mx-auto my-auto p-6 rounded-lg shadow-lg space-y-4 backdrop-blur-sm theme-bg theme-text theme-border">
                     {children}

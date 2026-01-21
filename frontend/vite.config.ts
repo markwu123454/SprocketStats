@@ -10,13 +10,12 @@ export default defineConfig({
         tailwindcss(),
 
         VitePWA({
-            registerType: "autoUpdate",
+            strategies: "injectManifest",
 
-            includeAssets: [
-                "favicon.ico",
-                "robots.txt",
-                "apple-touch-icon.png",
-            ],
+            srcDir: "src",
+            filename: "sw.js",
+
+            registerType: "autoUpdate",
 
             manifest: {
                 name: "Sprocketstats",
@@ -33,64 +32,15 @@ export default defineConfig({
                 ],
             },
 
-            workbox: {
-                maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
-                skipWaiting: true,
-                clientsClaim: true,
-
-                globPatterns: [
-                    "**/*.webmanifest",
-                    "**/*.png",
-                    "**/*.svg",
-                    "**/*.ico",
-                ],
-
-                globIgnores: ["sw.js", "workbox-*.js"],
-
-                runtimeCaching: [
-                    {
-                        urlPattern: ({request}) =>
-                            request.destination === "script" ||
-                            request.destination === "style",
-                        handler: "StaleWhileRevalidate",
-                        options: {
-                            cacheName: "assets-cache-v26.0.2",
-                        },
-                    },
-
-                    {
-                        urlPattern: ({request}) => request.destination === "image",
-                        handler: "CacheFirst",
-                        options: {
-                            cacheName: "images-cache-v26.0.2",
-                            expiration: {
-                                maxEntries: 100,
-                                maxAgeSeconds: 60 * 60 * 24 * 2,
-                            },
-                        },
-                    },
-
-                    {
-                        urlPattern: ({request}) => request.mode === "navigate",
-                        handler: "NetworkFirst",
-                        options: {
-                            cacheName: "html-cache-v26.0.2",
-                            networkTimeoutSeconds: 10,
-                            expiration: {
-                                maxEntries: 10,
-                                maxAgeSeconds: 60 * 5,
-                            },
-                        },
-                    },
-                ],
-
-                cleanupOutdatedCaches: true,
+            injectManifest: {
+                maximumFileSizeToCacheInBytes: 10 * 1024 * 1024, // 10 MB
             },
 
             injectRegister: "auto",
 
             devOptions: {
                 enabled: false,
+                type: "module",
             },
         })
     ],

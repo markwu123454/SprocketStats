@@ -194,9 +194,10 @@ export function useAPI() {
 
 
     // --- Endpoint: GET /auth/verify ---
-    const verify = useCallback(async (): Promise<{
+    const checkSession = useCallback(async (): Promise<{
         success: boolean
         name: string
+        email: string
         permissions: {
             dev: boolean
             admin: boolean
@@ -212,6 +213,7 @@ export function useAPI() {
             if (!res.ok) return {
                 success: false,
                 name: "",
+                email: "",
                 permissions: {
                     dev: false,
                     admin: false,
@@ -225,6 +227,7 @@ export function useAPI() {
             return {
                 success: true,
                 name: json.name,
+                email: json.email,
                 permissions: json.permissions ?? {
                     dev: false,
                     admin: false,
@@ -236,6 +239,7 @@ export function useAPI() {
             return {
                 success: false,
                 name: "",
+                email: "",
                 permissions: {
                     dev: false,
                     admin: false,
@@ -244,8 +248,7 @@ export function useAPI() {
                 },
             }
         }
-    }, []) // <-- stable identity
-
+    }, [])
 
     // --- Endpoint: GET /admin/matches/active ---
     const getActiveMatches = async (): Promise<{
@@ -789,54 +792,124 @@ export function useAPI() {
         above_min_seconds: number
         is_checked_in: boolean
     }[]> => {
-        const res = await apiRequest<{
-            email: string
-            name: string | null
-            total_seconds: number
-            above_min_seconds: number
-            is_checked_in: boolean
-        }[]>("/attendance")
-        return res ?? []
+        return await apiRequest("/attendance") ?? []
     }
 
     // --- POST /attendance/checkin ---
-    const checkin = async (): Promise<{
-        status: "checked_in"
-    } | null> => {
-        return await apiRequest<{
-            status: "checked_in"
-        }>("/attendance/checkin", {
+    const checkin = async (
+        payload?: {
+            location: {
+                latitude: number
+                longitude: number
+                accuracy: number
+            }
+            qrToken: string
+        }
+    ): Promise<{ status: "checked_in" } | null> => {
+        return await apiRequest("/attendance/checkin", {
             method: "POST",
+            body: payload,
+            headers: {
+                "Content-Type": "application/json",
+            },
         })
     }
 
-    // --- POST /attendance/checkout ---
-    const checkout = async (): Promise<{
-        status: "checked_out"
-    } | null> => {
-        return await apiRequest<{
-            status: "checked_out"
-        }>("/attendance/checkout", {
+// --- POST /attendance/checkout ---
+    const checkout = async (
+        payload?: {
+            location: {
+                latitude: number
+                longitude: number
+                accuracy: number
+            }
+            qrToken: string
+        }
+    ): Promise<{ status: "checked_out" } | null> => {
+        return await apiRequest("/attendance/checkout", {
             method: "POST",
+            body: payload,
+            headers: {
+                "Content-Type": "application/json",
+            },
         })
     }
+
 
     // --- GET /attendance/status ---
     const getAttendanceStatus = async (): Promise<{
         is_checked_in: boolean
         meeting_active: boolean
     } | null> => {
-        return await apiRequest<{
-            is_checked_in: boolean
-            meeting_active: boolean
-        }>("/attendance/status")
+        return await apiRequest("/attendance/status")
+    }
+
+    // --- GET /attendance/meeting-time ---
+    const getMeetingSchedule = async (): Promise<{
+        action: "checkin" | "checkout"
+        time: string
+    } | null> => {
+        return await apiRequest("/attendance/meeting-time")
+    }
+
+    const addMeetingTimeBlock = async (
+        block: {
+            start: string
+            end: string
+        }
+    ): Promise<{ status: string } | null> => {
+        return await apiRequest<{ status: string }>("/attendance/meeting-time", {
+            method: "POST",
+            body: block,
+        })
+    }
+
+    const deleteMeetingTimeBlock = async (
+        block: {
+            start: string
+            end: string
+        }
+    ): Promise<{ status: string } | null> => {
+        return await apiRequest<{ status: string }>("/attendance/meeting-time", {
+            method: "DELETE",
+            body: block,
+        })
+    }
+
+    // --- POST /push/subscribe ---
+    const subscribePushNotif = async (payload: {
+        subscription: PushSubscription
+        os: "iOS" | "Android" | "Windows" | "macOS" | "Linux" | "Other"
+        browser: "Chrome" | "Safari" | "Firefox" | "Edge" | "Other"
+        deviceType: "mobile" | "tablet" | "desktop"
+        isPWA: boolean
+        isIOSPWA: boolean
+    }): Promise<{
+        status: "subscribed"
+    } | null> => {
+        return await apiRequest("/push/subscribe", {
+            method: "POST",
+            body: payload,
+        })
+    }
+
+    // Example usage in your frontend code
+    async function savePushSettings(endpoint: string, settings: Record<string, boolean>) {
+        return await apiRequest<{ status: string }>("/push/selection", {
+            method: "PUT",
+            body: {
+                endpoint: endpoint,
+                settings: settings
+            }
+        });
     }
 
     return {
         login,
         logout,
         getMetadata,
-        verify,
+        /** @deprecated Use checkSession() via useAuth instead */
+        verify: checkSession,
         ping,
         claimTeam,
         unclaimTeam,
@@ -861,5 +934,11 @@ export function useAPI() {
         checkin,
         checkout,
         getAttendanceStatus,
+        getMeetingSchedule,
+        addMeetingTimeBlock,
+        deleteMeetingTimeBlock,
+        subscribePushNotif,
+        savePushSettings,
+        checkSession,
     };
 }

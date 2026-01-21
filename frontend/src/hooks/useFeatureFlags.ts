@@ -5,11 +5,13 @@ import { useEffect, useState } from "react"
 export type FeatureFlags = {
     offlineScouting: boolean
     pushNotificationWarning: boolean // currently unused
+    showAttendanceTimeForComp: boolean
 }
 
 const DEFAULT_FEATURE_FLAGS: FeatureFlags = {
     offlineScouting: false,
     pushNotificationWarning: false,
+    showAttendanceTimeForComp: true,
 }
 
 const STORAGE_KEY = "feature_flags"

@@ -56,7 +56,7 @@ import logging
 from typing import Dict, Any, Optional, Callable, Annotated, Awaitable
 import dotenv
 from fastapi import HTTPException, Header, Depends
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 import uuid
 from asyncpg import PostgresError
 from asyncpg.exceptions import UniqueViolationError
@@ -1918,6 +1918,10 @@ async def record_attendance_event(email: str, action: str) -> None:
     finally:
         await release_db_connection(pool, conn)
 
+EARLY_CHECKIN_GRACE = timedelta(minutes=15)
+LATE_CHECKOUT_GRACE = timedelta(hours=2)
+LATE_CHECKOUT_MULTIPLIER = 0.875
+
 async def compute_attendance_totals() -> list[dict]:
     pool, conn = await get_db_connection(DB_NAME)
     try:
@@ -1938,40 +1942,33 @@ async def compute_attendance_totals() -> list[dict]:
         now = datetime.now(timezone.utc)
 
         # ------------------------------------------------------------
-        # 1. Build meeting intervals
+        # 1. Single pass: meetings + user sessions
         # ------------------------------------------------------------
-        meeting_intervals = []
+        meeting_intervals: list[tuple] = []
         meeting_start = None
 
-        for r in rows:
-            if r["email"] == "meeting time":
-                if r["action"] == "checkin":
-                    meeting_start = r["time"]
-                elif r["action"] == "checkout" and meeting_start:
-                    meeting_intervals.append((meeting_start, r["time"]))
-                    meeting_start = None
-
-        if meeting_start:
-            meeting_intervals.append((meeting_start, now))
-
-        # ------------------------------------------------------------
-        # 2. Build user sessions
-        # ------------------------------------------------------------
         user_sessions = defaultdict(list)
         open_checkins = {}
         names = {}
 
         for r in rows:
             email = r["email"]
-            if email == "meeting time":
-                continue
-
-            names[email] = r["name"]
             action = r["action"]
             t = r["time"]
 
+            # --- meetings ---
+            if email == "meeting time":
+                if action == "checkin":
+                    meeting_start = t
+                elif action == "checkout" and meeting_start:
+                    meeting_intervals.append((meeting_start, t))
+                    meeting_start = None
+                continue
+
+            # --- users ---
+            names[email] = r["name"]
+
             if action == "checkin":
-                # Ignore nested checkins
                 if email not in open_checkins:
                     open_checkins[email] = t
 
@@ -1980,53 +1977,97 @@ async def compute_attendance_totals() -> list[dict]:
                 if start:
                     user_sessions[email].append((start, t))
 
-        # still checked in → until now
+        # open meetings / sessions extend to now
+        if meeting_start:
+            meeting_intervals.append((meeting_start, now))
+
         for email, start in open_checkins.items():
             user_sessions[email].append((start, now))
+
+        if not meeting_intervals:
+            return []
+
+        # ------------------------------------------------------------
+        # 2. Precompute meeting metadata
+        # ------------------------------------------------------------
+        meeting_meta = []
+        for i, (m_start, m_end) in enumerate(meeting_intervals):
+            late_limit = m_end + LATE_CHECKOUT_GRACE
+            next_pre = (
+                meeting_intervals[i + 1][0] - EARLY_CHECKIN_GRACE
+                if i + 1 < len(meeting_intervals)
+                else None
+            )
+            meeting_meta.append((m_start, m_end, late_limit, next_pre))
 
         # ------------------------------------------------------------
         # 3. Overlap helper
         # ------------------------------------------------------------
-        def overlap(a_start, a_end, b_start, b_end):
-            start = max(a_start, b_start)
-            end = min(a_end, b_end)
-            if start < end:
-                return (end - start).total_seconds()
-            return 0
+        def overlap_with_grace(s_start, s_end, m_start, m_end):
+            if s_end <= m_start or s_start >= m_end:
+                return 0
+
+            if s_start < m_start and (m_start - s_start) > EARLY_CHECKIN_GRACE:
+                return 0
+
+            start = max(s_start, m_start)
+            end = min(s_end, m_end)
+            return max(0, (end - start).total_seconds())
 
         # ------------------------------------------------------------
-        # 4. Compute totals using FIRST overlapping meeting only
+        # 4. Compute totals (two-pointer scan)
         # ------------------------------------------------------------
-        totals = defaultdict(float)
+        totals = {}
 
         for email, sessions in user_sessions.items():
+            total = 0.0
+            m_idx = 0
+
             for s_start, s_end in sessions:
-                for m_start, m_end in meeting_intervals:
+                while m_idx < len(meeting_meta):
+                    m_start, m_end, late_limit, next_pre = meeting_meta[m_idx]
+
                     if m_end <= s_start:
+                        m_idx += 1
                         continue
                     if m_start >= s_end:
                         break
 
-                    seconds = overlap(s_start, s_end, m_start, m_end)
-                    if seconds > 0:
-                        totals[email] += seconds
-                        break  # only first meeting counts
+                    seconds = overlap_with_grace(s_start, s_end, m_start, m_end)
+                    if seconds:
+                        if s_end > late_limit or (next_pre and s_end > next_pre):
+                            seconds *= LATE_CHECKOUT_MULTIPLIER
+                        total += seconds
+                        break
 
-        max_seconds = max(totals.values(), default=0)
+                    m_idx += 1
 
-        meeting_active = any(
-            m_start <= now <= m_end for m_start, m_end in meeting_intervals
-        )
+            if total:
+                totals[email] = total
 
+        # ------------------------------------------------------------
+        # 5. Maximum possible seconds (elapsed meetings only)
+        # ------------------------------------------------------------
+        max_seconds = 0.0
+        for m_start, m_end in meeting_intervals:
+            if m_start >= now:
+                break
+            max_seconds += (min(m_end, now) - m_start).total_seconds()
+
+        half_max = max_seconds / 2
+
+        # ------------------------------------------------------------
+        # 6. Final result
+        # ------------------------------------------------------------
         return [
             {
                 "email": email,
                 "name": names.get(email),
-                "total_seconds": totals[email],
-                "above_min_seconds": totals[email] - (max_seconds / 2),
-                "is_checked_in": (email in open_checkins) and meeting_active,
+                "total_seconds": total,
+                "above_min_seconds": total - half_max,
+                "is_checked_in": email in open_checkins,
             }
-            for email in totals
+            for email, total in totals.items()
         ]
 
     finally:
@@ -2066,6 +2107,317 @@ async def is_user_currently_checked_in(
 
     finally:
         await release_db_connection(pool, conn)
+
+async def get_meeting_time_events() -> list[dict]:
+    """
+    Returns all checkin / checkout events for the special
+    'meeting time' user in chronological order.
+    """
+    pool, conn = await get_db_connection(DB_NAME)
+    try:
+        rows = await conn.fetch(
+            """
+            SELECT action, time
+            FROM attendance
+            WHERE email = 'meeting time'
+            ORDER BY time ASC
+            """
+        )
+
+        return [
+            {
+                "action": r["action"],
+                "time": r["time"],
+            }
+            for r in rows
+        ]
+
+    finally:
+        await release_db_connection(pool, conn)
+
+WINDOW = timedelta(minutes=5)
+
+def is_near(now: datetime, target: datetime) -> bool:
+    return abs(now - target) <= WINDOW
+
+async def get_latest_meeting_boundaries() -> dict | None:
+    """
+    Returns {'start': datetime, 'end': datetime} or None.
+    Uses existing get_meeting_time_events().
+    """
+    events = await get_meeting_time_events()
+
+    start = None
+    end = None
+
+    for e in events:
+        if e["action"] == "checkin":
+            start = e["time"]
+        elif e["action"] == "checkout":
+            end = e["time"]
+
+    if not start or not end:
+        return None
+
+    return {"start": start, "end": end}
+
+async def add_meeting_time_block(start: datetime, end: datetime) -> None:
+    """
+    Atomically inserts a meeting time checkin + checkout pair.
+
+    Guarantees:
+    - start < end
+    - no overlap with existing meeting time intervals
+    """
+    if start >= end:
+        raise ValueError("Meeting end must be after start")
+
+    pool, conn = await get_db_connection(DB_NAME)
+    try:
+        async with conn.transaction():
+
+            # Prevent overlapping meeting blocks
+            overlap = await conn.fetchval(
+                """
+                SELECT 1
+                FROM attendance a1
+                JOIN attendance a2
+                  ON a1.email = 'meeting time'
+                 AND a2.email = 'meeting time'
+                 AND a1.action = 'checkin'
+                 AND a2.action = 'checkout'
+                 AND a2.time > a1.time
+                 AND tstzrange(a1.time, a2.time)
+                     && tstzrange($1, $2)
+                LIMIT 1
+                """,
+                start,
+                end,
+            )
+
+            if overlap:
+                raise ValueError("Meeting time overlaps existing meeting")
+
+            # Insert the block
+            await conn.execute(
+                """
+                INSERT INTO attendance (email, action, time)
+                VALUES
+                  ('meeting time', 'checkin',  $1),
+                  ('meeting time', 'checkout', $2)
+                """,
+                start,
+                end,
+            )
+
+    finally:
+        await release_db_connection(pool, conn)
+
+
+async def delete_meeting_time_block(start: datetime, end: datetime) -> None:
+    """
+    Deletes exactly one meeting-time block (checkin + checkout).
+
+    The pair must exist and must match exactly.
+    """
+    pool, conn = await get_db_connection(DB_NAME)
+    try:
+        async with conn.transaction():
+
+            # Verify the block exists as a valid pair
+            exists = await conn.fetchval(
+                """
+                SELECT 1
+                FROM attendance a1
+                JOIN attendance a2
+                  ON a1.email = 'meeting time'
+                 AND a2.email = 'meeting time'
+                 AND a1.action = 'checkin'
+                 AND a2.action = 'checkout'
+                 AND a1.time = $1
+                 AND a2.time = $2
+                 AND a2.time > a1.time
+                LIMIT 1
+                """,
+                start,
+                end,
+            )
+
+            if not exists:
+                raise ValueError("Meeting block not found")
+
+            # Delete both rows atomically
+            await conn.execute(
+                """
+                DELETE FROM attendance
+                WHERE email = 'meeting time'
+                  AND (
+                        (action = 'checkin'  AND time = $1)
+                     OR (action = 'checkout' AND time = $2)
+                  )
+                """,
+                start,
+                end,
+            )
+
+    finally:
+        await release_db_connection(pool, conn)
+
+
+# =================== Push notif ===================
+
+async def create_push_subscription(
+    *,
+    email: str,
+    payload: dict,
+) -> None:
+    """
+    Creates or replaces a push notification subscription.
+
+    Guarantees:
+    - One row per endpoint
+    - Idempotent for retries
+    - iOS subscriptions must be installed PWAs
+    """
+
+    sub = payload["subscription"]
+    endpoint = sub["endpoint"]
+    keys = sub.get("keys") or {}
+
+    if not keys.get("p256dh") or not keys.get("auth"):
+        raise ValueError("Invalid push subscription keys")
+
+    os = payload.get("os")
+    is_ios_pwa = payload.get("isIOSPWA")
+
+    if os == "iOS" and not is_ios_pwa:
+        raise ValueError("iOS push requires installed PWA")
+
+    pool, conn = await get_db_connection(DB_NAME)
+    try:
+        await conn.execute(
+            """
+            INSERT INTO push_notif (
+                email,
+                endpoint,
+                p256dh,
+                auth,
+                device_type,
+                browser,
+                os,
+                is_pwa,
+                is_ios_pwa,
+                enabled,
+                updated_at
+            )
+            VALUES (
+                $1, $2, $3, $4, $5, $6, $7, $8, $9, true, now()
+            )
+            ON CONFLICT (endpoint)
+            DO UPDATE SET
+                email        = EXCLUDED.email,
+                p256dh       = EXCLUDED.p256dh,
+                auth         = EXCLUDED.auth,
+                device_type  = EXCLUDED.device_type,
+                browser      = EXCLUDED.browser,
+                os           = EXCLUDED.os,
+                is_pwa       = EXCLUDED.is_pwa,
+                is_ios_pwa   = EXCLUDED.is_ios_pwa,
+                enabled      = true,
+                updated_at   = now()
+            """,
+            email,
+            endpoint,
+            keys["p256dh"],
+            keys["auth"],
+            payload.get("deviceType"),
+            payload.get("browser"),
+            payload.get("os"),
+            payload.get("isPWA"),
+            payload.get("isIOSPWA"),
+        )
+
+    finally:
+        await release_db_connection(pool, conn)
+
+async def update_push_subscription(
+    *,
+    email: str,
+    endpoint: str,
+    updates: dict,
+) -> bool:
+    """
+    Updates an existing push subscription.
+
+    Returns:
+    - True if updated
+    - False if not found
+    """
+
+    pool, conn = await get_db_connection(DB_NAME)
+    try:
+        result = await conn.execute(
+            """
+            UPDATE push_notif
+            SET
+                device_type = COALESCE($1, device_type),
+                browser     = COALESCE($2, browser),
+                os          = COALESCE($3, os),
+                is_pwa      = COALESCE($4, is_pwa),
+                is_ios_pwa  = COALESCE($5, is_ios_pwa),
+                settings    = COALESCE($6, settings),
+                enabled     = COALESCE($7, enabled),
+                updated_at  = now()
+            WHERE endpoint = $8
+              AND email = $9
+            """,
+            updates.get("deviceType"),
+            updates.get("browser"),
+            updates.get("os"),
+            updates.get("isPWA"),
+            updates.get("isIOSPWA"),
+            updates.get("settings"),
+            updates.get("enabled"),
+            endpoint,
+            email,
+        )
+
+        return result != "UPDATE 0"
+
+    finally:
+        await release_db_connection(pool, conn)
+
+async def fetch_push_subscriptions_for_setting(
+    *,
+    setting_key: str,
+    setting_value: bool = True,
+) -> list[dict]:
+    """
+    Fetch enabled push subscriptions that opted into a given setting.
+    """
+
+    pool, conn = await get_db_connection(DB_NAME)
+    try:
+        rows = await conn.fetch(
+            """
+            SELECT
+                email,
+                endpoint,
+                p256dh,
+                auth
+            FROM push_notif
+            WHERE enabled = true
+              AND settings ->> $1 = $2
+            """,
+            setting_key,
+            "true" if setting_value else "false",
+        )
+
+        return [dict(row) for row in rows]
+
+    finally:
+        await release_db_connection(pool, conn)
+
 
 
 # =================== Data ===================
