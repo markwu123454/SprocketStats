@@ -61,6 +61,7 @@ import uuid
 from asyncpg import PostgresError
 from asyncpg.exceptions import UniqueViolationError
 from pydantic import BaseModel
+from async_lru import alru_cache
 
 import enums
 import os, ssl
@@ -105,7 +106,6 @@ async def get_db_connection(db: str) -> tuple[asyncpg.Pool, asyncpg.Connection]:
     return pool, conn
 
 
-
 async def release_db_connection(pool: asyncpg.Pool, conn: asyncpg.Connection):
     await pool.release(conn)
 
@@ -119,7 +119,7 @@ async def close_pool():
 
 # =================== Schema Init ===================
 
-# TODO: update this to match db schema
+# TODO: update this to db schema
 async def init_db():
     """
     Initialize all required tables in the 'data' database
@@ -136,57 +136,29 @@ async def init_db():
             await conn.execute("""
                                CREATE TABLE IF NOT EXISTS match_scouting
                                (
-                                   event_key
-                                   TEXT
-                                   NOT
-                                   NULL,
-                                   match
-                                   INTEGER
-                                   NOT
-                                   NULL,
-                                   match_type
-                                   TEXT
-                                   NOT
-                                   NULL,
-                                   team
-                                   TEXT
-                                   NOT
-                                   NULL,
-                                   alliance
-                                   TEXT
-                                   NOT
-                                   NULL,
-                                   scouter
-                                   TEXT
-                                   NOT
-                                   NULL,
-                                   status
-                                   TEXT
-                                   NOT
-                                   NULL,
-                                   data
-                                   JSONB
-                                   NOT
-                                   NULL,
-                                   last_modified
-                                   TIMESTAMPTZ
-                                   DEFAULT
-                                   now
-                               (
-                               ),
-                                   PRIMARY KEY
-                               (
-                                   match,
-                                   match_type,
-                                   team,
-                                   scouter
-                               )
-                                   );
+                                   id            UUID PRIMARY KEY                  DEFAULT gen_random_uuid(),
+                                   match         INTEGER                  NOT NULL,
+                                   match_type    TEXT                     NOT NULL,
+                                   team          TEXT                     NOT NULL,
+                                   alliance      TEXT                     NOT NULL,
+                                   scouter       TEXT,
+                                   status        TEXT                     NOT NULL,
+                                   data          JSONB                    NOT NULL,
+                                   last_modified TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+                                   event_key     TEXT                     NOT NULL
+                               );
                                """)
-            await conn.execute("CREATE INDEX IF NOT EXISTS idx_match_scouting_team ON match_scouting (team)")
+
+            # Standard index for team lookups
             await conn.execute("""
-                               CREATE INDEX IF NOT EXISTS idx_ms_lookup
-                                   ON match_scouting (match, match_type, team, scouter);
+                               CREATE INDEX IF NOT EXISTS idx_match_scouting_team
+                                   ON match_scouting (team);
+                               """)
+
+            # Unique composite index for scouting record lookups
+            await conn.execute("""
+                               CREATE UNIQUE INDEX IF NOT EXISTS idx_ms_lookup
+                                   ON match_scouting (match, match_type, team, scouter, event_key);
                                """)
 
             # ---------------------------------------------------
@@ -195,42 +167,20 @@ async def init_db():
             await conn.execute("""
                                CREATE TABLE IF NOT EXISTS pit_scouting
                                (
-                                   event_key
-                                   TEXT
-                                   NOT
-                                   NULL,
-                                   team
-                                   TEXT
-                                   NOT
-                                   NULL,
-                                   scouter
-                                   TEXT,
-                                   status
-                                   TEXT
-                                   NOT
-                                   NULL,
-                                   data
-                                   JSONB
-                                   NOT
-                                   NULL,
-                                   last_modified
-                                   TIMESTAMPTZ
-                                   DEFAULT
-                                   now
-                               (
-                               ),
-                                   PRIMARY KEY
-                               (
-                                   event_key,
-                                   team,
-                                   scouter
-                               )
-                                   );
+                                   event_key     TEXT,
+                                   team          TEXT,
+                                   scouter       TEXT,
+                                   status        TEXT                     NOT NULL,
+                                   data          JSONB                    NOT NULL,
+                                   last_modified TIMESTAMP WITH TIME ZONE NOT NULL,
+                                   PRIMARY KEY (event_key, team, scouter)
+                               );
                                """)
-            await conn.execute("CREATE INDEX IF NOT EXISTS idx_pit_scouting_team ON pit_scouting (team)")
+
+            # Create the secondary index for team-based lookups
             await conn.execute("""
-                               CREATE INDEX IF NOT EXISTS idx_pit_lookup
-                                   ON pit_scouting (event_key, team, scouter);
+                               CREATE INDEX IF NOT EXISTS idx_pit_scouting_team
+                                   ON pit_scouting (team);
                                """)
 
             # ---------------------------------------------------
@@ -239,18 +189,12 @@ async def init_db():
             await conn.execute("""
                                CREATE TABLE IF NOT EXISTS processed_data
                                (
-                                   event_key
-                                   TEXT
-                                   NOT
-                                   NULL,
-                                   time_added
-                                   TIMESTAMPTZ
-                                   NOT
-                                   NULL,
-                                   data
-                                   JSONB
-                                   NOT
-                                   NULL
+                                   event_key  TEXT,
+                                   time_added TIMESTAMP WITH TIME ZONE DEFAULT now(),
+                                   data       JSONB NOT NULL,
+
+                                   -- Defining the Composite Primary Key
+                                   CONSTRAINT processed_data_pkey PRIMARY KEY (event_key, time_added)
                                );
                                """)
 
@@ -260,50 +204,41 @@ async def init_db():
             await conn.execute("""
                                CREATE TABLE IF NOT EXISTS matches
                                (
-                                   key
-                                   TEXT
-                                   PRIMARY
-                                   KEY,
-                                   event_key
-                                   TEXT
-                                   NOT
-                                   NULL,
-                                   match_type
-                                   TEXT
-                                   NOT
-                                   NULL,
-                                   match_number
-                                   INTEGER,
-                                   set_number
-                                   INTEGER,
-                                   scheduled_time
-                                   TIMESTAMPTZ,
-                                   actual_time
-                                   TIMESTAMPTZ,
-                                   red1
-                                   INTEGER,
-                                   red2
-                                   INTEGER,
-                                   red3
-                                   INTEGER,
-                                   blue1
-                                   INTEGER,
-                                   blue2
-                                   INTEGER,
-                                   blue3
-                                   INTEGER,
-                                   red1_scouter
-                                   TEXT,
-                                   red2_scouter
-                                   TEXT,
-                                   red3_scouter
-                                   TEXT,
-                                   blue1_scouter
-                                   TEXT,
-                                   blue2_scouter
-                                   TEXT,
-                                   blue3_scouter
-                                   TEXT
+                                   -- Columns
+                                   key            TEXT PRIMARY KEY,
+                                   event_key      TEXT    NOT NULL,
+                                   match_type     TEXT    NOT NULL,
+                                   match_number   INTEGER NOT NULL,
+                                   set_number     INTEGER DEFAULT 1,
+                                   scheduled_time TIMESTAMP WITH TIME ZONE,
+                                   actual_time    TIMESTAMP WITH TIME ZONE,
+
+                                   -- Team Numbers
+                                   red1           INTEGER,
+                                   red2           INTEGER,
+                                   red3           INTEGER,
+                                   blue1          INTEGER,
+                                   blue2          INTEGER,
+                                   blue3          INTEGER,
+
+                                   -- Scouter Assignments (Foreign Keys)
+                                   red1_scouter   TEXT,
+                                   red2_scouter   TEXT,
+                                   red3_scouter   TEXT,
+                                   blue1_scouter  TEXT,
+                                   blue2_scouter  TEXT,
+                                   blue3_scouter  TEXT,
+
+                                   -- Constraints
+                                   CONSTRAINT unique_match_per_event UNIQUE (event_key, match_type, match_number),
+
+                                   CONSTRAINT matches_red1_scouter_fkey FOREIGN KEY (red1_scouter) REFERENCES public.users (email),
+                                   CONSTRAINT matches_red2_scouter_fkey FOREIGN KEY (red2_scouter) REFERENCES public.users (email),
+                                   CONSTRAINT matches_red3_scouter_fkey FOREIGN KEY (red3_scouter) REFERENCES public.users (email),
+
+                                   CONSTRAINT matches_blue1_scouter_fkey FOREIGN KEY (blue1_scouter) REFERENCES public.users (email),
+                                   CONSTRAINT matches_blue2_scouter_fkey FOREIGN KEY (blue2_scouter) REFERENCES public.users (email),
+                                   CONSTRAINT matches_blue3_scouter_fkey FOREIGN KEY (blue3_scouter) REFERENCES public.users (email)
                                );
                                """)
 
@@ -311,74 +246,43 @@ async def init_db():
             # matches_tba
             # ---------------------------------------------------
             await conn.execute("""
+                               -- 1. Create the table
                                CREATE TABLE IF NOT EXISTS matches_tba
                                (
-                                   match_key
-                                   TEXT
-                                   PRIMARY
-                                   KEY,
-                                   event_key
-                                   TEXT
-                                   NOT
-                                   NULL,
-                                   comp_level
-                                   TEXT
-                                   NOT
-                                   NULL,
-                                   set_number
-                                   INTEGER,
-                                   match_number
-                                   INTEGER,
-                                   time
-                                   BIGINT,
-                                   actual_time
-                                   BIGINT,
-                                   predicted_time
-                                   BIGINT,
-                                   post_result_time
-                                   BIGINT,
-                                   winning_alliance
-                                   TEXT,
-                                   red_teams
-                                   TEXT[]
-                                   NOT
-                                   NULL,
-                                   blue_teams
-                                   TEXT
-                               []
-                                   NOT
-                                   NULL,
-                                   red_score
-                                   INTEGER,
-                                   blue_score
-                                   INTEGER,
-                                   red_rp
-                                   INTEGER,
-                                   blue_rp
-                                   INTEGER,
-                                   red_auto_points
-                                   INTEGER,
-                                   blue_auto_points
-                                   INTEGER,
-                                   red_teleop_points
-                                   INTEGER,
-                                   blue_teleop_points
-                                   INTEGER,
-                                   red_endgame_points
-                                   INTEGER,
-                                   blue_endgame_points
-                                   INTEGER,
-                                   score_breakdown
-                                   JSONB,
-                                   videos
-                                   JSONB,
-                                   last_update
-                                   TIMESTAMP,
-                                   red_coopertition_criteria
-                                   BOOLEAN,
-                                   blue_coopertition_criteria
-                                   BOOLEAN
+                                   match_key           TEXT PRIMARY KEY,
+                                   event_key           TEXT   NOT NULL,
+                                   comp_level          TEXT   NOT NULL,
+                                   set_number          INTEGER,
+                                   match_number        INTEGER,
+                                   time                BIGINT,
+                                   actual_time         BIGINT,
+                                   predicted_time      BIGINT,
+                                   post_result_time    BIGINT,
+                                   winning_alliance    TEXT,
+                                   red_teams           TEXT[] NOT NULL,
+                                   blue_teams          TEXT[] NOT NULL,
+                                   red_score           INTEGER,
+                                   blue_score          INTEGER,
+                                   red_rp              INTEGER,
+                                   blue_rp             INTEGER,
+                                   red_auto_points     INTEGER,
+                                   blue_auto_points    INTEGER,
+                                   red_teleop_points   INTEGER,
+                                   blue_teleop_points  INTEGER,
+                                   red_endgame_points  INTEGER,
+                                   blue_endgame_points INTEGER,
+                                   score_breakdown     JSONB,
+                                   videos              JSONB,
+                                   last_update         TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                                );
+
+                               -- 2. Add explicit Primary Key constraint (if not handled by inline PRIMARY KEY)
+                               -- Note: PostgreSQL automatically creates a B-Tree index for Primary Keys.
+                               ALTER TABLE matches_tba
+                                   ADD CONSTRAINT tba_matches_pkey PRIMARY KEY (match_key);
+
+                               -- 3. Create Index for performance on event lookups (Recommended)
+                               CREATE INDEX IF NOT EXISTS idx_matches_tba_event_key ON matches_tba (event_key);
                                """)
 
             # ---------------------------------------------------
@@ -387,27 +291,9 @@ async def init_db():
             await conn.execute("""
                                CREATE TABLE IF NOT EXISTS metadata
                                (
-                                   current_event
-                                   TEXT
-                               );
-                               """)
-
-            # ---------------------------------------------------
-            # teams
-            # ---------------------------------------------------
-            await conn.execute("""
-                               CREATE TABLE IF NOT EXISTS teams
-                               (
-                                   team_number
-                                   INTEGER
-                                   PRIMARY
-                                   KEY,
-                                   nickname
-                                   TEXT,
-                                   rookie_year
-                                   INTEGER,
-                                   last_updated
-                                   TIMESTAMP
+                                   current_event     TEXT PRIMARY KEY,
+                                   feature_flags     JSONB,
+                                   new_login_default JSONB
                                );
                                """)
 
@@ -417,12 +303,11 @@ async def init_db():
             await conn.execute("""
                                CREATE TABLE IF NOT EXISTS misc
                                (
-                                   id
-                                   INTEGER
-                                   PRIMARY
-                                   KEY,
-                                   candy_cache
-                                   TEXT
+                                   id          INTEGER GENERATED BY DEFAULT AS IDENTITY,
+                                   candy_cache TEXT,
+
+                                   -- Explicitly naming the constraint as seen in your schema
+                                   CONSTRAINT misc_pkey PRIMARY KEY (id)
                                );
                                """)
 
@@ -432,96 +317,57 @@ async def init_db():
             await conn.execute("""
                                CREATE TABLE IF NOT EXISTS users
                                (
-                                   email
-                                   TEXT
-                                   PRIMARY
-                                   KEY,
-                                   name
-                                   TEXT
-                                   NOT
-                                   NULL,
-                                   approval
-                                   TEXT,
-                                   perm_dev
-                                   BOOLEAN
-                                   NOT
-                                   NULL
-                                   DEFAULT
-                                   FALSE,
-                                   perm_admin
-                                   BOOLEAN
-                                   NOT
-                                   NULL
-                                   DEFAULT
-                                   FALSE,
-                                   perm_match_scout
-                                   BOOLEAN
-                                   NOT
-                                   NULL
-                                   DEFAULT
-                                   FALSE,
-                                   perm_pit_scout
-                                   BOOLEAN
-                                   NOT
-                                   NULL
-                                   DEFAULT
-                                   FALSE,
-                                   created_at
-                                   TIMESTAMPTZ
-                                   DEFAULT
-                                   now
-                               (
-                               )
-                                   );
+                                   -- Primary Identifiers
+                                   email            TEXT
+                                       CONSTRAINT users_pkey1 PRIMARY KEY,
+                                   name             TEXT    NOT NULL,
+
+                                   -- Status and Auditing
+                                   approval         TEXT    NOT NULL DEFAULT 'pending',
+                                   approved_by      TEXT, -- Should likely reference another user's email
+                                   created_at       TIMESTAMPTZ      DEFAULT now(),
+
+                                   -- Permissions (RBAC)
+                                   perm_dev         BOOLEAN NOT NULL DEFAULT FALSE,
+                                   perm_admin       BOOLEAN NOT NULL DEFAULT FALSE,
+                                   perm_match_scout BOOLEAN NOT NULL DEFAULT FALSE,
+                                   perm_pit_scout   BOOLEAN NOT NULL DEFAULT FALSE
+                               );
+
+                               -- Index is automatically created by the PRIMARY KEY constraint, 
+                               -- but you can explicitly define it if your DB engine requires it.
+                               CREATE UNIQUE INDEX IF NOT EXISTS users_pkey1_idx ON users USING BTREE (email);
                                """)
 
             await conn.execute("""
                                CREATE TABLE IF NOT EXISTS guests
                                (
-                                   password
-                                   TEXT
-                                   PRIMARY
-                                   KEY,
-                                   name
-                                   TEXT
-                                   NOT
-                                   NULL,
-                                   permissions
-                                   JSONB
-                                   NOT
-                                   NULL,
-                                   expire_date
-                                   TIMESTAMPTZ
-                                   DEFAULT
-                                   now
-                               (
-                               )
-                                   );
+                                   password    TEXT,
+                                   name        TEXT  NOT NULL,
+                                   permissions JSONB NOT NULL,
+                                   expire_date TIMESTAMPTZ DEFAULT now(),
+
+                                   -- Explicitly named Primary Key constraint
+                                   CONSTRAINT guests_pkey PRIMARY KEY (password)
+                               );
                                """)
 
             # ---------------------------------------------------
             # sessions
             # ---------------------------------------------------
             await conn.execute("""
+                               -- 1. Create the table
                                CREATE TABLE IF NOT EXISTS sessions
                                (
-                                   uuid
-                                   TEXT
-                                   PRIMARY
-                                   KEY,
-                                   data
-                                   JSONB
-                                   NOT
-                                   NULL,
-                                   expires
-                                   TIMESTAMPTZ
-                                   NOT
-                                   NULL
+                                   uuid    TEXT PRIMARY KEY,
+                                   data    JSONB       NOT NULL,
+                                   expires TIMESTAMPTZ NOT NULL
                                );
-                               """)
-            await conn.execute("""
+
+                               -- 2. Create the index for expiration lookups
+-- This helps with 'DELETE FROM sessions WHERE expires < NOW()'
                                CREATE INDEX IF NOT EXISTS idx_sessions_expires
-                                   ON sessions (expires);
+                                   ON sessions USING BTREE (expires);
                                """)
 
     except Exception as e:
@@ -548,7 +394,7 @@ async def get_match_info(match_type: str, match_number: int, set_number: int = 1
                                     AND match_type = $1
                                     AND match_number = $2
                                     AND set_number = $3
-                                      LIMIT 1
+                                  LIMIT 1
                                   """, match_type, match_number, set_number)
 
         if not row:
@@ -623,10 +469,9 @@ async def update_match_scouting(
                                         AND match = $1
                                         AND match_type = $2
                                         AND team = $3
-                                        AND scouter IS NOT DISTINCT
-                                      FROM $4
+                                        AND scouter IS NOT DISTINCT FROM $4
                                           FOR
-                                      UPDATE
+                                              UPDATE
                                       """, match, m_type.value, str(team), scouter)
 
             if not row:
@@ -752,7 +597,7 @@ async def get_match_scouters_schedule(
                                     AND match_type = $1
                                     AND match_number = $2
                                     AND set_number = $3
-                                      LIMIT 1
+                                  LIMIT 1
                                   """, match_type.value, match_number, set_number)
 
         if not row:
@@ -834,7 +679,9 @@ async def get_scouters_match_schedule(
                                         (SELECT current_event FROM metadata LIMIT 1)
                                                   )
                                   AND (
-                                    red1_scouter IS NOT DISTINCT FROM $2 OR red2_scouter IS NOT DISTINCT FROM $2 OR red3_scouter IS NOT DISTINCT FROM $2 OR blue1_scouter IS NOT DISTINCT FROM $2 OR blue2_scouter IS NOT DISTINCT FROM $2 OR blue3_scouter IS NOT DISTINCT FROM $2
+                                    red1_scouter IS NOT DISTINCT FROM $2 OR red2_scouter IS NOT DISTINCT FROM $2 OR
+                                    red3_scouter IS NOT DISTINCT FROM $2 OR blue1_scouter IS NOT DISTINCT FROM $2 OR
+                                    blue2_scouter IS NOT DISTINCT FROM $2 OR blue3_scouter IS NOT DISTINCT FROM $2
                                     )
                                 ORDER BY match_type, match_number, set_number
                                 """, event_key, scouter)
@@ -939,11 +786,29 @@ async def get_all_matches() -> list[Dict[str, Any]]:
     pool, conn = await get_db_connection(DB_NAME)
     try:
         rows = await conn.fetch("""
-                                SELECT key, event_key, match_type, match_number, set_number, scheduled_time, actual_time, red1, red2, red3, blue1, blue2, blue3, red1_scouter, red2_scouter, red3_scouter, blue1_scouter, blue2_scouter, blue3_scouter
+                                SELECT key,
+                                       event_key,
+                                       match_type,
+                                       match_number,
+                                       set_number,
+                                       scheduled_time,
+                                       actual_time,
+                                       red1,
+                                       red2,
+                                       red3,
+                                       blue1,
+                                       blue2,
+                                       blue3,
+                                       red1_scouter,
+                                       red2_scouter,
+                                       red3_scouter,
+                                       blue1_scouter,
+                                       blue2_scouter,
+                                       blue3_scouter
                                 FROM matches
                                 WHERE event_key = (SELECT current_event
-                                    FROM metadata
-                                    LIMIT 1)
+                                                   FROM metadata
+                                                   LIMIT 1)
                                 ORDER BY match_type, match_number, set_number
                                 """)
 
@@ -1153,7 +1018,7 @@ async def update_pit_scouting(
                                         AND team = $1
                                         AND scouter = $2
                                           FOR
-                                      UPDATE
+                                              UPDATE
                                       """, str(team), scouter)
             if not row:
                 raise HTTPException(status_code=400, detail="Pit scouting entry not found")
@@ -1292,12 +1157,12 @@ async def add_tba_match(match_data: dict):
                                        $15, $16, $17, $18,
                                        $19, $20,
                                        $21, $22,
-                                       $23, $24, NOW()) ON CONFLICT (match_key) DO
-                               UPDATE SET red_score = EXCLUDED.red_score,
-                                   blue_score = EXCLUDED.blue_score,
-                                   score_breakdown = EXCLUDED.score_breakdown,
-                                   videos = EXCLUDED.videos,
-                                   last_update = NOW();
+                                       $23, $24, NOW())
+                               ON CONFLICT (match_key) DO UPDATE SET red_score       = EXCLUDED.red_score,
+                                                                     blue_score      = EXCLUDED.blue_score,
+                                                                     score_breakdown = EXCLUDED.score_breakdown,
+                                                                     videos          = EXCLUDED.videos,
+                                                                     last_update     = NOW();
                                """, (
                                    key, event_key, comp_level, set_number, match_number,
                                    time_val, actual_time, predicted_time, post_result_time,
@@ -1329,7 +1194,8 @@ async def get_tba_match(match_key: str) -> Optional[dict]:
         row = await conn.fetchrow("""
                                   SELECT *
                                   FROM matches_tba
-                                  WHERE match_key = $1 LIMIT 1
+                                  WHERE match_key = $1
+                                  LIMIT 1
                                   """, match_key)
 
         if not row:
@@ -1439,10 +1305,10 @@ async def add_session(session_id: str, session_data: Dict[str, Any], expires_dt:
         async with conn.transaction():
             await conn.execute("""
                                INSERT INTO sessions (uuid, data, expires)
-                               VALUES ($1, $2, $3) ON CONFLICT (uuid) DO
-                               UPDATE
-                                   SET data = EXCLUDED.data,
-                                   expires = EXCLUDED.expires
+                               VALUES ($1, $2, $3)
+                               ON CONFLICT (uuid) DO UPDATE
+                                   SET data    = EXCLUDED.data,
+                                       expires = EXCLUDED.expires
                                """, session_id, session_data, expires_dt)
     except PostgresError as e:
         logger.error("Failed to add session: %s", e)
@@ -1556,7 +1422,8 @@ async def create_user_if_missing(email: str, name: str):
 
             defaults = await conn.fetchrow("""
                                            SELECT new_login_default
-                                           FROM metadata LIMIT 1 FOR SHARE
+                                           FROM metadata
+                                           LIMIT 1 FOR SHARE
                                            """)
 
             if not defaults:
@@ -1572,7 +1439,8 @@ async def create_user_if_missing(email: str, name: str):
                                                   perm_admin,
                                                   perm_match_scout,
                                                   perm_pit_scout)
-                               VALUES ($1, $2, $3, $4, $5, $6, $7) ON CONFLICT (email) DO NOTHING
+                               VALUES ($1, $2, $3, $4, $5, $6, $7)
+                               ON CONFLICT (email) DO NOTHING
                                """,
                                email,
                                name,
@@ -1636,7 +1504,8 @@ async def set_misc(key: str, value: str):
             # 3. Ensure row id=1 exists
             await conn.execute("""
                                INSERT INTO misc (id)
-                               VALUES (1) ON CONFLICT (id) DO NOTHING
+                               VALUES (1)
+                               ON CONFLICT (id) DO NOTHING
                                """)
 
             # 4. Update column
@@ -1880,7 +1749,7 @@ async def record_attendance_event(email: str, action: str) -> None:
                 FROM attendance
                 WHERE email = $1
                 ORDER BY time DESC
-                    LIMIT 1
+                LIMIT 1
                 """,
                 email,
             )
@@ -1919,10 +1788,37 @@ async def record_attendance_event(email: str, action: str) -> None:
         await release_db_connection(pool, conn)
 
 EARLY_CHECKIN_GRACE = timedelta(minutes=15)
+
 LATE_CHECKOUT_GRACE = timedelta(hours=2)
+
 LATE_CHECKOUT_MULTIPLIER = 0.875
 
+
 async def compute_attendance_totals() -> list[dict]:
+    """
+    Public entry point.
+    Calculates a time bucket that changes every 30 seconds
+    and requests the cached data for that specific bucket.
+    """
+    # floor division by 30 ensures the integer result changes only every 30s
+    refresh_key = int(time.time() // 30)
+    print("cached!", refresh_key)
+    pool, conn = await get_db_connection(DB_NAME)
+    return await _compute_attendance_impl(refresh_key)
+
+
+# ---------------------------------------------------------
+# 2. PRIVATE/CACHED IMPLEMENTATION
+# ---------------------------------------------------------
+# maxsize=2 is sufficient to hold the current bucket
+# and potentially the previous one during a transition.
+@alru_cache(maxsize=2)
+async def _compute_attendance_impl(refresh_key: int) -> list[dict]:
+    """
+    The actual heavy lifting.
+    The 'refresh_key' argument is unused in the logic,
+    but essential for the LRU cache to distinguish between time windows.
+    """
     pool, conn = await get_db_connection(DB_NAME)
     try:
         await conn.execute("SET TRANSACTION ISOLATION LEVEL READ COMMITTED")
@@ -1934,7 +1830,7 @@ async def compute_attendance_totals() -> list[dict]:
                    a.action,
                    a.time
             FROM attendance a
-            LEFT JOIN users u ON u.email = a.email
+                     LEFT JOIN users u ON u.email = a.email
             ORDER BY a.time ASC
             """
         )
@@ -1942,7 +1838,7 @@ async def compute_attendance_totals() -> list[dict]:
         now = datetime.now(timezone.utc)
 
         # ------------------------------------------------------------
-        # 1. Single pass: meetings + user sessions
+        # Logic: Single pass meetings + sessions
         # ------------------------------------------------------------
         meeting_intervals: list[tuple] = []
         meeting_start = None
@@ -1977,7 +1873,6 @@ async def compute_attendance_totals() -> list[dict]:
                 if start:
                     user_sessions[email].append((start, t))
 
-        # open meetings / sessions extend to now
         if meeting_start:
             meeting_intervals.append((meeting_start, now))
 
@@ -1988,7 +1883,7 @@ async def compute_attendance_totals() -> list[dict]:
             return []
 
         # ------------------------------------------------------------
-        # 2. Precompute meeting metadata
+        # Logic: Precompute meeting metadata
         # ------------------------------------------------------------
         meeting_meta = []
         for i, (m_start, m_end) in enumerate(meeting_intervals):
@@ -2001,21 +1896,19 @@ async def compute_attendance_totals() -> list[dict]:
             meeting_meta.append((m_start, m_end, late_limit, next_pre))
 
         # ------------------------------------------------------------
-        # 3. Overlap helper
+        # Logic: Overlap helper
         # ------------------------------------------------------------
         def overlap_with_grace(s_start, s_end, m_start, m_end):
             if s_end <= m_start or s_start >= m_end:
                 return 0
-
             if s_start < m_start and (m_start - s_start) > EARLY_CHECKIN_GRACE:
                 return 0
-
             start = max(s_start, m_start)
             end = min(s_end, m_end)
             return max(0, (end - start).total_seconds())
 
         # ------------------------------------------------------------
-        # 4. Compute totals (two-pointer scan)
+        # Logic: Compute totals
         # ------------------------------------------------------------
         totals = {}
 
@@ -2046,7 +1939,7 @@ async def compute_attendance_totals() -> list[dict]:
                 totals[email] = total
 
         # ------------------------------------------------------------
-        # 5. Maximum possible seconds (elapsed meetings only)
+        # Logic: Maximum possible seconds
         # ------------------------------------------------------------
         max_seconds = 0.0
         for m_start, m_end in meeting_intervals:
@@ -2056,9 +1949,6 @@ async def compute_attendance_totals() -> list[dict]:
 
         half_max = max_seconds / 2
 
-        # ------------------------------------------------------------
-        # 6. Final result
-        # ------------------------------------------------------------
         return [
             {
                 "email": email,
@@ -2075,8 +1965,8 @@ async def compute_attendance_totals() -> list[dict]:
 
 
 async def is_user_currently_checked_in(
-    email: str,
-    future_offset_seconds: int = 0,
+        email: str,
+        future_offset_seconds: int = 0,
 ) -> bool:
     """
     Returns True if the user's most recent attendance action as of (now + offset)
@@ -2108,6 +1998,7 @@ async def is_user_currently_checked_in(
     finally:
         await release_db_connection(pool, conn)
 
+
 async def get_meeting_time_events() -> list[dict]:
     """
     Returns all checkin / checkout events for the special
@@ -2135,10 +2026,13 @@ async def get_meeting_time_events() -> list[dict]:
     finally:
         await release_db_connection(pool, conn)
 
+
 WINDOW = timedelta(minutes=5)
+
 
 def is_near(now: datetime, target: datetime) -> bool:
     return abs(now - target) <= WINDOW
+
 
 async def get_latest_meeting_boundaries() -> dict | None:
     """
@@ -2161,6 +2055,7 @@ async def get_latest_meeting_boundaries() -> dict | None:
 
     return {"start": start, "end": end}
 
+
 async def add_meeting_time_block(start: datetime, end: datetime) -> None:
     """
     Atomically inserts a meeting time checkin + checkout pair.
@@ -2181,14 +2076,14 @@ async def add_meeting_time_block(start: datetime, end: datetime) -> None:
                 """
                 SELECT 1
                 FROM attendance a1
-                JOIN attendance a2
-                  ON a1.email = 'meeting time'
-                 AND a2.email = 'meeting time'
-                 AND a1.action = 'checkin'
-                 AND a2.action = 'checkout'
-                 AND a2.time > a1.time
-                 AND tstzrange(a1.time, a2.time)
-                     && tstzrange($1, $2)
+                         JOIN attendance a2
+                              ON a1.email = 'meeting time'
+                                  AND a2.email = 'meeting time'
+                                  AND a1.action = 'checkin'
+                                  AND a2.action = 'checkout'
+                                  AND a2.time > a1.time
+                                  AND tstzrange(a1.time, a2.time)
+                                     && tstzrange($1, $2)
                 LIMIT 1
                 """,
                 start,
@@ -2202,9 +2097,8 @@ async def add_meeting_time_block(start: datetime, end: datetime) -> None:
             await conn.execute(
                 """
                 INSERT INTO attendance (email, action, time)
-                VALUES
-                  ('meeting time', 'checkin',  $1),
-                  ('meeting time', 'checkout', $2)
+                VALUES ('meeting time', 'checkin', $1),
+                       ('meeting time', 'checkout', $2)
                 """,
                 start,
                 end,
@@ -2229,14 +2123,14 @@ async def delete_meeting_time_block(start: datetime, end: datetime) -> None:
                 """
                 SELECT 1
                 FROM attendance a1
-                JOIN attendance a2
-                  ON a1.email = 'meeting time'
-                 AND a2.email = 'meeting time'
-                 AND a1.action = 'checkin'
-                 AND a2.action = 'checkout'
-                 AND a1.time = $1
-                 AND a2.time = $2
-                 AND a2.time > a1.time
+                         JOIN attendance a2
+                              ON a1.email = 'meeting time'
+                                  AND a2.email = 'meeting time'
+                                  AND a1.action = 'checkin'
+                                  AND a2.action = 'checkout'
+                                  AND a1.time = $1
+                                  AND a2.time = $2
+                                  AND a2.time > a1.time
                 LIMIT 1
                 """,
                 start,
@@ -2249,12 +2143,13 @@ async def delete_meeting_time_block(start: datetime, end: datetime) -> None:
             # Delete both rows atomically
             await conn.execute(
                 """
-                DELETE FROM attendance
+                DELETE
+                FROM attendance
                 WHERE email = 'meeting time'
                   AND (
-                        (action = 'checkin'  AND time = $1)
-                     OR (action = 'checkout' AND time = $2)
-                  )
+                    (action = 'checkin' AND time = $1)
+                        OR (action = 'checkout' AND time = $2)
+                    )
                 """,
                 start,
                 end,
@@ -2267,9 +2162,9 @@ async def delete_meeting_time_block(start: datetime, end: datetime) -> None:
 # =================== Push notif ===================
 
 async def create_push_subscription(
-    *,
-    email: str,
-    payload: dict,
+        *,
+        email: str,
+        payload: dict,
 ) -> None:
     """
     Creates or replaces a push notification subscription.
@@ -2297,34 +2192,29 @@ async def create_push_subscription(
     try:
         await conn.execute(
             """
-            INSERT INTO push_notif (
-                email,
-                endpoint,
-                p256dh,
-                auth,
-                device_type,
-                browser,
-                os,
-                is_pwa,
-                is_ios_pwa,
-                enabled,
-                updated_at
-            )
-            VALUES (
-                $1, $2, $3, $4, $5, $6, $7, $8, $9, true, now()
-            )
+            INSERT INTO push_notif (email,
+                                    endpoint,
+                                    p256dh,
+                                    auth,
+                                    device_type,
+                                    browser,
+                                    os,
+                                    is_pwa,
+                                    is_ios_pwa,
+                                    enabled,
+                                    updated_at)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, true, now())
             ON CONFLICT (endpoint)
-            DO UPDATE SET
-                email        = EXCLUDED.email,
-                p256dh       = EXCLUDED.p256dh,
-                auth         = EXCLUDED.auth,
-                device_type  = EXCLUDED.device_type,
-                browser      = EXCLUDED.browser,
-                os           = EXCLUDED.os,
-                is_pwa       = EXCLUDED.is_pwa,
-                is_ios_pwa   = EXCLUDED.is_ios_pwa,
-                enabled      = true,
-                updated_at   = now()
+                DO UPDATE SET email       = EXCLUDED.email,
+                              p256dh      = EXCLUDED.p256dh,
+                              auth        = EXCLUDED.auth,
+                              device_type = EXCLUDED.device_type,
+                              browser     = EXCLUDED.browser,
+                              os          = EXCLUDED.os,
+                              is_pwa      = EXCLUDED.is_pwa,
+                              is_ios_pwa  = EXCLUDED.is_ios_pwa,
+                              enabled     = true,
+                              updated_at  = now()
             """,
             email,
             endpoint,
@@ -2340,11 +2230,12 @@ async def create_push_subscription(
     finally:
         await release_db_connection(pool, conn)
 
+
 async def update_push_subscription(
-    *,
-    email: str,
-    endpoint: str,
-    updates: dict,
+        *,
+        email: str,
+        endpoint: str,
+        updates: dict,
 ) -> bool:
     """
     Updates an existing push subscription.
@@ -2359,8 +2250,7 @@ async def update_push_subscription(
         result = await conn.execute(
             """
             UPDATE push_notif
-            SET
-                device_type = COALESCE($1, device_type),
+            SET device_type = COALESCE($1, device_type),
                 browser     = COALESCE($2, browser),
                 os          = COALESCE($3, os),
                 is_pwa      = COALESCE($4, is_pwa),
@@ -2387,10 +2277,11 @@ async def update_push_subscription(
     finally:
         await release_db_connection(pool, conn)
 
+
 async def fetch_push_subscriptions_for_setting(
-    *,
-    setting_key: str,
-    setting_value: bool = True,
+        *,
+        setting_key: str,
+        setting_value: bool = True,
 ) -> list[dict]:
     """
     Fetch enabled push subscriptions that opted into a given setting.
@@ -2400,11 +2291,10 @@ async def fetch_push_subscriptions_for_setting(
     try:
         rows = await conn.fetch(
             """
-            SELECT
-                email,
-                endpoint,
-                p256dh,
-                auth
+            SELECT email,
+                   endpoint,
+                   p256dh,
+                   auth
             FROM push_notif
             WHERE enabled = true
               AND settings ->> $1 = $2
@@ -2417,7 +2307,6 @@ async def fetch_push_subscriptions_for_setting(
 
     finally:
         await release_db_connection(pool, conn)
-
 
 
 # =================== Data ===================
@@ -2433,7 +2322,8 @@ async def get_processed_data(event_key: Optional[str] = None) -> Optional[dict]:
                                   SELECT data
                                   FROM processed_data
                                   WHERE event_key = COALESCE($1, (SELECT current_event FROM metadata LIMIT 1))
-                                  ORDER BY time_added DESC LIMIT 1
+                                  ORDER BY time_added DESC
+                                  LIMIT 1
                                   """, event_key)
 
         return row["data"] if row else None
