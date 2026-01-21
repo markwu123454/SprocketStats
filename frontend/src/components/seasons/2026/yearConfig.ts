@@ -92,7 +92,7 @@ export const pitQuestions = [
 
     {key: "camera", label: "Robot Photos", type: "camera"},
 
-    {key: "drivebase", label: "Drivebase Type", placeholder: "e.g. Swerve, Tank", type: "text"},
+    {key: "driveBase", label: "Drive Base Type", placeholder: "e.g. Swerve, Tank", type: "text"},
 {
         key: "robotSpeed",
         label: "Robot Speed",
