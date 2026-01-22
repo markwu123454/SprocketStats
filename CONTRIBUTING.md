@@ -117,15 +117,16 @@ Sync with `.env.example` when new variables are added.
 
 ## Infrastructure
 
-| Service                                                                            | Purpose                         | Development           | Production                       | Cost |
-|------------------------------------------------------------------------------------|---------------------------------|-----------------------|----------------------------------|------|
-| **[Vercel](https://vercel.com/)**                                                  | Frontend deployment (Vite)      | http://localhost:5173 | https://www.sprocketstats.io/    | $0   |
-| **[Render](https://render.com/)**                                                  | Backend deployment (FastAPI)    | http://localhost:8000 | https://api.sprocketstats.io/    | $0   |
-| **[Google Identity Services(GIS)](https://console.cloud.google.com/auth/clients)** | User login & identity           | —                     | —                                | $0   |
-| **[Neon](https://neon.com/)**                                                      | PostgreSQL serverless database  | —                     | —                                | $0   |
-| **[Google Cloud Storage(GCS)](https://console.cloud.google.com/storage)**          | Unstructured file storage       | —                     | —                                | $0   |
-| **[Cron jobs](https://cron-jobs.org/)**                                            | Scheduling Cron jobs            | —                     | https://status.sprocketstats.io/ | $0   |
-| **[Cloudflare](https://cloudflare.com)**                                           | Domain registration and hosting | —                     | —                                | $0   |
+| Service                                                                            | Purpose                         | Development           | Production                       | Cost   |
+|------------------------------------------------------------------------------------|---------------------------------|-----------------------|----------------------------------|--------|
+| **[Vercel](https://vercel.com/)**                                                  | Frontend deployment (Vite)      | http://localhost:5173 | https://www.sprocketstats.io/    | $0     |
+| **[Render](https://render.com/)**                                                  | Backend deployment (FastAPI)    | http://localhost:8000 | https://api.sprocketstats.io/    | $0     |
+| **[Google Identity Services(GIS)](https://console.cloud.google.com/auth/clients)** | User login & identity           | —                     | —                                | $0     |
+| **[Neon](https://neon.com/)**                                                      | PostgreSQL serverless database  | —                     | —                                | $0     |
+| **[Google Cloud Storage(GCS)](https://console.cloud.google.com/storage)**          | Unstructured file storage       | —                     | —                                | $0     |
+| **[Cron jobs](https://cron-jobs.org/)**                                            | Scheduling Cron jobs            | —                     | https://status.sprocketstats.io/ | $0     |
+| **[Cloudflare](https://cloudflare.com)**                                           | Nameserver and DNS management   | —                     | —                                | $0     |
+| **[DreamHost](https://dreamhost.com)**                                             | Domain registration             | —                     | —                                | $50.99 |
 
 ---
 
