@@ -62,4 +62,4 @@ urllib3==2.6.2
 uvicorn==0.38.0
 yarl==1.22.0
 pywebpush==1.14.0
-
+async_lru==2.1.0
