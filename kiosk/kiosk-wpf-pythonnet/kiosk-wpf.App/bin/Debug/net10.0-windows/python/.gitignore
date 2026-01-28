@@ -1,0 +1,11 @@
+﻿# Embedded Python runtime
+python/python*.dll
+python/python*.zip
+python/python.exe
+python/vcruntime*.dll
+python/Lib/
+python/site-packages/
+
+!python/python311._pth
+!python/*.py
+!python/README.md
