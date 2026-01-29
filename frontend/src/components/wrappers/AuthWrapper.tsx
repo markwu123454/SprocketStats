@@ -1,14 +1,13 @@
 import React, {
     useEffect,
     useState,
-    useCallback,
-    useRef,
+    useRef, use,
 } from "react"
 import {Link, Outlet, useLocation} from "react-router-dom"
 import {createPortal} from "react-dom"
-import {useAPI} from "@/hooks/useAPI"
 import {useClientEnvironment} from "@/hooks/useClientEnvironment"
 import useFeatureFlags from "@/hooks/useFeatureFlags.ts"
+import {useAuth} from "@/hooks/useAuth"
 
 const DEVICE_WARNING_STORAGE_KEY = "device_warning_silenced_routes"
 
@@ -38,10 +37,10 @@ class InlineRenderGuard extends React.Component<
     },
     { hasError: boolean }
 > {
-    state = { hasError: false }
+    state = {hasError: false}
 
     static getDerivedStateFromError() {
-        return { hasError: true }
+        return {hasError: true}
     }
 
     componentDidCatch(error: Error) {
@@ -66,12 +65,12 @@ const PERMISSION_LABELS: Record<string, string> = {
 }
 
 export default function AuthGate({
-                                     permission,
-                                     device,
-                                     dialogTheme = "dark",
-                                     mode = "auto",
-                                     children,
-                                 }: {
+    permission,
+    device,
+    dialogTheme = "dark",
+    mode = "auto",
+    children,
+}: {
     permission: "dev" | "admin" | "match_scouting" | "pit_scouting"
     device?: "mobile" | "desktop"
     dialogTheme?: "light" | "dark"
@@ -81,80 +80,42 @@ export default function AuthGate({
     const location = useLocation()
     const routeKey = location.pathname
 
-    const {verify} = useAPI()
-    const {isOnline, serverOnline, deviceType} = useClientEnvironment()
+    const { status, permissions } = useAuth()
+    const { isOnline, serverOnline, deviceType } = useClientEnvironment()
     const featureFlags = useFeatureFlags()
 
     /* ---------------------------------------------
-     * AUTHORIZATION STATE
+     * AUTH STATE (DERIVED)
      * -------------------------------------------*/
 
-    const cachedPerms = useRef<Record<string, boolean>>(
-        JSON.parse(localStorage.getItem("perms") ?? "{}")
-    )
+    const verifying =
+        status === "loading" || status === "authenticating"
+
+    const baseAuthorized =
+        permissions?.[permission] === true
 
     const useOptimisticUX =
         mode === "optimistic"
             ? true
             : mode === "pessimistic"
                 ? false
-                : Boolean(cachedPerms.current[permission])
+                : baseAuthorized
 
-    const [authorized, setAuthorized] = useState<boolean | null>(
-        useOptimisticUX ? true : null
-    )
-    const [verifying, setVerifying] = useState(!useOptimisticUX)
+    const isScoutingPermission =
+        permission === "match_scouting" || permission === "pit_scouting"
 
-    const verifyAuth = useCallback(async () => {
-        setVerifying(true)
+    const offlineAllowed =
+        isScoutingPermission &&
+        featureFlags.offlineScouting &&
+        (!isOnline || !serverOnline)
 
-        const isScoutingPermission =
-            permission === "match_scouting" || permission === "pit_scouting"
-
-        const canUseOfflineScouting =
-            isScoutingPermission && featureFlags.offlineScouting
-
-        if ((!isOnline || !serverOnline) && canUseOfflineScouting) {
-            setAuthorized(true)
-            setVerifying(false)
-            return
-        }
-
-        if ((!isOnline || !serverOnline) && isScoutingPermission) {
-            if (!useOptimisticUX) {
-                setAuthorized(false)
-            }
-            setVerifying(false)
-            return
-        }
-
-        const result = await verify()
-        const perms = result.permissions
-        const success = result.success && perms[permission]
-
-        if (!success && useOptimisticUX) {
-            // hard failure only — downgrade now
-            setAuthorized(false)
-        } else {
-            setAuthorized(success)
-        }
-
-        setVerifying(false)
-
-        if (result.success) {
-            localStorage.setItem("perms", JSON.stringify(perms))
-        }
-    }, [
-        isOnline,
-        serverOnline,
-        verify,
-        permission,
-        featureFlags.offlineScouting,
-    ])
-
-    useEffect(() => {
-        void verifyAuth()
-    }, [verifyAuth])
+    const authorized =
+        offlineAllowed
+            ? true
+            : verifying && useOptimisticUX
+                ? true
+                : baseAuthorized
+    // TODO: FIX ME
 
     const authBlocking =
         (!useOptimisticUX && verifying) || authorized === false
@@ -191,6 +152,7 @@ export default function AuthGate({
      * -------------------------------------------*/
 
     const blocking = authBlocking || deviceBlocking
+    useEffect(() => {console.log(mode, status, verifying, baseAuthorized, useOptimisticUX, isScoutingPermission, offlineAllowed, authorized, deviceBlocking, blocking)}, [authorized, baseAuthorized, blocking, deviceBlocking, isScoutingPermission, offlineAllowed, status, useOptimisticUX, verifying])
 
     /* ---------------------------------------------
      * SCROLL LOCK
@@ -211,6 +173,7 @@ export default function AuthGate({
      * STYLES
      * -------------------------------------------*/
 
+
     const isLight = dialogTheme === "light"
     const overlayBg = isLight
         ? "bg-white text-black"
@@ -220,16 +183,14 @@ export default function AuthGate({
         : "border border-zinc-700 shadow-xl"
 
     /* ---------------------------------------------
-     * CONTENT (ALWAYS RENDERED)
+     * CONTENT
      * -------------------------------------------*/
 
     const [contentCrashed, setContentCrashed] = useState(false)
-
-    const content = children ?? <Outlet/>
+    const content = children ?? <Outlet />
 
     return (
         <>
-            {/* PAGE CONTENT (best-effort) */}
             {!contentCrashed && (
                 <div
                     className={
@@ -245,7 +206,6 @@ export default function AuthGate({
                 </div>
             )}
 
-            {/* FALLBACK BACKGROUND IF CONTENT CRASHED */}
             {contentCrashed && (
                 <div
                     className={`fixed inset-0 ${
@@ -256,7 +216,6 @@ export default function AuthGate({
                 />
             )}
 
-            {/* OVERLAY (ALWAYS SAFE) */}
             {blocking &&
                 createPortal(
                     <div
@@ -270,8 +229,7 @@ export default function AuthGate({
                     >
                         {!useOptimisticUX && verifying && (
                             <div className="flex flex-col items-center gap-4">
-                                <div
-                                    className="w-8 h-8 border-4 border-t-transparent border-blue-500 rounded-full animate-spin"/>
+                                <div className="w-8 h-8 border-4 border-t-transparent border-blue-500 rounded-full animate-spin" />
                                 <div className="text-lg font-medium">
                                     Checking access…
                                 </div>
@@ -288,8 +246,8 @@ export default function AuthGate({
                                 <p className="mb-6">
                                     You lack{" "}
                                     <span className="font-semibold text-red-400">
-                                    {PERMISSION_LABELS[permission]}
-                                </span>{" "}
+                                        {PERMISSION_LABELS[permission]}
+                                    </span>{" "}
                                     permission or your session expired.
                                 </p>
                                 <Link
@@ -311,11 +269,9 @@ export default function AuthGate({
                                     Device Mismatch
                                 </h2>
                                 <p className="mb-6">
-                                    Intended for{" "}
-                                    <strong>{device}</strong> devices.
-                                    <br/>
-                                    You are on{" "}
-                                    <strong>{deviceType}</strong>.
+                                    Intended for <strong>{device}</strong>.
+                                    <br />
+                                    You are on <strong>{deviceType}</strong>.
                                 </p>
 
                                 <div className="flex flex-col gap-3">
