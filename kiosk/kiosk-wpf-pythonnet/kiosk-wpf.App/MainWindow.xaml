@@ -50,7 +50,7 @@
             <Border Grid.Row="2"
                     Background="#0C0C0C"
                     CornerRadius="6"
-                    Padding="12">
+                    Padding="6">
                 <RichTextBox x:Name="LogOutput"
                              IsReadOnly="True"
                              BorderThickness="0"

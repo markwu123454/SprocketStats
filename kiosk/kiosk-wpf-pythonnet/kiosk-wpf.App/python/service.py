@@ -1,7 +1,9 @@
 ﻿import sys
+import time
+import traceback
 
-busy = False
 _log = None
+
 
 class _CSharpStdout:
     def write(self, text):
@@ -26,17 +28,33 @@ def log(msg: str):
         _log(msg)
 
 
-def set_busy(value: bool):
-    global busy
-    busy = value
-    print(f"Busy set to {value}")
-
-
-def is_busy() -> bool:
-    return busy
-
-
 def run_calculation(path: str) -> str:
     print(f"Running calculation on {path}")
     print("This is a normal print()")
+    time.sleep(5)
     return f"Processed {path}"
+
+
+def exec_command(code: str):
+    """
+    Execute arbitrary Python code using full global and local scope.
+    Exceptions are caught and printed with a red ANSI traceback.
+    """
+    try:
+        # Use module globals so state persists across calls
+        exec(code, globals(), globals())
+    except Exception:
+        print(f"\x1b[31m{traceback.format_exc()}\x1b[0m")
+
+
+_set_busy_cb = None
+
+
+def register_set_busy(cb):
+    global _set_busy_cb
+    _set_busy_cb = cb
+
+
+def set_busy(value: bool):
+    if _set_busy_cb:
+        _set_busy_cb(value)

@@ -48,4 +48,22 @@ public sealed class PythonService
                 "register_logger", logger.ToPython());
         }
     }
+
+    public void ExecuteCommand(string code)
+    {
+        using (Py.GIL())
+        {
+            _service.InvokeMethod(
+                "exec_command", code.ToPython());
+        }
+    }
+
+    public void RegisterSetBusy(Action<bool> callback)
+    {
+        using (Py.GIL())
+        {
+            _service.InvokeMethod(
+                "register_set_busy", callback.ToPython());
+        }
+    }
 }

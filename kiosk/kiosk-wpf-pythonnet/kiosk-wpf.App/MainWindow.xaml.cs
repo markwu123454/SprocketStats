@@ -6,15 +6,18 @@ using System.Windows.Media;
 
 namespace kiosk_wpf.App;
 
-public partial class MainWindow : Window
+public partial class MainWindow
 {
     private readonly AnsiConsole _console = new();
+    
+    private bool _isBusy;
 
     public MainWindow()
     {
         InitializeComponent();
-
+        
         App.Python.RegisterLogger(AppendLog);
+        App.Python.RegisterSetBusy(SetBusyFromPython);
     }
 
     // ===============================
@@ -32,11 +35,16 @@ public partial class MainWindow : Window
         if (string.IsNullOrWhiteSpace(command))
             return;
 
-        AppendLog($">>> {command}");
+        try
+        {
 
-        // Placeholder for future command routing
-        // Example:
-        // App.Python.ExecuteCommand(command);
+            AppendLog($"\x1b[32m>>>\x1b[0m {command}");
+            Task.Run(() => App.Python.ExecuteCommand(command));
+        }
+        catch (Exception ex)
+        {
+            AppendLog($"Error executing command: {ex.Message}");
+        }
 
         e.Handled = true;
     }
@@ -154,5 +162,23 @@ public partial class MainWindow : Window
         LogOutput.Document = doc;
         LogOutput.ScrollToEnd();
     }
+    
+    private void SetBusyFromPython(bool busy)
+    {
+        Dispatcher.Invoke(() =>
+        {
+            _isBusy = busy;
 
+            RunBtn.IsEnabled = !busy;
+            UploadBtn.IsEnabled = !busy;
+            DownloadBtn.IsEnabled = !busy;
+
+            CommandInput.IsEnabled = !busy;
+
+            if (busy)
+            {
+                Keyboard.ClearFocus();
+            }
+        });
+    }
 }
