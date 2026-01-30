@@ -25,7 +25,7 @@ public sealed class AnsiConsole
         [97] = Colors.White
     };
 
-    public AnsiConsole(int rows = 4000, int columns = 300)
+    public AnsiConsole(int rows = 4, int columns = 300)
     {
         Buffer = new TerminalBuffer(rows, columns);
     }

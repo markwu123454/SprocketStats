@@ -22,11 +22,6 @@ public partial class App
             {
                 System.Diagnostics.Debug.WriteLine("[PY] " + msg);
             });
-
-            Task.Run(() =>
-            {
-                Python.ExecuteCommand("time.sleep(1); print('\\x1b[35m $$$$$$\\  $$$$$$$\\  $$$$$$$\\   $$$$$$\\   $$$$$$\\  $$\\   $$\\ $$$$$$$$\\ $$$$$$$$\\  $$$$$$\\ $$$$$$$$\\  $$$$$$\\ $$$$$$$$\\  $$$$$$\\  \\x1b[0m')");
-            });
         }
         catch (Exception ex)
         {
