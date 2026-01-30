@@ -116,7 +116,7 @@ export default function AuthGate({
             : verifying && useOptimisticUX
                 ? true
                 : baseAuthorized
-    // TODO: FIX ME
+    // FIXME: fix loading mode(opti/pessi)
 
     const authBlocking =
         (!useOptimisticUX && verifying) || authorized === false
