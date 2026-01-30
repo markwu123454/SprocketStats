@@ -44,7 +44,7 @@ const REFRESH_SKEW_MS = 30 * 1000         // refresh 30s early
 type PersistedAuth = {
     v: 1
     name: string
-    email: string | null
+    email: string
     permissions: Permissions
     expiresAt: number
 }
@@ -57,6 +57,20 @@ export function useAuth() {
     const expiresAtRef = useRef<number | null>(null)
 
     const persisted = loadPersistedAuth()
+    function loadPersistedAuth(): PersistedAuth | null {
+        try {
+            const raw = localStorage.getItem(AUTH_STORAGE_KEY)
+            if (!raw) return null
+
+            const data = JSON.parse(raw) as PersistedAuth
+            if (data.v !== 1) return null
+            if (Date.now() > data.expiresAt) return null
+
+            return data
+        } catch {
+            return null
+        }
+    }
 
     const [auth, setAuth] = useState<AuthState>(() => {
         if (persisted) {
@@ -97,21 +111,6 @@ export function useAuth() {
         }, delay)
     }, [])
 
-    function loadPersistedAuth(): PersistedAuth | null {
-        try {
-            const raw = localStorage.getItem(AUTH_STORAGE_KEY)
-            if (!raw) return null
-
-            const data = JSON.parse(raw) as PersistedAuth
-            if (data.v !== 1) return null
-            if (Date.now() > data.expiresAt) return null
-
-            return data
-        } catch {
-            return null
-        }
-    }
-
     const clearRefreshTimer = () => {
         if (refreshTimer.current !== null) {
             clearTimeout(refreshTimer.current)
@@ -135,7 +134,7 @@ export function useAuth() {
 
     const setAuthenticated = useCallback((data: {
         name: string
-        email?: string
+        email: string
         permissions: Permissions
     }) => {
         const expiresAt = Date.now() + VERIFY_TTL_MS
@@ -144,7 +143,7 @@ export function useAuth() {
         const persisted: PersistedAuth = {
             v: 1,
             name: data.name,
-            email: data.email ?? null,
+            email: data.email,
             permissions: data.permissions,
             expiresAt,
         }
@@ -154,7 +153,7 @@ export function useAuth() {
         setAuth({
             status: "authenticated",
             name: data.name,
-            email: data.email ?? null,
+            email: data.email,
             permissions: data.permissions,
             error: null,
         })
@@ -189,13 +188,14 @@ export function useAuth() {
 
             const res = await apiLogin(credential)
 
-            if (!res.success || !res.name || !res.permissions) {
+            if (!res.success || !res.name || !res.email || !res.permissions) {
                 setUnauthenticated(res.error)
                 return {success: false, error: res.error}
             }
 
             setAuthenticated({
                 name: res.name,
+                email: res.email,
                 permissions: res.permissions,
             })
 

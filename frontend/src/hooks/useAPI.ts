@@ -116,6 +116,7 @@ export function useAPI() {
     const login = async (credential: string): Promise<{
         success: boolean
         name?: string
+        email?: string
         error?: string
         permissions?: {
             dev: boolean
@@ -150,6 +151,7 @@ export function useAPI() {
             return {
                 success: true,
                 name: json.name,
+                email: json.email,
                 permissions: json.permissions,
             }
         } catch (err) {
@@ -908,8 +910,6 @@ export function useAPI() {
         login,
         logout,
         getMetadata,
-        /** @deprecated Use checkSession() via useAuth instead */
-        verify: checkSession,
         ping,
         claimTeam,
         unclaimTeam,
