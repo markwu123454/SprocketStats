@@ -4,7 +4,8 @@ import {useNavigate} from "react-router-dom"
 
 import type {MatchScoutingData, Phase, ScoutingStatus} from '@/types'
 
-import {useAPI, getScouterName, getScouterEmail} from '@/hooks/useAPI.ts'
+import {useAPI} from '@/hooks/useAPI.ts'
+import {useAuth} from '@/hooks/useAuth.ts'
 import {useClientEnvironment} from "@/hooks/useClientEnvironment.ts"
 import {saveScoutingData, deleteScoutingData, db, type ScoutingDataWithKey, updateScoutingStatus} from "@/db/db.ts"
 
@@ -41,28 +42,39 @@ export default function MatchScoutingPage() {
             match,
             teamNumber,
             match_type,
-            scouterEmail
+            scouterEmail!,
         );
     };
 
 
-    const {submitData, verify, claimTeam, unclaimTeam, unclaimTeamBeacon, updateState} = useAPI()
     const {isOnline, serverOnline} = useClientEnvironment()
-    const scouterName = getScouterName()!
-    const scouterEmail = getScouterEmail()!
+    const {
+        submitData,
+        claimTeam,
+        unclaimTeam,
+        unclaimTeamBeacon,
+        updateState,
+    } = useAPI()
+
+    const {
+        name: scouterName,
+        email: scouterEmail,
+        permissions,
+        refresh,
+        isAuthenticated,
+    } = useAuth()
 
     // 2. State
     const [phaseIndex, setPhaseIndex] = useState(0)
-    const [scoutingData, setScoutingData] = useState<MatchScoutingData>({
+    const [scoutingData, setScoutingData] = useState<MatchScoutingData>(() => ({
         ...createDefaultScoutingData(),
-        scouter: scouterEmail,
-    })
+        scouter: scouterEmail!,
+    }))
     const [submitStatus, setSubmitStatus] = useState<'idle' | 'loading' | 'success' | 'local' | 'error' | 'warning'>('idle')
     const [showResumeDialog, setShowResumeDialog] = useState(false)
     const [resumeList, setResumeList] = useState<ScoutingDataWithKey[]>([]);
     const [resumeLock, setResumeLock] = useState<Record<number, boolean>>({});
     const [resumeWarning, setResumeWarning] = useState<Record<number, boolean>>({});
-
     // 3. Derived constants
     const phase = PHASE_ORDER[phaseIndex]
     const baseDisabled =
@@ -99,7 +111,7 @@ export default function MatchScoutingPage() {
                 setResumeList(activeEntries);
                 setShowResumeDialog(true);
             } else {
-                setScoutingData({...createDefaultScoutingData(), scouter: scouterEmail})
+                setScoutingData({...createDefaultScoutingData(), scouter: scouterEmail!,})
                 setPhaseIndex(0)
             }
         })()
@@ -173,7 +185,7 @@ export default function MatchScoutingPage() {
         const fullData = {
             match_type,
             alliance,
-            scouter: scouterEmail,
+            scouter: scouterEmail!,
             data: rest as Omit<MatchScoutingData, "match" | "alliance" | "teamNumber" | "scouter">,
         }
 
@@ -186,12 +198,12 @@ export default function MatchScoutingPage() {
                 setSubmitStatus("local")
 
                 setTimeout(async () => {
-                    const result = await verify()
-                    const allowed = result.success && result.permissions?.match_scouting
-                    if (!allowed) return
+                    const ok = await refresh()
+                    if (!ok || !permissions?.match_scouting) return
+
 
                     setSubmitStatus("idle")
-                    setScoutingData({...createDefaultScoutingData(), scouter: scouterEmail})
+                    setScoutingData({...createDefaultScoutingData(), scouter: scouterEmail!,})
                     setPhaseIndex(0)
                 }, 1000)
             } else {
@@ -207,7 +219,7 @@ export default function MatchScoutingPage() {
                 setSubmitStatus("success")
                 setTimeout(() => {
                     setSubmitStatus("idle")
-                    setScoutingData({...createDefaultScoutingData(), scouter: scouterEmail})
+                    setScoutingData({...createDefaultScoutingData(), scouter: scouterEmail!,})
                     setPhaseIndex(0)
                 }, 1000)
             }
@@ -216,12 +228,12 @@ export default function MatchScoutingPage() {
             setSubmitStatus("warning")
 
             setTimeout(async () => {
-                const result = await verify()
-                const allowed = result.success && result.permissions?.match_scouting
-                if (!allowed) return
+                const ok = await refresh()
+                if (!ok || !permissions?.match_scouting) return
+
 
                 setSubmitStatus("idle")
-                setScoutingData({...createDefaultScoutingData(), scouter: scouterEmail})
+                setScoutingData({...createDefaultScoutingData(), scouter: scouterEmail!,})
                 setPhaseIndex(0)
             }, 1000)
         }
@@ -231,7 +243,7 @@ export default function MatchScoutingPage() {
         if (baseDisabled) return
         const nextIndex = phaseIndex + 1
         setPhaseIndex(nextIndex)
-        await updateState(scoutingData.match!, scoutingData.teamNumber!, scoutingData.match_type, scouterEmail, PHASE_ORDER[nextIndex],)
+        await updateState(scoutingData.match!, scoutingData.teamNumber!, scoutingData.match_type, scouterEmail!, PHASE_ORDER[nextIndex],)
     }
 
     const handleBack = async () => {
@@ -241,7 +253,7 @@ export default function MatchScoutingPage() {
         }
         const prevIndex = phaseIndex - 1
         setPhaseIndex(prevIndex)
-        await updateState(scoutingData.match!, scoutingData.teamNumber!, scoutingData.match_type, scouterEmail, PHASE_ORDER[prevIndex],)
+        await updateState(scoutingData.match!, scoutingData.teamNumber!, scoutingData.match_type, scouterEmail!, PHASE_ORDER[prevIndex],)
     }
 
 
@@ -270,7 +282,7 @@ export default function MatchScoutingPage() {
                                         onClick={async () => {
                                             try {
                                                 if (isOnline && serverOnline)
-                                                    await unclaimTeam(entry.match!, entry.teamNumber!, entry.match_type, scouterEmail);
+                                                    await unclaimTeam(entry.match!, entry.teamNumber!, entry.match_type, scouterEmail!);
                                             } catch (err) {
                                                 console.warn("Failed to unclaim during discard:", err);
                                             }
@@ -301,7 +313,7 @@ export default function MatchScoutingPage() {
                                                         entry.match!,
                                                         entry.teamNumber!,
                                                         entry.match_type,
-                                                        scouterEmail
+                                                        scouterEmail!,
                                                     );
 
                                                     if (!success) {
@@ -316,14 +328,14 @@ export default function MatchScoutingPage() {
                                                         entry.match!,
                                                         entry.teamNumber!,
                                                         entry.match_type,
-                                                        scouterEmail,
+                                                        scouterEmail!,
                                                         entry.status as Phase
                                                     );
                                                 }
 
                                                 const restored = normalizeScoutingData(entry, {
                                                     ...createDefaultScoutingData(),
-                                                    scouter: scouterEmail
+                                                    scouter: scouterEmail!,
                                                 });
 
                                                 setScoutingData(restored);

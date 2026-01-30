@@ -910,8 +910,6 @@ export function useAPI() {
         login,
         logout,
         getMetadata,
-        /** @deprecated Use checkSession() via useAuth instead */
-        verify: checkSession,
         ping,
         claimTeam,
         unclaimTeam,
