@@ -17,6 +17,11 @@ public partial class App
         {
             InitializePython();
             Python = new PythonService();
+
+            Python.RegisterLogger(msg =>
+            {
+                System.Diagnostics.Debug.WriteLine("[PY] " + msg);
+            });
         }
         catch (Exception ex)
         {

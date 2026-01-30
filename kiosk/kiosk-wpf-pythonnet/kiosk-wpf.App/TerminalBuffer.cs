@@ -4,21 +4,21 @@ namespace kiosk_wpf.App;
 
 public sealed class TerminalBuffer
 {
-    public TerminalBuffer(int rows, int columns)
+    public TerminalBuffer(int initialRows, int columns)
     {
-        Rows = rows;
         Columns = columns;
-        Cells = new TerminalCell[rows, columns];
+        _rows = new List<TerminalCell[]>(initialRows);
 
-        for (var r = 0; r < rows; r++)
-        for (var c = 0; c < columns; c++)
-            Cells[r, c] = new TerminalCell();
+        for (int i = 0; i < initialRows; i++)
+            _rows.Add(CreateRow());
     }
 
-    public int Rows { get; }
-    public int Columns { get; }
+    private readonly List<TerminalCell[]> _rows;
 
-    public TerminalCell[,] Cells { get; }
+    public int Columns { get; }
+    public int Rows => _rows.Count;
+
+    public IReadOnlyList<TerminalCell[]> Cells => _rows;
 
     public int CursorRow { get; private set; }
     public int CursorCol { get; private set; }
@@ -28,27 +28,44 @@ public sealed class TerminalBuffer
 
     public void WriteChar(char ch)
     {
-        if (CursorRow >= Rows || CursorCol >= Columns)
-            return;
+        EnsureRowExists(CursorRow);
 
-        var cell = Cells[CursorRow, CursorCol];
+        if (CursorCol >= Columns)
+        {
+            CursorCol = 0;
+            CursorRow++;
+            EnsureRowExists(CursorRow);
+        }
+
+        var cell = _rows[CursorRow][CursorCol];
         cell.Char = ch;
         cell.Foreground = CurrentForeground;
         cell.Background = CurrentBackground;
 
         CursorCol++;
-        if (CursorCol >= Columns)
-        {
-            CursorCol = 0;
-            CursorRow = Math.Min(CursorRow + 1, Rows - 1);
-        }
+    }
+    
+    private TerminalCell[] CreateRow()
+    {
+        var row = new TerminalCell[Columns];
+        for (int i = 0; i < Columns; i++)
+            row[i] = new TerminalCell();
+        return row;
+    }
+
+    private void EnsureRowExists(int row)
+    {
+        while (_rows.Count <= row)
+            _rows.Add(CreateRow());
     }
 
     public void NewLine()
     {
         CursorCol = 0;
-        CursorRow = Math.Min(CursorRow + 1, Rows - 1);
+        CursorRow++;
+        EnsureRowExists(CursorRow);
     }
+
 
     public void CarriageReturn()
     {
@@ -62,7 +79,8 @@ public sealed class TerminalBuffer
 
     public void CursorDown(int n = 1)
     {
-        CursorRow = Math.Min(Rows - 1, CursorRow + n);
+        CursorRow += n;
+        EnsureRowExists(CursorRow);
     }
 
     public void CursorForward(int n = 1)
@@ -77,17 +95,18 @@ public sealed class TerminalBuffer
 
     public void ClearLine()
     {
-        for (var c = 0; c < Columns; c++)
-            Cells[CursorRow, c] = new TerminalCell();
+        EnsureRowExists(CursorRow);
+        _rows[CursorRow] = CreateRow();
     }
+
 
     public void ClearScreen()
     {
-        for (var r = 0; r < Rows; r++)
-        for (var c = 0; c < Columns; c++)
-            Cells[r, c] = new TerminalCell();
+        for (int i = 0; i < _rows.Count; i++)
+            _rows[i] = CreateRow();
 
         CursorRow = 0;
         CursorCol = 0;
     }
+
 }

@@ -10,6 +10,7 @@
     </PropertyGroup>
 
     <ItemGroup>
+        <PackageReference Include="EasyWindowsTerminalControl" Version="1.0.36" />
         <PackageReference Include="ModernWpfUI" Version="0.9.6"/>
         <PackageReference Include="pythonnet" Version="3.1.0-preview2024-09-06"/>
     </ItemGroup>
@@ -23,6 +24,9 @@
     <ItemGroup>
         <Content Include="python\**\*">
             <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </Content>
+        <Content Update=".env">
+          <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
         </Content>
     </ItemGroup>
 
