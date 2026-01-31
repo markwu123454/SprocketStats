@@ -61,7 +61,7 @@ import uuid
 from asyncpg import PostgresError
 from asyncpg.exceptions import UniqueViolationError
 from pydantic import BaseModel
-# from async_lru import alru_cache
+from async_lru import alru_cache
 
 import enums
 import os, ssl
@@ -96,7 +96,7 @@ async def get_db_connection(db: str) -> tuple[asyncpg.Pool, asyncpg.Connection]:
         pool = await asyncpg.create_pool(
             dsn=dsn,
             min_size=1,
-            max_size=10,
+            max_size=20,
             init=_setup_codecs,
             ssl=ssl.create_default_context(cafile=certifi.where()),
         )
@@ -1812,7 +1812,7 @@ async def compute_attendance_totals() -> list[dict]:
 # ---------------------------------------------------------
 # maxsize=2 is sufficient to hold the current bucket
 # and potentially the previous one during a transition.
-# @alru_cache(maxsize=2)
+@alru_cache(maxsize=2)
 async def _compute_attendance_impl(refresh_key: int) -> list[dict]:
     """
     The actual heavy lifting.
