@@ -6,15 +6,23 @@ export default function RatingSlider({
                                          value,
                                          onChange,
                                          title,
+                                         min = 0,
+                                         max = 1,
+                                         step = 0.25,
                                          leftLabel = "Low",
                                          rightLabel = "High",
+                                         invertColor = false,
                                          infoBox
                                      }: {
     value: number
     onChange: (val: number) => void
     title?: string
+    step?: number
+    min?: number
+    max?: number
     leftLabel?: string
     rightLabel?: string
+    invertColor?: boolean
     infoBox?: React.ReactNode
 }) {
     const [showInfo, setShowInfo] = useState(false)
@@ -43,21 +51,31 @@ export default function RatingSlider({
     }, [showInfo])
 
 
-    const getColor = (v: number) => {
-        const ratio = Math.max(0, Math.min(1, v))
-        let r, g, b
-        if (ratio < 0.5) {
-            const t = ratio / 0.5
-            r = 220 + (234 - 220) * t
-            g = 38 + (179 - 38) * t
-            b = 38 + (8 - 38) * t
-        } else {
-            const t = (ratio - 0.5) / 0.5
-            r = 234 + (34 - 234) * t
-            g = 179 + (197 - 179) * t
-            b = 8 + (94 - 8) * t
+    const getColor = (v: number, invert: boolean = true) => {
+        // Ensure v is between 0 and 1
+        let ratio = Math.max(0, Math.min(1, v));
+
+        // If inverting, we look at the value from the opposite end
+        if (invert) {
+            ratio = 1 - ratio;
         }
-        return `rgb(${Math.round(r)}, ${Math.round(g)}, ${Math.round(b)})`
+
+        let r, g, b;
+        if (ratio < 0.5) {
+            // Range: 0 to 0.5 (Original: Red to Yellow | Inverted: Green to Yellow)
+            const t = ratio / 0.5;
+            r = 220 + (234 - 220) * t;
+            g = 38 + (179 - 38) * t;
+            b = 38 + (8 - 38) * t;
+        } else {
+            // Range: 0.5 to 1 (Original: Yellow to Green | Inverted: Yellow to Red)
+            const t = (ratio - 0.5) / 0.5;
+            r = 234 + (34 - 234) * t;
+            g = 179 + (197 - 179) * t;
+            b = 8 + (94 - 8) * t;
+        }
+
+        return `rgb(${Math.round(r)}, ${Math.round(g)}, ${Math.round(b)})`;
     }
 
     return (
@@ -82,9 +100,9 @@ export default function RatingSlider({
 
             <Slider.Root
                 className="relative flex w-full touch-none select-none items-center"
-                min={0}
-                max={1}
-                step={0.25}
+                min={min}
+                max={max}
+                step={step}
                 value={[value]}
                 onValueChange={([val]) => onChange(val)}
             >
