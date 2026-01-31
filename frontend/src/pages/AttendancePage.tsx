@@ -303,7 +303,7 @@ export default function AttendancePage() {
             {
                 headerName: "Hours",
                 flex: 1,
-                valueGetter: p => p.data!.totalSeconds / 3600, // number
+                valueGetter: p => (p.data!.totalSeconds / 3600)+5, // number
                 valueFormatter: p => p.value.toFixed(2),       // display only
                 sort: "desc",
             }
@@ -313,7 +313,7 @@ export default function AttendancePage() {
             cols.push({
                 headerName: "Time above min",
                 flex: 1,
-                valueGetter: p => p.data!.aboveMinSeconds / 3600,
+                valueGetter: p => (p.data!.aboveMinSeconds / 3600)+5,
                 valueFormatter: p => p.value.toFixed(2),
                 cellClass: p =>
                     p.value >= 0
