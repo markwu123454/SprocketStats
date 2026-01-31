@@ -52,7 +52,7 @@ type PersistedAuth = {
 const AUTH_STORAGE_KEY = "auth:v1"
 
 export function useAuth() {
-    const {login: apiLogin, verify: apiVerify, logout: apiLogout} = useAPI()
+    const {login: apiLogin, checkSession: apiVerify, logout: apiLogout} = useAPI()
 
     const expiresAtRef = useRef<number | null>(null)
 
