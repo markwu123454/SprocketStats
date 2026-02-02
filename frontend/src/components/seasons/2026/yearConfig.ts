@@ -1,11 +1,12 @@
 import type {AllianceType, MatchType} from "@/types"
 
-export type Shots = {
+export type Actions = {
+    type: string
     x1: number
     y1: number
     x2: number
     y2: number
-    fuelShot: number
+    fuelMoved: number
     fuelScored: number
 }
 
@@ -18,12 +19,12 @@ export type MatchScoutingData = {
     scouter: string | null
 
     auto: {
-        shootLocation: Shots[]
+        shootLocation: Actions[]
         climb: "none" | "attempted" | "climb"
     }
 
     teleop: {
-        shootLocation: Shots[]
+        shootLocation: Actions[]
         bumpL: number
         trenchL: number
         bumpR: number

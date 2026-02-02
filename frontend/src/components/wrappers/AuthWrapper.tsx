@@ -2,7 +2,6 @@ import React, {
     useEffect,
     useState,
     useRef,
-    use,
 } from "react"
 import {Link, Outlet, useLocation} from "react-router-dom"
 import {createPortal} from "react-dom"
@@ -119,7 +118,7 @@ export default function AuthGate({
     // FIXME: fix loading mode(opti/pessi)
 
     const authBlocking =
-        (!useOptimisticUX && verifying) || authorized === false
+        (!useOptimisticUX && verifying) || !authorized
 
     /* ---------------------------------------------
      * DEVICE MISMATCH STATE
@@ -131,7 +130,7 @@ export default function AuthGate({
 
     useEffect(() => {
         if (!device || !deviceType) return
-        if (authorized !== true) return
+        if (!authorized) return
 
         const silencedRoutes = getSilencedRoutes()
         if (silencedRoutes.includes(routeKey)) return
@@ -237,7 +236,7 @@ export default function AuthGate({
                             </div>
                         )}
 
-                        {!verifying && authorized === false && (
+                        {!verifying && !authorized && (
                             <div
                                 className={`rounded-xl p-8 text-center max-w-sm ${overlayBg} ${border}`}
                             >

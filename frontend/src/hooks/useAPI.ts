@@ -88,9 +88,7 @@ async function apiRequest<T>(
 export function useAPI() {
 
     // --- Endpoint: GET /ping ---
-    const ping = async (): Promise<
-        boolean
-    > => {
+    const ping = useCallback(async (): Promise<boolean> => {
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), 4000);
 
@@ -109,8 +107,7 @@ export function useAPI() {
         } catch {
             return false;
         }
-    };
-
+    }, []); // Empty deps - BASE_URL should be a constant
 
     // --- Endpoint: POST /auth/login ---
     const login = async (credential: string): Promise<{

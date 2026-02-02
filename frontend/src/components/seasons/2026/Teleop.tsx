@@ -1,7 +1,7 @@
 import React, {useEffect, useRef, useState} from "react"
 import type {MatchScoutingData} from "@/types"
 import {getSettingSync} from "@/db/settingsDb"
-import type {Shots} from "@/components/seasons/2026/yearConfig.ts";
+import type {Actions} from "@/components/seasons/2026/yearConfig.ts";
 
 // Helper component to handle individual pulsing
 function PulseButton({
@@ -54,7 +54,7 @@ export default function TeleopPhase({data, setData}: {
     const fuelScored = fuelScoredStack.reduce((a, b) => a + b, 0)
 
     const [dragging, setDragging] = useState(false)
-    const [shots, setShots] = useState<Shots[]>([])
+    const [shots, setShots] = useState<Actions[]>([])
     const [shotIndex, setShotIndex] = useState<number | null>(null)
     const [inputState, setInputState] = useState<"Shooting" | "Intake">("Shooting")
     const [phase, setPhase] = useState<number>(0)
@@ -108,7 +108,7 @@ export default function TeleopPhase({data, setData}: {
 
     function commitCurrentShot() {
         if (fuelShot === 0) return
-        const s: Shots = {x1, y1, x2, y2, fuelShot, fuelScored}
+        const s: Actions = {x1, y1, x2, y2, fuelMoved: fuelShot, fuelScored}
         setShots(arr => {
             if (shotIndex === null) return [...arr, s]
             const copy = [...arr]
@@ -124,9 +124,9 @@ export default function TeleopPhase({data, setData}: {
     const viewY = (v: number) => flip ? 1 - v : v
 
     useEffect(() => {
-        const finalized: Shots[] = [...shots]
+        const finalized: Actions[] = [...shots]
         if (fuelShot > 0) {
-            finalized.push({x1, y1, x2, y2, fuelShot, fuelScored})
+            finalized.push({x1, y1, x2, y2, fuelMoved: fuelShot, fuelScored})
         }
         setData(d => ({
             ...d,
@@ -137,7 +137,7 @@ export default function TeleopPhase({data, setData}: {
                     y1: flip ? 1 - s.y1 : s.y1,
                     x2: flip ? 1 - s.x2 : s.x2,
                     y2: flip ? 1 - s.y2 : s.y2,
-                    fuelShot: s.fuelShot,
+                    fuelShot: s.fuelMoved,
                     fuelScored: s.fuelScored
                 }))
             }
@@ -255,7 +255,7 @@ export default function TeleopPhase({data, setData}: {
                         setShots(arr => {
                             const updated = [...arr]
                             if (fuelShot > 0) {
-                                const s: Shots = {x1, y1, x2, y2, fuelShot, fuelScored}
+                                const s: Actions = {x1, y1, x2, y2, fuelMoved: fuelShot, fuelScored}
                                 if (shotIndex === null) updated.push(s); else updated[shotIndex] = s
                             }
                             if (updated.length === 0) return arr
@@ -266,7 +266,7 @@ export default function TeleopPhase({data, setData}: {
                             setY1(s.y1);
                             setX2(s.x2);
                             setY2(s.y2);
-                            setFuelShotStack([s.fuelShot]);
+                            setFuelShotStack([s.fuelMoved]);
                             setFuelScoredStack([s.fuelScored])
                             return updated
                         })

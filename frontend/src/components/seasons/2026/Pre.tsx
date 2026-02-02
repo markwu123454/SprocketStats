@@ -76,7 +76,8 @@ export default function PrePhase({data, setData}: {
             setTeamList(
                 res.match.map(r => ({
                     number: r.team,
-                    name: teamNames[r.team] ?? `Team ${r.team}`,
+                    teamName: teamNames[r.team] ?? `Team ${r.team}`,  // Team's actual name
+                    scouterName: null,
                     logo: `/teams/team_icons/${r.team}.png`,
                     scouter: r.scouterEmail,
                     assigned_scouter: r.assignedScouterEmail,
@@ -134,7 +135,7 @@ export default function PrePhase({data, setData}: {
             alive = false
             clearInterval(id)
         }
-    }, [isOnline, serverOnline, match, match_type, teamList?.length])
+    }, [isOnline, serverOnline, match, match_type, alliance, teamList?.length])
 
     useEffect(() => {
         setManualEntry(data.manualTeam ?? false)
@@ -474,6 +475,8 @@ export default function PrePhase({data, setData}: {
                                 const isSelected = teamNumber === team.number
                                 const isClaimed = team.scouter !== null && team.number !== teamNumber
                                 const localIcon = `/teams/team_icons/${team.number}.png`
+
+                                console.log(team)
 
                                 return (
                                     <button

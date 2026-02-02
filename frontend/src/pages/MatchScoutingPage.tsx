@@ -50,8 +50,7 @@ export default function MatchScoutingPage() {
     const {isOnline, serverOnline} = useClientEnvironment()
     const {
         submitData,
-        claimTeam,
-        unclaimTeam,
+        scoutingAction,
         unclaimTeamBeacon,
         updateState,
     } = useAPI()
@@ -61,7 +60,6 @@ export default function MatchScoutingPage() {
         email: scouterEmail,
         permissions,
         refresh,
-        isAuthenticated,
     } = useAuth()
 
     // 2. State
@@ -282,7 +280,7 @@ export default function MatchScoutingPage() {
                                         onClick={async () => {
                                             try {
                                                 if (isOnline && serverOnline)
-                                                    await unclaimTeam(entry.match!, entry.teamNumber!, entry.match_type, scouterEmail!);
+                                                    await scoutingAction(entry.match!, entry.teamNumber!, entry.match_type, entry.alliance, "unclaim")
                                             } catch (err) {
                                                 console.warn("Failed to unclaim during discard:", err);
                                             }
@@ -309,14 +307,15 @@ export default function MatchScoutingPage() {
 
                                             try {
                                                 if (isOnline && serverOnline) {
-                                                    const success = await claimTeam(
-                                                        entry.match!,
-                                                        entry.teamNumber!,
-                                                        entry.match_type,
-                                                        scouterEmail!,
-                                                    );
+                                                    const success = await scoutingAction(entry.match!, entry.teamNumber!, entry.match_type, entry.alliance, "claim")
 
                                                     if (!success) {
+                                                        console.error(
+                        `Failed to reclaim team from saved data:`,
+                        `Match ${entry.match}, Team ${entry.teamNumber}, Type ${entry.match_type}`,
+                        `Reason: claimTeam returned false - team may be claimed by another scouter`
+                    );
+
                                                         // Trigger non-blocking visual warning and unlock button
                                                         setResumeWarning(prev => ({...prev, [entry.key]: true}));
                                                         setResumeLock(prev => ({...prev, [entry.key]: false}));
