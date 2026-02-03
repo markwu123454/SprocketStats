@@ -5,6 +5,10 @@ import {AllCommunityModule, ModuleRegistry} from 'ag-grid-community';
 
 ModuleRegistry.registerModules([AllCommunityModule]);
 
+if (import.meta.env.DEV) {
+  import('eruda').then(eruda => eruda.default.init())
+}
+
 navigator.serviceWorker?.addEventListener('controllerchange', () => {
   window.location.reload();
 });
@@ -18,4 +22,3 @@ if (loader) {
     loader.classList.add("fade-out");
     setTimeout(() => loader.remove(), 400);
 }
-

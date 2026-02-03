@@ -49,7 +49,7 @@ async def delete_meeting_time(
 
 
 @router.get("/attendance")
-async def admin_get_attendance(
+async def get_attendance(
         _: enums.SessionInfo = Depends(db.require_session()),
 ):
     return await db.compute_attendance_totals()

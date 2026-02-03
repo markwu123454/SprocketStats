@@ -14,6 +14,13 @@ declare global {
     }
 }
 
+const getNotificationPermission = (): string => {
+    if (typeof Notification !== "undefined") {
+        return Notification.permission
+    }
+    return "default"
+}
+
 export default function HomePage() {
     const {name, permissions, error, isAuthenticated, isAuthenticating, isLoading, login, logout} = useAuth()
     const {isOnline, serverOnline} = useClientEnvironment()
@@ -54,11 +61,11 @@ export default function HomePage() {
     const navigate = useNavigate()
 
     const notificationsEnabled =
-        Notification.permission === "granted" && hasSubscription
+        getNotificationPermission() === "granted" && hasSubscription
 
     useEffect(() => {
         const hydrate = async () => {
-            if (Notification.permission !== "granted") {
+            if (getNotificationPermission() !== "granted") {
                 setHasSubscription(false)
                 return
             }

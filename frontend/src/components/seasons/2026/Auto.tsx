@@ -661,7 +661,7 @@ export default function AutoPhase({
                     climb ? "bg-green-800" : "bg-red-800"
                 }`}
             >
-                L1
+                Climb success?
             </button>
             <RatingSlider
                 value={climbSpeed}
