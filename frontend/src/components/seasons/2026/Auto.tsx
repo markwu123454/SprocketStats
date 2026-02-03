@@ -162,7 +162,7 @@ export default function AutoPhase({
         setFuelMovedStack([])
         setFuelScoredBase(s.fuelScored)
         setFuelScoredStack([])
-        // Capitalise first letter to match the union type ("starting" → "Starting")
+        // Capitalize first letter to match the union type ("starting" → "Starting")
         const capitalised = (s.type.charAt(0).toUpperCase() + s.type.slice(1)) as "Starting" | "Intake" | "Shooting"
         skipStampRef.current = true  // don't let the stamp effect overwrite this action's type
         setInputState(capitalised)
@@ -612,7 +612,7 @@ export default function AutoPhase({
                                 data-shot-card=""
                                 onClick={() => setActiveIndex(i)}
                                 className={`
-                                    flex-shrink-0 w-24 rounded-lg overflow-hidden border-2 transition-colors duration-150
+                                    shrink-0 w-24 rounded-lg overflow-hidden border-2 transition-colors duration-150
                                     ${isActive ? "border-lime-400" : "border-zinc-700"}
                                 `}
                                 style={{ scrollSnapAlign: "start" }}
@@ -643,10 +643,10 @@ export default function AutoPhase({
                     })}
                 </div>
 
-                {/* Pinned "+ New" button (does the same thing as Save) */}
+                {/* Pinned "+ New" button (does the same thing as "save") */}
                 <button
                     onClick={handleSave}
-                    className="flex-shrink-0 w-10 h-14 rounded-lg bg-zinc-700 border-2 border-dashed border-zinc-500 flex items-center justify-center text-zinc-400 text-lg font-bold"
+                    className="shrink-0 w-10 h-14 rounded-lg bg-zinc-700 border-2 border-dashed border-zinc-500 flex items-center justify-center text-zinc-400 text-lg font-bold"
                 >
                     +
                 </button>

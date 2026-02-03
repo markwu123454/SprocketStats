@@ -99,6 +99,8 @@ async def get_db_connection(db: str) -> tuple[asyncpg.Pool, asyncpg.Connection]:
             max_size=20,
             init=_setup_codecs,
             ssl=ssl.create_default_context(cafile=certifi.where()),
+            command_timeout=30,  # kill any query after 30s
+            max_inactive_connection_lifetime=300,  # recycle idle connections after 5 min
         )
         _pools[db] = pool
 
