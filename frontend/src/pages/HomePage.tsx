@@ -4,9 +4,7 @@ import {useClientEnvironment} from "@/hooks/useClientEnvironment.ts"
 import {getSettingSync, type Settings} from "@/db/settingsDb.ts"
 import CardLayoutWrapper from "@/components/wrappers/CardLayoutWrapper.tsx"
 import useFeatureFlags from "@/hooks/useFeatureFlags.ts";
-import {usePushNotifications} from "@/hooks/usePushNotifications.ts";
 import {useAuth} from "@/hooks/useAuth.ts";
-import {useAPI} from "@/hooks/useAPI.ts";
 
 declare global {
     interface Window {
@@ -14,30 +12,13 @@ declare global {
     }
 }
 
-const getNotificationPermission = (): string => {
-    if (typeof Notification !== "undefined") {
-        return Notification.permission
-    }
-    return "default"
-}
-
 export default function HomePage() {
     const {name, permissions, error, isAuthenticated, isAuthenticating, isLoading, login, logout} = useAuth()
     const {isOnline, serverOnline} = useClientEnvironment()
     const featureFlags = useFeatureFlags()
-    const {
-        register: registerPush,
-        canRegister,
-        isIOSBlocked,
-        status: pushStatus,
-        getSubscription
-    } = usePushNotifications()
-    const {savePushSettings} = useAPI()
 
     const googleDivRef = useRef<HTMLDivElement | null>(null)
     const [messageIndex, setMessageIndex] = useState<number | null>(null)
-    const [showPushPrompt, setShowPushPrompt] = useState(false)
-    const [hasSubscription, setHasSubscription] = useState(false)
 
     const [theme] = useState<Settings["theme"]>(() => getSettingSync("theme"))
     const wakingUp = isOnline && !serverOnline
@@ -59,35 +40,6 @@ export default function HomePage() {
     ]
 
     const navigate = useNavigate()
-
-    const notificationsEnabled =
-        getNotificationPermission() === "granted" && hasSubscription
-
-    useEffect(() => {
-        const hydrate = async () => {
-            if (getNotificationPermission() !== "granted") {
-                setHasSubscription(false)
-                return
-            }
-
-            const sub = await getSubscription()
-            setHasSubscription(!!sub)
-        }
-
-        void hydrate()
-    }, [])
-
-    useEffect(() => {
-        if (isLoading) return
-        if (!isAuthenticated) return
-        if (!canRegister) return
-        if (notificationsEnabled) return
-
-        const dismissed = localStorage.getItem("push_prompt_state")
-        if (dismissed) return
-
-        setShowPushPrompt(true)
-    }, [isLoading, isAuthenticated, canRegister, notificationsEnabled])
 
     // Render Google Sign-In button
     const renderGoogleButton = () => {
