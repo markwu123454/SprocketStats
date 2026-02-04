@@ -64,18 +64,12 @@ export default function AdminMonitoringPage() {
 
     return (
         <HeaderFooterLayoutWrapper
-            header={
-                <div className="flex justify-between items-center w-full">
-                    <h1 className="text-xl font-bold">
-                        Match Scouting Monitor
-                    </h1>
-                    <span className="text-xs opacity-70">
-                        {lastUpdated
-                            ? `Updated ${lastUpdated.toLocaleTimeString()}`
-                            : "Loading…"}
-                    </span>
-                </div>
-            }
+            header={{
+                back_link: "/admin/",
+                title: "Match Scouting Monitor",
+                subtitle: "",
+                right_heading: lastUpdated ? `Updated ${lastUpdated.toLocaleTimeString()}` : "Loading…"
+            }}
 
             body={
                 loading ? (
@@ -146,14 +140,11 @@ export default function AdminMonitoringPage() {
                 )
             }
 
-            footer={
-                <>
-                    <span>Admin Monitoring</span>
-                    <span className="opacity-70">
-                        Live · 2s refresh
-                    </span>
-                </>
-            }
+            footer={{
+                left_footer: "Admin Monitoring",
+                right_footer: "Live · 2s refresh"
+            }}
+
         />
     )
 }

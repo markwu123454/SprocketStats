@@ -54,17 +54,13 @@ export default function MeetingSchedulePage() {
 
     return (
         <HeaderFooterLayoutWrapper
-            header={
-                <div className="flex items-center gap-4 text-xl theme-text w-full">
-                    <Link
-                        to="/admin"
-                        className="flex items-center p-2 rounded-md theme-button-bg hover:theme-button-hover"
-                    >
-                        <ArrowLeft className="h-5 w-5"/>
-                    </Link>
-                    <span>Meeting Schedule</span>
-                </div>
-            }
+            header={{
+                back_link: "/admin",
+                title: "Meeting Schedule",
+                subtitle: "",
+                right_heading: ""
+            }}
+
             body={
                 <div className="w-full h-full flex flex-col gap-3">
 

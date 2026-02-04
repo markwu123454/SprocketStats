@@ -52,17 +52,12 @@ export default function CountdownPage() {
 
     return (
         <HeaderFooterLayoutWrapper
-            header={
-                <div className="flex items-center gap-4 text-xl theme-text">
-                    <Link
-                        to="/more"
-                        className="flex items-center p-2 rounded-md theme-button-bg hover:theme-button-hover transition-colors"
-                    >
-                        <ArrowLeft className="h-5 w-5"/>
-                    </Link>
-                    <span>FRC 2026 Sprocket Countdown</span>
-                </div>
-            }
+            header={{
+                back_link: "/more",
+                title: "FRC 2026 Sprocket Countdown",
+                subtitle: "",
+                right_heading: "",
+            }}
             body={
                 <div className="flex flex-col items-center justify-center h-full gap-12 theme-text">
                     {countdowns.map((c, i) => {
