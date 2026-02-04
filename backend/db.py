@@ -1805,6 +1805,7 @@ async def compute_attendance_totals() -> list[dict]:
     # floor division by 30 ensures the integer result changes only every 30s
     refresh_key = int(time.time() // 30)
     print("cached!", refresh_key)
+
     return await _compute_attendance_impl(refresh_key)
 
 

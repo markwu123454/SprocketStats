@@ -2,7 +2,6 @@ import {useEffect, useState} from "react";
 import {useAPI} from "@/hooks/useAPI.ts";
 import {Link} from "react-router-dom";
 import {
-    ArrowLeft,
     Monitor,
     BarChart2,
     Users,
@@ -47,28 +46,12 @@ export default function AdminPage() {
 
     return (
         <HeaderFooterLayoutWrapper
-            header={
-                <>
-                    <Link
-                        to="/"
-                        className="flex items-center gap-2 hover:opacity-80 transition theme-subtext-color"
-                    >
-                        <ArrowLeft className="w-5 h-5"/>
-                        <span className="text-sm font-medium">Back</span>
-                    </Link>
-
-                    <div className="flex-1 text-center">
-                        <p className="text-lg font-bold">Admin Hub</p>
-                        <p className="text-xs opacity-70">
-                            Event: {eventNames?.[metadata["current_event"]]?.full ?? "-"}
-                        </p>
-                    </div>
-
-                    <div className="text-xs opacity-70 text-right">
-                        Event Key: {metadata["current_event"] ?? "-"}
-                    </div>
-                </>
-            }
+            header={{
+                back_link: "/",
+                title: "Admin nav",
+                subtitle: `Active Event: ${eventNames?.[metadata["current_event"]]?.full ?? "-"}`,
+                right_heading: `Event Key: ${metadata["current_event"] ?? "-"}`
+            }}
             body={
                 <main className="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-6">
 
@@ -206,22 +189,10 @@ export default function AdminPage() {
 
                 </main>
             }
-            footer={
-                <>
-                    <a
-                        href="https://console.neon.tech"
-                        target="_blank"
-                        className="hover:opacity-70 transition text-inherit"
-                    >
-                        Neon URL
-                    </a>
-
-                    <div className="opacity-70 text-right">
-                        <p>Branch: {version.VERCEL_GIT_COMMIT_REF || "development"}</p>
-                        <p>Commit: {version.VERCEL_GIT_COMMIT_SHA_SHORT || "—"}</p>
-                    </div>
-                </>
-            }
+            footer={{
+                left_footer: "https://console.neon.tech",
+                right_footer: `Commit: ${version.VERCEL_GIT_COMMIT_SHA_SHORT || "—"}`
+            }}
         />
     );
 }

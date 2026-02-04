@@ -1,5 +1,5 @@
 import {ArrowLeft} from "lucide-react";
-import {useEffect, useMemo, useState} from "react";
+import React, {useEffect, useMemo, useState} from "react";
 import {useAPI} from "@/hooks/useAPI";
 import {AgGridReact, type CustomCellEditorProps} from "ag-grid-react";
 import {type ColDef, type CellValueChangedEvent, themeQuartz} from "ag-grid-community";
@@ -252,7 +252,10 @@ export default function MatchAssignmentPage() {
         <HeaderFooterLayoutWrapper
             header={
                 <div className="flex items-center gap-4 text-lg font-semibold">
-                    <Link to="/" className="flex items-center p-2 rounded-md theme-hover">
+                    <Link
+                        to="/admin/"
+                        className="flex items-center p-2 rounded-md theme-button-bg hover:theme-button-hover transition-colors"
+                    >
                         <ArrowLeft className="h-5 w-5"/>
                     </Link>
 

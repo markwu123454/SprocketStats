@@ -1,4 +1,4 @@
-import {useEffect, useState} from "react";
+import React, {useEffect, useState} from "react";
 import {useAPI} from "@/hooks/useAPI.ts";
 import {Link} from "react-router-dom";
 import {ArrowLeft, Trash2} from "lucide-react";
@@ -281,30 +281,16 @@ export default function DevPage() {
 
     return (
         <HeaderFooterLayoutWrapper
-            header={
-                <>
-                    <Link to="/"
-                          className="flex items-center gap-2 hover:opacity-80 transition">
-                        <ArrowLeft className="w-5 h-5"/>
-                        <span className="text-sm font-medium">Back</span>
-                    </Link>
-
-                    <div className="flex-1 text-center min-w-0">
-                        <p className="text-lg font-bold">Developer Dashboard</p>
-                        <p className="text-xs opacity-70 truncate">
-                            Active Event: {
-                            devMetadata
-                                ? eventNames?.[devMetadata.current_event]?.full ?? "-"
-                                : "-"
-                        }
-                        </p>
-                    </div>
-
-                    <div className="text-xs opacity-70 text-right whitespace-nowrap shrink-0">
-                        Event Key: {devMetadata?.current_event ?? PLACEHOLDER}
-                    </div>
-                </>
-            }
+            header={{
+        back_link: "/",
+        title: "Developer Dashboard",
+        subtitle: `Active Event: ${
+            devMetadata
+                ? eventNames?.[devMetadata.current_event]?.full ?? "-"
+                : "-"
+        }`,
+        right_heading: `Event Key: ${devMetadata?.current_event ?? PLACEHOLDER}`
+    }}
             body={
 
                 <section className="space-y-4 min-w-0">
@@ -493,18 +479,6 @@ export default function DevPage() {
                     </div>
 
                 </section>
-            }
-            footer={
-                <>
-                    <a href="/" className="truncate min-w-0 underline max-w-[40%]">
-                        Frontend URL
-                    </a>
-
-                    <div className="text-right opacity-70 whitespace-nowrap overflow-hidden shrink-0">
-                        <p>Branch: {version.VERCEL_GIT_COMMIT_REF ?? PLACEHOLDER}</p>
-                        <p>Commit: {version.VERCEL_GIT_COMMIT_SHA_SHORT ?? PLACEHOLDER}</p>
-                    </div>
-                </>
             }
         />
     )
