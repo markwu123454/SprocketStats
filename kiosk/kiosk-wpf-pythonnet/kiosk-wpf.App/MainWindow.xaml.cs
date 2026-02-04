@@ -24,6 +24,10 @@ public partial class MainWindow
         App.Python.RegisterSetBusy(SetBusyFromPython);
         
         ContentRendered += MainWindow_ContentRendered;
+        
+        // Subscribe to settings changes (optional - if you want to react to changes)
+        // Assuming you have a SettingsView instance accessible, e.g., SettingsViewControl
+        // SettingsViewControl.SettingsChanged += OnSettingsChanged;
     }
 
     // ===============================
@@ -110,9 +114,18 @@ public partial class MainWindow
     // Actions
     // ===============================
 
-    private void Download_Click(object sender, RoutedEventArgs e)
+    private async void Download_Click(object sender, RoutedEventArgs e)
     {
-        AppendLog("Download requested (placeholder)");
+        // Get current settings from SettingsView
+        // Assuming you have a reference to your SettingsView control named SettingsViewControl
+        var settings = SettingsViewControl.CurrentSettings;
+        
+        // Extract event_key from settings (assuming it exists)
+        var eventKey = settings.TryGetValue("event_key", out var key) 
+            ? key?.ToString() ?? "" 
+            : "";
+
+        await Task.Run(() => App.Python.ExecuteCommand($"asyncio.run(download_data('{eventKey}'))"));
     }
 
     private async void Run_Click(object sender, RoutedEventArgs e)
@@ -239,5 +252,12 @@ public partial class MainWindow
                 Keyboard.ClearFocus();
             }
         });
+    }
+    
+    // Optional: React to settings changes
+    private void OnSettingsChanged(object? sender, EventArgs e)
+    {
+        // You can add logic here if you need to react to settings changes
+        AppendLog("Settings updated");
     }
 }

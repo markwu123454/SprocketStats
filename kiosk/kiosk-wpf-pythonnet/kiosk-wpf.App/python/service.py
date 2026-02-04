@@ -41,6 +41,7 @@ DATABASE_SCHEMA = {
         "event_key", "time_added", "data"
     }
 }
+downloaded_data = {}
 
 # you can use \x1B[A\x1B[K to delete previous line and write over it
 
@@ -234,3 +235,107 @@ def python_init():
 def run_async(function):
     asyncio.run(function())
     print("Done")
+
+
+async def download_data(event_key):
+    global downloaded_data
+
+    set_busy(True)
+    print(f"\n=== START DOWNLOAD ===\n")
+
+    try:
+        print("→ Connecting to database...")
+        conn = await get_connection()
+        print(f"{ANSI_GREEN}  ✔ Database connected{ANSI_RESET}")
+
+        print(f"  → Fetching data from {event_key or 'all events'}...")
+
+        event_filter = f"%{event_key}%" if event_key else None
+
+        # ── Match scouting ─────────────────────────────────────────────
+        print("    → Fetching match data...")
+        match_query = """
+                      SELECT event_key, match, match_type, team, alliance, scouter, data
+                      FROM match_scouting
+                      WHERE status = 'submitted' \
+                      """
+        if event_filter:
+            match_query += " AND event_key ILIKE $1"
+            rows = await conn.fetch(match_query, event_filter)
+        else:
+            rows = await conn.fetch(match_query + """
+                ORDER BY match_type, match, alliance, team
+            """)
+
+        match = [dict(r) for r in rows]
+
+        robot_entries = len(match)
+        match_count = len({
+            (r["event_key"], r["match_type"], r["match"])
+            for r in match
+        })
+
+        print(
+            f"{ANSI_GREEN if robot_entries else ANSI_YELLOW}"
+            f"      {'✔' if robot_entries else '⚠'} "
+            f"{robot_entries} robot entries "
+            f"from {match_count} matches"
+            f"{ANSI_RESET}"
+        )
+
+        # ── Pit scouting ───────────────────────────────────────────────
+        print("    → Fetching team data...")
+        pit_query = """
+                    SELECT event_key, team, scouter, data
+                    FROM pit_scouting
+                    WHERE status = 'submitted' \
+                    """
+        if event_filter:
+            pit_query += " AND event_key ILIKE $1"
+            rows = await conn.fetch(pit_query, event_filter)
+        else:
+            rows = await conn.fetch(pit_query + " ORDER BY team, scouter")
+
+        pit = [dict(r) for r in rows]
+
+        print(
+            f"{ANSI_GREEN if pit else ANSI_YELLOW}"
+            f"      {'✔' if pit else '⚠'} {len(pit)} pit entries{ANSI_RESET}"
+        )
+
+        # ── Match schedule ─────────────────────────────────────────────
+        print("    → Fetching match schedules...")
+        schedule_query = """
+                         SELECT key, event_key, match_type, match_number, set_number,
+                             scheduled_time, actual_time,
+                             red1, red2, red3, blue1, blue2, blue3
+                         FROM matches \
+                         """
+        if event_filter:
+            schedule_query += " WHERE event_key ILIKE $1"
+            rows = await conn.fetch(schedule_query, event_filter)
+        else:
+            rows = await conn.fetch(schedule_query + """
+                ORDER BY event_key, match_type, match_number
+            """)
+
+        all_matches = [dict(r) for r in rows]
+
+        print(
+            f"{ANSI_GREEN if all_matches else ANSI_YELLOW}"
+            f"      {'✔' if all_matches else '⚠'} {len(all_matches)} schedule entries{ANSI_RESET}"
+        )
+
+        downloaded_data = {
+            "match_scouting": match,
+            "pit_scouting": pit,
+            "all_matches": all_matches,
+        }
+
+        await conn.close()
+        print(f"\n{ANSI_GREEN}✔ Done{ANSI_RESET}\n")
+
+    except Exception as e:
+        print(f"{ANSI_RED}✖ {e}{ANSI_RESET}")
+    finally:
+        set_busy(False)

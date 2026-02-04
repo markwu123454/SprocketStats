@@ -54,19 +54,9 @@ function ActionMiniMap({ action, flip }: { action: Actions; flip: boolean }) {
 
     return (
         <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-full" style={{ background: "#1f2937" }}>
-            <defs>
-                <marker id="mini-arrow" markerWidth="5" markerHeight="5" viewBox="0 0 10 10" refX="4" refY="5" orient="auto">
-                    <path d="M0,0 L10,5 L0,10 Z" fill="#d4d4d8" />
-                </marker>
-            </defs>
-
+            {/* Starting: just a single robot position, no arrow */}
             {action.type === "starting" && (
-                <>
-                    {/* Zinc arrow line */}
-                    <line x1={x1} y1={y1} x2={x2} y2={y2} stroke="#d4d4d8" strokeWidth="1.5" markerEnd="url(#mini-arrow)" />
-                    {/* Origin dot */}
-                    <circle cx={x1} cy={y1} r="2" fill="#d4d4d8" />
-                </>
+                <circle cx={x1} cy={y1} r="2" fill="#d4d4d8" />
             )}
 
             {action.type === "intake" && (
@@ -175,7 +165,7 @@ export default function AutoPhase({
     const [scoringManual, setScoringManual] = useState(false)
 
     // ---------------------------------------------------------------------------
-    // Field drag
+    // Field drag - for Starting phase, only allow single click (no drag)
     // ---------------------------------------------------------------------------
     const [dragging, setDragging] = useState(false)
 
@@ -193,7 +183,11 @@ export default function AutoPhase({
     function handlePointerDown(e: React.PointerEvent) {
         const p = getFieldPos(e)
         patchActive({ x1: p.x, y1: p.y, x2: p.x, y2: p.y })
-        setDragging(true)
+
+        // Only allow dragging for non-Starting phases
+        if (inputState !== "Starting") {
+            setDragging(true)
+        }
     }
 
     function handlePointerMove(e: React.PointerEvent) {
@@ -213,9 +207,16 @@ export default function AutoPhase({
     // "Save" = commit current + append a fresh shot, move active to it
     // ---------------------------------------------------------------------------
     function handleSave() {
-        const fresh: Actions = { type: inputState.toLowerCase(), x1: 0.5, y1: 0.5, x2: 0.5, y2: 0.5, fuelMoved: 0, fuelScored: 0 }
+        // If we just saved the first Starting action, auto-switch to Shooting
+        const nextType = (activeIndex === 0 && inputState === "Starting") ? "shooting" : inputState.toLowerCase()
+        const fresh: Actions = { type: nextType, x1: 0.5, y1: 0.5, x2: 0.5, y2: 0.5, fuelMoved: 0, fuelScored: 0 }
         setActions(prev => [...prev, fresh])
         setActiveIndex(actions.length) // new last index after push
+
+        // Update the input state to match the new action
+        if (activeIndex === 0 && inputState === "Starting") {
+            setInputState("Shooting")
+        }
     }
 
     // ---------------------------------------------------------------------------
@@ -357,37 +358,6 @@ export default function AutoPhase({
                 {/* SVG overlay — shared across all phases, only the relevant
                     elements are conditionally rendered inside */}
                 <svg className="absolute inset-0 w-full h-full pointer-events-none">
-                    <defs>
-                        {/* Arrow marker for Starting orientation */}
-                        <marker id="arrow-start" markerWidth="5" markerHeight="5" viewBox="0 0 10 10" refX="4" refY="5" orient="auto">
-                            <path d="M0,0 L10,5 L0,10 Z" fill="#d4d4d8" />
-                        </marker>
-                    </defs>
-
-                    {/* Starting: fixed-length arrow in the direction of (x2,y2) */}
-                    {inputState === "Starting" && (() => {
-                        const dx = viewX(x2) - viewX(x1)
-                        const dy = viewY(y2) - viewY(y1)
-                        // Normalize in visually-compensated space (X is 2× wider than tall)
-                        // so the unit vector accounts for the aspect ratio.
-                        const dist = Math.sqrt((dx * 2) ** 2 + dy ** 2) || 1
-                        const ux = (dx * 2) / dist  // compensated unit X
-                        const uy = dy / dist         // unit Y
-                        // Fixed visual length in % of field height.
-                        // Apply ux/uy raw — ux is already half-weight from the *2 above,
-                        // so the result is uniform visual length at any angle.
-                        const LEN = 12
-                        const tipX = viewX(x1) * 100 + ux * LEN * 0.5
-                        const tipY = viewY(y1) * 100 + uy * LEN
-                        return (
-                            <line
-                                x1={`${viewX(x1) * 100}%`} y1={`${viewY(y1) * 100}%`}
-                                x2={`${tipX}%`}            y2={`${tipY}%`}
-                                stroke="#d4d4d8" strokeWidth="3" markerEnd="url(#arrow-start)"
-                            />
-                        )
-                    })()}
-
                     {/* Intake: black line connecting the two robot positions */}
                     {inputState === "Intake" && (
                         <line
@@ -398,7 +368,7 @@ export default function AutoPhase({
                     )}
                 </svg>
 
-                {/* Starting: robot square at (x1,y1), rotated by heading */}
+                {/* Starting: robot square at (x1,y1) ONLY - no arrow, just position */}
                 {inputState === "Starting" && (
                     <div
                         className="absolute"
@@ -407,7 +377,7 @@ export default function AutoPhase({
                             height: "7.5%",
                             left: `${viewX(x1) * 100}%`,
                             top: `${viewY(y1) * 100}%`,
-                            transform: `translate(-50%, -50%) rotate(${angle}deg)`,
+                            transform: `translate(-50%, -50%)`,
                         }}
                     >
                         <div className="absolute inset-0 bg-zinc-600/50 border-2 rounded-xs border-zinc-800" />
@@ -492,7 +462,8 @@ export default function AutoPhase({
             </div>
 
             {/* ----------------------------------------------------------------
-                Fired section  (grayed out when Starting)
+                Fuel Picked Up section (formerly "Fired")
+                (grayed out when Starting - no fuel yet)
             ---------------------------------------------------------------- */}
             <div className={`transition-opacity duration-150 ${isFiredDisabled ? "opacity-30 pointer-events-none" : ""}`}>
                 <div className="grid grid-cols-4 gap-3">
@@ -517,13 +488,16 @@ export default function AutoPhase({
                                 }
                             }}
                         />
-                        <p className="text-center text-sm font-bold py-2">Moved: {fuelMoved}</p>
+                        <p className="text-center text-sm font-bold py-2 bg-zinc-800 rounded">
+                            {inputState === "Shooting" ? "Total Shot" : "Picked Up"}: {fuelMoved}
+                        </p>
                     </div>
                 </div>
             </div>
 
             {/* ----------------------------------------------------------------
-                Scoring toggle + Scored section  (grayed out for Starting & Intake)
+                Scoring toggle + Fuel Scored section
+                (grayed out for Starting & Intake - only Shooting scores)
             ---------------------------------------------------------------- */}
             <div className={`flex flex-col gap-4 transition-opacity duration-150 ${isScoredDisabled ? "opacity-30 pointer-events-none" : ""}`}>
                 {/* Scoring toggle */}
@@ -566,7 +540,9 @@ export default function AutoPhase({
                                 }
                             }}
                         />
-                        <p className="text-center text-sm font-bold py-2">Scored: {fuelScored}</p>
+                        <p className="text-center text-sm font-bold py-2 bg-zinc-800 rounded">
+                            Scored: {fuelScored}
+                        </p>
                     </div>
                 </div>
             </div>
@@ -590,66 +566,55 @@ export default function AutoPhase({
             </div>
 
             {/* ----------------------------------------------------------------
-                Horizontal history strip  (snap-scroll, pinned +New)
+                Horizontal history strip  (snap-scroll)
             ---------------------------------------------------------------- */}
-            <div className="flex items-end gap-2">
-                {/* Scrollable card area */}
-                <div
-                    ref={stripRef}
-                    className="flex-1 flex gap-2 overflow-x-auto pb-1"
-                    style={{
-                        scrollSnapType: "x mandatory",
-                        WebkitOverflowScrolling: "touch",
-                        scrollbarWidth: "none",          // Firefox
-                        msOverflowStyle: "none",         // IE/Edge
-                    }}
-                >
-                    {actions.map((action, i) => {
-                        const isActive = i === activeIndex
-                        return (
-                            <button
-                                key={i}
-                                data-shot-card=""
-                                onClick={() => setActiveIndex(i)}
-                                className={`
-                                    shrink-0 w-24 rounded-lg overflow-hidden border-2 transition-colors duration-150
-                                    ${isActive ? "border-lime-400" : "border-zinc-700"}
-                                `}
-                                style={{ scrollSnapAlign: "start" }}
+            <div
+                ref={stripRef}
+                className="flex gap-2 overflow-x-auto pb-1"
+                style={{
+                    scrollSnapType: "x mandatory",
+                    WebkitOverflowScrolling: "touch",
+                    scrollbarWidth: "none",          // Firefox
+                    msOverflowStyle: "none",         // IE/Edge
+                }}
+            >
+                {actions.map((action, i) => {
+                    const isActive = i === activeIndex
+                    return (
+                        <button
+                            key={i}
+                            data-shot-card=""
+                            onClick={() => setActiveIndex(i)}
+                            className={`
+                                shrink-0 w-24 rounded-lg overflow-hidden border-2 transition-colors duration-150
+                                ${isActive ? "border-lime-400" : "border-zinc-700"}
+                            `}
+                            style={{ scrollSnapAlign: "start" }}
+                        >
+                            {/* Mini-map */}
+                            <div className="w-full aspect-2/1">
+                                <ActionMiniMap action={action} flip={flip} />
+                            </div>
+                            {/* Label row — content depends on action type */}
+                            <div
+                                className={`flex justify-between px-1.5 py-0.5 text-xs font-bold ${
+                                    isActive ? "bg-zinc-700" : "bg-zinc-800"
+                                }`}
                             >
-                                {/* Mini-map */}
-                                <div className="w-full aspect-2/1">
-                                    <ActionMiniMap action={action} flip={flip} />
-                                </div>
-                                {/* Label row — content depends on action type */}
-                                <div
-                                    className={`flex justify-between px-1.5 py-0.5 text-xs font-bold ${
-                                        isActive ? "bg-zinc-700" : "bg-zinc-800"
-                                    }`}
-                                >
-                                    {action.type === "starting" ? (
-                                        <span className="text-zinc-400 w-full text-center">Start</span>
-                                    ) : action.type === "intake" ? (
+                                {action.type === "starting" ? (
+                                    <span className="text-zinc-400 w-full text-center">Start</span>
+                                ) : action.type === "intake" ? (
+                                    <span className="text-yellow-300">🔥 {action.fuelMoved}</span>
+                                ) : (
+                                    <>
                                         <span className="text-yellow-300">🔥 {action.fuelMoved}</span>
-                                    ) : (
-                                        <>
-                                            <span className="text-yellow-300">🔥 {action.fuelMoved}</span>
-                                            <span className="text-green-300">✓ {action.fuelScored}</span>
-                                        </>
-                                    )}
-                                </div>
-                            </button>
-                        )
-                    })}
-                </div>
-
-                {/* Pinned "+ New" button (does the same thing as "save") */}
-                <button
-                    onClick={handleSave}
-                    className="shrink-0 w-10 h-14 rounded-lg bg-zinc-700 border-2 border-dashed border-zinc-500 flex items-center justify-center text-zinc-400 text-lg font-bold"
-                >
-                    +
-                </button>
+                                        <span className="text-green-300">✓ {action.fuelScored}</span>
+                                    </>
+                                )}
+                            </div>
+                        </button>
+                    )
+                })}
             </div>
 
             {/* ----------------------------------------------------------------
@@ -661,7 +626,7 @@ export default function AutoPhase({
                     climb ? "bg-green-800" : "bg-red-800"
                 }`}
             >
-                Climb success?
+                Climb?
             </button>
             <RatingSlider
                 value={climbSpeed}

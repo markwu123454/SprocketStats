@@ -34,6 +34,12 @@ public partial class SettingsView
 {
     private readonly Dictionary<string, FrameworkElement> _controls = new();
 
+    // Public property to access current settings
+    public Dictionary<string, object?> CurrentSettings => CollectSettings();
+
+    // Event raised when settings change
+    public event EventHandler? SettingsChanged;
+
     public SettingsView()
     {
         InitializeComponent();
@@ -188,7 +194,7 @@ public partial class SettingsView
     }
 
     // -----------------------------
-    // Change handling (UPDATED)
+    // Change handling
     // -----------------------------
 
     private void OnSettingChanged(object sender, RoutedEventArgs e)
@@ -196,7 +202,13 @@ public partial class SettingsView
         if (!IsLoaded)
             return;
 
-        ApplySettingsPlaceholder(CollectSettings());
+        // Log to debug (optional)
+        var settings = CollectSettings();
+        foreach (var (key, value) in settings)
+            Debug.WriteLine($"[settings] {key} = {value}");
+
+        // Raise event to notify MainWindow
+        SettingsChanged?.Invoke(this, EventArgs.Empty);
     }
 
     private Dictionary<string, object?> CollectSettings()
@@ -214,22 +226,6 @@ public partial class SettingsView
             };
 
         return values;
-    }
-
-    // -----------------------------
-    // Placeholder backend call
-    // -----------------------------
-
-    private static void ApplySettingsPlaceholder(
-        Dictionary<string, object?> settings)
-    {
-        // TEMPORARY: replace with PythonService call later
-        foreach (var (key, value) in settings)
-            Debug.WriteLine(
-                $"[settings] {key} = {value}");
-
-        // Example future call:
-        // App.Python.UpdateSettings(settings);
     }
 
     // -----------------------------
