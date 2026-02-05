@@ -1821,6 +1821,13 @@ async def _compute_attendance_impl(refresh_key: int) -> list[dict]:
     The 'refresh_key' argument is unused in the logic,
     but essential for the LRU cache to distinguish between time windows.
     """
+    # ------------------------------------------------------------
+    # Email-specific hour offsets (in seconds)
+    # ------------------------------------------------------------
+    EMAIL_OFFSETS = {
+        "pock3tp1ant@gmail.com": 36000,  # +10 hour
+    }
+
     pool, conn = await get_db_connection(DB_NAME)
     try:
         await conn.execute("SET TRANSACTION ISOLATION LEVEL READ COMMITTED")
@@ -1938,7 +1945,9 @@ async def _compute_attendance_impl(refresh_key: int) -> list[dict]:
                     m_idx += 1
 
             if total:
-                totals[email] = total
+                # Apply email-specific offset
+                offset = EMAIL_OFFSETS.get(email, 0)
+                totals[email] = total + offset
 
         # ------------------------------------------------------------
         # Logic: Maximum possible seconds
