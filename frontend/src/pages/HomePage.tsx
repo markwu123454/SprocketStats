@@ -5,6 +5,7 @@ import {getSettingSync, type Settings} from "@/db/settingsDb.ts"
 import CardLayoutWrapper from "@/components/wrappers/CardLayoutWrapper.tsx"
 import useFeatureFlags from "@/hooks/useFeatureFlags.ts";
 import {useAuth} from "@/hooks/useAuth.ts";
+import {AlertTriangle} from "lucide-react";
 
 declare global {
     interface Window {
@@ -14,11 +15,15 @@ declare global {
 
 export default function HomePage() {
     const {name, permissions, error, isAuthenticated, isAuthenticating, isLoading, login, logout} = useAuth()
-    const {isOnline, serverOnline} = useClientEnvironment()
+    const {isOnline, serverOnline, isPWA, os, deviceType} = useClientEnvironment()
     const featureFlags = useFeatureFlags()
 
     const googleDivRef = useRef<HTMLDivElement | null>(null)
     const [messageIndex, setMessageIndex] = useState<number | null>(null)
+    const [showPWAToast, setShowPWAToast] = useState(false)
+    const [isClosing, setIsClosing] = useState(false)
+    const [shouldShake, setShouldShake] = useState(false)
+    const closeTimeoutRef = useRef<number | null>(null)
 
     const [theme] = useState<Settings["theme"]>(() => getSettingSync("theme"))
     const wakingUp = isOnline && !serverOnline
@@ -40,6 +45,18 @@ export default function HomePage() {
     ]
 
     const navigate = useNavigate()
+
+    // Get installation tutorial link based on OS
+    const getInstallTutorialLink = () => {
+        switch (os) {
+            case "iOS":
+                return "https://support.apple.com/guide/iphone/bookmark-favorite-webpages-iph42ab2f3a7/ios#iph4f9a47bbc"
+            case "Android":
+                return "https://support.google.com/chrome/answer/9658361"
+            default:
+                return "https://web.dev/learn/pwa/installation"
+        }
+    }
 
     // Render Google Sign-In button
     const renderGoogleButton = () => {
@@ -115,7 +132,70 @@ export default function HomePage() {
         else window.google.accounts.id.cancel()
     }, [isAuthenticated])
 
-    const handleNavigate = (path: string | null) => path && navigate(path)
+    // Cleanup timeout on unmount
+    useEffect(() => {
+        return () => {
+            if (closeTimeoutRef.current) {
+                clearTimeout(closeTimeoutRef.current)
+            }
+        }
+    }, [])
+
+    const handleNavigate = (path: string | null) => {
+        if (!path) return
+
+        // Check if PWA is required (only for mobile devices)
+        const isMobile = deviceType === "mobile" || deviceType === "tablet"
+        if (isMobile && !isPWA) {
+            if (showPWAToast && !isClosing) {
+                // Toast already visible, trigger shake AND reset timeout
+                setShouldShake(true)
+                setTimeout(() => setShouldShake(false), 500)
+
+                // Clear existing timeout and set a new one
+                if (closeTimeoutRef.current) {
+                    clearTimeout(closeTimeoutRef.current)
+                }
+                closeTimeoutRef.current = setTimeout(() => {
+                    handleCloseToast()
+                }, 5000) as unknown as number
+
+            } else if (!showPWAToast) {
+                // Show toast for first time
+                setShowPWAToast(true)
+                setIsClosing(false)
+
+                // Clear any existing timeout
+                if (closeTimeoutRef.current) {
+                    clearTimeout(closeTimeoutRef.current)
+                }
+
+                // Set new timeout
+                closeTimeoutRef.current = setTimeout(() => {
+                    handleCloseToast()
+                }, 5000) as unknown as number
+            }
+            return
+        }
+
+        navigate(path)
+    }
+
+    const handleCloseToast = () => {
+        // Clear timeout if closing manually
+        if (closeTimeoutRef.current) {
+            clearTimeout(closeTimeoutRef.current)
+            closeTimeoutRef.current = null
+        }
+
+        setIsClosing(true)
+        setShouldShake(false) // Stop shake if it's happening
+
+        setTimeout(() => {
+            setShowPWAToast(false)
+            setIsClosing(false)
+        }, 300) // Match animation duration
+    }
 
     // Deletes stored data which effectively logs out, and redisplay google button
     const handleLogout = async () => {
@@ -240,6 +320,51 @@ export default function HomePage() {
 
                 </div>
             </CardLayoutWrapper>
+
+            {/* PWA Installation Required Toast */}
+            {showPWAToast && (
+                <div className="fixed bottom-4 left-0 right-0 z-50 flex justify-center pointer-events-none">
+                    <div
+                        className={`pointer-events-auto theme-bg rounded-xl shadow-lg w-[95%] max-w-md px-4 py-3 space-y-2 border-2 border-red-500/30 
+                            ${isClosing ? 'animate-slide-down' : 'animate-slide-up'}`}
+                    >
+                        <div className={`${shouldShake ? 'animate-shake' : ''}`}>
+                            <div className="flex items-start justify-between gap-3">
+                                <div className="flex-1">
+                                    <div className="flex items-center gap-2">
+                                        <AlertTriangle className="w-4 h-4 text-red-400"/>
+                                        <h3 className="text-sm font-semibold text-red-400">
+                                            Install App Required
+                                        </h3>
+                                    </div>
+                                    <p className="text-xs theme-subtext-color mt-1">
+                                        Please install this app to your home screen to access these features.
+                                    </p>
+                                </div>
+
+                                <button
+                                    onClick={handleCloseToast}
+                                    className="text-xs theme-subtext-color hover:opacity-70"
+                                >
+                                    ✕
+                                </button>
+                            </div>
+
+                            <div className="flex justify-end gap-2 pt-1">
+                                <a
+                                    href={getInstallTutorialLink()}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-xs px-3 py-1.5 rounded bg-red-500 text-white font-medium hover:bg-red-400 transition-colors"
+                                    onClick={handleCloseToast}
+                                >
+                                    How?
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
         </>
     )
 }
