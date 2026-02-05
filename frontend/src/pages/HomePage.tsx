@@ -58,6 +58,35 @@ export default function HomePage() {
         }
     }
 
+    // Format error message for display
+    const getErrorMessage = (error: string | null): string | null => {
+        if (!error) return null
+
+        // Handle pending approval
+        if (error.includes("pending approval") || error.includes("Account pending approval")) {
+            return "Your account is pending approval. Please contact an administrator."
+        }
+
+        // Handle banned account
+        if (error.includes("banned") || error.includes("Account has been banned")) {
+            return "This account has been disabled. Please contact an administrator."
+        }
+
+        // Handle invalid token
+        if (error.includes("Invalid Google token")) {
+            return "Authentication failed. Please try signing in again."
+        }
+
+        // Handle network errors
+        if (error.includes("Failed to fetch") || error.includes("NetworkError")) {
+            return "Unable to connect to server. Please check your connection."
+        }
+
+        // For any other error, show a generic message
+        // Avoid showing raw JSON or technical details
+        return "Login failed. Please try again or contact support."
+    }
+
     // Render Google Sign-In button
     const renderGoogleButton = () => {
         let attempts = 0
@@ -123,7 +152,7 @@ export default function HomePage() {
         if (!isAuthenticated) {
             renderGoogleButton()
         }
-    }, [serverOnline, isLoading, isAuthenticated])
+    }, [serverOnline, isLoading, isAuthenticated, error])
 
     // Configure google signin state
     useEffect(() => {
@@ -213,6 +242,8 @@ export default function HomePage() {
                     ? "Logging you in…"
                     : null;
 
+    const displayError = getErrorMessage(error)
+
     return (<>
             <CardLayoutWrapper showLogo={true}>
                 <div className="space-y-1">
@@ -239,11 +270,16 @@ export default function HomePage() {
                         </div>
                     ) : (
                         <>
-                            <p className="text-sm theme-subtext-color">
-                                Sign in with your Google account
-                            </p>
+                            {displayError ? (
+                                <p className="text-sm text-red-400">
+                                    {displayError}
+                                </p>
+                            ) : (
+                                <p className="text-sm theme-subtext-color">
+                                    Sign in with your Google account
+                                </p>
+                            )}
                             <div ref={googleDivRef}></div>
-                            {error && <p className="text-red-500 text-sm">{error}</p>}
                         </>
                     )}
                 </div>
