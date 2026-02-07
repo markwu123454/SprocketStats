@@ -43,21 +43,40 @@ export default function TeamData() {
         document.title = `${teamNum} | Team Data`
     }, [teamNum])
 
-    if (!data)
+    if (isNaN(teamNum)) {
+        return (
+            <div className="flex h-screen w-screen items-center justify-center text-gray-500">
+                Invalid team number
+            </div>
+        )
+    }
+
+    if (!data) {
+        console.log('No data available for team', teamNum)
         return (
             <div className="flex h-screen w-screen items-center justify-center text-gray-500">
                 Loading team data…
             </div>
         )
+    }
+
+    // FIX: Handle both data.basic.tags and data.tags
+    const tags = data.basic?.tags ?? data.tags ?? []
+    const ranking = data.ranking ?? {}
+    const metrics = data.metrics ?? {}
+    const matches = data.matches ?? []
+    const rp = data.rp ?? {}
+    const timeline = data.timeline ?? []
+    const breakdown = data.breakdown ?? {id: 'root', label: 'Score', children: []}
 
     const logoPath = `/teams/team_icons/${teamNum}.png`
 
     // ---- Table data and columns ----
-    const rowData = data.matches
+    const rowData = matches
 
     const colDefs = useMemo(() => {
-        if (!data || !data.matches?.length) return []
-        return Object.keys(data.matches[0]).map((key) => {
+        if (!matches || !matches.length) return []
+        return Object.keys(matches[0]).map((key) => {
             const header = key
                 .replace(/_/g, " ")
                 .replace(/\b\w/g, (c) => c.toUpperCase())
@@ -90,12 +109,12 @@ export default function TeamData() {
 
             return {field: key, headerName: header, width: 110}
         })
-    }, [data])
+    }, [matches])
 
-    const scoreComposition = useMemo(() => buildScoreComposition(data.breakdown), [data])
+    const scoreComposition = useMemo(() => buildScoreComposition(breakdown), [breakdown])
     const keys = useMemo(
-        () => (data.timeline?.length ? Object.keys(data.timeline[0]).filter((k) => k !== "match") : []),
-        [data]
+        () => (timeline?.length ? Object.keys(timeline[0]).filter((k) => k !== "match") : []),
+        [timeline]
     )
 
     function normalizeMatchId(raw: any): string {
@@ -109,9 +128,11 @@ export default function TeamData() {
 
     function renderMatchLink(matchId: any) {
         const norm = normalizeMatchId(matchId)
+        console.log(norm, permissions)
         if (!permissions?.match?.includes(norm)) {
             return <span className="text-gray-400">{matchId}</span>
         }
+
 
         return (
             <Link
@@ -166,27 +187,27 @@ export default function TeamData() {
 
                 <div className="flex items-center gap-6 text-sm text-gray-700">
                     <div className="flex flex-wrap items-center gap-x-6 gap-y-1 text-sm">
-                        <RankLabel label="Auto" value={data.ranking.auto}/>
-                        <RankLabel label="Teleop" value={data.ranking.teleop}/>
-                        <RankLabel label="Endgame" value={data.ranking.endgame}/>
+                        <RankLabel label="Auto" value={ranking.auto}/>
+                        <RankLabel label="Teleop" value={ranking.teleop}/>
+                        <RankLabel label="Endgame" value={ranking.endgame}/>
                         <div className="flex items-center">
                             <span className="text-gray-500">RP: #</span>
-                            <span className="font-bold text-gray-900">{data.ranking.rp}</span>
+                            <span className="font-bold text-gray-900">{ranking.rp ?? '-'}</span>
                             <span className="text-gray-500">(pred: #</span>
-                            <span className="font-bold text-gray-900">{data.ranking.rp_pred}</span>
+                            <span className="font-bold text-gray-900">{ranking.rp_pred ?? '-'}</span>
                             <span className="text-gray-500">)</span>
                         </div>
                         <div className="flex items-center">
                             <span className="text-gray-500">Avg RP:&nbsp;</span>
-                            <span className="font-bold text-gray-900">{data.ranking.rp_avg.toFixed(2)}</span>
+                            <span className="font-bold text-gray-900">{ranking.rp_avg?.toFixed(2) ?? '-'}</span>
                             <span className="text-gray-500">(pred:&nbsp;</span>
-                            <span className="font-bold text-gray-900">{data.ranking.rp_avg_pred.toFixed(2)}</span>
+                            <span className="font-bold text-gray-900">{ranking.rp_avg_pred?.toFixed(2) ?? '-'}</span>
                             <span className="text-gray-500">)</span>
                         </div>
                     </div>
 
                     <div className="flex flex-wrap gap-1">
-                        {data.basic.tags.map((t: string) => (
+                        {tags.map((t: string) => (
                             <span
                                 key={t}
                                 className="rounded-full border px-2 py-0.5 text-[10px] text-gray-700 bg-gray-100"
@@ -214,7 +235,7 @@ export default function TeamData() {
                 <Quadrant title="Metrics Overview">
                     <div className="p-4">
                         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-x-6 gap-y-2 text-sm">
-                            {Object.entries(data.metrics ?? {}).map(([key, val]) => {
+                            {Object.entries(metrics).map(([key, val]) => {
                                 const valueStr = String(val).toLowerCase()
                                 const colorClass =
                                     valueStr === "yes"
@@ -237,7 +258,7 @@ export default function TeamData() {
                 <Quadrant title="RP Criteria">
                     <div className="h-full w-full">
                         <DynamicAgGrid
-                            data={Object.entries(data.rp || {}).map(([match, rpData]) => ({
+                            data={Object.entries(rp).map(([match, rpData]) => ({
                                 Match: match,
                                 ...rpData,
                             }))}
@@ -290,7 +311,7 @@ export default function TeamData() {
 
                         <div className="h-full w-full">
                             <ResponsiveBar
-                                data={data.timeline}
+                                data={timeline}
                                 keys={keys}
                                 indexBy="match"
                                 margin={{top: 10, right: 10, bottom: 30, left: 40}}
@@ -359,7 +380,7 @@ function RankLabel({label, value}: { label: string; value: number }) {
     return (
         <div className="flex items-center">
             <span className="text-gray-500">{label}: #</span>
-            <span className="font-bold text-gray-900">{value}</span>
+            <span className="font-bold text-gray-900">{value ?? '-'}</span>
         </div>
     )
 }

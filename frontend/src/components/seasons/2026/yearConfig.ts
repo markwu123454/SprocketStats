@@ -91,16 +91,19 @@ export const createDefaultScoutingData = (): Omit<MatchScoutingData, "scouter"> 
 export const pitQuestions = [
     {section: "Robot Info"},
 
-    {key: "camera", label: "Robot Photos", type: "camera"},
-
-    {key: "driveBase", label: "Drive Base Type", placeholder: "e.g. Swerve, Tank", type: "text"},
-{
+    {
+        key: "driveBase",
+        label: "Drive Base Type",
+        type: "select",
+        options: ["Swerve", "Tank"],
+    },
+    {
         key: "robotSpeed",
         label: "Robot Speed",
-        type: "text",
-        placeholder: "eg. Slow, Fast"
+        type: "select",
+        options: ["Gear 1", "Gear 2", "Gear 3"],
     },
-{
+    {
         key: "driverSkill",
         label: "Driver Skill",
         type: "text",
@@ -113,13 +116,13 @@ export const pitQuestions = [
         type: "text",
         placeholder: "eg. 8, 10, ∞"
     },
-{
+    {
         key: "intake",
         label: "Robot Intake Location",
         type: "select",
         options: ["Depo", "Outpost", "Neutral Zone"],
     },
-{
+    {
         key: "intakeType",
         label: "Intake Type",
         type: "select",

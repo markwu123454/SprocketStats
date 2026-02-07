@@ -123,27 +123,58 @@ export default function DataWrapper() {
         setState(s => ({...s, loading: true}))
 
         try {
-            const token =
-                tokenOverride ??
-                localStorage.getItem("guest_pw_token") ??
-                ""
+            // IMPROVEMENT: Try admin auth first (uses UUID cookie), then guest token
+            let token = tokenOverride ?? localStorage.getItem("guest_pw_token") ?? ""
 
-            if (!token) {
-                setState(s => ({
-                    ...s,
-                    loading: false,
-                    authSuccess: false,
-                }))
+            // Try to fetch data - getProcessedData will use admin UUID if available,
+            // otherwise fall back to guest token
+            const result = await getProcessedData(token || null)
+
+
+            // Check if we got data back
+            if (!result) {
+
+                // Only show auth failure if we're not on the guest login page
+                if (!hideLoad) {
+                    setState((s) => ({
+                        ...s,
+                        loading: false,
+                        authSuccess: false,
+                        processedData: null,
+                        guestName: null,
+                        permissions: null,
+                    }))
+                } else {
+                    // On guest page, just stop loading
+                    setState((s) => ({
+                        ...s,
+                        loading: false,
+                    }))
+                }
                 return
             }
 
-            const result = await getProcessedData(token)
+            // Extract data from response
+            let processed: DataSchema | null = null
+            let guestName: string | null = null
+            let permissions: GuestPermissions | null = null
 
-            const processed = result?.raw_data ?? null
-            const guestName = result?.guest_name ?? null
-            const permissions = result?.permissions ?? null
+            // Check if response has nested structure (raw_data, guest_name, permissions)
+            // OR if it's the direct data structure
+            if ('raw_data' in result) {
+                // Nested structure
+                processed = result.raw_data ?? null
+                guestName = result.guest_name ?? null
+                permissions = result.permissions ?? null
+            } else if ('team' in result || 'ranking' in result || 'match' in result) {
+                // Direct structure - the API returned the data directly
+                processed = result as DataSchema
+                guestName = null
+                permissions = null
+            } else {
+                console.error(' DataWrapper: Unknown response structure:', Object.keys(result))
+            }
 
-            // NEW: treat null as auth failure
             if (!processed) {
                 setState((s) => ({
                     ...s,
@@ -153,8 +184,6 @@ export default function DataWrapper() {
                     guestName: null,
                     permissions: null,
                 }))
-                localStorage.removeItem("guest_pw_token")
-                localStorage.removeItem("guest_pw_expiry")
                 return
             }
 
@@ -174,6 +203,7 @@ export default function DataWrapper() {
                 guestName,
                 permissions,
             })
+
         } catch (err) {
             console.error("DataWrapper fetch error:", err)
 
@@ -233,8 +263,13 @@ export default function DataWrapper() {
                 // Old behavior for normal pages
                 <>
                     {state.loading && !state.processedData ? (
-                        <div className="flex h-screen w-screen items-center justify-center text-gray-500 text-sm">
-                            Loading event data…
+                        <div className="flex h-screen w-screen items-center justify-center flex-col gap-4 text-gray-500 text-sm">
+                            <div>Loading event data…</div>
+                            {!localStorage.getItem("guest_pw_token") && (
+                                <div className="text-xs text-gray-400 max-w-md text-center">
+                                    No guest token found. Please visit <a href="/guest" className="text-blue-500 underline">/guest</a> to authenticate.
+                                </div>
+                            )}
                         </div>
                     ) : (
                         <>
@@ -274,7 +309,10 @@ export function useRankingData(): RankingData | null {
 }
 
 export function useTeamData(teamNumber: number): TeamData | null {
-    return useDataContext().processedData?.team?.[teamNumber] ?? null
+    const data = useDataContext().processedData?.team?.[teamNumber] ?? null
+    if (!data) { return null
+    }
+    return data
 }
 
 export function useMatchData(matchId: string): MatchData | null {

@@ -9,6 +9,7 @@ import enums
 
 router = APIRouter()
 
+
 @router.post("/auth/login")
 async def login(_: Request, body: dict):
     """
@@ -34,8 +35,12 @@ async def login(_: Request, body: dict):
     await db.create_user_if_missing(email, name)
     user = await db.get_user_by_email(email)
 
-    if user["approval"] != "approved" and user["approval"] != "autoapproved":
-        raise HTTPException(status_code=403, detail="User pending approval")
+    # Check user approval status
+    if user["approval"] == "banned":
+        raise HTTPException(status_code=403, detail="Account has been banned")
+
+    if user["approval"] not in ["approved", "autoapproved"]:
+        raise HTTPException(status_code=403, detail="Account pending approval")
 
     # --- build session ---
     session_id = str(uuid.uuid4())
