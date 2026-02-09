@@ -381,7 +381,7 @@ export default function HomePage() {
                                 <button
                                     onClick={handleCloseToast}
                                     className="text-xs theme-subtext-color hover:opacity-70"
-                                >
+                                 >
                                     ✕
                                 </button>
                             </div>

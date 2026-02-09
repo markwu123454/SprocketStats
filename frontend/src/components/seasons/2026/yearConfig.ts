@@ -1,13 +1,40 @@
 import type {AllianceType, MatchType} from "@/types"
 
-export type Actions = {
-    type: string
+export type Actions = ActionStart | ActionIntake | ActionShoot | ActionClimb
+
+export type ActionStart = {
+    type: 'starting'
+    x: number
+    y: number
+}
+
+export type ActionIntake = {
+    type: 'intake'
     x1: number
     y1: number
     x2: number
     y2: number
-    fuelMoved: number
-    fuelScored: number
+    amount: number
+}
+
+export type ActionShoot = {
+    type: 'shooting'
+    x1: number
+    y1: number
+    x2: number
+    y2: number
+    shot: number
+    scoring: boolean
+    scored: number
+}
+
+export type ActionClimb = {
+    type: 'climb'
+    x: number
+    y: number
+    attempted: boolean
+    success: boolean
+    time: number
 }
 
 export type MatchScoutingData = {
