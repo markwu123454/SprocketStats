@@ -15,6 +15,7 @@ export type ActionIntake = {
     x2: number
     y2: number
     amount: number
+    _amount: number[]
 }
 
 export type ActionShoot = {
@@ -24,8 +25,10 @@ export type ActionShoot = {
     x2: number
     y2: number
     shot: number
+    _shot: number[]
     scoring: boolean
     scored: number
+    _scored: number[]
 }
 
 export type ActionClimb = {

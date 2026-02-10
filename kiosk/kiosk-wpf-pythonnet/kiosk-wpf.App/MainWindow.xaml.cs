@@ -1,5 +1,4 @@
 ﻿using System.Text;
-using System.Text.Json;
 using System.Windows;
 using System.Windows.Documents;
 using System.Windows.Input;
@@ -131,29 +130,29 @@ public partial class MainWindow
 
     private async void Run_Click(object sender, RoutedEventArgs e)
     {
-        var settings = SettingsViewControl.CurrentSettings;
-    
-        // Serialize dictionary to JSON string
-        var settingsJson = JsonSerializer.Serialize(settings);
-    
-        // Escape the JSON string for Python
-        var escapedJson = settingsJson.Replace("\\", "\\\\").Replace("'", "\\'");
-    
-        await Task.Run(() => App.Python.ExecuteCommand($"run_calculation('{escapedJson}')"));
+        SetBusy(true);
+
+        try
+        {
+            var result = await Task.Run(() =>
+                App.Python.RunCalculation("input.csv")
+            );
+
+            AppendLog(result);
+        }
+        catch (Exception ex)
+        {
+            AppendLog($"Error: {ex.Message}");
+        }
+        finally
+        {
+            SetBusy(false);
+        }
     }
 
-    private async void Upload_Click(object sender, RoutedEventArgs e)
+    private void Upload_Click(object sender, RoutedEventArgs e)
     {
-        // Get current settings from SettingsView
-        // Assuming you have a reference to your SettingsView control named SettingsViewControl
-        var settings = SettingsViewControl.CurrentSettings;
-        
-        // Extract event_key from settings (assuming it exists)
-        var eventKey = settings.TryGetValue("event_key", out var key) 
-            ? key?.ToString() ?? "" 
-            : "";
-
-        await Task.Run(() => App.Python.ExecuteCommand($"asyncio.run(upload_data('{eventKey}'))"));
+        AppendLog("Upload requested (placeholder)");
     }
 
     private void Exit_Click(object sender, RoutedEventArgs e)

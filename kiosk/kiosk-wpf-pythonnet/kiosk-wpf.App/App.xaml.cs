@@ -1,4 +1,5 @@
-﻿using System.IO;
+﻿using System.Diagnostics;
+using System.IO;
 using System.Windows;
 using Python.Runtime;
 
@@ -18,15 +19,20 @@ public partial class App
             InitializePython();
             Python = new PythonService();
 
-            Python.RegisterLogger(msg =>
-            {
-                System.Diagnostics.Debug.WriteLine("[PY] " + msg);
-            });
+            Python.RegisterLogger(msg => { Debug.WriteLine("[PY] " + msg); });
+
+            // Only show main window if Python initialized successfully
+            new MainWindow().Show();
         }
         catch (Exception ex)
         {
+            var errorMsg = $"Failed to initialize Python:\n{ex}";
+
+            // Log to file for debugging
+            File.WriteAllText(Path.Combine(AppContext.BaseDirectory, "python_error.txt"), errorMsg);
+
             MessageBox.Show(
-                $"Failed to initialize Python:\n{ex}",
+                errorMsg,
                 "Startup Error",
                 MessageBoxButton.OK,
                 MessageBoxImage.Error);

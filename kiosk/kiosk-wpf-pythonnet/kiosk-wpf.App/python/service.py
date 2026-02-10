@@ -482,8 +482,8 @@ async def download_data(event_key):
         print("→ Fetching match schedules...")
         schedule_query = """
                          SELECT key, event_key, match_type, match_number, set_number,
-                                scheduled_time, actual_time,
-                                red1, red2, red3, blue1, blue2, blue3
+                             scheduled_time, actual_time,
+                             red1, red2, red3, blue1, blue2, blue3
                          FROM matches \
                          """
 
@@ -694,6 +694,36 @@ def run_calculation(setting):
         calc_result["match"] = {}
         calc_result["ranking"] = {}
         calc_result["alliance"] = {}
+
+        # Process TBA data to populate variables
+        all_match = [{"key": m["key"]} for m in tba_data]
+        print(all_match)
+
+        teams = set()
+        for m in tba_data:
+            if "alliances" in m:
+                for alliance in ["red", "blue"]:
+                    if alliance in m["alliances"]:
+                        teams.update(m["alliances"][alliance].get("team_keys", []))
+        all_team = sorted(list(teams))
+
+        # Determine current match (first unplayed match, or last match if all played)
+        # Sort matches by time/order first to be safe (though TBA usually returns them sorted)
+        # Using lambda to handle potential None values in time
+        sorted_matches = sorted(tba_data, key=lambda m: m.get("predicted_time") or m.get("time") or 0)
+
+        current_match = ""
+        for m in sorted_matches:
+            if m.get("actual_time") is None:
+                current_match = m["key"]
+                break
+
+        if not current_match and all_match:
+            current_match = all_match[-1]
+
+        print(f"   Matches: {len(all_match)} found (e.g., {all_match[:3]})")
+        print(f"   Teams: {len(all_team)} found")
+        print(f"   Current Match: {current_match}")
 
         calc_result["sb"] = sb_data
         calc_result["tba"] = tba_data
