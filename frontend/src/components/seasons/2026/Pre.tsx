@@ -24,6 +24,7 @@ export default function PrePhase({data, setData}: {
     const [imageErrors, setImageErrors] = useState<Record<number, boolean>>({});
     const [teamNames, setTeamNames] = useState<Record<string, string>>({});
     const [schedule, setSchedule] = useState<Awaited<ReturnType<typeof getScouterSchedule>>>([])
+    const [claimSuccess, setClaimSuccess] = useState(false) // visual feedback for successful claim
 
     // === Derived constants ===
     const {match, alliance, match_type, teamNumber} = data
@@ -248,6 +249,9 @@ export default function PrePhase({data, setData}: {
 
             if (res?.action === "success") {
                 setData(d => ({...d, teamNumber: newTeamNumber}))
+                // Show success animation
+                setClaimSuccess(true)
+                setTimeout(() => setClaimSuccess(false), 2000)
             } else {
                 // server rejected → trust server state
                 setData(d => ({...d, teamNumber: null}))
@@ -264,10 +268,75 @@ export default function PrePhase({data, setData}: {
         }
     }
 
+    // === Handle clicking on assigned match ===
+    const handleScheduleClick = async (scheduleItem: typeof schedule[number]) => {
+        // Unclaim current team if any
+        if ((isOnline && serverOnline) && match && teamNumber !== null && ready) {
+            await scoutingAction(match, teamNumber, match_type, alliance, "unclaim")
+                .then(applyScoutingResult)
+        }
+
+        // Set match type, number, and alliance
+        setData(d => ({
+            ...d,
+            match_type: scheduleItem.match_type,
+            match: scheduleItem.match_number,
+            alliance: scheduleItem.alliance,
+            teamNumber: null,
+        }))
+
+        // Wait for state to update, then attempt to claim
+        setTimeout(async () => {
+            if (isOnline && serverOnline) {
+                try {
+                    const res = await scoutingAction(
+                        scheduleItem.match_number,
+                        scheduleItem.robot,
+                        scheduleItem.match_type,
+                        scheduleItem.alliance,
+                        "claim"
+                    )
+                    applyScoutingResult(res)
+                    if (res?.action === "success") {
+                        setData(d => ({...d, teamNumber: scheduleItem.robot}))
+                        // Show success animation
+                        setClaimSuccess(true)
+                        setTimeout(() => setClaimSuccess(false), 2000)
+                    }
+                } catch (e) {
+                    console.error("Auto-claim failed", e)
+                }
+            }
+        }, 100)
+    }
+
 
     // === UI ===
     return (
-        <div className="p-4 w-full h-full flex flex-col justify gap-2">
+        <div className="p-4 w-full h-full flex flex-col justify gap-2 relative">
+            {/* Success Overlay - Full Screen */}
+            {claimSuccess && (
+                <>
+                    {/* Background overlay */}
+                    <div className="fixed inset-0 bg-green-500/20 z-40 animate-pulse" />
+
+                    {/* Success Banner */}
+                    <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50">
+                        <div className="bg-linear-to-r from-green-500 to-green-600 text-white px-12 py-8 rounded-2xl shadow-2xl flex flex-col items-center gap-4 animate-bounce border-4 border-green-300">
+                            <svg className="w-20 h-20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                            </svg>
+                            <div className="text-3xl font-bold text-center">
+                                Team Selected Successfully!
+                            </div>
+                            <div className="text-lg font-medium">
+                                Team {teamNumber}
+                            </div>
+                        </div>
+                    </div>
+                </>
+            )}
+
             <div>Pre-Match</div>
 
             {/* === Match Type Selector === */}
@@ -391,7 +460,7 @@ export default function PrePhase({data, setData}: {
                             }}
                             className="text-sm text-zinc-400 hover:text-zinc-300"
                         >
-                            {manualEntry ? "I see my team" : "I don’t see my team"}
+                            {manualEntry ? "I see my team" : "I don't see my team"}
                         </button>
                     )}
                 </div>
@@ -549,9 +618,10 @@ export default function PrePhase({data, setData}: {
 
                     <div className="flex flex-col gap-1">
                         {schedule.map((s, i) => (
-                            <div
+                            <button
                                 key={i}
-                                className="text-xs flex justify-between items-center px-3 py-2 rounded bg-zinc-800"
+                                onClick={() => handleScheduleClick(s)}
+                                className="text-xs flex justify-between items-center px-3 py-2 rounded bg-zinc-800 hover:bg-zinc-700 transition-colors cursor-pointer"
                             >
                                 <span>
                                     {s.match_type?.toUpperCase()} {s.match_number}
@@ -567,7 +637,7 @@ export default function PrePhase({data, setData}: {
                                 >
                                     Team {s.robot}
                                 </span>
-                            </div>
+                            </button>
                         ))}
                     </div>
                 </div>

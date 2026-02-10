@@ -1,6 +1,6 @@
-import React, { useEffect, useRef, useState } from "react"
-import type { MatchScoutingData } from "@/types"
-import { getSettingSync } from "@/db/settingsDb"
+import React, {useEffect, useRef, useState} from "react"
+import type {MatchScoutingData} from "@/types"
+import {getSettingSync} from "@/db/settingsDb"
 import RatingSlider from "@/components/ui/ratingSlider.tsx"
 
 // ---------------------------------------------------------------------------
@@ -47,11 +47,11 @@ export type ActionClimb = {
 // PulseButton — unchanged helper
 // ---------------------------------------------------------------------------
 function PulseButton({
-    onClick,
-    label,
-    activeColor,
-    className = "",
-}: {
+                         onClick,
+                         label,
+                         activeColor,
+                         className = "",
+                     }: {
     onClick: () => void
     label: string | React.ReactNode
     activeColor: string
@@ -80,7 +80,7 @@ function PulseButton({
 // ---------------------------------------------------------------------------
 // Tiny SVG mini-map card for the history strip
 // ---------------------------------------------------------------------------
-function ActionMiniMap({ action, flip }: { action: Actions; flip: boolean }) {
+function ActionMiniMap({action, flip}: { action: Actions; flip: boolean }) {
     const vx = (v: number) => (flip ? 1 - v : v)
     const vy = (v: number) => (flip ? 1 - v : v)
 
@@ -90,8 +90,9 @@ function ActionMiniMap({ action, flip }: { action: Actions; flip: boolean }) {
         const x = vx(action.x) * W
         const y = vy(action.y) * H
         return (
-            <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-full" style={{ background: "#1f2937", transform: flip ? "rotate(180deg)" : "none" }}>
-                <circle cx={x} cy={y} r="2" fill="#d4d4d8" />
+            <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-full"
+                 style={{background: "#1f2937", transform: flip ? "rotate(180deg)" : "none"}}>
+                <circle cx={x} cy={y} r="2" fill="#d4d4d8"/>
             </svg>
         )
     }
@@ -100,8 +101,9 @@ function ActionMiniMap({ action, flip }: { action: Actions; flip: boolean }) {
         const x = vx(action.x) * W
         const y = vy(action.y) * H
         return (
-            <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-full" style={{ background: "#1f2937", transform: flip ? "rotate(180deg)" : "none" }}>
-                <circle cx={x} cy={y} r="2" fill="#a855f7" />
+            <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-full"
+                 style={{background: "#1f2937", transform: flip ? "rotate(180deg)" : "none"}}>
+                <circle cx={x} cy={y} r="2" fill="#a855f7"/>
             </svg>
         )
     }
@@ -112,10 +114,11 @@ function ActionMiniMap({ action, flip }: { action: Actions; flip: boolean }) {
         const x2 = vx(action.x2) * W
         const y2 = vy(action.y2) * H
         return (
-            <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-full" style={{ background: "#1f2937", transform: flip ? "rotate(180deg)" : "none" }}>
-                <line x1={x1} y1={y1} x2={x2} y2={y2} stroke="#000" strokeWidth="1.5" strokeLinecap="round" />
-                <circle cx={x1} cy={y1} r="2" fill="#d4d4d8" />
-                <circle cx={x2} cy={y2} r="2" fill="#d4d4d8" />
+            <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-full"
+                 style={{background: "#1f2937", transform: flip ? "rotate(180deg)" : "none"}}>
+                <line x1={x1} y1={y1} x2={x2} y2={y2} stroke="#000" strokeWidth="1.5" strokeLinecap="round"/>
+                <circle cx={x1} cy={y1} r="2" fill="#d4d4d8"/>
+                <circle cx={x2} cy={y2} r="2" fill="#d4d4d8"/>
             </svg>
         )
     }
@@ -126,10 +129,11 @@ function ActionMiniMap({ action, flip }: { action: Actions; flip: boolean }) {
     const x2 = vx(action.x2) * W
     const y2 = vy(action.y2) * H
     return (
-        <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-full" style={{ background: "#1f2937", transform: flip ? "rotate(180deg)" : "none" }}>
-            <line x1={x1} y1={y1} x2={x2} y2={y2} stroke="#a3e635" strokeWidth="1.5" strokeLinecap="round" />
-            <circle cx={x1} cy={y1} r="2" fill="#d4d4d8" />
-            <circle cx={x2} cy={y2} r="1.5" fill="#facc15" />
+        <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-full"
+             style={{background: "#1f2937", transform: flip ? "rotate(180deg)" : "none"}}>
+            <line x1={x1} y1={y1} x2={x2} y2={y2} stroke="#a3e635" strokeWidth="1.5" strokeLinecap="round"/>
+            <circle cx={x1} cy={y1} r="2" fill="#d4d4d8"/>
+            <circle cx={x2} cy={y2} r="1.5" fill="#facc15"/>
         </svg>
     )
 }
@@ -138,9 +142,9 @@ function ActionMiniMap({ action, flip }: { action: Actions; flip: boolean }) {
 // Main component
 // ---------------------------------------------------------------------------
 export default function AutoPhase({
-    data,
-    setData,
-}: {
+                                      data,
+                                      setData,
+                                  }: {
     data: MatchScoutingData
     setData: React.Dispatch<React.SetStateAction<MatchScoutingData>>
 }) {
@@ -154,13 +158,13 @@ export default function AutoPhase({
     // Climb is always the last action in the array.
     // ---------------------------------------------------------------------------
     const [actions, setActions] = useState<Actions[]>([
-        { type: "starting", x: 0.5, y: 0.5 },
-        { type: "climb", x: 0.5, y: 0.5, attempted: false, success: false, time: 0 },
+        {type: "starting", x: 0.5, y: 0.5},
+        {type: "climb", x: 0.5, y: 0.5, attempted: false, success: false, time: 0},
     ])
     const [activeIndex, setActiveIndex] = useState(0)
 
     // Derived from the active action
-    const active = actions[activeIndex] ?? { type: "starting", x: 0.5, y: 0.5 }
+    const active = actions[activeIndex] ?? {type: "starting", x: 0.5, y: 0.5}
 
     // ---------------------------------------------------------------------------
     // Temporary editing state for number inputs
@@ -168,23 +172,6 @@ export default function AutoPhase({
     const [amountStack, setAmountStack] = useState<number[]>([])
     const [shotStack, setShotStack] = useState<number[]>([])
     const [scoredStack, setScoredStack] = useState<number[]>([])
-
-    // When user taps a different action in history, reset stacks AND sync the
-    // phase tab to match the action's stored type.
-    useEffect(() => {
-        const s = actions[activeIndex]
-        if (!s) return
-
-        // Reset all stacks
-        setAmountStack([])
-        setShotStack([])
-        setScoredStack([])
-
-        // Capitalize first letter to match the union type
-        const capitalised = (s.type.charAt(0).toUpperCase() + s.type.slice(1)) as "Starting" | "Intake" | "Shooting" | "Climb"
-        skipStampRef.current = true  // don't let the stamp effect overwrite this action's type
-        setInputState(capitalised)
-    }, [activeIndex])
 
     // ---------------------------------------------------------------------------
     // Field drag - for Starting phase, only allow single click (no drag)
@@ -194,7 +181,7 @@ export default function AutoPhase({
     const flip = (getSettingSync("field_orientation") === "180") !== (data.alliance === "red")
 
     function getFieldPos(e: React.PointerEvent) {
-        if (!fieldRef.current) return { x: 0, y: 0 }
+        if (!fieldRef.current) return {x: 0, y: 0}
         const rect = fieldRef.current.getBoundingClientRect()
         return {
             x: Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width)),
@@ -209,26 +196,26 @@ export default function AutoPhase({
         if (current.type === 'starting') {
             setActions(prev => {
                 const copy = [...prev]
-                copy[activeIndex] = { type: 'starting', x: p.x, y: p.y }
+                copy[activeIndex] = {type: 'starting', x: p.x, y: p.y}
                 return copy
             })
         } else if (current.type === 'climb') {
             setActions(prev => {
                 const copy = [...prev]
-                copy[activeIndex] = { ...copy[activeIndex] as ActionClimb, x: p.x, y: p.y }
+                copy[activeIndex] = {...copy[activeIndex] as ActionClimb, x: p.x, y: p.y}
                 return copy
             })
         } else if (current.type === 'intake') {
             setActions(prev => {
                 const copy = [...prev]
-                copy[activeIndex] = { ...copy[activeIndex] as ActionIntake, x1: p.x, y1: p.y, x2: p.x, y2: p.y }
+                copy[activeIndex] = {...copy[activeIndex] as ActionIntake, x1: p.x, y1: p.y, x2: p.x, y2: p.y}
                 return copy
             })
             setDragging(true)
         } else if (current.type === 'shooting') {
             setActions(prev => {
                 const copy = [...prev]
-                copy[activeIndex] = { ...copy[activeIndex] as ActionShoot, x1: p.x, y1: p.y, x2: p.x, y2: p.y }
+                copy[activeIndex] = {...copy[activeIndex] as ActionShoot, x1: p.x, y1: p.y, x2: p.x, y2: p.y}
                 return copy
             })
             setDragging(true)
@@ -243,7 +230,7 @@ export default function AutoPhase({
         if (current.type === 'intake' || current.type === 'shooting') {
             setActions(prev => {
                 const copy = [...prev]
-                copy[activeIndex] = { ...copy[activeIndex] as ActionIntake | ActionShoot, x2: p.x, y2: p.y }
+                copy[activeIndex] = {...copy[activeIndex] as ActionIntake | ActionShoot, x2: p.x, y2: p.y}
                 return copy
             })
         }
@@ -257,7 +244,7 @@ export default function AutoPhase({
         if (current.type === 'intake' || current.type === 'shooting') {
             setActions(prev => {
                 const copy = [...prev]
-                copy[activeIndex] = { ...copy[activeIndex] as ActionIntake | ActionShoot, x2: p.x, y2: p.y }
+                copy[activeIndex] = {...copy[activeIndex] as ActionIntake | ActionShoot, x2: p.x, y2: p.y}
                 return copy
             })
         }
@@ -268,32 +255,29 @@ export default function AutoPhase({
     // "Save" = commit current + append a fresh action before climb, move active to it
     // ---------------------------------------------------------------------------
     function handleSave() {
-        // If we just saved the first Starting action, auto-switch to Shooting
-        const nextType = (activeIndex === 0 && inputState === "Starting") ? "shooting" : inputState.toLowerCase()
+    // After saving Starting or Climb, default to Shooting
+    const currentType = actions[activeIndex].type
+    const nextType = (currentType === "starting" || currentType === "climb")
+        ? "shooting"
+        : currentType // Keep same type for intake/shooting
 
-        let fresh: Actions
-        if (nextType === "shooting") {
-            fresh = { type: "shooting", x1: 0.5, y1: 0.5, x2: 0.5, y2: 0.5, shot: 0, scoring: true, scored: 0 }
-        } else if (nextType === "intake") {
-            fresh = { type: "intake", x1: 0.5, y1: 0.5, x2: 0.5, y2: 0.5, amount: 0 }
-        } else {
-            fresh = { type: "shooting", x1: 0.5, y1: 0.5, x2: 0.5, y2: 0.5, shot: 0, scoring: true, scored: 0 }
-        }
-
-        setActions(prev => {
-            // Insert before the last item (climb)
-            const newActions = [...prev]
-            newActions.splice(prev.length - 1, 0, fresh)
-            return newActions
-        })
-        setActiveIndex(actions.length - 1) // new index is length - 1 (before climb)
-
-        // Update the input state to match the new action
-        if (activeIndex === 0 && inputState === "Starting") {
-            setInputState("Shooting")
-        }
+    let fresh: Actions
+    if (nextType === "shooting") {
+        fresh = { type: "shooting", x1: 0.5, y1: 0.5, x2: 0.5, y2: 0.5, shot: 0, scoring: true, scored: 0 }
+    } else if (nextType === "intake") {
+        fresh = { type: "intake", x1: 0.5, y1: 0.5, x2: 0.5, y2: 0.5, amount: 0 }
+    } else {
+        fresh = { type: "shooting", x1: 0.5, y1: 0.5, x2: 0.5, y2: 0.5, shot: 0, scoring: true, scored: 0 }
     }
 
+    setActions(prev => {
+        // Insert before the last item (climb)
+        const newActions = [...prev]
+        newActions.splice(prev.length - 1, 0, fresh)
+        return newActions
+    })
+    setActiveIndex(actions.length - 1) // new index is length - 1 (before climb)
+}
     // ---------------------------------------------------------------------------
     // "Delete" = remove active shot, land on previous (but never delete Starting or Climb)
     // ---------------------------------------------------------------------------
@@ -315,7 +299,7 @@ export default function AutoPhase({
         if (!stripRef.current) return
         const cards = stripRef.current.querySelectorAll("[data-shot-card]")
         if (cards[activeIndex]) {
-            cards[activeIndex].scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" })
+            cards[activeIndex].scrollIntoView({behavior: "smooth", block: "nearest", inline: "center"})
         }
     }, [activeIndex, actions.length])
 
@@ -397,8 +381,7 @@ export default function AutoPhase({
     // ---------------------------------------------------------------------------
     // Input-phase tabs
     // ---------------------------------------------------------------------------
-    const [inputState, setInputState] = useState<"Starting" | "Shooting" | "Intake" | "Climb">("Starting")
-    const skipStampRef = useRef(false)
+    const inputState = (active.type.charAt(0).toUpperCase() + active.type.slice(1)) as "Starting" | "Shooting" | "Intake" | "Climb"
 
     // Per-tab enabled rules: Starting must be first and can only appear once,
     // Intake/Shooting are not available until after Starting.
@@ -422,11 +405,11 @@ export default function AutoPhase({
                 onPointerMove={handlePointerMove}
                 onPointerUp={handlePointerUp}
                 onPointerLeave={() => setDragging(false)}
-                className="relative w-full aspect-2/1 bg-gray-800 rounded-xl overflow-hidden touch-none"
-                style={{ transform: flip ? "rotate(180deg)" : "none" }}
+                className="relative w-full aspect-2/1 overflow-hidden touch-none"
+                style={{transform: flip ? "rotate(180deg)" : "none"}}
             >
                 <img
-                    src="/seasons/2026/Field.png"
+                    src="/seasons/2026/field-lovat.png"
                     className="absolute inset-0 w-full h-full object-contain pointer-events-none"
                     alt="field"
                 />
@@ -455,7 +438,7 @@ export default function AutoPhase({
                             transform: `translate(-50%, -50%)`,
                         }}
                     >
-                        <div className="absolute inset-0 bg-zinc-600/50 border-2 rounded-xs border-zinc-800" />
+                        <div className="absolute inset-0 bg-zinc-600/50 border-2 rounded-xs border-zinc-800"/>
                     </div>
                 )}
 
@@ -471,7 +454,7 @@ export default function AutoPhase({
                             transform: `translate(-50%, -50%)`,
                         }}
                     >
-                        <div className="absolute inset-0 bg-purple-600/50 border-2 rounded-xs border-purple-800" />
+                        <div className="absolute inset-0 bg-purple-600/50 border-2 rounded-xs border-purple-800"/>
                     </div>
                 )}
 
@@ -487,7 +470,7 @@ export default function AutoPhase({
                             transform: `translate(-50%, -50%) rotate(${angle}deg)`,
                         }}
                     >
-                        <div className="absolute inset-0 bg-zinc-600/50 border-2 rounded-xs border-zinc-800" />
+                        <div className="absolute inset-0 bg-zinc-600/50 border-2 rounded-xs border-zinc-800"/>
                     </div>
                 )}
 
@@ -503,7 +486,7 @@ export default function AutoPhase({
                             transform: `translate(-50%, -50%) rotate(${angle}deg)`,
                         }}
                     >
-                        <div className="absolute inset-0 bg-zinc-600/50 border-2 rounded-xs border-zinc-800" />
+                        <div className="absolute inset-0 bg-zinc-600/50 border-2 rounded-xs border-zinc-800"/>
                     </div>
                 )}
 
@@ -519,7 +502,7 @@ export default function AutoPhase({
                             transform: `translate(-50%, -50%) rotate(${angle}deg)`,
                         }}
                     >
-                        <div className="absolute inset-0 bg-zinc-600/50 border-2 rounded-xs border-zinc-800" />
+                        <div className="absolute inset-0 bg-zinc-600/50 border-2 rounded-xs border-zinc-800"/>
                     </div>
                 )}
 
@@ -584,11 +567,41 @@ export default function AutoPhase({
                             <button
                                 key={phase}
                                 disabled={disabled}
-                                onClick={() => setInputState(phase)}
+                                onClick={() => {
+                                    const newType = phase.toLowerCase() as 'starting' | 'intake' | 'shooting' | 'climb'
+                                    setActions(prev => {
+                                        const copy = [...prev]
+
+                                        if (newType === 'starting') {
+                                            copy[activeIndex] = {type: 'starting', x: 0.5, y: 0.5}
+                                        } else if (newType === 'intake') {
+                                            copy[activeIndex] = {
+                                                type: 'intake',
+                                                x1: 0.5, y1: 0.5,
+                                                x2: 0.5, y2: 0.5,
+                                                amount: 0
+                                            }
+                                        } else if (newType === 'shooting') {
+                                            copy[activeIndex] = {
+                                                type: 'shooting',
+                                                x1: 0.5, y1: 0.5,
+                                                x2: 0.5, y2: 0.5,
+                                                shot: 0, scoring: true, scored: 0
+                                            }
+                                        } else if (newType === 'climb') {
+                                            copy[activeIndex] = {
+                                                type: 'climb',
+                                                x: 0.5, y: 0.5,
+                                                attempted: false, success: false, time: 0
+                                            }
+                                        }
+                                        return copy
+                                    })
+                                }}
                                 className={`text-white text-sm py-2 rounded-xl transition flex-1 ${
                                     inputState === phase ? "bg-zinc-600"
-                                    : disabled           ? "bg-zinc-900 opacity-40"
-                                    :                     "bg-zinc-800"
+                                        : disabled ? "bg-zinc-900 opacity-40"
+                                            : "bg-zinc-800"
                                 }`}
                             >
                                 {phase}
@@ -606,33 +619,8 @@ export default function AutoPhase({
 
                 {/* Intake: Fuel Picked Up only */}
                 {current.type === "intake" && (
-                    <div>
-                        <div className="grid grid-cols-4 gap-2">
-                            {[1, 2, 5, 10].map(v => (
-                                <PulseButton
-                                    key={v}
-                                    label={`+${v}`}
-                                    activeColor="bg-green-700"
-                                    onClick={() => setAmountStack(s => [...s, v])}
-                                />
-                            ))}
-                            <div className="grid grid-cols-2 gap-2 col-span-4">
-                                <PulseButton
-                                    label="UNDO"
-                                    activeColor="bg-red-800"
-                                    onClick={() => {
-                                        if (amountStack.length > 0) {
-                                            setAmountStack(s => s.slice(0, -1))
-                                        } else if (current.amount > 0) {
-                                            updateAction(a => ({ ...a as ActionIntake, amount: 0 }))
-                                        }
-                                    }}
-                                />
-                                <p className="text-center text-sm font-bold py-2 bg-zinc-800 rounded">
-                                    Picked Up: {currentAmount}
-                                </p>
-                            </div>
-                        </div>
+                    <div className="text-zinc-500 text-center py-8 text-sm">
+                        Set intake position on field
                     </div>
                 )}
 
@@ -658,28 +646,16 @@ export default function AutoPhase({
                                             if (shotStack.length > 0) {
                                                 setShotStack(s => s.slice(0, -1))
                                             } else if (current.shot > 0) {
-                                                updateAction(a => ({ ...a as ActionShoot, shot: 0 }))
+                                                updateAction(a => ({...a as ActionShoot, shot: 0}))
                                             }
                                         }}
                                     />
                                     <p className="text-center text-sm font-bold py-2 bg-zinc-800 rounded">
-                                        Total Shot: {currentShot}
+                                        Total Made: {currentShot}
                                     </p>
                                 </div>
                             </div>
                         </div>
-
-                        {/* Scoring toggle */}
-                        <button
-                            onClick={() => {
-                                updateAction(a => ({ ...a as ActionShoot, scoring: !current.scoring }))
-                            }}
-                            className={`text-white text-sm py-2 rounded-xl transition-colors ${
-                                current.scoring ? "bg-green-800" : "bg-red-800"
-                            }`}
-                        >
-                            Scoring?
-                        </button>
 
                         {/* Fuel Scored */}
                         <div>
@@ -700,12 +676,12 @@ export default function AutoPhase({
                                             if (scoredStack.length > 0) {
                                                 setScoredStack(s => s.slice(0, -1))
                                             } else if (current.scored > 0) {
-                                                updateAction(a => ({ ...a as ActionShoot, scored: 0 }))
+                                                updateAction(a => ({...a as ActionShoot, scored: 0}))
                                             }
                                         }}
                                     />
                                     <p className="text-center text-sm font-bold py-2 bg-zinc-800 rounded">
-                                        Scored: {currentScored}
+                                        Total Missed: {currentScored}
                                     </p>
                                 </div>
                             </div>
@@ -718,7 +694,7 @@ export default function AutoPhase({
                     <div className="flex flex-col gap-3">
                         <button
                             onClick={() => {
-                                updateAction(a => ({ ...a as ActionClimb, attempted: !current.attempted }))
+                                updateAction(a => ({...a as ActionClimb, attempted: !current.attempted}))
                             }}
                             className={`text-white text-sm py-2 rounded-xl transition-colors ${
                                 current.attempted ? "bg-green-800" : "bg-red-800"
@@ -729,7 +705,7 @@ export default function AutoPhase({
 
                         <button
                             onClick={() => {
-                                updateAction(a => ({ ...a as ActionClimb, success: !current.success }))
+                                updateAction(a => ({...a as ActionClimb, success: !current.success}))
                             }}
                             className={`text-white text-sm py-2 rounded-xl transition-colors ${
                                 current.success ? "bg-green-800" : "bg-red-800"
@@ -740,7 +716,7 @@ export default function AutoPhase({
 
                         <RatingSlider
                             value={current.time}
-                            onChange={v => updateAction(a => ({ ...a as ActionClimb, time: v }))}
+                            onChange={v => updateAction(a => ({...a as ActionClimb, time: v}))}
                             title={`Climb Time: ${(current.time * 10).toFixed(1)}s`}
                             leftLabel="0s"
                             rightLabel="10s+"
@@ -778,11 +754,11 @@ export default function AutoPhase({
                             shrink-0 w-24 rounded-lg overflow-hidden border-2 transition-colors duration-150
                             ${isActive ? "border-lime-400" : "border-zinc-700"}
                         `}
-                        style={{ scrollSnapAlign: "start" }}
+                        style={{scrollSnapAlign: "start"}}
                     >
                         {/* Mini-map */}
                         <div className="w-full aspect-2/1">
-                            <ActionMiniMap action={action} flip={flip} />
+                            <ActionMiniMap action={action} flip={flip}/>
                         </div>
                         {/* Label row — content depends on action type */}
                         <div

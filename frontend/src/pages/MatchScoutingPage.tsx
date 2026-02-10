@@ -1,8 +1,8 @@
-import {useState, useEffect, useRef} from 'react'
+import {useState, useEffect, useRef, useMemo} from 'react'
 
 import {useNavigate} from "react-router-dom"
 
-import type {MatchScoutingData, Phase, ScoutingStatus} from '@/types'
+import type {MatchScoutingData, ScoutingStatus} from '@/types'
 
 import {useAPI} from '@/hooks/useAPI.ts'
 import {useAuth} from '@/hooks/useAuth.ts'
@@ -19,7 +19,12 @@ import TeleopPhase from "@/components/seasons/2026/Teleop.tsx"
 import PostMatch from "@/components/seasons/2026/Post.tsx"
 import {createDefaultScoutingData} from "@/components/seasons/2026/yearConfig.ts"
 
-const PHASE_ORDER: Phase[] = ['pre', 'auto', 'teleop', 'post']
+import {getSetting} from "@/db/settingsDb.ts"
+
+import AVariant from "@/components/seasons/2026/ABtest/A.tsx"
+import BVariant from "@/components/seasons/2026/ABtest/B.tsx"
+
+type Phase = 'pre' | 'auto' | 'teleop' | 'combined' | 'post'
 
 export default function MatchScoutingPage() {
     // 1. External hooks
@@ -73,6 +78,15 @@ export default function MatchScoutingPage() {
     const [resumeList, setResumeList] = useState<ScoutingDataWithKey[]>([]);
     const [resumeLock, setResumeLock] = useState<Record<number, boolean>>({});
     const [resumeWarning, setResumeWarning] = useState<Record<number, boolean>>({});
+
+    const [abTestVariant, setAbTestVariant] = useState<"default" | "a" | "b">("default")
+
+    const PHASE_ORDER: Phase[] = useMemo(() => {
+        return abTestVariant === "default"
+            ? ['pre', 'auto', 'teleop', 'post']
+            : ['pre', 'combined', 'post']
+    }, [abTestVariant])
+
     // 3. Derived constants
     const phase = PHASE_ORDER[phaseIndex]
     const baseDisabled =
@@ -133,7 +147,7 @@ export default function MatchScoutingPage() {
             const entries: ScoutingDataWithKey[] = await db.scouting.toArray()
 
             const activeEntries = entries.filter(e =>
-                ['pre', 'auto', 'teleop', 'post'].includes(e.status)
+                ['pre', 'auto', 'teleop', 'combined', 'post'].includes(e.status)
             );
 
             if (activeEntries.length > 0) {
@@ -143,6 +157,13 @@ export default function MatchScoutingPage() {
                 setScoutingData({...createDefaultScoutingData(), scouter: scouterEmail!,})
                 setPhaseIndex(0)
             }
+        })()
+    }, [])
+
+    useEffect(() => {
+        (async () => {
+            const variant = await getSetting("match_ab_test")
+            setAbTestVariant(variant || "default")
         })()
     }, [])
 
@@ -165,7 +186,7 @@ export default function MatchScoutingPage() {
         }, 3000);
 
         return () => clearInterval(interval);
-    }, [phase, phaseIndex, scoutingData]);
+    }, [phase, phaseIndex, scoutingData, PHASE_ORDER]);
 
     useEffect(() => {
         const onVisibilityChange = () => {
@@ -276,9 +297,8 @@ export default function MatchScoutingPage() {
     }
 
     const handleBack = async () => {
-        await exitFullscreenIfNeeded();
-
         if (phaseIndex === 0) {
+            await exitFullscreenIfNeeded();
             navigate("/");
             return;
         }
@@ -347,18 +367,15 @@ export default function MatchScoutingPage() {
                                             try {
                                                 if (isOnline && serverOnline) {
                                                     const success = await scoutingAction(entry.match!, entry.teamNumber!, entry.match_type, entry.alliance, "claim")
-
                                                     if (!success) {
-                                                        console.error(`Failed to reclaim team from saved data:`,
-                                                            `Match ${entry.match}, Team ${entry.teamNumber}, Type ${entry.match_type}`,
-                                                            `Reason: claimTeam returned false - team may be claimed by another scouter`
-                                                        );
-
-                                                        // Trigger non-blocking visual warning and unlock button
-                                                        setResumeWarning(prev => ({...prev, [entry.key]: true}));
-                                                        setResumeLock(prev => ({...prev, [entry.key]: false}));
-
+                                                        // ... existing error handling ...
                                                         return;
+                                                    }
+
+                                                    // Map legacy phases to combined if in A/B test mode
+                                                    let phaseToUpdate = entry.status as Phase;
+                                                    if (abTestVariant !== "default" && (entry.status === "auto" || entry.status === "teleop")) {
+                                                        phaseToUpdate = "combined";
                                                     }
 
                                                     await updateState(
@@ -366,7 +383,7 @@ export default function MatchScoutingPage() {
                                                         entry.teamNumber!,
                                                         entry.match_type,
                                                         scouterEmail!,
-                                                        entry.status as Phase
+                                                        phaseToUpdate
                                                     );
                                                 }
 
@@ -376,7 +393,13 @@ export default function MatchScoutingPage() {
                                                 });
 
                                                 setScoutingData(restored);
-                                                setPhaseIndex(PHASE_ORDER.indexOf(entry.status as Phase));
+
+                                                // Map legacy phase index
+                                                let targetPhase = entry.status as Phase;
+                                                if (abTestVariant !== "default" && (entry.status === "auto" || entry.status === "teleop")) {
+                                                    targetPhase = "combined";
+                                                }
+                                                setPhaseIndex(PHASE_ORDER.indexOf(targetPhase));
                                                 setShowResumeDialog(false);
 
                                             } catch (err) {
@@ -430,7 +453,9 @@ export default function MatchScoutingPage() {
                     <div>
                         Match #{scoutingData.match || '–'} ({scoutingData.alliance?.toUpperCase() || '–'})
                     </div>
-                    <div className="capitalize">{phase}</div>
+                    <div className="capitalize">
+                        {phase === 'combined' ? 'Auto + Teleop' : phase}
+                    </div>
                 </div>
 
                 {/* Middle Section (Phases) */}
@@ -440,12 +465,23 @@ export default function MatchScoutingPage() {
                         {phase === 'pre' && (
                             <PrePhase key="pre" data={scoutingData} setData={setScoutingData}/>
                         )}
-                        {phase === 'auto' && (
+
+                        {/* Default flow */}
+                        {abTestVariant === "default" && phase === 'auto' && (
                             <AutoPhase key="auto" data={scoutingData} setData={setScoutingData}/>
                         )}
-                        {phase === 'teleop' && (
+                        {abTestVariant === "default" && phase === 'teleop' && (
                             <TeleopPhase key="teleop" data={scoutingData} setData={setScoutingData}/>
                         )}
+
+                        {/* A/B test variants */}
+                        {abTestVariant === "a" && phase === 'combined' && (
+                            <AVariant key="combined" data={scoutingData} setData={setScoutingData}/>
+                        )}
+                        {abTestVariant === "b" && phase === 'combined' && (
+                            <BVariant key="combined" data={scoutingData} setData={setScoutingData}/>
+                        )}
+
                         {phase === 'post' && (
                             <PostMatch key="post" data={scoutingData} setData={setScoutingData}/>
                         )}

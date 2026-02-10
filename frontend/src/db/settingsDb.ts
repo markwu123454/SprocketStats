@@ -5,13 +5,15 @@ export type Settings = {
     theme?: "dark" | "light" | "2025" | "2026" | "3473" | "968"
     field_orientation?: "0" | "90" | "180" | "270"
     match_scouting_device_type?: "mobile" | "tablet"
+    match_ab_test?: "default" | "a" | "b"
 } & Record<string, string | boolean | number | undefined>
 
 export const DEFAULT_SETTINGS: Required<Pick<Settings, "theme" | "field_orientation">> &
     Omit<Settings, "theme" | "field_orientation"> = {
     theme: "2026",
     field_orientation: "0",
-    match_scouting_device_type: "mobile"
+    match_scouting_device_type: "mobile",
+    match_ab_test: "default"
 }
 
 export interface SettingRow {
@@ -82,3 +84,4 @@ export function getSettingSync<K extends keyof Settings>(
     }
     return DEFAULT_SETTINGS[key] as Settings[K]
 }
+

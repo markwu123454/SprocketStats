@@ -40,6 +40,10 @@ export default function MorePage() {
         () => getSettingSync("match_scouting_device_type") ?? "mobile"
     )
 
+    const [abTestVariant, setAbTestVariant] = useState<Settings["match_ab_test"]>(
+        () => getSettingSync("match_ab_test") ?? "default"
+    )
+
     const [features, setFeatures] = useState({
         attendance: Boolean(getSettingSync("attendance")),
         match_scouting: Boolean(getSettingSync("match_scouting")),
@@ -77,27 +81,13 @@ export default function MorePage() {
     const notificationsEnabled =
         Notification.permission === "granted" && hasSubscription
 
-    useEffect(() => {
-        const load = async () => {
-            // ... existing load logic ...
-            const att = await getSetting("attendance")
-            const ms = await getSetting("match_scouting")
-
-            setFeatures({
-                attendance: !!att,
-                match_scouting: !!ms
-            })
-        }
-        void load()
-    }, [])
-
-
     // Load saved settings
     useEffect(() => {
         const load = async () => {
             const t = await getSetting("theme")
             const f = await getSetting("field_orientation")
             const d = await getSetting("match_scouting_device_type")
+            const ab = await getSetting("match_ab_test")
             const att = await getSetting("attendance")
             const ms = await getSetting("match_scouting")
 
@@ -105,7 +95,6 @@ export default function MorePage() {
                 attendance: !!att,
                 match_scouting: !!ms
             })
-
 
             if (t) setThemeState(t)
             if (f) {
@@ -113,6 +102,7 @@ export default function MorePage() {
                 setVisualAngle(Number(f))
             }
             if (d) setDeviceType(d)
+            if (ab) setAbTestVariant(ab)
         }
         void load()
     }, [])
@@ -127,6 +117,9 @@ export default function MorePage() {
     useEffect(() => {
         if (deviceType) void setSetting({match_scouting_device_type: deviceType})
     }, [deviceType])
+    useEffect(() => {
+        if (abTestVariant) void setSetting({match_ab_test: abTestVariant})
+    }, [abTestVariant])
 
     // Apply theme class to root
     useEffect(() => {
@@ -328,6 +321,44 @@ export default function MorePage() {
                         </SelectContent>
                     </Select>
                 </div>
+
+                {/* A/B Test Variant */}
+                <div className="space-y-1">
+                    <Label className="theme-subtext-color">
+                        Match Scouting Interface
+                    </Label>
+                    <p className="text-xs italic theme-subtext-color mb-2">
+                        Choose between different scouting layouts. Changes take effect on next session.
+                    </p>
+
+                    <Select
+                        value={abTestVariant}
+                        onValueChange={(val) =>
+                            setAbTestVariant(val as Settings["match_ab_test"])
+                        }
+                    >
+                        <SelectTrigger
+                            className="w-full border rounded-md transition theme-button-bg theme-border theme-text theme-button-hover"
+                        >
+                            <SelectValue placeholder="Select interface"/>
+                        </SelectTrigger>
+
+                        <SelectContent
+                            className="rounded-md shadow-lg transition theme-border theme-button-bg"
+                        >
+                            <SelectItem value="default" className="theme-text">
+                                Stable
+                            </SelectItem>
+                            <SelectItem value="a" className="theme-text">
+                                Variant A
+                            </SelectItem>
+                            <SelectItem value="b" className="theme-text">
+                                Variant B
+                            </SelectItem>
+                        </SelectContent>
+                    </Select>
+                </div>
+
                 <hr className="my-6 theme-border"/>
 
                 {/* Notification Settings */}
