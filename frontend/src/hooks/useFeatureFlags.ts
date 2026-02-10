@@ -7,6 +7,7 @@ export type FeatureFlags = {
     pushNotificationWarning: boolean // currently unused
     showAttendanceTimeForComp: boolean
     forcePWA: boolean
+    confirmBeforeUpload: boolean
 }
 
 const DEFAULT_FEATURE_FLAGS: FeatureFlags = {
@@ -14,6 +15,7 @@ const DEFAULT_FEATURE_FLAGS: FeatureFlags = {
     pushNotificationWarning: false,
     showAttendanceTimeForComp: true,
     forcePWA: false,
+    confirmBeforeUpload: true,
 }
 
 const STORAGE_KEY = "feature_flags"

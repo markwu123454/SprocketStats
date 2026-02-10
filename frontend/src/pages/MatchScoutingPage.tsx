@@ -8,6 +8,7 @@ import {useAPI} from '@/hooks/useAPI.ts'
 import {useAuth} from '@/hooks/useAuth.ts'
 import {useClientEnvironment} from "@/hooks/useClientEnvironment.ts"
 import {saveScoutingData, deleteScoutingData, db, type ScoutingDataWithKey, updateScoutingStatus} from "@/db/db.ts"
+import useFeatureFlags from "@/hooks/useFeatureFlags.ts";
 
 import {Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter} from "@/components/ui/dialog"
 import {Button} from '@/components/ui/button'
@@ -66,6 +67,8 @@ export default function MatchScoutingPage() {
         permissions,
         refresh,
     } = useAuth()
+
+    const featureFlags = useFeatureFlags()
 
     // 2. State
     const [phaseIndex, setPhaseIndex] = useState(0)
