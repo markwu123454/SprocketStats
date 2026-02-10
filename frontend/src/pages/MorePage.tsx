@@ -66,7 +66,7 @@ export default function MorePage() {
         if (!notificationsAllowed) return;
 
         const hydrate = async () => {
-            if (Notification.permission !== "granted") {
+            if (typeof Notification === "undefined" || Notification.permission !== "granted") {
                 setHasSubscription(false);
                 return;
             }
@@ -76,10 +76,12 @@ export default function MorePage() {
         };
 
         void hydrate();
-    }, [notificationsAllowed]);
+    }, [notificationsAllowed, getSubscription]);
 
     const notificationsEnabled =
-        Notification.permission === "granted" && hasSubscription
+        typeof Notification !== "undefined" &&
+        Notification.permission === "granted" &&
+        hasSubscription
 
     // Load saved settings
     useEffect(() => {
