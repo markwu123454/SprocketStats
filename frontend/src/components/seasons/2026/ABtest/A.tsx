@@ -1,82 +1,139 @@
-
-
-import React, {useEffect, useRef, useState} from "react"
-import type {MatchScoutingData} from "@/types"
+import React, {useEffect, useRef, useState, useCallback} from "react"
 import {getSettingSync} from "@/db/settingsDb"
 
 // ---------------------------------------------------------------------------
-// Match Phases & Sub-phases
+// Decoupled Types
 // ---------------------------------------------------------------------------
-type MatchPhase = 'prestart' | 'auto' | 'between' | 'teleop' | 'post'
+export type Alliance = "red" | "blue"
 
-type SubPhase =
-    | { phase: 'auto', duration: 20000 }  // 20 seconds
-    | { phase: 'transition', duration: 10000 }  // First 10s of teleop
-    | { phase: 'shift_1', duration: 25000 }
-    | { phase: 'shift_2', duration: 25000 }
-    | { phase: 'shift_3', duration: 25000 }
-    | { phase: 'shift_4', duration: 25000 }
-    | { phase: 'endgame', duration: 30000 }
-    | null
+export interface StartingAction {
+    type: "starting"
+    x: number
+    y: number
+}
 
-// ---------------------------------------------------------------------------
-// Zone definitions (normalized coordinates)
-// ---------------------------------------------------------------------------
-// ---------------------------------------------------------------------------
-// Zone definitions (normalized coordinates - cleaned up and aligned)
-// ---------------------------------------------------------------------------
-const ZONES = {
-    // Neutral zone (big intake) - centered
-    neutral: {
-        x1: 0.322,
-        y1: 0.020,
-        x2: 0.674,
-        y2: 0.978,
-    },
-    // Transition zones - connect neutral to edges
-    transitionLeft: {
-        x1: 0.247,
-        y1: 0.020,
-        x2: 0.323,
-        y2: 0.978,
-    },
-    transitionRight: {
-        x1: 0.673,
-        y1: 0.020,
-        x2: 0.756,
-        y2: 0.978,
-    },
-    // Small intake zones - aligned vertically
-    intakeTop: {
-        x1: 0.008,
-        y1: 0.206,
-        x2: 0.051,
-        y2: 0.331,
-    },
-    intakeBottom: {
-        x1: 0.008,
-        y1: 0.830,
-        x2: 0.025,
-        y2: 0.969,
-    },
-    // Climb zone - centered between intakes
-    climb: {
-        x1: 0.012,
-        y1: 0.467,
-        x2: 0.084,
-        y2: 0.599,
-    },
-    // Shooting zone (full rectangle, will be clipped)
-    shootingFull: {
-        x1: 0.008,
-        y1: 0.020,
-        x2: 0.246,
-        y2: 0.979,
-    },
+export interface ZoneAction {
+    type: "zone_change"
+    zone: string
+    timestamp: number
+    phase: MatchPhase
+    subPhase: SubPhaseName | null
+}
+
+export interface ScoreAction {
+    type: "score"
+    zone: string
+    timestamp: number
+    phase: MatchPhase
+    subPhase: SubPhaseName | null
+}
+
+export type MatchAction = StartingAction | ZoneAction | ScoreAction
+
+export interface MatchScoutingState {
+    alliance: Alliance
+    teamNumber: string
+    matchNumber: string
+    startPosition: { x: number; y: number } | null
+    actions: MatchAction[]
+}
+
+type MatchPhase = "prestart" | "auto" | "between" | "teleop" | "post"
+
+type SubPhaseName =
+    | "auto"
+    | "transition"
+    | "shift_1"
+    | "shift_2"
+    | "shift_3"
+    | "shift_4"
+    | "endgame"
+
+interface SubPhaseConfig {
+    phase: SubPhaseName
+    duration: number
 }
 
 // ---------------------------------------------------------------------------
-// Header Strip Component
+// Sub-phase sequence for teleop
+// ---------------------------------------------------------------------------
+const TELEOP_SEQUENCE: SubPhaseConfig[] = [
+    {phase: "transition", duration: 10000},
+    {phase: "shift_1", duration: 25000},
+    {phase: "shift_2", duration: 2500000},
+    {phase: "shift_3", duration: 25000},
+    {phase: "shift_4", duration: 25000},
+    {phase: "endgame", duration: 30000},
+]
+
+// ---------------------------------------------------------------------------
+// Zone definitions (normalized 0..1 coordinates)
+// ---------------------------------------------------------------------------
+type Rect = { x1: number; y1: number; x2: number; y2: number }
+
+const ZONES = {
+    neutral: {x1: 0.322, y1: 0.020, x2: 0.674, y2: 0.978},
+    transitionLeft: {x1: 0.247, y1: 0.020, x2: 0.323, y2: 0.978},
+    transitionRight: {x1: 0.673, y1: 0.020, x2: 0.756, y2: 0.978},
+    intakeTop: {x1: 0.009, y1: 0.206, x2: 0.054, y2: 0.331},
+    intakeBottom: {x1: 0.004, y1: 0.826, x2: 0.025, y2: 0.972},
+    climb: {x1: 0.012, y1: 0.467, x2: 0.083, y2: 0.597},
+    shootingFull: {x1: 0.013, y1: 0.020, x2: 0.246, y2: 0.978},
+} as const
+
+// Mirror a rect horizontally around x=0.5
+function mirrorRect(r: Rect): Rect {
+    return {x1: 1 - r.x2, y1: r.y1, x2: 1 - r.x1, y2: r.y2}
+}
+
+// Flip a rect both axes (180° rotation around center)
+function flipRect(r: Rect): Rect {
+    return {x1: 1 - r.x2, y1: 1 - r.y2, x2: 1 - r.x1, y2: 1 - r.y1}
+}
+
+// Defense zone = mirrored shootingFull (simple box on opposite side)
+const DEFENSE_RECT: Rect = mirrorRect(ZONES.shootingFull)
+
+// ---------------------------------------------------------------------------
+// Build SVG path for a rect with cutout holes (evenodd fill)
+// ---------------------------------------------------------------------------
+function buildCutoutPath(outer: Rect, cutouts: Rect[]): string {
+    // Outer rect clockwise
+    let d = `M${outer.x1} ${outer.y1} L${outer.x2} ${outer.y1} L${outer.x2} ${outer.y2} L${outer.x1} ${outer.y2}Z`
+    // Each cutout counter-clockwise (creates holes with evenodd)
+    for (const c of cutouts) {
+        d += ` M${c.x1} ${c.y1} L${c.x1} ${c.y2} L${c.x2} ${c.y2} L${c.x2} ${c.y1}Z`
+    }
+    return d
+}
+
+// Flip every coordinate in an SVG path through (1-x, 1-y)
+function flipPath(path: string): string {
+    return path.replace(/([ML])([\d.]+)\s+([\d.]+)/g, (_m, cmd, xStr, yStr) => {
+        return `${cmd}${(1 - parseFloat(xStr)).toFixed(4)} ${(1 - parseFloat(yStr)).toFixed(4)}`
+    })
+}
+
+// Pre-compute both orientations
+const SHOOTING_PATH = buildCutoutPath(ZONES.shootingFull, [
+    ZONES.intakeTop,
+    ZONES.climb,
+    ZONES.intakeBottom,
+])
+const SHOOTING_PATH_FLIPPED = flipPath(SHOOTING_PATH)
+
+// ---------------------------------------------------------------------------
+// Phase duration helper
+// ---------------------------------------------------------------------------
+function getPhaseDuration(phase: MatchPhase): number {
+    if (phase === "auto") return 20000
+    if (phase === "between") return 5000
+    if (phase === "teleop") return TELEOP_SEQUENCE.reduce((s, c) => s + c.duration, 0)
+    return 0
+}
+
+// ---------------------------------------------------------------------------
+// Header Strip
 // ---------------------------------------------------------------------------
 function HeaderStrip({
                          phase,
@@ -84,63 +141,71 @@ function HeaderStrip({
                          subPhaseElapsed,
                          subPhaseTotal,
                          phaseRemaining,
+                         flashing,
                      }: {
     phase: MatchPhase
-    subPhase: SubPhase
+    subPhase: SubPhaseConfig | null
     subPhaseElapsed: number
     subPhaseTotal: number
     phaseRemaining: number
+    flashing: boolean
 }) {
     const getPhaseColor = () => {
-        if (phase === 'prestart') return 'bg-zinc-700'
-        if (phase === 'auto') return 'bg-blue-700'
-        if (phase === 'between') return 'bg-yellow-700 animate-pulse'
-        if (phase === 'teleop') {
-            if (subPhase?.phase === 'endgame') return 'bg-red-700'
-            return 'bg-green-700'
+        if (phase === "prestart") return "bg-zinc-700"
+        if (phase === "auto") return "bg-blue-700"
+        if (phase === "between") return "bg-yellow-700 animate-pulse"
+        if (phase === "teleop") {
+            if (subPhase?.phase === "endgame") return "bg-red-700"
+            return "bg-green-700"
         }
-        if (phase === 'post') return 'bg-zinc-700'
-        return 'bg-zinc-800'
+        if (phase === "post") return "bg-zinc-700"
+        return "bg-zinc-800"
     }
 
     const getPhaseLabel = () => {
-        if (phase === 'prestart') return 'PRE-MATCH'
-        if (phase === 'auto') return 'AUTONOMOUS'
-        if (phase === 'between') return 'TRANSITION'
-        if (phase === 'teleop') {
-            if (!subPhase) return 'TELEOP'
-            if (subPhase.phase === 'transition') return 'TELEOP - TRANSITION'
-            if (subPhase.phase === 'shift_1') return 'TELEOP - SHIFT 1'
-            if (subPhase.phase === 'shift_2') return 'TELEOP - SHIFT 2'
-            if (subPhase.phase === 'shift_3') return 'TELEOP - SHIFT 3'
-            if (subPhase.phase === 'shift_4') return 'TELEOP - SHIFT 4'
-            if (subPhase.phase === 'endgame') return 'TELEOP - ENDGAME'
+        if (phase === "prestart") return "PRE-MATCH"
+        if (phase === "auto") return "AUTONOMOUS"
+        if (phase === "between") return "TRANSITION"
+        if (phase === "teleop") {
+            if (!subPhase) return "TELEOP"
+            const labels: Record<SubPhaseName, string> = {
+                auto: "AUTO",
+                transition: "TELEOP — TRANSITION",
+                shift_1: "TELEOP — SHIFT 1",
+                shift_2: "TELEOP — SHIFT 2",
+                shift_3: "TELEOP — SHIFT 3",
+                shift_4: "TELEOP — SHIFT 4",
+                endgame: "TELEOP — ENDGAME",
+            }
+            return labels[subPhase.phase] ?? "TELEOP"
         }
-        if (phase === 'post') return 'POST-MATCH'
-        return ''
+        if (phase === "post") return "POST-MATCH"
+        return ""
     }
 
-    const formatTime = (ms: number) => {
-        const seconds = Math.floor(ms / 1000)
-        const tenths = Math.floor((ms % 1000) / 100)
-        return `${seconds}.${tenths}s`
+    const fmt = (ms: number) => {
+        const s = Math.floor(ms / 1000)
+        const t = Math.floor((ms % 1000) / 100)
+        return `${s}.${t}s`
     }
 
     return (
-        <div className={`w-full p-3 ${getPhaseColor()} transition-colors duration-300`}>
+        <div
+            className={`w-full p-3 transition-colors duration-300 ${getPhaseColor()}`}
+            style={{
+                transition: "filter 0.15s ease-out, background-color 0.3s",
+                filter: flashing ? "brightness(1.6)" : "brightness(1)",
+            }}
+        >
             <div className="flex justify-between items-center">
-                <span className="text-white font-bold text-lg">
-                    {getPhaseLabel()}
-                </span>
-                {phase !== 'prestart' && phase !== 'post' && (
+                <span className="text-white font-bold text-lg">{getPhaseLabel()}</span>
+                {phase !== "prestart" && phase !== "post" && (
                     <div className="flex gap-4 items-center">
-                        {/* Sub-phase timer (count up) */}
                         <span className="text-white font-mono text-base">
-                            {formatTime(subPhaseElapsed)} / {formatTime(subPhaseTotal)}
+                            {fmt(subPhaseElapsed)} / {fmt(subPhaseTotal)}
                         </span>
-                        {/* Phase timer (count down) */}
                         <span className="text-white font-mono text-xl font-bold">
-                            {formatTime(phaseRemaining)}
+                            {fmt(phaseRemaining)}
                         </span>
                     </div>
                 )}
@@ -150,50 +215,106 @@ function HeaderStrip({
 }
 
 // ---------------------------------------------------------------------------
-// Zone Button Component
+// ZoneButton — unified component for simple rects AND complex SVG shapes
+// ---------------------------------------------------------------------------
+// Simple rect: just pass `zone`. Renders as a positioned <button>.
+// Complex shape: pass `zone` (bounding box) + `svgPath`. Renders as SVG.
+// Label text is NEVER flipped — always upright regardless of `flip`.
 // ---------------------------------------------------------------------------
 function ZoneButton({
-  zone,
-  label,
-  color,
-  onClick,
-  active,
-  flip,
-}: {
-  zone: { x1: number, y1: number, x2: number, y2: number }
-  label: string
-  color: string
-  onClick: () => void
-  active?: boolean
-  flip: boolean
+                        zone,
+                        svgPath,
+                        label,
+                        color,
+                        onClick,
+                        active,
+                        flip,
+                    }: {
+    zone: Rect
+    svgPath?: string
+    label: string
+    color: string
+    onClick: () => void
+    active?: boolean
+    flip: boolean
 }) {
-  const vx = (v: number) => (flip ? 1 - v : v)
-  const vy = (v: number) => (flip ? 1 - v : v)
+    // Compute displayed bounding box
+    const displayed = flip ? flipRect(zone) : zone
+    const left = displayed.x1
+    const top = displayed.y1
+    const width = displayed.x2 - displayed.x1
+    const height = displayed.y2 - displayed.y1
+    const centerX = left + width / 2
+    const centerY = top + height / 2
 
-  // Calculate position accounting for flip
-  const left = flip ? vx(zone.x2) : vx(zone.x1)
-  const top = flip ? vy(zone.y2) : vy(zone.y1)
-  const width = zone.x2 - zone.x1
-  const height = zone.y2 - zone.y1
+    // --- SVG path mode (complex shape with cutouts) ---
+    if (svgPath) {
+        const colorMap: Record<string, string> = {
+            "bg-green-600": "rgb(22 163 74)",
+            "bg-red-600": "rgb(220 38 38)",
+            "bg-blue-600": "rgb(37 99 235)",
+            "bg-orange-600": "rgb(234 88 12)",
+            "bg-purple-600": "rgb(147 51 234)",
+        }
+        const fillColor = colorMap[color] ?? "rgb(100 100 100)"
 
-  return (
-    <button
-      onClick={onClick}
-      className={`absolute border-2 rounded transition-all duration-200 flex items-center justify-center text-sm font-bold ${
-        active
-          ? `${color} border-transparent opacity-60`
-          : `${color} border-transparent opacity-20 hover:opacity-40`
-      }`}
-      style={{
-        left: `${left * 100}%`,
-        top: `${top * 100}%`,
-        width: `${width * 100}%`,
-        height: `${height * 100}%`,
-      }}
-    >
-      {label}
-    </button>
-  )
+        return (
+            <svg
+                className="absolute inset-0 w-full h-full"
+                viewBox="0 0 1 1"
+                preserveAspectRatio="none"
+                style={{pointerEvents: "none"}}
+            >
+                <path
+                    d={svgPath}
+                    fillRule="evenodd"
+                    fill={fillColor}
+                    onClick={onClick}
+                    className={`cursor-pointer transition-all duration-200
+                    ${active
+                        ? "[fill-opacity:0.6] hover:[fill-opacity:0.8]"
+                        : "[fill-opacity:0.2] hover:[fill-opacity:0.4]"
+                    }
+                    `}
+                    style={{pointerEvents: "auto"}}
+                />
+
+                {/* Label — always upright at bounding box center */}
+                <text
+                    x={centerX}
+                    y={centerY}
+                    textAnchor="middle"
+                    dominantBaseline="middle"
+                    fill="white"
+                    fontWeight="bold"
+                    className="pointer-events-none select-none"
+                    style={{fontSize: "0.04px"}}
+                >
+                    {label}
+                </text>
+            </svg>
+        )
+    }
+
+    // --- Simple rect mode ---
+    return (
+        <button
+            onClick={onClick}
+            className={`absolute border-2 rounded transition-all duration-200 flex items-center justify-center text-sm font-bold ${
+                active
+                    ? `${color} border-transparent opacity-60`
+                    : `${color} border-transparent opacity-20 hover:opacity-40`
+            }`}
+            style={{
+                left: `${left * 100}%`,
+                top: `${top * 100}%`,
+                width: `${width * 100}%`,
+                height: `${height * 100}%`,
+            }}
+        >
+            <span className="text-white">{label}</span>
+        </button>
+    )
 }
 
 // ---------------------------------------------------------------------------
@@ -203,77 +324,75 @@ export default function MatchScouting({
                                           data,
                                           setData,
                                       }: {
-    data: MatchScoutingData
-    setData: React.Dispatch<React.SetStateAction<MatchScoutingData>>
+    data: MatchScoutingState
+    setData: React.Dispatch<React.SetStateAction<MatchScoutingState>>
 }) {
     const deviceType = getSettingSync("match_scouting_device_type") ?? "mobile"
     const fieldRef = useRef<HTMLDivElement>(null)
 
-    // ---------------------------------------------------------------------------
-    // Phase & timing state
-    // ---------------------------------------------------------------------------
-    const [matchPhase, setMatchPhase] = useState<MatchPhase>('prestart')
-    const [subPhase, setSubPhase] = useState<SubPhase>(null)
-    const [subPhaseStartTime, setSubPhaseStartTime] = useState<number>(0)
-    const [phaseStartTime, setPhaseStartTime] = useState<number>(0)
-    const [matchStartTime, setMatchStartTime] = useState<number>(0)
-
-    // Force re-render for smooth timer updates
+    // Phase & timing
+    const [matchPhase, setMatchPhase] = useState<MatchPhase>("prestart")
+    const [subPhase, setSubPhase] = useState<SubPhaseConfig | null>(null)
+    const [subPhaseStartTime, setSubPhaseStartTime] = useState(0)
+    const [phaseStartTime, setPhaseStartTime] = useState(0)
+    const [matchStartTime, setMatchStartTime] = useState(0)
     const [, forceUpdate] = useState(0)
 
-    // ---------------------------------------------------------------------------
-    // Actions state
-    // ---------------------------------------------------------------------------
-    const [actions, setActions] = useState<Actions[]>(data.auto)
-    const [activeIndex, setActiveIndex] = useState(0)
-    const active = actions[activeIndex] ?? {type: "starting", x: 0.5, y: 0.5}
+    // Flash state
+    const [flashing, setFlashing] = useState(false)
+    const flashTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-    // Current zone state
+    // Actions
+    const [startPos, setStartPos] = useState<{ x: number; y: number } | null>(data.startPosition)
+    const [actions, setActions] = useState<MatchAction[]>(data.actions)
     const [currentZone, setCurrentZone] = useState<string | null>(null)
 
-    // ---------------------------------------------------------------------------
     // Field interaction
-    // ---------------------------------------------------------------------------
     const [dragging, setDragging] = useState(false)
-    const flip = (getSettingSync("field_orientation") === "180") !== (data.alliance === "red")
 
+    // Flip is ONLY based on the setting, NOT alliance
+    const flip = getSettingSync("field_orientation") === "180"
+
+    // ---------------------------------------------------------------------------
+    // Flash trigger
+    // ---------------------------------------------------------------------------
+    const triggerFlash = useCallback(() => {
+        if (flashTimeoutRef.current) clearTimeout(flashTimeoutRef.current)
+        setFlashing(true)
+        flashTimeoutRef.current = setTimeout(() => setFlashing(false), 350)
+    }, [])
+
+    useEffect(() => {
+        return () => {
+            if (flashTimeoutRef.current) clearTimeout(flashTimeoutRef.current)
+        }
+    }, [])
+
+    // ---------------------------------------------------------------------------
+    // Field pointer handlers
+    // ---------------------------------------------------------------------------
     function getFieldPos(e: React.PointerEvent) {
         if (!fieldRef.current) return {x: 0, y: 0}
         const rect = fieldRef.current.getBoundingClientRect()
-        return {
-            x: Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width)),
-            y: Math.min(1, Math.max(0, (e.clientY - rect.top) / rect.height)),
+        let x = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width))
+        let y = Math.min(1, Math.max(0, (e.clientY - rect.top) / rect.height))
+        // Convert screen coords back to un-flipped normalized coords
+        if (flip) {
+            x = 1 - x
+            y = 1 - y
         }
+        return {x, y}
     }
 
     function handlePointerDown(e: React.PointerEvent) {
-        const p = getFieldPos(e)
-
-        // Log normalized coordinates
-        const normalizedX = flip ? 1 - p.x : p.x
-        const normalizedY = flip ? 1 - p.y : p.y
-        console.log(`Normalized coords: (${normalizedX.toFixed(3)}, ${normalizedY.toFixed(3)})`)
-
-        if (matchPhase === 'prestart' && active.type === 'starting') {
-            setActions(prev => {
-                const copy = [...prev]
-                copy[activeIndex] = {type: 'starting', x: p.x, y: p.y}
-                return copy
-            })
-            setDragging(true)
-        }
+        if (matchPhase !== "prestart") return
+        setStartPos(getFieldPos(e))
+        setDragging(true)
     }
 
     function handlePointerMove(e: React.PointerEvent) {
-        if (!dragging) return
-        if (matchPhase === 'prestart' && active.type === 'starting') {
-            const p = getFieldPos(e)
-            setActions(prev => {
-                const copy = [...prev]
-                copy[activeIndex] = {type: 'starting', x: p.x, y: p.y}
-                return copy
-            })
-        }
+        if (!dragging || matchPhase !== "prestart") return
+        setStartPos(getFieldPos(e))
     }
 
     function handlePointerUp() {
@@ -281,446 +400,268 @@ export default function MatchScouting({
     }
 
     // ---------------------------------------------------------------------------
-    // Zone click handlers
+    // Zone click handler
     // ---------------------------------------------------------------------------
-    const handleZoneClick = (zoneName: string) => {
-        console.log(`Zone clicked: ${zoneName}`)
-        setCurrentZone(zoneName)
-        // TODO: Create state change event
-    }
+    const handleZoneClick = useCallback(
+        (zoneName: string) => {
+            setCurrentZone(zoneName)
+            const now = Date.now()
+            setActions((prev) => [
+                ...prev,
+                {
+                    type: "zone_change",
+                    zone: zoneName,
+                    timestamp: matchStartTime > 0 ? now - matchStartTime : 0,
+                    phase: matchPhase,
+                    subPhase: subPhase?.phase ?? null,
+                },
+            ])
+        },
+        [matchStartTime, matchPhase, subPhase],
+    )
 
     // ---------------------------------------------------------------------------
-    // Get total phase duration
-    // ---------------------------------------------------------------------------
-    const getPhaseDuration = (phase: MatchPhase): number => {
-        if (phase === 'auto') return 20000
-        if (phase === 'between') return 5000
-        if (phase === 'teleop') return 10000 + 25000 * 4 + 30000  // transition + 4 shifts + endgame = 140s
-        return 0
-    }
-
-    // ---------------------------------------------------------------------------
-    // Smooth timer updates (60fps)
+    // Smooth timer (60 fps)
     // ---------------------------------------------------------------------------
     useEffect(() => {
-        if (matchPhase === 'prestart' || matchPhase === 'post') return
-
-        const interval = setInterval(() => {
-            forceUpdate(prev => prev + 1)
-        }, 1000 / 60)  // 60fps for smooth updates
-
-        return () => clearInterval(interval)
+        if (matchPhase === "prestart" || matchPhase === "post") return
+        const id = setInterval(() => forceUpdate((n) => n + 1), 1000 / 60)
+        return () => clearInterval(id)
     }, [matchPhase])
 
     // ---------------------------------------------------------------------------
-    // Phase transitions
+    // Phase transition logic
     // ---------------------------------------------------------------------------
     useEffect(() => {
-        if (matchPhase === 'prestart' || matchPhase === 'post') return
+        if (matchPhase === "prestart" || matchPhase === "post") return
 
-        const checkInterval = setInterval(() => {
+        const id = setInterval(() => {
             const now = Date.now()
-            const subElapsed = now - subPhaseStartTime
+            const elapsed = now - subPhaseStartTime
 
-            // Auto phase (20s)
-            if (matchPhase === 'auto' && subElapsed >= 20000) {
-                setMatchPhase('between')
+            if (matchPhase === "auto" && elapsed >= 20000) {
+                setMatchPhase("between")
                 setPhaseStartTime(now)
                 setSubPhaseStartTime(now)
                 setSubPhase(null)
+                triggerFlash()
                 return
             }
 
-            // Between phase (5s transition)
-            if (matchPhase === 'between' && subElapsed >= 5000) {
-                setMatchPhase('teleop')
+            if (matchPhase === "between" && elapsed >= 5000) {
+                setMatchPhase("teleop")
                 setPhaseStartTime(now)
                 setSubPhaseStartTime(now)
-                setSubPhase({phase: 'transition', duration: 10000})
+                setSubPhase(TELEOP_SEQUENCE[0])
+                triggerFlash()
                 return
             }
 
-            // Teleop sub-phases
-            if (matchPhase === 'teleop' && subPhase) {
-                if (subElapsed >= subPhase.duration) {
-                    const now = Date.now()
-                    // Progress through teleop sub-phases
-                    if (subPhase.phase === 'transition') {
-                        setSubPhase({phase: 'shift_1', duration: 25000})
-                        setSubPhaseStartTime(now)
-                    } else if (subPhase.phase === 'shift_1') {
-                        setSubPhase({phase: 'shift_2', duration: 25000})
-                        setSubPhaseStartTime(now)
-                    } else if (subPhase.phase === 'shift_2') {
-                        setSubPhase({phase: 'shift_3', duration: 25000})
-                        setSubPhaseStartTime(now)
-                    } else if (subPhase.phase === 'shift_3') {
-                        setSubPhase({phase: 'shift_4', duration: 25000})
-                        setSubPhaseStartTime(now)
-                    } else if (subPhase.phase === 'shift_4') {
-                        setSubPhase({phase: 'endgame', duration: 30000})
-                        setSubPhaseStartTime(now)
-                    } else if (subPhase.phase === 'endgame') {
-                        setMatchPhase('post')
-                        setSubPhase(null)
-                    }
+            if (matchPhase === "teleop" && subPhase && elapsed >= subPhase.duration) {
+                const idx = TELEOP_SEQUENCE.findIndex((s) => s.phase === subPhase.phase)
+                if (idx >= 0 && idx < TELEOP_SEQUENCE.length - 1) {
+                    setSubPhase(TELEOP_SEQUENCE[idx + 1])
+                    setSubPhaseStartTime(now)
+                    triggerFlash()
+                } else {
+                    setMatchPhase("post")
+                    setSubPhase(null)
+                    triggerFlash()
                 }
             }
-        }, 100)  // Check transitions every 100ms
+        }, 100)
 
-        return () => clearInterval(checkInterval)
-    }, [matchPhase, subPhase, subPhaseStartTime])
+        return () => clearInterval(id)
+    }, [matchPhase, subPhase, subPhaseStartTime, triggerFlash])
 
     // ---------------------------------------------------------------------------
-    // Start match handler
+    // Start match
     // ---------------------------------------------------------------------------
     const handleStartMatch = () => {
         const now = Date.now()
         setMatchStartTime(now)
         setPhaseStartTime(now)
         setSubPhaseStartTime(now)
-        setMatchPhase('auto')
-        setSubPhase({phase: 'auto', duration: 20000})
+        setMatchPhase("auto")
+        setSubPhase({phase: "auto", duration: 20000})
+        if (startPos) {
+            setActions([{type: "starting", x: startPos.x, y: startPos.y}])
+        }
     }
 
     // ---------------------------------------------------------------------------
-    // Sync to parent data
+    // Sync to parent
     // ---------------------------------------------------------------------------
     useEffect(() => {
-        setData(d => ({...d, auto: actions}))
-    }, [actions, setData])
+        setData((d) => ({...d, startPosition: startPos, actions}))
+    }, [startPos, actions, setData])
 
     // ---------------------------------------------------------------------------
-    // View helpers
+    // Timer calculations
     // ---------------------------------------------------------------------------
+    const now = Date.now()
+    const subPhaseElapsed = subPhaseStartTime > 0 ? now - subPhaseStartTime : 0
+    const subPhaseTotal = subPhase?.duration ?? (matchPhase === "between" ? 5000 : 0)
+    const phaseElapsed = phaseStartTime > 0 ? now - phaseStartTime : 0
+    const phaseDuration = getPhaseDuration(matchPhase)
+    const phaseRemaining = Math.max(0, phaseDuration - phaseElapsed)
+
+    // View helpers — convert normalized coords to screen coords for the start dot
     const viewX = (v: number) => (flip ? 1 - v : v)
     const viewY = (v: number) => (flip ? 1 - v : v)
 
-    // ---------------------------------------------------------------------------
-    // Render field component
-    // ---------------------------------------------------------------------------
-    const renderField = () => {
-        const current = active
-        const showZones = matchPhase === 'auto' || matchPhase === 'teleop'
+    // Pick correct pre-computed SVG path for current orientation
+    const shootingPath = flip ? SHOOTING_PATH_FLIPPED : SHOOTING_PATH
 
-        return (
-            <div
-                ref={fieldRef}
-                onPointerDown={handlePointerDown}
-                onPointerMove={handlePointerMove}
-                onPointerUp={handlePointerUp}
-                onPointerLeave={() => setDragging(false)}
-                className="relative w-full aspect-2/1 rounded-xl overflow-hidden touch-none"
+    const showZones = matchPhase === "auto" || matchPhase === "teleop"
+
+    // ---------------------------------------------------------------------------
+    // Render: Field
+    // ---------------------------------------------------------------------------
+    const renderField = () => (
+        <div
+            ref={fieldRef}
+            onPointerDown={handlePointerDown}
+            onPointerMove={handlePointerMove}
+            onPointerUp={handlePointerUp}
+            onPointerLeave={() => setDragging(false)}
+            className="relative w-full aspect-2/1 rounded-xl overflow-hidden touch-none"
+            // Container is NEVER rotated — only the image and zone positions flip
+        >
+            {/* Field image flips via CSS when setting says 180 */}
+            <img
+                src="/seasons/2026/field-lovat.png"
+                className="absolute inset-0 w-full h-full object-contain pointer-events-none"
+                alt="field"
                 style={{transform: flip ? "rotate(180deg)" : "none"}}
-            >
-                <img
-                    src="/seasons/2026/field-lovat.png"
-                    className="absolute inset-0 w-full h-full object-contain pointer-events-none"
-                    alt="field"
-                />
+            />
 
-                {/* Zone overlays */}
-                {showZones && matchPhase === 'auto' && (
-                    <>
-                        {/* Neutral zone (big intake) */}
-                        <ZoneButton
-                            zone={ZONES.neutral}
-                            label="INTAKE"
-                            color="bg-blue-600"
-                            onClick={() => handleZoneClick('neutral')}
-                            active={currentZone === 'neutral'}
-                            flip={flip}
-                        />
+            {/* Zone overlays — positions computed with flip, text always upright */}
+            {showZones && (
+                <>
+                    <ZoneButton
+                        zone={ZONES.neutral}
+                        label="INTAKE"
+                        color="bg-blue-600"
+                        onClick={() => handleZoneClick("neutral")}
+                        active={currentZone === "neutral"}
+                        flip={flip}
+                    />
+                    <ZoneButton
+                        zone={ZONES.transitionLeft}
+                        label="TRANS"
+                        color="bg-purple-600"
+                        onClick={() => handleZoneClick("transitionLeft")}
+                        active={currentZone === "transitionLeft"}
+                        flip={flip}
+                    />
+                    <ZoneButton
+                        zone={ZONES.transitionRight}
+                        label="TRANS"
+                        color="bg-purple-600"
+                        onClick={() => handleZoneClick("transitionRight")}
+                        active={currentZone === "transitionRight"}
+                        flip={flip}
+                    />
+                    <ZoneButton
+                        zone={ZONES.intakeTop}
+                        label="IN"
+                        color="bg-blue-600"
+                        onClick={() => handleZoneClick("intakeTop")}
+                        active={currentZone === "intakeTop"}
+                        flip={flip}
+                    />
+                    <ZoneButton
+                        zone={ZONES.intakeBottom}
+                        label="IN"
+                        color="bg-blue-600"
+                        onClick={() => handleZoneClick("intakeBottom")}
+                        active={currentZone === "intakeBottom"}
+                        flip={flip}
+                    />
+                    <ZoneButton
+                        zone={ZONES.climb}
+                        label="CLIMB"
+                        color="bg-orange-600"
+                        onClick={() => handleZoneClick("climb")}
+                        active={currentZone === "climb"}
+                        flip={flip}
+                    />
 
-                        {/* Transition zones */}
-                        <ZoneButton
-                            zone={ZONES.transitionLeft}
-                            label="Traversal"
-                            color="bg-purple-600"
-                            onClick={() => handleZoneClick('transitionLeft')}
-                            active={currentZone === 'transitionLeft'}
-                            flip={flip}
-                        />
-                        <ZoneButton
-                            zone={ZONES.transitionRight}
-                            label="Traversal"
-                            color="bg-purple-600"
-                            onClick={() => handleZoneClick('transitionRight')}
-                            active={currentZone === 'transitionRight'}
-                            flip={flip}
-                        />
+                    {/* Shooting zone — SVG path with cutouts for intake/climb */}
+                    <ZoneButton
+                        zone={ZONES.shootingFull}
+                        svgPath={shootingPath}
+                        label="SHOOT"
+                        color="bg-green-600"
+                        onClick={() => handleZoneClick("shooting")}
+                        active={currentZone === "shooting"}
+                        flip={flip}
+                    />
 
-                        {/* Small intake zones */}
+                    {/* Defense zone — simple rect on opposite side, teleop only */}
+                    {matchPhase === "teleop" && (
                         <ZoneButton
-                            zone={ZONES.intakeTop}
-                            label="Intake"
-                            color="bg-blue-600"
-                            onClick={() => handleZoneClick('intakeTop')}
-                            active={currentZone === 'intakeTop'}
+                            zone={DEFENSE_RECT}
+                            label="DEFENSE"
+                            color="bg-red-600"
+                            onClick={() => handleZoneClick("defense")}
+                            active={currentZone === "defense"}
                             flip={flip}
                         />
-                        <ZoneButton
-                            zone={ZONES.intakeBottom}
-                            label="Intake"
-                            color="bg-blue-600"
-                            onClick={() => handleZoneClick('intakeBottom')}
-                            active={currentZone === 'intakeBottom'}
-                            flip={flip}
-                        />
+                    )}
+                </>
+            )}
 
-                        {/* Shooting zone with proper cutouts */}
-                        <svg
-                            className="absolute inset-0 w-full h-full pointer-events-none"
-                            viewBox="0 0 1 1"
-                            preserveAspectRatio="none"
-                        >
-                            <defs>
-                                <mask id="shootingMask">
-                                    {/* White = visible, Black = hidden */}
-                                    <rect x="0" y="0" width="1" height="1" fill="white"/>
-                                    {/* Cut out intake top */}
-                                    <rect
-                                        x={ZONES.intakeTop.x1}
-                                        y={ZONES.intakeTop.y1}
-                                        width={ZONES.intakeTop.x2 - ZONES.intakeTop.x1}
-                                        height={ZONES.intakeTop.y2 - ZONES.intakeTop.y1}
-                                        fill="black"
-                                    />
-                                    {/* Cut out climb */}
-                                    <rect
-                                        x={ZONES.climb.x1}
-                                        y={ZONES.climb.y1}
-                                        width={ZONES.climb.x2 - ZONES.climb.x1}
-                                        height={ZONES.climb.y2 - ZONES.climb.y1}
-                                        fill="black"
-                                    />
-                                    {/* Cut out intake bottom */}
-                                    <rect
-                                        x={ZONES.intakeBottom.x1}
-                                        y={ZONES.intakeBottom.y1}
-                                        width={ZONES.intakeBottom.x2 - ZONES.intakeBottom.x1}
-                                        height={ZONES.intakeBottom.y2 - ZONES.intakeBottom.y1}
-                                        fill="black"
-                                    />
-                                </mask>
-                            </defs>
-                            <rect
-                                x={ZONES.shootingFull.x1}
-                                y={ZONES.shootingFull.y1}
-                                width={ZONES.shootingFull.x2 - ZONES.shootingFull.x1}
-                                height={ZONES.shootingFull.y2 - ZONES.shootingFull.y1}
-                                mask="url(#shootingMask)"
-                                onClick={() => handleZoneClick('shooting')}
-                                className={`cursor-pointer rounded transition-all duration-200 ${
-                                    currentZone === 'shooting'
-                                        ? 'fill-green-600/90 stroke-white stroke-2'
-                                        : 'fill-green-600/40 stroke-transparent hover:fill-green-600/70'
-                                }`}
-                            />
-                            {/* Label */}
-                            <text
-                                x={(ZONES.shootingFull.x1 + ZONES.shootingFull.x2) / 2}
-                                y={(ZONES.shootingFull.y1 + ZONES.shootingFull.y2) / 2}
-                                textAnchor="middle"
-                                dominantBaseline="middle"
-                                className="fill-white font-bold text-[0.05px] pointer-events-none"
-                            >
-                                SHOOT
-                            </text>
-                        </svg>
-
-                        {/* Climb zone */}
-                        <ZoneButton
-                            zone={ZONES.climb}
-                            label="CLIMB"
-                            color="bg-orange-600"
-                            onClick={() => handleZoneClick('climb')}
-                            active={currentZone === 'climb'}
-                            flip={flip}
-                        />
-                    </>
-                )}
-
-                {showZones && matchPhase === 'teleop' && (
-                    <>
-                        {/* All auto zones plus defense zone (mirrored shooting) */}
-                        <ZoneButton
-                            zone={ZONES.neutral}
-                            label="INTAKE"
-                            color="bg-blue-600"
-                            onClick={() => handleZoneClick('neutral')}
-                            active={currentZone === 'neutral'}
-                            flip={flip}
-                        />
-                        <ZoneButton
-                            zone={ZONES.transitionLeft}
-                            label="TRANS"
-                            color="bg-purple-600"
-                            onClick={() => handleZoneClick('transitionLeft')}
-                            active={currentZone === 'transitionLeft'}
-                            flip={flip}
-                        />
-                        <ZoneButton
-                            zone={ZONES.transitionRight}
-                            label="TRANS"
-                            color="bg-purple-600"
-                            onClick={() => handleZoneClick('transitionRight')}
-                            active={currentZone === 'transitionRight'}
-                            flip={flip}
-                        />
-                        <ZoneButton
-                            zone={ZONES.intakeTop}
-                            label="IN"
-                            color="bg-blue-600"
-                            onClick={() => handleZoneClick('intakeTop')}
-                            active={currentZone === 'intakeTop'}
-                            flip={flip}
-                        />
-                        <ZoneButton
-                            zone={ZONES.intakeBottom}
-                            label="IN"
-                            color="bg-blue-600"
-                            onClick={() => handleZoneClick('intakeBottom')}
-                            active={currentZone === 'intakeBottom'}
-                            flip={flip}
-                        />
-
-                        {/* Shooting zone */}
-                        <button
-                            onClick={() => handleZoneClick('shooting')}
-                            className={`absolute border-2 rounded transition-all duration-200 flex items-center justify-center text-sm font-bold ${
-                                currentZone === 'shooting'
-                                    ? 'bg-green-600 border-white opacity-90'
-                                    : 'bg-green-600 border-transparent opacity-40 hover:opacity-70'
-                            }`}
-                            style={{
-                                left: `${(flip ? 1 - ZONES.shootingFull.x2 : ZONES.shootingFull.x1) * 100}%`,
-                                top: `${(flip ? 1 - ZONES.shootingFull.y2 : ZONES.shootingFull.y1) * 100}%`,
-                                width: `${(ZONES.shootingFull.x2 - ZONES.shootingFull.x1) * 100}%`,
-                                height: `${(ZONES.shootingFull.y2 - ZONES.shootingFull.y1) * 100}%`,
-                                clipPath: `polygon(
-                  0 0,
-                  100% 0,
-                  100% 100%,
-                  0 100%,
-                  0 ${((ZONES.intakeBottom.y1 - ZONES.shootingFull.y1) / (ZONES.shootingFull.y2 - ZONES.shootingFull.y1)) * 100}%,
-                  ${((ZONES.intakeBottom.x2 - ZONES.shootingFull.x1) / (ZONES.shootingFull.x2 - ZONES.shootingFull.x1)) * 100}% ${((ZONES.intakeBottom.y1 - ZONES.shootingFull.y1) / (ZONES.shootingFull.y2 - ZONES.shootingFull.y1)) * 100}%,
-                  ${((ZONES.intakeBottom.x2 - ZONES.shootingFull.x1) / (ZONES.shootingFull.x2 - ZONES.shootingFull.x1)) * 100}% ${((ZONES.intakeBottom.y2 - ZONES.shootingFull.y1) / (ZONES.shootingFull.y2 - ZONES.shootingFull.y1)) * 100}%,
-                  0 ${((ZONES.intakeBottom.y2 - ZONES.shootingFull.y1) / (ZONES.shootingFull.y2 - ZONES.shootingFull.y1)) * 100}%,
-                  0 ${((ZONES.intakeTop.y1 - ZONES.shootingFull.y1) / (ZONES.shootingFull.y2 - ZONES.shootingFull.y1)) * 100}%,
-                  ${((ZONES.intakeTop.x2 - ZONES.shootingFull.x1) / (ZONES.shootingFull.x2 - ZONES.shootingFull.x1)) * 100}% ${((ZONES.intakeTop.y1 - ZONES.shootingFull.y1) / (ZONES.shootingFull.y2 - ZONES.shootingFull.y1)) * 100}%,
-                  ${((ZONES.intakeTop.x2 - ZONES.shootingFull.x1) / (ZONES.shootingFull.x2 - ZONES.shootingFull.x1)) * 100}% ${((ZONES.intakeTop.y2 - ZONES.shootingFull.y1) / (ZONES.shootingFull.y2 - ZONES.shootingFull.y1)) * 100}%,
-                  0 ${((ZONES.intakeTop.y2 - ZONES.shootingFull.y1) / (ZONES.shootingFull.y2 - ZONES.shootingFull.y1)) * 100}%,
-                  0 ${((ZONES.climb.y1 - ZONES.shootingFull.y1) / (ZONES.shootingFull.y2 - ZONES.shootingFull.y1)) * 100}%,
-                  ${((ZONES.climb.x2 - ZONES.shootingFull.x1) / (ZONES.shootingFull.x2 - ZONES.shootingFull.x1)) * 100}% ${((ZONES.climb.y1 - ZONES.shootingFull.y1) / (ZONES.shootingFull.y2 - ZONES.shootingFull.y1)) * 100}%,
-                  ${((ZONES.climb.x2 - ZONES.shootingFull.x1) / (ZONES.shootingFull.x2 - ZONES.shootingFull.x1)) * 100}% ${((ZONES.climb.y2 - ZONES.shootingFull.y1) / (ZONES.shootingFull.y2 - ZONES.shootingFull.y1)) * 100}%,
-                  0 ${((ZONES.climb.y2 - ZONES.shootingFull.y1) / (ZONES.shootingFull.y2 - ZONES.shootingFull.y1)) * 100}%
-                )`
-                            }}
-                        >
-                            SHOOT
-                        </button>
-
-                        {/* Defense zone (mirrored shooting zone on opposite side) */}
-                        <button
-                            onClick={() => handleZoneClick('defense')}
-                            className={`absolute border-2 rounded transition-all duration-200 flex items-center justify-center text-sm font-bold ${
-                                currentZone === 'defense'
-                                    ? 'bg-red-600 border-white opacity-90'
-                                    : 'bg-red-600 border-transparent opacity-40 hover:opacity-70'
-                            }`}
-                            style={{
-                                left: `${(flip ? ZONES.shootingFull.x1 : 1 - ZONES.shootingFull.x2) * 100}%`,
-                                top: `${(flip ? 1 - ZONES.shootingFull.y2 : ZONES.shootingFull.y1) * 100}%`,
-                                width: `${(ZONES.shootingFull.x2 - ZONES.shootingFull.x1) * 100}%`,
-                                height: `${(ZONES.shootingFull.y2 - ZONES.shootingFull.y1) * 100}%`,
-                                transform: 'scaleX(-1)',
-                                clipPath: `polygon(
-                  0 0,
-                  100% 0,
-                  100% 100%,
-                  0 100%,
-                  0 ${((ZONES.intakeBottom.y1 - ZONES.shootingFull.y1) / (ZONES.shootingFull.y2 - ZONES.shootingFull.y1)) * 100}%,
-                  ${((ZONES.intakeBottom.x2 - ZONES.shootingFull.x1) / (ZONES.shootingFull.x2 - ZONES.shootingFull.x1)) * 100}% ${((ZONES.intakeBottom.y1 - ZONES.shootingFull.y1) / (ZONES.shootingFull.y2 - ZONES.shootingFull.y1)) * 100}%,
-                  ${((ZONES.intakeBottom.x2 - ZONES.shootingFull.x1) / (ZONES.shootingFull.x2 - ZONES.shootingFull.x1)) * 100}% ${((ZONES.intakeBottom.y2 - ZONES.shootingFull.y1) / (ZONES.shootingFull.y2 - ZONES.shootingFull.y1)) * 100}%,
-                  0 ${((ZONES.intakeBottom.y2 - ZONES.shootingFull.y1) / (ZONES.shootingFull.y2 - ZONES.shootingFull.y1)) * 100}%,
-                  0 ${((ZONES.intakeTop.y1 - ZONES.shootingFull.y1) / (ZONES.shootingFull.y2 - ZONES.shootingFull.y1)) * 100}%,
-                  ${((ZONES.intakeTop.x2 - ZONES.shootingFull.x1) / (ZONES.shootingFull.x2 - ZONES.shootingFull.x1)) * 100}% ${((ZONES.intakeTop.y1 - ZONES.shootingFull.y1) / (ZONES.shootingFull.y2 - ZONES.shootingFull.y1)) * 100}%,
-                  ${((ZONES.intakeTop.x2 - ZONES.shootingFull.x1) / (ZONES.shootingFull.x2 - ZONES.shootingFull.x1)) * 100}% ${((ZONES.intakeTop.y2 - ZONES.shootingFull.y1) / (ZONES.shootingFull.y2 - ZONES.shootingFull.y1)) * 100}%,
-                  0 ${((ZONES.intakeTop.y2 - ZONES.shootingFull.y1) / (ZONES.shootingFull.y2 - ZONES.shootingFull.y1)) * 100}%,
-                  0 ${((ZONES.climb.y1 - ZONES.shootingFull.y1) / (ZONES.shootingFull.y2 - ZONES.shootingFull.y1)) * 100}%,
-                  ${((ZONES.climb.x2 - ZONES.shootingFull.x1) / (ZONES.shootingFull.x2 - ZONES.shootingFull.x1)) * 100}% ${((ZONES.climb.y1 - ZONES.shootingFull.y1) / (ZONES.shootingFull.y2 - ZONES.shootingFull.y1)) * 100}%,
-                  ${((ZONES.climb.x2 - ZONES.shootingFull.x1) / (ZONES.shootingFull.x2 - ZONES.shootingFull.x1)) * 100}% ${((ZONES.climb.y2 - ZONES.shootingFull.y1) / (ZONES.shootingFull.y2 - ZONES.shootingFull.y1)) * 100}%,
-                  0 ${((ZONES.climb.y2 - ZONES.shootingFull.y1) / (ZONES.shootingFull.y2 - ZONES.shootingFull.y1)) * 100}%
-                )`
-                            }}
-                        >
-                            DEFENSE
-                        </button>
-
-                        <ZoneButton
-                            zone={ZONES.climb}
-                            label="CLIMB"
-                            color="bg-orange-600"
-                            onClick={() => handleZoneClick('climb')}
-                            active={currentZone === 'climb'}
-                            flip={flip}
-                        />
-                    </>
-                )}
-
-                {/* Starting position indicator */}
-                {current.type === "starting" && (
-                    <div
-                        className="absolute"
-                        style={{
-                            width: "3.75%",
-                            height: "7.5%",
-                            left: `${viewX(current.x) * 100}%`,
-                            top: `${viewY(current.y) * 100}%`,
-                            transform: `translate(-50%, -50%)`,
-                        }}
-                    >
-                        <div className="absolute inset-0 bg-zinc-600/50 border-2 rounded-xs border-zinc-800"/>
-                    </div>
-                )}
-            </div>
-        )
-    }
+            {/* Starting position indicator */}
+            {matchPhase === "prestart" && startPos && (
+                <div
+                    className="absolute"
+                    style={{
+                        width: "3.75%",
+                        height: "7.5%",
+                        left: `${viewX(startPos.x) * 100}%`,
+                        top: `${viewY(startPos.y) * 100}%`,
+                        transform: "translate(-50%, -50%)",
+                    }}
+                >
+                    <div className="absolute inset-0 bg-zinc-600/50 border-2 rounded-xs border-zinc-800"/>
+                </div>
+            )}
+        </div>
+    )
 
     // ---------------------------------------------------------------------------
-    // Render controls component - PLACEHOLDER
+    // Render: Controls
     // ---------------------------------------------------------------------------
     const renderControls = () => {
-        if (matchPhase === 'prestart') {
+        if (matchPhase === "prestart") {
             return (
                 <div className="flex flex-col gap-4">
                     <div className="text-zinc-500 text-center py-4 text-sm">
                         Set starting position on field
                     </div>
-
                     <button
                         onClick={handleStartMatch}
-                        disabled={!active.x}
+                        disabled={!startPos}
                         className={`h-20 rounded-xl text-2xl font-bold transition-colors ${
-                            active.x
-                                ? 'bg-green-700 hover:bg-green-600'
-                                : 'bg-zinc-800 opacity-40 cursor-not-allowed'
+                            startPos
+                                ? "bg-green-700 hover:bg-green-600"
+                                : "bg-zinc-800 opacity-40 cursor-not-allowed"
                         }`}
                     >
-                        {active.x ? 'START MATCH ▶' : 'Set starting position first'}
+                        {startPos ? "START MATCH ▶" : "Set starting position first"}
                     </button>
                 </div>
             )
         }
 
-        if (matchPhase === 'post') {
+        if (matchPhase === "post") {
             return (
                 <div className="flex flex-col gap-4">
                     <div className="text-zinc-400 text-center py-8">
                         Match complete! Review and submit data.
                     </div>
-
                     <button
                         onClick={() => {/* Navigate to post-match */
                         }}
@@ -738,7 +679,7 @@ export default function MatchScouting({
                     Controls coming soon...
                     <br/>
                     <span className="text-xs text-zinc-500">
-                        Current zone: {currentZone || 'none'}
+                        Current zone: {currentZone || "none"}
                     </span>
                 </div>
             </div>
@@ -746,18 +687,7 @@ export default function MatchScouting({
     }
 
     // ---------------------------------------------------------------------------
-    // Calculate timers for header
-    // ---------------------------------------------------------------------------
-    const now = Date.now()
-    const subPhaseElapsed = subPhaseStartTime > 0 ? now - subPhaseStartTime : 0
-    const subPhaseTotal = subPhase?.duration ?? (matchPhase === 'between' ? 5000 : 0)
-
-    const phaseElapsed = phaseStartTime > 0 ? now - phaseStartTime : 0
-    const phaseDuration = getPhaseDuration(matchPhase)
-    const phaseRemaining = Math.max(0, phaseDuration - phaseElapsed)
-
-    // ---------------------------------------------------------------------------
-    // Main render - conditional layout based on device type
+    // Layout
     // ---------------------------------------------------------------------------
     if (deviceType === "tablet") {
         return (
@@ -768,22 +698,16 @@ export default function MatchScouting({
                     subPhaseElapsed={subPhaseElapsed}
                     subPhaseTotal={subPhaseTotal}
                     phaseRemaining={phaseRemaining}
+                    flashing={flashing}
                 />
-
                 <div className="flex-1 flex gap-3 p-3 overflow-hidden">
-                    <div className="flex-3 flex flex-col gap-3">
-                        {renderField()}
-                    </div>
-
-                    <div className="flex-1 flex flex-col gap-3 overflow-y-auto">
-                        {renderControls()}
-                    </div>
+                    <div className="flex-3 flex flex-col gap-3">{renderField()}</div>
+                    <div className="flex-1 flex flex-col gap-3 overflow-y-auto">{renderControls()}</div>
                 </div>
             </div>
         )
     }
 
-    // Mobile layout
     return (
         <div className="w-screen h-max flex flex-col select-none text-sm">
             <HeaderStrip
@@ -792,8 +716,8 @@ export default function MatchScouting({
                 subPhaseElapsed={subPhaseElapsed}
                 subPhaseTotal={subPhaseTotal}
                 phaseRemaining={phaseRemaining}
+                flashing={flashing}
             />
-
             <div className="flex-1 flex flex-col p-2 gap-4 overflow-y-auto">
                 {renderField()}
                 {renderControls()}
