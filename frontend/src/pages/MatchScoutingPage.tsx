@@ -110,6 +110,23 @@ export default function MatchScoutingPage() {
         return result;
     }
 
+    const exitFullscreenIfNeeded = async () => {
+        try {
+            if (document.fullscreenElement) {
+                await document.exitFullscreen();
+                return;
+            }
+
+            // iOS Safari (non-standard)
+            const docAny = document as any;
+            if (docAny.webkitFullscreenElement) {
+                await docAny.webkitExitFullscreen();
+            }
+        } catch {
+            // ignore
+        }
+    };
+
     // 4. Effects
     useEffect(() => {
         (async () => {
@@ -259,15 +276,23 @@ export default function MatchScoutingPage() {
     }
 
     const handleBack = async () => {
-        if (phaseIndex === 0) {
-            navigate("/")
-            return
-        }
-        const prevIndex = phaseIndex - 1
-        setPhaseIndex(prevIndex)
-        await updateState(scoutingData.match!, scoutingData.teamNumber!, scoutingData.match_type, scouterEmail!, PHASE_ORDER[prevIndex],)
-    }
+        await exitFullscreenIfNeeded();
 
+        if (phaseIndex === 0) {
+            navigate("/");
+            return;
+        }
+
+        const prevIndex = phaseIndex - 1;
+        setPhaseIndex(prevIndex);
+        await updateState(
+            scoutingData.match!,
+            scoutingData.teamNumber!,
+            scoutingData.match_type,
+            scouterEmail!,
+            PHASE_ORDER[prevIndex],
+        );
+    };
 
     return (
         <>
