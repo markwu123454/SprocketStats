@@ -410,7 +410,7 @@ export default function MatchScoutingPage() {
 
                 {/* Middle Section (Phases) */}
                 <div
-                    className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain touch-auto no-scrollbar">
+                    className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain touch-auto scrollbar-dark">
                     <div className="text-4xl">
                         {phase === 'pre' && (
                             <PrePhase key="pre" data={scoutingData} setData={setScoutingData}/>
