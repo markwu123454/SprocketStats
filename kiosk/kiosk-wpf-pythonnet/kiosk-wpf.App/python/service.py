@@ -364,6 +364,7 @@ def python_init():
     # Report status
     if not has_errored:
         print("\x1b[32mInitialization complete.\x1b[0m\n")
+        print("Use list_globals() to see all available helpers and variables")
     else:
         for err in errors:
             print(f"\x1b[31m{err}\x1b[0m")
@@ -619,10 +620,11 @@ def run_calculation(setting):
         - aggregate_statistics()
         - etc.
     """
-    global calc_result
+    global calc_result, downloaded_data
 
     set_busy(True)
     print("\n=== START CALCULATION ===")
+    print("Output data is found in calc_result, keys include team, match, ranking, alliance, sb, tba, match_index, match_reverse_index")
 
     try:
         setting = json.loads(setting)
@@ -640,20 +642,26 @@ def run_calculation(setting):
         if stop_on_warning:
             print("   (stop on warning: \x1b[33menabled\x1b[0m)")
 
-        # Fetch Statbotics data
+        # --- Validate downloaded data exists ---
+        print("→ Validating downloaded data...")
+        if not validate_downloaded_data(event_key, stop_on_warning):
+            return
+
+        # --- Fetch Statbotics data ---
         print("→ Fetching Statbotics data...")
         try:
             sb_data = sb.get_matches(event=event_key)
             sb_count = len(sb_data) if isinstance(sb_data, (list, dict)) else 0
 
             if sb_count == 0:
-                print(f"   \x1b[31mWarning: No Statbotics data returned\x1b[0m")
+                print("   \x1b[31mWarning: No Statbotics data returned\x1b[0m")
                 if stop_on_warning:
                     print("\x1b[31mStopping: stop_on_warning is enabled\x1b[0m")
                     set_busy(False)
                     return
             else:
                 print(f"   \x1b[33m{sb_count}\x1b[0m Statbotics entries")
+
         except UserWarning as e:
             print(f"   \x1b[31mStatbotics error: {e}\x1b[0m")
             if stop_on_warning:
@@ -662,36 +670,32 @@ def run_calculation(setting):
                 return
             sb_data = {}
 
-        # Fetch TBA data
+        # --- Fetch TBA data ---
         print("→ Fetching TBA data...")
         tba_response = requests.get(
             f"https://www.thebluealliance.com/api/v3/event/{event_key}/matches",
             headers={"X-TBA-Auth-Key": TBA_API_KEY}
         )
 
-        if tba_response.status_code == 200:
-            tba_data = tba_response.json()
-
-            if len(tba_data) == 0:
-                print(f"   \x1b[31mWarning: No TBA matches returned\x1b[0m")
-                if stop_on_warning:
-                    print("\x1b[31mStopping: stop_on_warning is enabled\x1b[0m")
-                    set_busy(False)
-                    return
-            else:
-                print(f"   \x1b[33m{len(tba_data)}\x1b[0m TBA matches")
-        else:
+        if tba_response.status_code != 200:
             print(f"   \x1b[31mTBA request failed (status {tba_response.status_code})\x1b[0m")
             if stop_on_warning:
                 print("\x1b[31mStopping: stop_on_warning is enabled\x1b[0m")
-                set_busy(False)
                 return
             tba_data = []
+        else:
+            tba_data = tba_response.json()
+            if not tba_data:
+                print("   \x1b[31mWarning: No TBA matches returned\x1b[0m")
+                if stop_on_warning:
+                    print("\x1b[31mStopping: stop_on_warning is enabled\x1b[0m")
+                    return
+            else:
+                print(f"   \x1b[33m{len(tba_data)}\x1b[0m TBA matches")
 
-        # Initialize result structure
+        # --- Initialize calculation result ---
         print("→ Initializing calculation results...")
-        calc_result["team"] = {}
-        calc_result["match"] = {}
+        calc_result.clear()
         calc_result["ranking"] = {}
         calc_result["alliance"] = {}
 
@@ -728,14 +732,342 @@ def run_calculation(setting):
         calc_result["sb"] = sb_data
         calc_result["tba"] = tba_data
 
-        print(f"\x1b[33mNo calculations yet.\x1b[0m")
+        # --- Initialize teams & matches (authoritative: TBA) ---
+        if not initialize_structure(
+                calc_result=calc_result,
+                tba_data=tba_data,
+                sb_data=sb_data,
+                downloaded_data=downloaded_data,
+                event_key=event_key,
+                stop_on_warning=stop_on_warning
+        ):
+            return
 
+        print("\x1b[33mNo calculations yet.\x1b[0m")
         print("→ Done\n")
 
     except Exception as e:
         print(f"\x1b[31mError: {e}\x1b[0m")
+
     finally:
         set_busy(False)
+
+
+def validate_downloaded_data(event_key, stop_on_warning=False):
+    """
+    Validate that downloaded_data contains necessary information for calculations.
+
+    Args:
+        event_key: Event identifier to validate
+        stop_on_warning: If True, return False on any warning
+
+    Returns:
+        bool: True if validation passes, False otherwise
+    """
+    global downloaded_data
+
+    if not downloaded_data:
+        print("   \x1b[31mError: No data downloaded. Run download_data() first.\x1b[0m")
+        return False
+
+    # Check required keys
+    required_keys = ["match_scouting", "pit_scouting", "all_matches"]
+    missing_keys = [k for k in required_keys if k not in downloaded_data]
+
+    if missing_keys:
+        print(f"   \x1b[31mError: Missing data keys: {', '.join(missing_keys)}\x1b[0m")
+        return False
+
+    # Filter data for this event
+    match_scouting = [
+        m for m in downloaded_data["match_scouting"]
+        if m.get("event_key") == event_key
+    ]
+    pit_scouting = [
+        p for p in downloaded_data["pit_scouting"]
+        if p.get("event_key") == event_key
+    ]
+    all_matches = [
+        m for m in downloaded_data["all_matches"]
+        if m.get("event_key") == event_key
+    ]
+
+    # Report counts
+    print(f"   Match scouting entries: \x1b[33m{len(match_scouting)}\x1b[0m")
+    print(f"   Pit scouting entries: \x1b[33m{len(pit_scouting)}\x1b[0m")
+    print(f"   Match schedules: \x1b[33m{len(all_matches)}\x1b[0m")
+
+    # Warnings
+    if len(match_scouting) == 0:
+        print("   \x1b[31mWarning: No match scouting data for this event\x1b[0m")
+        if stop_on_warning:
+            return False
+
+    if len(all_matches) == 0:
+        print("   \x1b[31mWarning: No match schedules for this event\x1b[0m")
+        if stop_on_warning:
+            return False
+
+    return True
+
+
+def initialize_structure(calc_result, tba_data, sb_data, downloaded_data, event_key, stop_on_warning=False):
+    """
+    Initialize empty calculation structures for teams and matches.
+
+    - Teams are stored as integers (e.g. 9408)
+    - Matches are normalized to qm1, qm2, ..., sf1, ..., f1, ...
+    - TBA is authoritative for structure
+    - Statbotics is sanity-checked against raw TBA keys
+    - Downloaded data is validated for consistency
+    """
+
+    # --- Normalize Statbotics data into dict keyed by raw TBA match key ---
+    sb_matches = {}
+    if isinstance(sb_data, dict):
+        sb_matches = sb_data
+    elif isinstance(sb_data, list):
+        for m in sb_data:
+            if "key" in m:
+                sb_matches[m["key"]] = m
+
+    # --- Containers ---
+    calc_result["team"] = {}
+    calc_result["match"] = {}
+    calc_result["match_index"] = {}          # canonical -> tba_key
+    calc_result["match_reverse_index"] = {}  # tba_key -> canonical
+
+    print("→ Initializing teams and matches from TBA...")
+
+    # --- Collect raw TBA match keys for sanity check ---
+    tba_match_keys = {m["key"] for m in tba_data if "key" in m}
+
+    # --- Group matches by comp level ---
+    grouped = {"qm": [], "sf": [], "f": []}
+
+    for match in tba_data:
+        level = match.get("comp_level")
+        if level in grouped:
+            grouped[level].append(match)
+
+        # --- Initialize teams (numeric keys) ---
+        alliances = match.get("alliances", {})
+        for color in ("red", "blue"):
+            for raw_team_key in alliances.get(color, {}).get("team_keys", []):
+                team_num = parse_team_key(raw_team_key)
+                calc_result["team"].setdefault(team_num, {})
+
+    # --- Normalize matches to qm1, sf1, f1 ---
+    for level in ("qm", "sf", "f"):
+        matches = sorted(
+            grouped[level],
+            key=lambda m: (m.get("set_number", 0), m.get("match_number", 0))
+        )
+
+        for idx, match in enumerate(matches, start=1):
+            canon_key = f"{level}{idx}"
+            tba_key = match["key"]
+
+            calc_result["match"][canon_key] = {}
+            calc_result["match_index"][canon_key] = tba_key
+            calc_result["match_reverse_index"][tba_key] = canon_key
+
+    print(f"   Initialized {len(calc_result['match'])} matches")
+    print(f"   Initialized {len(calc_result['team'])} teams")
+
+    # --- Sanity checks against Statbotics (raw keys only) ---
+    sb_match_keys = set(sb_matches.keys())
+
+    missing_in_sb = tba_match_keys - sb_match_keys
+    extra_in_sb = sb_match_keys - tba_match_keys
+
+    if missing_in_sb:
+        print(f"\x1b[31mWarning: {len(missing_in_sb)} TBA matches missing in Statbotics\x1b[0m")
+        if stop_on_warning:
+            print("\x1b[31mStopping: stop_on_warning is enabled\x1b[0m")
+            return False
+
+    if extra_in_sb:
+        print(f"\x1b[31mWarning: {len(extra_in_sb)} Statbotics matches not present in TBA\x1b[0m")
+        if stop_on_warning:
+            print("\x1b[31mStopping: stop_on_warning is enabled\x1b[0m")
+            return False
+
+    # --- Validate against downloaded data ---
+    print("→ Validating against downloaded data...")
+
+    # Filter downloaded data for this event
+    match_scouting = [
+        m for m in downloaded_data.get("match_scouting", [])
+        if m.get("event_key") == event_key
+    ]
+    pit_scouting = [
+        p for p in downloaded_data.get("pit_scouting", [])
+        if p.get("event_key") == event_key
+    ]
+
+    # Extract teams from scouted data
+    scouted_teams = set()
+    for entry in match_scouting:
+        if "team" in entry:
+            try:
+                scouted_teams.add(parse_team_key(entry["team"]))
+            except ValueError:
+                pass
+
+    for entry in pit_scouting:
+        if "team" in entry:
+            try:
+                scouted_teams.add(parse_team_key(entry["team"]))
+            except ValueError:
+                pass
+
+    # Compare with TBA teams
+    tba_teams = set(calc_result["team"].keys())
+
+    teams_not_scouted = tba_teams - scouted_teams
+    teams_scouted_not_in_tba = scouted_teams - tba_teams
+
+    if teams_not_scouted:
+        print(f"   \x1b[33mInfo: {len(teams_not_scouted)} teams in TBA not yet scouted\x1b[0m")
+
+    if teams_scouted_not_in_tba:
+        print(f"   \x1b[31mWarning: {len(teams_scouted_not_in_tba)} scouted teams not in TBA roster\x1b[0m")
+        if stop_on_warning:
+            print("\x1b[31mStopping: stop_on_warning is enabled\x1b[0m")
+            return False
+
+    # --- Determine most recent match ---
+    most_recent = determine_most_recent_match(match_scouting, calc_result)
+    if most_recent:
+        calc_result["most_recent_match"] = most_recent
+        print(f"   Most recent match (>3 submissions): \x1b[32m{most_recent}\x1b[0m")
+    else:
+        print("   \x1b[33mNo match with >3 submissions found\x1b[0m")
+
+    print("→ Structure initialization complete\n")
+    return True
+
+
+def determine_most_recent_match(match_scouting, calc_result):
+    """
+    Determine the most recent match based on having more than 3 match scouting submissions.
+
+    Args:
+        match_scouting: List of match scouting entries
+        calc_result: Calculation result dict with match_reverse_index
+
+    Returns:
+        str: Canonical match key (e.g., "qm15") or None if no match qualifies
+    """
+    # Count submissions per match
+    submission_counts = {}
+
+    for entry in match_scouting:
+        match_type = entry.get("match_type", "")
+        match_num = entry.get("match", 0)
+
+        # Construct match identifier
+        match_id = f"{match_type}{match_num}"
+        submission_counts[match_id] = submission_counts.get(match_id, 0) + 1
+
+    # Find matches with >3 submissions and get their canonical keys
+    qualifying_matches = []
+
+    for match_id, count in submission_counts.items():
+        if count > 3:
+            # Try to find canonical key from reverse index
+            # First, try to find matching TBA key
+            tba_key = None
+            for tba_k, canon_k in calc_result.get("match_reverse_index", {}).items():
+                # TBA keys look like "2024txhou_qm1"
+                if tba_k.endswith(f"_{match_id}"):
+                    tba_key = tba_k
+                    break
+
+            if tba_key:
+                canon_key = calc_result["match_reverse_index"][tba_key]
+                qualifying_matches.append((canon_key, count))
+
+    if not qualifying_matches:
+        return None
+
+    # Sort by canonical key to get most recent
+    # Assuming qm comes before sf comes before f, and numbers are sequential
+    def match_sort_key(item):
+        canon_key = item[0]
+        if canon_key.startswith("f"):
+            level = 2
+        elif canon_key.startswith("sf"):
+            level = 1
+        else:  # qm
+            level = 0
+
+        # Extract number
+        num = int(''.join(filter(str.isdigit, canon_key)))
+        return (level, num)
+
+    qualifying_matches.sort(key=match_sort_key, reverse=True)
+
+    return qualifying_matches[0][0]
+
+
+def normalize_matches(tba_data):
+    """
+    Normalize TBA matches into canonical sequential IDs:
+    qm1, qm2, ..., sf1, sf2, ..., f1, f2, ...
+
+    Returns:
+        dict: {
+            canonical_key: {
+                "tba_key": original_tba_key,
+                "comp_level": "qm" | "sf" | "f"
+            }
+        }
+    """
+
+    level_order = {"qm": 0, "sf": 1, "f": 2}
+
+    # Group matches by comp level
+    grouped = {"qm": [], "sf": [], "f": []}
+
+    for m in tba_data:
+        level = m.get("comp_level")
+        if level in grouped:
+            grouped[level].append(m)
+
+    normalized = {}
+
+    for level in ("qm", "sf", "f"):
+        matches = sorted(
+            grouped[level],
+            key=lambda m: (m.get("set_number", 0), m.get("match_number", 0))
+        )
+
+        for idx, match in enumerate(matches, start=1):
+            canon_key = f"{level}{idx}"
+            normalized[canon_key] = {
+                "tba_key": match["key"],
+                "comp_level": level,
+                "set_number": match.get("set_number"),
+                "match_number": match.get("match_number"),
+            }
+
+    return normalized
+
+
+def parse_team_key(team_key):
+    """
+    Convert a TBA or Statbotics team key into an integer team number.
+    """
+    if isinstance(team_key, int):
+        return team_key
+    if isinstance(team_key, str):
+        if team_key.startswith("frc"):
+            return int(team_key[3:])
+        if team_key.isdigit():
+            return int(team_key)
+    raise ValueError(f"Unrecognized team key format: {team_key}")
 
 
 # ============================================================================
@@ -777,8 +1109,16 @@ def exec_command(code: str):
         This function executes arbitrary code. Only use in trusted environments.
     """
     try:
-        # Execute in module globals so state persists across calls
-        exec(code, globals(), globals())
+        try:
+            # Try evaluating as an expression
+            result = eval(code, globals(), globals())
+        except SyntaxError:
+            # Not an expression → execute as statements
+            exec(code, globals(), globals())
+        else:
+            # Expression evaluated successfully
+            if result is not None:
+                print(result)
     except Exception as e:
         try:
             # Print red-colored traceback
@@ -787,6 +1127,7 @@ def exec_command(code: str):
             # Fallback if traceback formatting fails
             print(f"\x1b[31mUnhandled error: {e}\x1b[0m")
         set_busy(False)
+
 
 def list_globals():
     """
@@ -840,3 +1181,4 @@ def list_globals():
             obj = globals()[name]
             type_name = type(obj).__name__
             print(f"  {name} ({type_name})")
+    print("\n")

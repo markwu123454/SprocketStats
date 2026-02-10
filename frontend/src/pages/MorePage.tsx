@@ -7,19 +7,26 @@ import {Label} from "@/components/ui/label"
 import CardLayoutWrapper from "@/components/wrappers/CardLayoutWrapper.tsx"
 import {usePushNotifications} from "@/hooks/usePushNotifications.ts";
 import {useAPI} from "@/hooks/useAPI.ts";
+import {useClientEnvironment} from "@/hooks/useClientEnvironment.ts";
 
 
 export default function MorePage() {
     const navigate = useNavigate()
     const [theme, setThemeState] = useState<Settings["theme"]>(() => getSettingSync("theme"))
     const {savePushSettings} = useAPI()
+    const env = useClientEnvironment();
+
+    const notificationsAllowed =
+        env.os !== "iOS" || env.isIOSPWA;
 
     const {
         register: registerPush,
         canRegister,
         isIOSBlocked,
         getSubscription,
-    } = usePushNotifications()
+    } = usePushNotifications({
+        enabled: notificationsAllowed,
+    });
 
     const [orientation, setOrientationState] = useState<Settings["field_orientation"]>(
         () => getSettingSync("field_orientation") ?? "0"
@@ -52,18 +59,20 @@ export default function MorePage() {
     }
 
     useEffect(() => {
+        if (!notificationsAllowed) return;
+
         const hydrate = async () => {
             if (Notification.permission !== "granted") {
-                setHasSubscription(false)
-                return
+                setHasSubscription(false);
+                return;
             }
 
-            const sub = await getSubscription()
-            setHasSubscription(!!sub)
-        }
+            const sub = await getSubscription();
+            setHasSubscription(!!sub);
+        };
 
-        void hydrate()
-    }, [])
+        void hydrate();
+    }, [notificationsAllowed]);
 
     const notificationsEnabled =
         Notification.permission === "granted" && hasSubscription
@@ -327,78 +336,80 @@ export default function MorePage() {
                         Notifications
                     </h2>
 
-                    {!notificationsEnabled && (
+                    {/* Enable Notifications */}
+                    {notificationsAllowed && !notificationsEnabled && (
                         <div className="space-y-1">
                             <button
-                                disabled={!canRegister || notificationsEnabled}
+                                disabled={!canRegister}
                                 onClick={async () => {
-                                    await registerPush()
+                                    await registerPush();
 
-                                    const sub = await getSubscription()
-                                    const hasSub = !!sub
-                                    setHasSubscription(hasSub)
+                                    const sub = await getSubscription();
+                                    const hasSub = !!sub;
+                                    setHasSubscription(hasSub);
 
                                     if (hasSub && sub) {
-                                        await savePushSettings(sub.endpoint, features)
+                                        await savePushSettings(sub.endpoint, features);
                                     }
                                 }}
-                                className={`w-full px-4 py-3 rounded-md border transition-all duration-200
-                theme-border theme-button-bg theme-text flex justify-between items-center
-                ${notificationsEnabled ? "opacity-50 cursor-not-allowed" : "hover:opacity-90"}
-            `}
+                                className="w-full px-4 py-3 rounded-md border transition-all duration-200
+                           theme-border theme-button-bg theme-text flex justify-between items-center
+                           hover:opacity-90"
                             >
-            <span className="font-medium">
-                Enable Notifications
-            </span>
-                                <span className="text-xs uppercase font-bold">
-                {notificationsEnabled ? "Enabled" : "Disabled"}
-            </span>
+                                <span className="font-medium">Enable Notifications</span>
+                                <span className="text-xs uppercase font-bold">Disabled</span>
                             </button>
-
-                            {isIOSBlocked && !notificationsEnabled && (
-                                <p className="text-xs text-yellow-400">
-                                    On iOS, notifications require installing the app to your home screen.
-                                </p>
-                            )}
                         </div>
                     )}
 
-                    {/* Category Toggles */}
-                    <div className="grid grid-cols-1 gap-3 pt-2">
-                        <button
-                            disabled={!notificationsEnabled}
-                            onClick={() =>
-                                handleFeatureChange("attendance", !features.attendance)
-                            }
-                            className={`w-full px-4 py-3 rounded-md border transition-all duration-200
-                flex justify-between items-center theme-border theme-button-bg theme-text
-                ${notificationsEnabled ? "hover:opacity-90" : "opacity-40 cursor-not-allowed"}
-            `}
-                        >
-                            <span className="font-medium">Attendance Notifications</span>
-                            <span className="text-xs uppercase font-bold">
-                {features.attendance ? "On" : "Off"}
-            </span>
-                        </button>
+                    {/* iOS Safari message */}
+                    {env.os === "iOS" && !env.isIOSPWA && (
+                        <p className="text-xs text-yellow-400">
+                            On iOS, notifications require installing the app to your home screen.
+                        </p>
+                    )}
 
-                        <button
-                            disabled={!notificationsEnabled}
-                            onClick={() =>
-                                handleFeatureChange("match_scouting", !features.match_scouting)
-                            }
-                            className={`w-full px-4 py-3 rounded-md border transition-all duration-200
-                flex justify-between items-center theme-border theme-button-bg theme-text
-                ${notificationsEnabled ? "hover:opacity-90" : "opacity-40 cursor-not-allowed"}
-            `}
-                        >
-                            <span className="font-medium">Match Scouting Notifications</span>
-                            <span className="text-xs uppercase font-bold">
-                                {features.match_scouting ? "On" : "Off"}
-                            </span>
-                        </button>
-                    </div>
+                    {/* Category Toggles */}
+                    {notificationsAllowed && (
+                        <div className="grid grid-cols-1 gap-3 pt-2">
+                            {/* Attendance */}
+                            <button
+                                disabled={!notificationsEnabled}
+                                onClick={() =>
+                                    handleFeatureChange("attendance", !features.attendance)
+                                }
+                                className={`w-full px-4 py-3 rounded-md border transition-all duration-200
+                            flex justify-between items-center theme-border theme-button-bg theme-text
+                            ${notificationsEnabled ? "hover:opacity-90" : "opacity-40 cursor-not-allowed"}`}
+                            >
+                                <span className="font-medium">Attendance Notifications</span>
+                                <span className="text-xs uppercase font-bold">
+                                    {features.attendance ? "On" : "Off"}
+                                </span>
+                            </button>
+
+                            {/* Match Scouting — TEMP HIDDEN */}
+                            {false && (
+                                <button
+                                    disabled={!notificationsEnabled}
+                                    onClick={() =>
+                                        handleFeatureChange("match_scouting", !features.match_scouting)
+                                    }
+                                    className={`w-full px-4 py-3 rounded-md border transition-all duration-200
+                                flex justify-between items-center theme-border theme-button-bg theme-text
+                                ${notificationsEnabled ? "hover:opacity-90" : "opacity-40 cursor-not-allowed"}`}
+                                >
+                                    <span className="font-medium">Match Scouting Notifications</span>
+                                    <span className="text-xs uppercase font-bold">
+                        {features.match_scouting ? "On" : "Off"}
+                    </span>
+                                </button>
+                            )}
+                        </div>
+                    )}
                 </div>
             </div>
+
             {/* Privacy Policy */}
             <div className="mt-8 text-center">
                 <Link

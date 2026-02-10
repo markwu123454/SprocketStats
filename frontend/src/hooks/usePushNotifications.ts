@@ -11,7 +11,16 @@ type PushStatus =
     | "denied"
     | "error"
 
-export function usePushNotifications() {
+export function usePushNotifications({ enabled = true } = {}) {
+    if (!enabled) {
+        return {
+            register: async () => {},
+            canRegister: false,
+            isIOSBlocked: false,
+            getSubscription: async () => null,
+        };
+    }
+
     const env = useClientEnvironment()
     const {subscribePushNotif} = useAPI()
 
