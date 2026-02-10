@@ -54,8 +54,8 @@ function ActionMiniMap({action, flip}: { action: Actions; flip: boolean }) {
     const W = 48, H = 24
 
     if (action.type === "starting") {
-        const x = vx(action.x) * W
-        const y = vy(action.y) * H
+        const x = vx(action.x ?? 0.5) * W
+        const y = vy(action.y ?? 0.5) * H
         return (
             <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-full"
                  style={{background: "#1f2937", transform: flip ? "rotate(180deg)" : "none"}}>
@@ -65,8 +65,8 @@ function ActionMiniMap({action, flip}: { action: Actions; flip: boolean }) {
     }
 
     if (action.type === "climb") {
-        const x = vx(action.x) * W
-        const y = vy(action.y) * H
+        const x = vx(action.x ?? 0.5) * W
+        const y = vy(action.y ?? 0.5) * H
         return (
             <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-full"
                  style={{background: "#1f2937", transform: flip ? "rotate(180deg)" : "none"}}>
@@ -76,10 +76,10 @@ function ActionMiniMap({action, flip}: { action: Actions; flip: boolean }) {
     }
 
     if (action.type === "intake") {
-        const x1 = vx(action.x1) * W
-        const y1 = vy(action.y1) * H
-        const x2 = vx(action.x2) * W
-        const y2 = vy(action.y2) * H
+        const x1 = vx(action.x1 ?? 0.5) * W
+        const y1 = vy(action.y1 ?? 0.5) * H
+        const x2 = vx(action.x2 ?? 0.5) * W
+        const y2 = vy(action.y2 ?? 0.5) * H
         return (
             <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-full"
                  style={{background: "#1f2937", transform: flip ? "rotate(180deg)" : "none"}}>
@@ -91,10 +91,10 @@ function ActionMiniMap({action, flip}: { action: Actions; flip: boolean }) {
     }
 
     // shooting
-    const x1 = vx(action.x1) * W
-    const y1 = vy(action.y1) * H
-    const x2 = vx(action.x2) * W
-    const y2 = vy(action.y2) * H
+    const x1 = vx(action.x1 ?? 0.5) * W
+    const y1 = vy(action.y1 ?? 0.5) * H
+    const x2 = vx(action.x2 ?? 0.5) * W
+    const y2 = vy(action.y2 ?? 0.5) * H
     return (
         <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-full"
              style={{background: "#1f2937", transform: flip ? "rotate(180deg)" : "none"}}>
@@ -124,10 +124,7 @@ export default function AutoPhase({
     // activeIndex always points to the action currently loaded in the editor.
     // Climb is always the last action in the array.
     // ---------------------------------------------------------------------------
-    const [actions, setActions] = useState<Actions[]>([
-        {type: "starting", x: 0.5, y: 0.5},
-        {type: "climb", x: 0.5, y: 0.5, attempted: false, success: false, time: 0},
-    ])
+    const [actions, setActions] = useState<Actions[]>(data.auto)
     const [activeIndex, setActiveIndex] = useState(0)
 
     // Derived from the active action
@@ -316,14 +313,7 @@ export default function AutoPhase({
     // Sync to parent data
     // ---------------------------------------------------------------------------
     useEffect(() => {
-        setData(d => ({
-            ...d,
-            auto: {
-                ...d.auto,
-                shootLocation: actions as Actions[],
-            },
-        }))
-        console.log(data.auto.shootLocation)
+        setData(d => ({...d, auto: actions}))
     }, [actions, setData])
 
     // ---------------------------------------------------------------------------
@@ -842,6 +832,8 @@ export default function AutoPhase({
             })}
         </div>
     )
+
+    console.log(activeIndex, active, inputState)
 
     // ---------------------------------------------------------------------------
     // Main render - conditional layout based on device type

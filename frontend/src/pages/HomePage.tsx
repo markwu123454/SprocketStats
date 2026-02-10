@@ -170,41 +170,44 @@ export default function HomePage() {
         }
     }, [])
 
-    const handleNavigate = (path: string | null) => {
+    const handleNavigate = async (key: string, path: string | null) => {
         if (!path) return
 
         // Check if PWA is required (only for mobile devices and if forcePWA is enabled)
         const isMobile = deviceType === "mobile" || deviceType === "tablet"
         if (isMobile && !isPWA && featureFlags.forcePWA) {
             if (showPWAToast && !isClosing) {
-                // Toast already visible, trigger shake AND reset timeout
                 setShouldShake(true)
                 setTimeout(() => setShouldShake(false), 500)
 
-                // Clear existing timeout and set a new one
-                if (closeTimeoutRef.current) {
-                    clearTimeout(closeTimeoutRef.current)
-                }
+                if (closeTimeoutRef.current) clearTimeout(closeTimeoutRef.current)
                 closeTimeoutRef.current = setTimeout(() => {
                     handleCloseToast()
                 }, 5000) as unknown as number
-
             } else if (!showPWAToast) {
-                // Show toast for first time
                 setShowPWAToast(true)
                 setIsClosing(false)
 
-                // Clear any existing timeout
-                if (closeTimeoutRef.current) {
-                    clearTimeout(closeTimeoutRef.current)
-                }
-
-                // Set new timeout
+                if (closeTimeoutRef.current) clearTimeout(closeTimeoutRef.current)
                 closeTimeoutRef.current = setTimeout(() => {
                     handleCloseToast()
                 }, 5000) as unknown as number
             }
             return
+        }
+
+        // Fullscreen for Match Scouting when configured as "tablet"
+        if (key === "match_scouting") {
+            const msDeviceType = getSettingSync("match_scouting_device_type")
+            if (msDeviceType === "tablet") {
+                try {
+                    if (!document.fullscreenElement && document.documentElement.requestFullscreen) {
+                        await document.documentElement.requestFullscreen()
+                    }
+                } catch {
+                    // ignore fullscreen failures (unsupported / denied)
+                }
+            }
         }
 
         navigate(path)
@@ -323,7 +326,7 @@ export default function HomePage() {
                                 <button
                                     key={key}
                                     disabled={!enabled}
-                                    onClick={() => handleNavigate(path)}
+                                    onClick={() => handleNavigate(key, path)}
                                     className={`${
                                         enabled
                                             ? "theme-button-bg hover:theme-button-hover theme-text w-full flex items-center justify-between px-3 py-3 rounded transition text-sm"
@@ -381,7 +384,7 @@ export default function HomePage() {
                                 <button
                                     onClick={handleCloseToast}
                                     className="text-xs theme-subtext-color hover:opacity-70"
-                                 >
+                                >
                                     ✕
                                 </button>
                             </div>

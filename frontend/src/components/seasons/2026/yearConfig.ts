@@ -48,10 +48,7 @@ export type MatchScoutingData = {
     manualTeam: boolean
     scouter: string | null
 
-    auto: {
-        shootLocation: Actions[]
-        climb: "none" | "attempted" | "climb"
-    }
+    auto: Actions[],
 
     teleop: {
         shootLocation: Actions[]
@@ -86,10 +83,10 @@ export const createDefaultScoutingData = (): Omit<MatchScoutingData, "scouter"> 
         teamNumber: null,
         manualTeam: false,
 
-        auto: {
-            shootLocation: [],
-            climb: "none",
-        },
+        auto: [
+            {type: "starting", x: 0.5, y: 0.5},
+            {type: "climb", x: 0.5, y: 0.5, attempted: false, success: false, time: 0},
+        ],
 
         teleop: {
             shootLocation: [],
