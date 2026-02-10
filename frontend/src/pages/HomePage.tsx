@@ -173,9 +173,9 @@ export default function HomePage() {
     const handleNavigate = (path: string | null) => {
         if (!path) return
 
-        // Check if PWA is required (only for mobile devices)
+        // Check if PWA is required (only for mobile devices and if forcePWA is enabled)
         const isMobile = deviceType === "mobile" || deviceType === "tablet"
-        if (isMobile && !isPWA) {
+        if (isMobile && !isPWA && featureFlags.forcePWA) {
             if (showPWAToast && !isClosing) {
                 // Toast already visible, trigger shake AND reset timeout
                 setShouldShake(true)

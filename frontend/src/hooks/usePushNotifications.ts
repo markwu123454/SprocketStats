@@ -16,14 +16,17 @@ export function usePushNotifications() {
     const {subscribePushNotif} = useAPI()
 
     const [permission, setPermission] =
-        useState<NotificationPermission>(Notification.permission)
+        useState<NotificationPermission>(
+            typeof Notification !== "undefined" ? Notification.permission : "default"
+        )
 
     const [status, setStatus] = useState<PushStatus>("ready")
 
     const isSupported =
+        typeof navigator !== "undefined" &&
         "serviceWorker" in navigator &&
         "PushManager" in window &&
-        "Notification" in window
+        typeof Notification !== "undefined"
 
     const isIOSBlocked =
         env.os === "iOS" && !env.isIOSPWA
