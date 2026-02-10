@@ -476,8 +476,6 @@ export default function PrePhase({data, setData}: {
                                 const isClaimed = team.scouter !== null && team.number !== teamNumber
                                 const localIcon = `/teams/team_icons/${team.number}.png`
 
-                                console.log(team)
-
                                 return (
                                     <button
                                         key={team.number}

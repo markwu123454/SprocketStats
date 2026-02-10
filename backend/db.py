@@ -1825,7 +1825,7 @@ async def _compute_attendance_impl(refresh_key: int) -> list[dict]:
     # Email-specific hour offsets (in seconds)
     # ------------------------------------------------------------
     EMAIL_OFFSETS = {
-        "pock3tp1ant@gmail.com": 36000,  # +10 hour
+    "pock3tp1ant@gmail.com": 36000,  # +10 hour
     }
 
     pool, conn = await get_db_connection(DB_NAME)

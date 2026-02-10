@@ -15,6 +15,7 @@ export type ActionIntake = {
     x2: number
     y2: number
     amount: number
+    _amount: number[]
 }
 
 export type ActionShoot = {
@@ -24,8 +25,10 @@ export type ActionShoot = {
     x2: number
     y2: number
     shot: number
+    _shot: number[]
     scoring: boolean
     scored: number
+    _scored: number[]
 }
 
 export type ActionClimb = {
@@ -45,10 +48,7 @@ export type MatchScoutingData = {
     manualTeam: boolean
     scouter: string | null
 
-    auto: {
-        shootLocation: Actions[]
-        climb: "none" | "attempted" | "climb"
-    }
+    auto: Actions[],
 
     teleop: {
         shootLocation: Actions[]
@@ -83,10 +83,10 @@ export const createDefaultScoutingData = (): Omit<MatchScoutingData, "scouter"> 
         teamNumber: null,
         manualTeam: false,
 
-        auto: {
-            shootLocation: [],
-            climb: "none",
-        },
+        auto: [
+            {type: "starting", x: 0.5, y: 0.5},
+            {type: "climb", x: 0.5, y: 0.5, attempted: false, success: false, time: 0},
+        ],
 
         teleop: {
             shootLocation: [],

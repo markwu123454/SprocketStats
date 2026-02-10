@@ -82,19 +82,33 @@ export default function MatchScoutingPage() {
         scoutingData.teamNumber === null
 
     function normalizeScoutingData<T extends object>(raw: T, defaults: T): T {
-        // Deep merge recursively
-        if (typeof raw !== "object" || raw === null) return structuredClone(defaults)
-        const result: any = Array.isArray(defaults) ? [] : {}
+        if (typeof raw !== "object" || raw === null) return structuredClone(defaults);
+        if (typeof defaults !== "object" || defaults === null) return structuredClone(raw);
+
+        const result: any = Array.isArray(defaults) ? [] : {};
+
+        // First, copy all keys from defaults
         for (const key in defaults) {
             if (Object.hasOwn(raw, key)) {
-                if (typeof defaults[key] === "object" && defaults[key] !== null) {
-                    result[key] = normalizeScoutingData((raw as any)[key], (defaults as any)[key])
-                } else result[key] = (raw as any)[key]
-            } else result[key] = structuredClone((defaults as any)[key])
+                if (typeof defaults[key] === "object" && defaults[key] !== null && !Array.isArray(defaults[key])) {
+                    result[key] = normalizeScoutingData((raw as any)[key], (defaults as any)[key]);
+                } else {
+                    result[key] = (raw as any)[key];
+                }
+            } else {
+                result[key] = structuredClone((defaults as any)[key]);
+            }
         }
-        return result
-    }
 
+        // Then, copy any keys from raw that aren't in defaults (preserves saved data)
+        for (const key in raw) {
+            if (!Object.hasOwn(defaults, key)) {
+                result[key] = structuredClone((raw as any)[key]);
+            }
+        }
+
+        return result;
+    }
 
     // 4. Effects
     useEffect(() => {
@@ -134,7 +148,7 @@ export default function MatchScoutingPage() {
         }, 3000);
 
         return () => clearInterval(interval);
-    }, [phase, phaseIndex, scoutingData.match, scoutingData.match_type, scoutingData.teamNumber]);
+    }, [phase, phaseIndex, scoutingData]);
 
     useEffect(() => {
         const onVisibilityChange = () => {
@@ -310,11 +324,10 @@ export default function MatchScoutingPage() {
                                                     const success = await scoutingAction(entry.match!, entry.teamNumber!, entry.match_type, entry.alliance, "claim")
 
                                                     if (!success) {
-                                                        console.error(
-                        `Failed to reclaim team from saved data:`,
-                        `Match ${entry.match}, Team ${entry.teamNumber}, Type ${entry.match_type}`,
-                        `Reason: claimTeam returned false - team may be claimed by another scouter`
-                    );
+                                                        console.error(`Failed to reclaim team from saved data:`,
+                                                            `Match ${entry.match}, Team ${entry.teamNumber}, Type ${entry.match_type}`,
+                                                            `Reason: claimTeam returned false - team may be claimed by another scouter`
+                                                        );
 
                                                         // Trigger non-blocking visual warning and unlock button
                                                         setResumeWarning(prev => ({...prev, [entry.key]: true}));
