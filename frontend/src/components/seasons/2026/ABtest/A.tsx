@@ -24,6 +24,7 @@ export interface ScoreAction {
     type: "score"
     x: number
     y: number
+    score: number
     timestamp: number
     phase: MatchPhase
     subPhase: SubPhaseName | null
@@ -268,6 +269,10 @@ export default function MatchScouting({
     const [shootClickPos, setShootClickPos] = useState<{ x: number; y: number } | null>(null)
     const [draggingShootRobot, setDraggingShootRobot] = useState(false)
 
+    // Shot lifecycle: each click on → off the shooting zone = one "shot"
+    const [shotPendingReset, setShotPendingReset] = useState(false)
+    const [shotEditHint, setShotEditHint] = useState(false)
+
     // Reef hexagon center in normalized field coords (blue-side / unflipped)
     const REEF_CENTER = { x: 0.285, y: 0.500 }
 
@@ -401,6 +406,12 @@ export default function MatchScouting({
             const pos = getFieldPos(e)
             const zone = ZONES.shootingFull
             if (pos.x >= zone.x1 && pos.x <= zone.x2 && pos.y >= zone.y1 && pos.y <= zone.y2) {
+                // If returning to shooting zone after visiting another zone, reset shot for new cycle
+                if (shotPendingReset) {
+                    setShot(0)
+                    setShotPendingReset(false)
+                    setShotEditHint(false)
+                }
                 setShootClickPos({ x: pos.x, y: pos.y })
                 handleZoneClick("shooting")
                 setDraggingShootRobot(true)
@@ -528,6 +539,22 @@ export default function MatchScouting({
     }, [startPos, actions, setData])
 
     // ---------------------------------------------------------------------------
+    // Keep the last ScoreAction in sync when shot is edited during hint period
+    // ---------------------------------------------------------------------------
+    useEffect(() => {
+        if (!shotEditHint) return
+        setActions((prev) => {
+            const lastScoreIdx = prev.findLastIndex((a) => a.type === "score")
+            if (lastScoreIdx === -1) return prev
+            const updated = [...prev]
+            const action = updated[lastScoreIdx] as ScoreAction
+            if (action.score === shot) return prev
+            updated[lastScoreIdx] = { ...action, score: shot }
+            return updated
+        })
+    }, [shot, shotEditHint])
+
+    // ---------------------------------------------------------------------------
     // Timer calculations
     // ---------------------------------------------------------------------------
     const now = Date.now()
@@ -579,6 +606,12 @@ export default function MatchScouting({
                         return (
                             <button
                                 onClick={(e) => {
+                                    // If returning to shooting zone after visiting another zone, reset shot for new cycle
+                                    if (shotPendingReset) {
+                                        setShot(0)
+                                        setShotPendingReset(false)
+                                        setShotEditHint(false)
+                                    }
                                     handleZoneClick("shooting")
                                     if (!fieldRef.current) return
                                     const rect = fieldRef.current.getBoundingClientRect()
@@ -680,6 +713,24 @@ export default function MatchScouting({
                                 key={key}
                                 onClick={() => {
                                     console.log(`[FieldButton] ${label} clicked | zone: ${key} | phase: ${matchPhase} | subPhase: ${subPhase?.phase ?? "none"} | time: ${Date.now() - matchStartTime}ms`)
+                                    // If there's a shot recorded and we haven't already saved it, finalize it
+                                    if (shot !== 0 && !shotPendingReset) {
+                                        const now = Date.now()
+                                        setActions((prev) => [
+                                            ...prev,
+                                            {
+                                                type: "score",
+                                                x: shootClickPos?.x ?? 0,
+                                                y: shootClickPos?.y ?? 0,
+                                                score: shot,
+                                                timestamp: matchStartTime > 0 ? now - matchStartTime : 0,
+                                                phase: matchPhase,
+                                                subPhase: subPhase?.phase ?? null,
+                                            },
+                                        ])
+                                        setShotEditHint(true)
+                                    }
+                                    setShotPendingReset(true)
                                     handleZoneClick(key)
                                 }}
                                 className="absolute rounded-xl transition-all duration-200 flex flex-col items-center justify-center gap-1"
@@ -845,6 +896,13 @@ export default function MatchScouting({
                 <div className="text-white text-3xl font-bold font-mono">
                     Shot: {shot}
                 </div>
+
+                {/* Edit hint when shot was recorded but can still be adjusted */}
+
+                    <div className="text-yellow-400 text-xs text-center px-2">
+                        This shot can still be edited until you press inside the shooting box again
+                    </div>
+
 
                 {/* Slider container */}
                 <div className="relative flex flex-col items-center select-none flex-1 w-full max-w-[16rem]">
