@@ -1830,7 +1830,8 @@ async def _compute_attendance_impl(refresh_key: int) -> list[dict]:
         "smartsa3022@gmail.com":3600,
         "cf227316":3600,
         "kristenszeto21":3600,
-        "323710@stu.wvusd.org":3600
+        "323710@stu.wvusd.org":3600,
+        "jamwan985@gmail.com": 14400,
     }
 
     pool, conn = await get_db_connection(DB_NAME)

@@ -126,26 +126,35 @@ const _FB_OX = _FB_REGION.x1 + (_FB_REGION.x2 - _FB_REGION.x1 - _FB_GRID_W) / 2
 const _FB_OY = _FB_REGION.y1 + (_FB_REGION.y2 - _FB_REGION.y1 - _FB_GRID_H) / 2
 
 const FIELD_BUTTONS = {
-    defense: {x1: _FB_OX, y1: _FB_OY, x2: _FB_OX + _FB_BTN_W, y2: _FB_OY + _FB_BTN_H} as Rect,
-    transversal: {
+    traversal: { // top-left
+        x1: _FB_OX,
+        y1: _FB_OY,
+        x2: _FB_OX + _FB_BTN_W,
+        y2: _FB_OY + _FB_BTN_H
+    } as Rect,
+
+    intake: { // top-right
         x1: _FB_OX + _FB_BTN_W + _FB_GAP,
         y1: _FB_OY,
         x2: _FB_OX + _FB_BTN_W * 2 + _FB_GAP,
         y2: _FB_OY + _FB_BTN_H
     } as Rect,
-    climb: {
+
+    climb: { // bottom-left
         x1: _FB_OX,
         y1: _FB_OY + _FB_BTN_H + _FB_GAP,
         x2: _FB_OX + _FB_BTN_W,
         y2: _FB_OY + _FB_BTN_H * 2 + _FB_GAP
     } as Rect,
-    intake: {
+
+    defense: { // bottom-right
         x1: _FB_OX + _FB_BTN_W + _FB_GAP,
         y1: _FB_OY + _FB_BTN_H + _FB_GAP,
         x2: _FB_OX + _FB_BTN_W * 2 + _FB_GAP,
         y2: _FB_OY + _FB_BTN_H * 2 + _FB_GAP
     } as Rect,
 } as const
+
 
 // ---------------------------------------------------------------------------
 // Phase duration helper
@@ -641,7 +650,7 @@ export default function MatchScouting({
                                     }
                                     setShootClickPos({x: nx, y: ny})
                                 }}
-                                className={`absolute rounded transition-all duration-200 border-2 ${isActive ? "bg-green-500/15 border-green-500" : "bg-transparent border-zinc-6a00"}`}
+                                className={`absolute rounded transition-all duration-200 border-2 ${isActive ? "bg-green-500/15 border-green-500" : "bg-transparent border-zinc-500"}`}
                                 style={{
                                     left: `${left * 100}%`,
                                     top: `${top * 100}%`,
@@ -656,9 +665,9 @@ export default function MatchScouting({
                     {(
                         [
                             {
-                                key: "transversal",
-                                rect: FIELD_BUTTONS.transversal,
-                                label: "Transversal",
+                                key: "traversal",
+                                rect: FIELD_BUTTONS.traversal,
+                                label: "Traversal",
                                 borderColor: "#a855f7",
                                 bgActive: "rgba(168, 85, 247, 0.25)",
                                 bgIdle: "rgba(39, 39, 42, 0.85)",
@@ -792,98 +801,114 @@ export default function MatchScouting({
             {/* Starting position indicator */}
             {matchPhase === "prestart" && startPos && (
                 <div
-                className="absolute"
-                style={{
-                width: "3.75%",
-                height: "7.5%",
-                left: `${viewX(startPos.x) * 100}%`,
-                top: `${viewY(startPos.y) * 100}%`,
-                transform: "translate(-50%, -50%)",
-            }}
-        >
-            <div
-                className={`absolute inset-0 rounded-xs border-2 ${
-                    data.alliance === "red"
-                        ? "border-red-500"
-                        : "border-blue-500"
-                } bg-zinc-600/50`}
-            />
-        </div>
-    )
-}
+                    className="absolute"
+                    style={{
+                        width: "3.75%",
+                        height: "7.5%",
+                        left: `${viewX(startPos.x) * 100}%`,
+                        top: `${viewY(startPos.y) * 100}%`,
+                        transform: "translate(-50%, -50%)",
+                    }}
+                >
+                    {/* robot perimeter */}
+                    <div className="absolute inset-[6%] rounded-xs bg-zinc-600/50"/>
 
-
-    {/* Shooting zone: yellow dot trail from robot to reef hexagon center */
-    }
-    {
-        showZones && shootClickPos && (() => {
-            const sx = viewX(shootClickPos.x)
-            const sy = viewY(shootClickPos.y)
-            const cx = viewX(REEF_CENTER.x)
-            const cy = viewY(REEF_CENTER.y)
-            const dx = cx - sx
-            const dy = cy - sy
-            // dist in "visual" space (field is 2:1, so x is doubled)
-            const dist = Math.sqrt((dx * 2) ** 2 + dy ** 2)
-            const ballDiameter = 0.0167 * 1.5
-            const count = Math.max(0, Math.floor(dist / ballDiameter))
-            const balls: React.ReactNode[] = []
-            // Determine if a non-shooting zone is active (ball trail goes B&W)
-            const nonShootingActive = currentZone !== null && currentZone !== "shooting"
-            for (let i = 0; i < count; i++) {
-                const t = 1 - (i * ballDiameter) / dist
-                if (t <= 0) break
-                balls.push(
+                    {/* bumpers */}
                     <div
-                        key={i}
-                        className={`absolute rounded-full pointer-events-none ${
-                            nonShootingActive
-                                ? "bg-zinc-600"
-                                : "bg-yellow-400 border border-black/30"
+                        className={`absolute inset-[-12%] rounded-xs border-6 ${
+                            data.alliance === "red"
+                                ? "border-red-700"
+                                : "border-blue-700"
                         }`}
-                        style={{
-                            width: "0.833%",
-                            height: "1.67%",
-                            left: `${(sx + dx * t) * 100}%`,
-                            top: `${(sy + dy * t) * 100}%`,
-                            transform: "translate(-50%, -50%)",
-                            transition: "background-color 0.2s, border-color 0.2s",
-                        }}
                     />
-                )
+                </div>
+
+            )
             }
 
-            // Angle from robot toward reef center
-            const angle = Math.atan2(dy, dx * 2) * (180 / Math.PI)
 
-            return (
-                <>
-                    {balls}
-                    {/* Robot rectangle at click position — draggable */}
-                    <div
-                        className="absolute"
-                        style={{
-                            width: "3.75%",
-                            height: "7.5%",
-                            left: `${sx * 100}%`,
-                            top: `${sy * 100}%`,
-                            transform: `translate(-50%, -50%) rotate(${angle}deg)`,
-                            cursor: "grab",
-                            touchAction: "none",
-                        }}
-                    >
-                        <div className={`absolute inset-0 border-2 rounded-xs ${
-                            draggingShootRobot
-                                ? "bg-zinc-500/60 border-zinc-600"
-                                : "bg-zinc-600/50 border-zinc-800"
-                        }`}/>
-                    </div>
-                </>
-            )
-        })()
-    }
-</div>
-)
+            {/* Shooting zone: yellow dot trail from robot to reef hexagon center */}
+            {
+                showZones && shootClickPos && (() => {
+                    const sx = viewX(shootClickPos.x)
+                    const sy = viewY(shootClickPos.y)
+                    const cx = viewX(REEF_CENTER.x)
+                    const cy = viewY(REEF_CENTER.y)
+                    const dx = cx - sx
+                    const dy = cy - sy
+                    // dist in "visual" space (field is 2:1, so x is doubled)
+                    const dist = Math.sqrt((dx * 2) ** 2 + dy ** 2)
+                    const ballDiameter = 0.0167 * 1.5
+                    const count = Math.max(0, Math.floor(dist / ballDiameter))
+                    const balls: React.ReactNode[] = []
+                    // Determine if a non-shooting zone is active (ball trail goes B&W)
+                    const nonShootingActive = currentZone !== null && currentZone !== "shooting"
+                    for (let i = 0; i < count; i++) {
+                        const t = 1 - (i * ballDiameter) / dist
+                        if (t <= 0) break
+                        balls.push(
+                            <div
+                                key={i}
+                                className={`absolute rounded-full pointer-events-none ${
+                                    nonShootingActive
+                                        ? "bg-zinc-600"
+                                        : "bg-yellow-400 border border-black/30"
+                                }`}
+                                style={{
+                                    width: "0.833%",
+                                    height: "1.67%",
+                                    left: `${(sx + dx * t) * 100}%`,
+                                    top: `${(sy + dy * t) * 100}%`,
+                                    transform: "translate(-50%, -50%)",
+                                    transition: "background-color 0.2s, border-color 0.2s",
+                                }}
+                            />
+                        )
+                    }
+
+                    // Angle from robot toward reef center
+                    const angle = Math.atan2(dy, dx * 2) * (180 / Math.PI)
+
+                    return (
+                        <>
+                            {balls}
+                            {/* Robot rectangle at click position — draggable */}
+                            <div
+                                className="absolute"
+                                style={{
+                                    width: "3.75%",
+                                    height: "7.5%",
+                                    left: `${sx * 100}%`,
+                                    top: `${sy * 100}%`,
+                                    transform: `translate(-50%, -50%) rotate(${angle}deg)`,
+                                    cursor: "grab",
+                                    touchAction: "none",
+                                }}
+                            >
+                                {/* robot perimeter */}
+                                <div
+                                    className={`absolute inset-[6%] rounded-xs border-2 ${
+                                        draggingShootRobot
+                                            ? "bg-zinc-500/60 border-zinc-600"
+                                            : "bg-zinc-600/50 border-zinc-800"
+                                    }`}
+                                />
+
+                                {/* bumpers */}
+                                <div
+                                    className={`absolute inset-[-12%] rounded-xs border-6 ${
+                                        data.alliance === "red"
+                                            ? "border-red-700"
+                                            : "border-blue-700"
+                                    }`}
+                                />
+                            </div>
+                        </>
+                    )
+                })()
+            }
+        </div>
+    )
 
     // ---------------------------------------------------------------------------
     // Render: Controls
@@ -1023,8 +1048,12 @@ export default function MatchScouting({
                                     const disp = Math.abs(sliderY - 0.5)
                                     if (disp < SLIDER_DEAD_ZONE) return "—"
                                     const mag = (disp - SLIDER_DEAD_ZONE) / (0.5 - SLIDER_DEAD_ZONE)
-                                    const ms = Math.round(msFromMagnitude(mag))
-                                    return sliderY < 0.5 ? `+${ms}ms` : `−${ms}ms`
+                                    const msPerPoint = msFromMagnitude(mag)
+                                    const rate = 1000 / msPerPoint
+                                    const rateText = rate.toFixed(1)
+                                    return sliderY < 0.5
+                                        ? `+${rateText}/s`
+                                        : `−${rateText}/s`
                                 })()}
                             </span>
                         </div>

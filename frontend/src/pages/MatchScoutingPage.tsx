@@ -58,7 +58,6 @@ export default function MatchScoutingPage() {
         submitData,
         scoutingAction,
         unclaimTeamBeacon,
-        updateState,
     } = useAPI()
 
     const {
@@ -81,6 +80,7 @@ export default function MatchScoutingPage() {
     const [resumeList, setResumeList] = useState<ScoutingDataWithKey[]>([]);
     const [resumeLock, setResumeLock] = useState<Record<number, boolean>>({});
     const [resumeWarning, setResumeWarning] = useState<Record<number, boolean>>({});
+    const [showConfirmDialog, setShowConfirmDialog] = useState(false);
 
     const [abTestVariant, setAbTestVariant] = useState<"default" | "a" | "b">("default")
 
@@ -230,7 +230,19 @@ export default function MatchScoutingPage() {
     }, [scoutingData])
 
     // 5. Event handlers
-    const handleSubmit = async () => {
+    const handleSubmit = () => {
+        if (baseDisabled) return;
+
+        if (featureFlags.confirmBeforeUpload) {
+            setShowConfirmDialog(true);
+            return;
+        }
+
+        executeSubmit();
+    };
+
+
+    const executeSubmit = async () => {
         if (baseDisabled) return
 
         setSubmitStatus("loading")
@@ -296,7 +308,14 @@ export default function MatchScoutingPage() {
         if (baseDisabled) return
         const nextIndex = phaseIndex + 1
         setPhaseIndex(nextIndex)
-        await updateState(scoutingData.match!, scoutingData.teamNumber!, scoutingData.match_type, scouterEmail!, PHASE_ORDER[nextIndex],)
+        await scoutingAction(
+            scoutingData.match!,
+            scoutingData.teamNumber!,
+            scoutingData.match_type!,
+            scoutingData.alliance!,
+            `set_${PHASE_ORDER[nextIndex]}` as any,
+        )
+
     }
 
     const handleBack = async () => {
@@ -308,17 +327,56 @@ export default function MatchScoutingPage() {
 
         const prevIndex = phaseIndex - 1;
         setPhaseIndex(prevIndex);
-        await updateState(
+        await scoutingAction(
             scoutingData.match!,
             scoutingData.teamNumber!,
-            scoutingData.match_type,
-            scouterEmail!,
-            PHASE_ORDER[prevIndex],
-        );
+            scoutingData.match_type!,
+            scoutingData.alliance!,
+            `set_${PHASE_ORDER[prevIndex]}` as any,
+        )
+
     };
 
     return (
         <>
+            <Dialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
+                <DialogContent className="bg-zinc-800 border-zinc-500">
+                    <DialogHeader className="text-zinc-400">
+                        <DialogTitle>Confirm Submission</DialogTitle>
+                    </DialogHeader>
+
+                    <div className="text-sm text-zinc-400 space-y-2">
+                        <p>
+                            You are about to submit scouting data for:
+                        </p>
+                        <p className="font-semibold text-white">
+                            Team {scoutingData.teamNumber} — Match {scoutingData.match}
+                        </p>
+                        <p>
+                            This action cannot be undone.
+                        </p>
+                    </div>
+
+                    <DialogFooter>
+                        <Button
+                            variant="secondary"
+                            onClick={() => setShowConfirmDialog(false)}
+                        >
+                            Cancel
+                        </Button>
+                        <Button
+                            className="bg-green-600 hover:bg-green-700"
+                            onClick={() => {
+                                setShowConfirmDialog(false);
+                                executeSubmit();
+                            }}
+                        >
+                            Confirm & Submit
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
             <Dialog open={showResumeDialog} onOpenChange={setShowResumeDialog}>
                 <DialogContent className="bg-zinc-800 border-zinc-500">
                     <DialogHeader className="text-zinc-400">
@@ -381,12 +439,12 @@ export default function MatchScoutingPage() {
                                                         phaseToUpdate = "combined";
                                                     }
 
-                                                    await updateState(
+                                                    await scoutingAction(
                                                         entry.match!,
                                                         entry.teamNumber!,
-                                                        entry.match_type,
-                                                        scouterEmail!,
-                                                        phaseToUpdate
+                                                        entry.match_type!,
+                                                        entry.alliance!,
+                                                        `set_${phaseToUpdate}` as any,
                                                     );
                                                 }
 

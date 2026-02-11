@@ -908,13 +908,18 @@ export function useAPI() {
         logout,
         getMetadata,
         ping,
+        /** @deprecated Use scoutingAction instead */
         claimTeam,
+        /** @deprecated Use scoutingAction instead */
         unclaimTeam,
         unclaimTeamBeacon,
+        /** @deprecated Use scoutingAction instead */
         updateState,
         submitData,
+        /** @deprecated Use scoutingAction instead */
         getTeamList,
         getScouterSchedule,
+        /** @deprecated Use scoutingAction instead */
         getScouterState,
         submitPitData,
         getPitScoutStatus,
