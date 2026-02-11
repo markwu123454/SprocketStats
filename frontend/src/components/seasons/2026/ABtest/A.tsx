@@ -381,7 +381,7 @@ export default function MatchScouting({
     // magnitude 0 → MAX_MS (slow), magnitude 1 → MIN_MS (fast)
     // Uses exponential interpolation so the *perceived* speed change is even.
     // ---------------------------------------------------------------------------
-    const SLIDER_MAX_MS = 500
+    const SLIDER_MAX_MS = 300
     const SLIDER_MIN_MS = 30
     const SLIDER_DEAD_ZONE = 0.05
 
@@ -767,7 +767,7 @@ export default function MatchScouting({
         }
 
         return (
-    <div className="flex flex-col gap-3 items-center h-full">
+            <div className="flex flex-col gap-3 items-center h-full">
                 {/* Score display */}
                 <div className="text-white text-3xl font-bold font-mono">
                     Score: {score}
@@ -788,6 +788,18 @@ export default function MatchScouting({
                             const y = Math.min(1, Math.max(0, (e.clientY - rect.top) / rect.height))
                             sliderYRef.current = y
                             setSliderY(y)
+
+                            // Instant score change based on initial direction
+                            const displacement = y - 0.5
+                            if (Math.abs(displacement) > 0.05) { // Outside dead zone
+                                const direction = displacement < 0 ? 1 : -1
+                                setScore((prev) => {
+                                    const next = prev + direction
+                                    console.log(`[ScoreSlider] INSTANT ${direction > 0 ? '+' : ''}${direction} → score: ${next}`)
+                                    return next
+                                })
+                            }
+
                             setSliderActive(true)
                             console.log("[ScoreSlider] Pointer down at y:", y.toFixed(3))
                         }}
