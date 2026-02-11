@@ -347,6 +347,14 @@ export default function MatchScouting({
     const [actions, setActions] = useState<MatchAction[]>(data.actions)
     const [currentZone, setCurrentZone] = useState<string | null>(null)
 
+    // Score slider
+    const [score, setScore] = useState(0)
+    const sliderRef = useRef<HTMLDivElement>(null)
+    const [sliderActive, setSliderActive] = useState(false)
+    const [sliderY, setSliderY] = useState(0.5) // 0=top(max add), 1=bottom(max subtract), 0.5=neutral
+    const sliderYRef = useRef(0.5)             // ref mirror so rAF loop reads live value
+    const scoreRafRef = useRef<number | null>(null)
+
     // Field interaction
     const [dragging, setDragging] = useState(false)
 
@@ -367,6 +375,91 @@ export default function MatchScouting({
             if (flashTimeoutRef.current) clearTimeout(flashTimeoutRef.current)
         }
     }, [])
+
+    // ---------------------------------------------------------------------------
+    // Logarithmic ms/point curve
+    // magnitude 0 → MAX_MS (slow), magnitude 1 → MIN_MS (fast)
+    // Uses exponential interpolation so the *perceived* speed change is even.
+    // ---------------------------------------------------------------------------
+    const SLIDER_MAX_MS = 500
+    const SLIDER_MIN_MS = 30
+    const SLIDER_DEAD_ZONE = 0.05
+
+    const msFromMagnitude = (magnitude: number): number => {
+        // Clamp just in case
+        const m = Math.min(1, Math.max(0, magnitude))
+        // Exponential: MIN * (MAX/MIN)^(1-m)
+        // At m=0 → MAX_MS, at m=1 → MIN_MS, logarithmic curve in between
+        return SLIDER_MIN_MS * Math.pow(SLIDER_MAX_MS / SLIDER_MIN_MS, 1 - m)
+    }
+
+    // ---------------------------------------------------------------------------
+    // Score slider — rAF accumulator loop
+    // Reads sliderYRef every frame so dragging never interrupts scoring.
+    // ---------------------------------------------------------------------------
+    useEffect(() => {
+        if (!sliderActive) {
+            if (scoreRafRef.current) {
+                cancelAnimationFrame(scoreRafRef.current)
+                scoreRafRef.current = null
+            }
+            console.log("[ScoreSlider] Slider released, loop stopped. Current score via state.")
+            return
+        }
+
+        const DEAD_ZONE = SLIDER_DEAD_ZONE
+        let accumulator = 0
+        let lastTime = performance.now()
+
+        const loop = (now: number) => {
+            const dt = now - lastTime
+            lastTime = now
+
+            const y = sliderYRef.current
+            const displacement = y - 0.5
+
+            if (Math.abs(displacement) > DEAD_ZONE) {
+                const direction = displacement < 0 ? 1 : -1
+                const magnitude = (Math.abs(displacement) - DEAD_ZONE) / (0.5 - DEAD_ZONE)
+                const msPerPoint = msFromMagnitude(magnitude)
+
+                accumulator += dt
+
+                // Drain as many whole ticks as accumulated
+                let ticks = 0
+                while (accumulator >= msPerPoint) {
+                    accumulator -= msPerPoint
+                    ticks += direction
+                }
+
+                if (ticks !== 0) {
+                    setScore((prev) => {
+                        const next = prev + ticks
+                        console.log(
+                            `[ScoreSlider] Tick | ${ticks > 0 ? "+" : ""}${ticks} → score: ${next} ` +
+                            `(msPerPoint: ${msPerPoint.toFixed(0)}ms, y: ${y.toFixed(3)})`
+                        )
+                        return next
+                    })
+                }
+            } else {
+                // In dead zone — reset accumulator so we don't burst when leaving it
+                accumulator = 0
+            }
+
+            scoreRafRef.current = requestAnimationFrame(loop)
+        }
+
+        console.log("[ScoreSlider] Loop started")
+        scoreRafRef.current = requestAnimationFrame(loop)
+
+        return () => {
+            if (scoreRafRef.current) {
+                cancelAnimationFrame(scoreRafRef.current)
+                scoreRafRef.current = null
+            }
+        }
+    }, [sliderActive])
 
     // ---------------------------------------------------------------------------
     // Field pointer handlers
@@ -674,14 +767,96 @@ export default function MatchScouting({
         }
 
         return (
-            <div className="flex flex-col gap-4">
-                <div className="text-zinc-400 text-center py-8 text-sm">
-                    Controls coming soon...
-                    <br/>
-                    <span className="text-xs text-zinc-500">
-                        Current zone: {currentZone || "none"}
-                    </span>
+    <div className="flex flex-col gap-3 items-center h-full">
+                {/* Score display */}
+                <div className="text-white text-3xl font-bold font-mono">
+                    Score: {score}
                 </div>
+
+                {/* Slider container */}
+                <div className="relative flex flex-col items-center select-none flex-1 w-full max-w-[16rem]">
+                    {/* Labels */}
+                    <span className="text-green-400 text-xs font-bold mb-1">+ ADD</span>
+
+                    <div
+                        ref={sliderRef}
+                        className="relative w-full flex-1 bg-zinc-800 rounded-2xl border-2 border-zinc-600 overflow-hidden touch-none"
+                        onPointerDown={(e) => {
+                            e.preventDefault()
+                            ;(e.target as HTMLElement).setPointerCapture?.(e.pointerId)
+                            const rect = sliderRef.current!.getBoundingClientRect()
+                            const y = Math.min(1, Math.max(0, (e.clientY - rect.top) / rect.height))
+                            sliderYRef.current = y
+                            setSliderY(y)
+                            setSliderActive(true)
+                            console.log("[ScoreSlider] Pointer down at y:", y.toFixed(3))
+                        }}
+                        onPointerMove={(e) => {
+                            if (!sliderActive) return
+                            const rect = sliderRef.current!.getBoundingClientRect()
+                            const y = Math.min(1, Math.max(0, (e.clientY - rect.top) / rect.height))
+                            sliderYRef.current = y   // ref updates instantly for the rAF loop
+                            setSliderY(y)             // state updates for visual rendering
+                        }}
+                        onPointerUp={() => {
+                            setSliderActive(false)
+                            sliderYRef.current = 0.5
+                            setSliderY(0.5)
+                            console.log("[ScoreSlider] Pointer up — reset to center")
+                        }}
+                        onPointerLeave={() => {
+                            if (sliderActive) {
+                                setSliderActive(false)
+                                sliderYRef.current = 0.5
+                                setSliderY(0.5)
+                                console.log("[ScoreSlider] Pointer left — reset to center")
+                            }
+                        }}
+                    >
+
+                        {/* Center dead zone line */}
+                        <div
+                            className="absolute left-0 right-0 border-t-2 border-dashed border-zinc-400/50"
+                            style={{top: "50%"}}
+                        />
+
+                        {/* Thumb */}
+                        <div
+                            className={`absolute left-1 right-1 h-10 rounded-xl transition-colors duration-100 flex items-center justify-center ${
+                                sliderActive
+                                    ? sliderY < 0.45
+                                        ? "bg-green-500 shadow-lg shadow-green-500/30"
+                                        : sliderY > 0.55
+                                            ? "bg-red-500 shadow-lg shadow-red-500/30"
+                                            : "bg-zinc-400"
+                                    : "bg-zinc-500"
+                            }`}
+                            style={{
+                                top: `${sliderY * 100}%`,
+                                transform: "translateY(-50%)",
+                                pointerEvents: "none",
+                            }}
+                        >
+                            <span className="text-white text-xs font-bold">
+                                {(() => {
+                                    if (!sliderActive) return "▲▼"
+                                    const disp = Math.abs(sliderY - 0.5)
+                                    if (disp < SLIDER_DEAD_ZONE) return "—"
+                                    const mag = (disp - SLIDER_DEAD_ZONE) / (0.5 - SLIDER_DEAD_ZONE)
+                                    const ms = Math.round(msFromMagnitude(mag))
+                                    return sliderY < 0.5 ? `+${ms}ms` : `−${ms}ms`
+                                })()}
+                            </span>
+                        </div>
+                    </div>
+
+                    <span className="text-red-400 text-xs font-bold mt-1">− SUB</span>
+                </div>
+
+                {/* Current zone indicator */}
+                <span className="text-xs text-zinc-500">
+                    Current zone: {currentZone || "none"}
+                </span>
             </div>
         )
     }
