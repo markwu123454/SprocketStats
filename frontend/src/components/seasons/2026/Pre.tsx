@@ -30,7 +30,6 @@ export default function PrePhase({data, setData}: {
     const [imageErrors, setImageErrors] = useState<Record<number, boolean>>({})
     const [teamNames, setTeamNames] = useState<Record<string, string>>({})
     const [schedule, setSchedule] = useState<Awaited<ReturnType<typeof getScouterSchedule>>>([])
-    const [claimSuccess, setClaimSuccess] = useState(false)
     const [iconValid, setIconValid] = useState(false) // tracks whether manual icon loaded successfully
 
     // === Derived values (single source of truth) ===
@@ -114,7 +113,9 @@ export default function PrePhase({data, setData}: {
                 console.error("Failed to load team names", e)
             }
         })()
-        return () => { alive = false }
+        return () => {
+            alive = false
+        }
     }, [])
 
     // === Stable ref for scoutingAction (avoids interval re-creation) ===
@@ -145,7 +146,9 @@ export default function PrePhase({data, setData}: {
             setLoadingTeams(false)
         })()
 
-        return () => { alive = false }
+        return () => {
+            alive = false
+        }
     }, [isOnline, serverOnline, match, match_type, alliance])
 
     // === Live refresh of scouter claim state (polling) ===
@@ -172,7 +175,10 @@ export default function PrePhase({data, setData}: {
 
         // Don't fire immediately — the load effect above already fetched
         const id = setInterval(tick, 1000)
-        return () => { alive = false; clearInterval(id) }
+        return () => {
+            alive = false;
+            clearInterval(id)
+        }
     }, [ready, teamListReady, match, match_type, alliance])
 
     // === Stable ref for getScouterSchedule ===
@@ -187,7 +193,9 @@ export default function PrePhase({data, setData}: {
             const res = await getScouterScheduleRef.current()
             if (alive) setSchedule(res)
         })()
-        return () => { alive = false }
+        return () => {
+            alive = false
+        }
     }, [isOnline, serverOnline])
 
     // === Sync manualTeam input from data.teamNumber when entering manual mode ===
@@ -238,8 +246,6 @@ export default function PrePhase({data, setData}: {
 
             if (res?.action === "success") {
                 setData(d => ({...d, teamNumber: newTeamNumber}))
-                setClaimSuccess(true)
-                setTimeout(() => setClaimSuccess(false), 2000)
             } else {
                 setData(d => ({...d, teamNumber: null}))
             }
@@ -286,8 +292,6 @@ export default function PrePhase({data, setData}: {
                 applyScoutingResultRef.current(res)
                 if (res?.action === "success") {
                     setData(d => ({...d, teamNumber: nextTeam}))
-                    setClaimSuccess(true)
-                    setTimeout(() => setClaimSuccess(false), 2000)
                 }
             } catch (e) {
                 console.error("Auto-claim failed", e)
@@ -322,21 +326,6 @@ export default function PrePhase({data, setData}: {
     // === UI ===
     return (
         <div className="p-4 w-full h-full flex flex-col justify gap-2 relative">
-            {/* Success Overlay */}
-            {claimSuccess && (
-                <>
-                    <div className="fixed inset-0 bg-green-500/20 z-40 animate-pulse"/>
-                    <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50">
-                        <div className="bg-linear-to-r from-green-500 to-green-600 text-white px-12 py-8 rounded-2xl shadow-2xl flex flex-col items-center gap-4 animate-bounce border-4 border-green-300">
-                            <svg className="w-20 h-20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7"/>
-                            </svg>
-                            <div className="text-3xl font-bold text-center">Team Selected Successfully!</div>
-                            <div className="text-lg font-medium">Team {teamNumber}</div>
-                        </div>
-                    </div>
-                </>
-            )}
 
             <div>Pre-Match</div>
 
@@ -528,14 +517,18 @@ export default function PrePhase({data, setData}: {
                                             <span>{team.number}</span>
                                         </div>
 
-                                        {isAssignedToMe && (
-                                            <span className="text-xs text-yellow-400 font-medium">
+                                        {isSelected ? (
+                                            <span
+                                                className={`text-xs font-semibold ${isAssignedToMe ? "text-yellow-400" : "text-green-400"}`}>
+                                                Claimed!
+                                            </span>
+                                        ) : isAssignedToMe ? (
+                                            <span className="text-yellow-400 text-xs font-semibold">
                                                 Assigned to you
                                             </span>
-                                        )}
-
+                                        ) : null}
                                         {isClaimed && (
-                                            <span className="text-sm">
+                                            <span className="text-zinc-400 text-xs">
                                                 {team.scouter === scouterEmail
                                                     ? "Scouting by you"
                                                     : `Scouting by ${team.name ?? "another scouter"}`}
