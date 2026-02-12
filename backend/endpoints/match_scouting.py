@@ -123,7 +123,6 @@ async def scouting(
                 result = "fail"
                 message = "Target team must be specified."
             else:
-                # Find the team this scouter currently owns in this match+alliance
                 owned = None
                 for t, r in teams.items():
                     if r["scouter"] == scouter_email:
@@ -131,62 +130,19 @@ async def scouting(
                         break
 
                 if not owned:
-                    result = "fail"
-                    message = "You do not currently own any team in this match."
-
+                    result, message = "fail", "You do not currently own any team."
                 elif owned == team:
-                    result = "fail"
-                    message = "You already own this team."
-
+                    result, message = "fail", "You already own this team."
                 else:
-                    target = teams.get(team)
-
-                    if not target or target["scouter"] is not None:
-                        result = "fail"
-                        message = "Target team is already claimed."
-
+                    switched = await db.switch_match_scouting(
+                        match=match, m_type=m_type,
+                        old_team=owned, new_team=team,
+                        scouter=scouter_email,
+                    )
+                    if switched:
+                        result = "success"
                     else:
-                        # Release old team
-                        released = await db.update_match_scouting(
-                            match=match,
-                            m_type=m_type,
-                            team=owned,
-                            scouter=scouter_email,
-                            scouter_new=None,
-                            status=enums.StatusType.UNCLAIMED,
-                            data=None,
-                        )
-
-                        if not released:
-                            result = "fail"
-                            message = "Failed to release current team."
-                        else:
-                            # Claim new team
-                            claimed = await db.update_match_scouting(
-                                match=match,
-                                m_type=m_type,
-                                team=team,
-                                scouter=None,
-                                scouter_new=scouter_email,
-                                status=enums.StatusType.PRE,
-                                data=None,
-                            )
-
-                            if claimed:
-                                result = "success"
-                            else:
-                                # Rollback release if claim failed
-                                await db.update_match_scouting(
-                                    match=match,
-                                    m_type=m_type,
-                                    team=owned,
-                                    scouter=None,
-                                    scouter_new=scouter_email,
-                                    status=current_status,
-                                    data=None,
-                                )
-                                result = "fail"
-                                message = "Switch failed; original team restored."
+                        result, message = "fail", "Switch failed — target may be claimed."
 
 
         # ---- PHASE ----

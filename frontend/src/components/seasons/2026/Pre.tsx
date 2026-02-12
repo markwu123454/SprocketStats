@@ -157,7 +157,7 @@ export default function PrePhase({data, setData}: {
     const teamListReady = (teamList?.length ?? 0) > 0
 
     useEffect(() => {
-        if (!ready || !teamListReady) return
+        if (!ready || !teamListReady || claiming) return
 
         let alive = true
         let ticking = false
@@ -520,7 +520,7 @@ export default function PrePhase({data, setData}: {
                                         {isSelected ? (
                                             <span
                                                 className={`text-xs font-semibold ${isAssignedToMe ? "text-yellow-400" : "text-green-400"}`}>
-                                                Claimed!
+                                                Selected!
                                             </span>
                                         ) : isAssignedToMe ? (
                                             <span className="text-yellow-400 text-xs font-semibold">

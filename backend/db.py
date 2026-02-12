@@ -381,6 +381,63 @@ async def init_db():
 
 # =================== Match Scouting ===================
 
+async def switch_match_scouting(
+        match: int,
+        m_type: enums.MatchType,
+        old_team: int | str,
+        new_team: int | str,
+        scouter: str,
+) -> bool:
+    """
+    Atomically release old_team and claim new_team within one transaction.
+    Returns True on success, False if preconditions fail.
+    """
+    pool, conn = await get_db_connection(DB_NAME)
+    try:
+        async with conn.transaction():
+            # Lock both rows in a consistent order to prevent deadlocks
+            teams = sorted([str(old_team), str(new_team)])
+            rows = await conn.fetch("""
+                SELECT id, team, scouter, status
+                FROM match_scouting
+                WHERE event_key = (SELECT current_event FROM metadata LIMIT 1)
+                  AND match = $1
+                  AND match_type = $2
+                  AND team = ANY($3)
+                FOR UPDATE
+                """, match, m_type.value, teams)
+
+            by_team = {r["team"]: r for r in rows}
+            old = by_team.get(str(old_team))
+            new = by_team.get(str(new_team))
+
+            if not old or not new:
+                return False
+            if old["scouter"] != scouter:
+                return False
+            if new["scouter"] is not None:
+                return False
+
+            now = datetime.now(timezone.utc)
+
+            # Release old
+            await conn.execute("""
+                UPDATE match_scouting
+                SET scouter = NULL, status = $1, last_modified = $2
+                WHERE id = $3
+                """, enums.StatusType.UNCLAIMED.value, now, old["id"])
+
+            # Claim new
+            await conn.execute("""
+                UPDATE match_scouting
+                SET scouter = $1, status = $2, last_modified = $3
+                WHERE id = $4
+                """, scouter, enums.StatusType.PRE.value, now, new["id"])
+
+            return True
+    finally:
+        await release_db_connection(pool, conn)
+
 async def get_match_info(match_type: str, match_number: int, set_number: int = 1) -> Optional[dict]:
     """
     Fetches a single match record from the `matches` table,
