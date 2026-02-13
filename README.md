@@ -11,12 +11,12 @@ It is designed for fast, reliable match and team data collection, and seamless a
 
 ---
 
-## ⚠️ License & Usage Notice
+## License & Usage Notice
 
 **This software is source-available but proprietary.**
 
-- ✅ You MAY view and review the source code
-- ❌ You may NOT use, run, modify, or distribute this software without explicit written permission
+-  You MAY view and review the source code
+-  You may NOT use, run, modify, or distribute this software without explicit written permission
 
 This repository is published for **reference and transparency only**.
 
