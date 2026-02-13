@@ -35,6 +35,8 @@ import traceback
 import types
 import statbotics
 
+FRCScoreTracker = ScoreRegionConfig = None
+
 # ============================================================================
 # GLOBAL STATE & CONFIGURATION
 # ============================================================================
@@ -295,21 +297,23 @@ def python_init():
     
     Steps:
         1. Load environment variables from .env file
-        2. Retrieve DATABASE_KEY
-        3. Validate database connection and schema
-        4. Display startup banner
-        5. Report any errors
+        2. Retrieve DATABASE_KEY and TBA_API_KEY
+        3. Check FRC score tracker dependencies
+        4. Validate database connection and schema
+        5. Display startup banner
+        6. Report any errors
     
     Side effects:
-        - Sets global DATABASE_KEY
+        - Sets global DATABASE_KEY and TBA_API_KEY
         - Prints startup banner and status messages
         - Loads .env file into environment
     """
-    global DATABASE_KEY, TBA_API_KEY
+    global DATABASE_KEY, TBA_API_KEY, FRCScoreTracker, ScoreRegionConfig
 
     has_errored = False
     got_db_key = False
     errors = []
+    warnings = []
 
     print("Loading... Checking environment")
 
@@ -335,6 +339,108 @@ def python_init():
     except Exception as e:
         errors.append(str(e))
         has_errored = True
+
+    print("Loading... Checking FRC score tracker dependencies")
+
+    # Check Python packages for FRC score tracker
+    missing_packages = []
+    try:
+        import cv2
+    except ImportError:
+        missing_packages.append("opencv-python")
+
+    try:
+        import pytesseract
+    except ImportError:
+        missing_packages.append("pytesseract")
+
+    try:
+        import PIL
+    except ImportError:
+        missing_packages.append("Pillow")
+
+    try:
+        import yt_dlp
+    except ImportError:
+        missing_packages.append("yt-dlp")
+
+    if missing_packages:
+        errors.append(
+            f"Missing Python packages for FRC score tracker: {', '.join(missing_packages)}"
+        )
+        errors.append(f"Install with: pip install {' '.join(missing_packages)}")
+        has_errored = True
+
+    # Check Tesseract OCR installation
+    tesseract_ok = False
+    try:
+        import pytesseract
+        pytesseract.get_tesseract_version()
+        tesseract_ok = True
+    except ImportError:
+        pass  # Already caught above
+    except Exception as e:
+        errors.append(
+            "Tesseract OCR not installed or not in PATH"
+        )
+        errors.append(
+            "Install: Ubuntu/Debian: 'sudo apt install tesseract-ocr' | "
+            "macOS: 'brew install tesseract' | "
+            "Windows: https://github.com/UB-Mannheim/tesseract/wiki"
+        )
+        has_errored = True
+
+    # Check GPU acceleration availability (optional, non-critical)
+    try:
+        import cv2
+        gpu_available = False
+        gpu_type = None
+
+        # Check OpenCL (AMD/Intel)
+        if cv2.ocl.haveOpenCL():
+            cv2.ocl.setUseOpenCL(True)
+            if cv2.ocl.useOpenCL():
+                gpu_available = True
+                gpu_type = "OpenCL (AMD/Intel)"
+
+        # Check CUDA (NVIDIA)
+        if not gpu_available:
+            try:
+                if cv2.cuda.getCudaEnabledDeviceCount() > 0:
+                    gpu_available = True
+                    gpu_type = "CUDA (NVIDIA)"
+            except:
+                pass
+
+        if gpu_available:
+            warnings.append(f"✓ GPU acceleration available: {gpu_type}")
+        else:
+            warnings.append(
+                "⚠ No GPU acceleration detected (will use CPU-only mode)"
+            )
+            warnings.append(
+                "  For AMD GPU: Install 'sudo apt install rocm-opencl-dev ocl-icd-opencl-dev'"
+            )
+    except ImportError:
+        pass  # opencv-python not installed, already caught above
+
+    # Check yt-dlp availability (optional for YouTube streams)
+    try:
+        import subprocess
+        result = subprocess.run(
+            ['yt-dlp', '--version'],
+            capture_output=True,
+            timeout=2
+        )
+        if result.returncode == 0:
+            warnings.append("✓ yt-dlp available for YouTube stream processing")
+    except (FileNotFoundError, subprocess.TimeoutExpired, Exception):
+        warnings.append(
+            "⚠ yt-dlp not found in PATH (needed for YouTube streams)"
+        )
+        warnings.append(
+            "  Install: pip install yt-dlp (or system package)"
+        )
 
     print("Loading... Checking database")
 
@@ -364,10 +470,29 @@ def python_init():
     # Report status
     if not has_errored:
         print("\x1b[32mInitialization complete.\x1b[0m\n")
+
+        # Show warnings (non-critical)
+        if warnings:
+            print("\x1b[36mEnvironment Notes:\x1b[0m")
+            for warn in warnings:
+                print(f"  {warn}")
+            print()
+
         print("Use list_globals() to see all available helpers and variables")
+        from frc_score_tracker_lib import FRCScoreTracker as _Tracker, ScoreRegionConfig as _Config
+        FRCScoreTracker = _Tracker
+        ScoreRegionConfig = _Config
     else:
+        # Show errors first
         for err in errors:
             print(f"\x1b[31m{err}\x1b[0m")
+
+        # Then warnings
+        if warnings:
+            print()
+            for warn in warnings:
+                print(f"\x1b[33m{warn}\x1b[0m")
+
         print("\x1b[33mInitialization complete with errors.\x1b[0m\n")
 
 

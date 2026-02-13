@@ -254,9 +254,17 @@ function HeaderStrip({
 export default function MatchScouting({
                                           data,
                                           setData,
+                                          handleSubmit,
+                                          handleBack,
+                                          handleNext,
+                                          exitToPre,
                                       }: {
     data: MatchScoutingState
     setData: React.Dispatch<React.SetStateAction<MatchScoutingState>>
+    handleSubmit: () => void
+    handleBack: () => void
+    handleNext: () => void
+    exitToPre: () => void
 }) {
     const deviceType = getSettingSync("match_scouting_device_type") ?? "mobile"
     const fieldRef = useRef<HTMLDivElement>(null)

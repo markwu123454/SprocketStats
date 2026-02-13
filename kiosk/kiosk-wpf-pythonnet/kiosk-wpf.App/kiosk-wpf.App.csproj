@@ -3,7 +3,7 @@
     <PropertyGroup>
         <OutputType>WinExe</OutputType>
         <TargetFramework>net10.0-windows</TargetFramework>
-        <RootNamespace>kiosk_wpf.App</RootNamespace>
+        <RootNamespace>kiosk_wpf_python.App</RootNamespace>
         <Nullable>enable</Nullable>
         <ImplicitUsings>enable</ImplicitUsings>
         <UseWPF>true</UseWPF>
@@ -12,7 +12,6 @@
     <ItemGroup>
         <PackageReference Include="EasyWindowsTerminalControl" Version="1.0.36"/>
         <PackageReference Include="ModernWpfUI" Version="0.9.6"/>
-        <PackageReference Include="pythonnet" Version="3.1.0-preview2024-09-06"/>
     </ItemGroup>
 
     <ItemGroup>
@@ -34,56 +33,8 @@
         </Content>
     </ItemGroup>
     <ItemGroup>
-        <ClCompile Include="python\Lib\site-packages\numpy\core\include\numpy\__multiarray_api.c"/>
-        <ClCompile Include="python\Lib\site-packages\numpy\core\include\numpy\__ufunc_api.c"/>
-        <ClCompile Include="python\Lib\site-packages\numpy\core\tests\data\generate_umath_validation_data.cpp"/>
-        <ClCompile Include="python\Lib\site-packages\numpy\core\tests\examples\limited_api\limited_api.c"/>
-        <ClCompile Include="python\Lib\site-packages\numpy\distutils\checks\cpu_asimd.c"/>
-        <ClCompile Include="python\Lib\site-packages\numpy\distutils\checks\cpu_asimddp.c"/>
-        <ClCompile Include="python\Lib\site-packages\numpy\distutils\checks\cpu_asimdfhm.c"/>
-        <ClCompile Include="python\Lib\site-packages\numpy\distutils\checks\cpu_asimdhp.c"/>
-        <ClCompile Include="python\Lib\site-packages\numpy\distutils\checks\cpu_avx.c"/>
-        <ClCompile Include="python\Lib\site-packages\numpy\distutils\checks\cpu_avx2.c"/>
-        <ClCompile Include="python\Lib\site-packages\numpy\distutils\checks\cpu_avx512cd.c"/>
-        <ClCompile Include="python\Lib\site-packages\numpy\distutils\checks\cpu_avx512f.c"/>
-        <ClCompile Include="python\Lib\site-packages\numpy\distutils\checks\cpu_avx512_clx.c"/>
-        <ClCompile Include="python\Lib\site-packages\numpy\distutils\checks\cpu_avx512_cnl.c"/>
-        <ClCompile Include="python\Lib\site-packages\numpy\distutils\checks\cpu_avx512_icl.c"/>
-        <ClCompile Include="python\Lib\site-packages\numpy\distutils\checks\cpu_avx512_knl.c"/>
-        <ClCompile Include="python\Lib\site-packages\numpy\distutils\checks\cpu_avx512_knm.c"/>
-        <ClCompile Include="python\Lib\site-packages\numpy\distutils\checks\cpu_avx512_skx.c"/>
-        <ClCompile Include="python\Lib\site-packages\numpy\distutils\checks\cpu_avx512_spr.c"/>
-        <ClCompile Include="python\Lib\site-packages\numpy\distutils\checks\cpu_f16c.c"/>
-        <ClCompile Include="python\Lib\site-packages\numpy\distutils\checks\cpu_fma3.c"/>
-        <ClCompile Include="python\Lib\site-packages\numpy\distutils\checks\cpu_fma4.c"/>
-        <ClCompile Include="python\Lib\site-packages\numpy\distutils\checks\cpu_neon.c"/>
-        <ClCompile Include="python\Lib\site-packages\numpy\distutils\checks\cpu_neon_fp16.c"/>
-        <ClCompile Include="python\Lib\site-packages\numpy\distutils\checks\cpu_neon_vfpv4.c"/>
-        <ClCompile Include="python\Lib\site-packages\numpy\distutils\checks\cpu_popcnt.c"/>
-        <ClCompile Include="python\Lib\site-packages\numpy\distutils\checks\cpu_sse.c"/>
-        <ClCompile Include="python\Lib\site-packages\numpy\distutils\checks\cpu_sse2.c"/>
-        <ClCompile Include="python\Lib\site-packages\numpy\distutils\checks\cpu_sse3.c"/>
-        <ClCompile Include="python\Lib\site-packages\numpy\distutils\checks\cpu_sse41.c"/>
-        <ClCompile Include="python\Lib\site-packages\numpy\distutils\checks\cpu_sse42.c"/>
-        <ClCompile Include="python\Lib\site-packages\numpy\distutils\checks\cpu_ssse3.c"/>
-        <ClCompile Include="python\Lib\site-packages\numpy\distutils\checks\cpu_vsx.c"/>
-        <ClCompile Include="python\Lib\site-packages\numpy\distutils\checks\cpu_vsx2.c"/>
-        <ClCompile Include="python\Lib\site-packages\numpy\distutils\checks\cpu_vsx3.c"/>
-        <ClCompile Include="python\Lib\site-packages\numpy\distutils\checks\cpu_vsx4.c"/>
-        <ClCompile Include="python\Lib\site-packages\numpy\distutils\checks\cpu_vx.c"/>
-        <ClCompile Include="python\Lib\site-packages\numpy\distutils\checks\cpu_vxe.c"/>
-        <ClCompile Include="python\Lib\site-packages\numpy\distutils\checks\cpu_vxe2.c"/>
-        <ClCompile Include="python\Lib\site-packages\numpy\distutils\checks\cpu_xop.c"/>
-        <ClCompile Include="python\Lib\site-packages\numpy\distutils\checks\extra_avx512bw_mask.c"/>
-        <ClCompile Include="python\Lib\site-packages\numpy\distutils\checks\extra_avx512dq_mask.c"/>
-        <ClCompile Include="python\Lib\site-packages\numpy\distutils\checks\extra_avx512f_reduce.c"/>
-        <ClCompile Include="python\Lib\site-packages\numpy\distutils\checks\extra_vsx3_half_double.c"/>
-        <ClCompile Include="python\Lib\site-packages\numpy\distutils\checks\extra_vsx4_mma.c"/>
-        <ClCompile Include="python\Lib\site-packages\numpy\distutils\checks\extra_vsx_asm.c"/>
-        <ClCompile Include="python\Lib\site-packages\numpy\distutils\checks\test_flags.c"/>
-        <ClCompile Include="python\Lib\site-packages\numpy\distutils\mingw\gfortran_vs2003_hack.c"/>
-        <ClCompile Include="python\Lib\site-packages\numpy\f2py\src\fortranobject.c"/>
-        <ClCompile Include="python\Lib\site-packages\numpy\f2py\tests\src\array_from_pyobj\wrapmodule.c"/>
-    </ItemGroup>
+  <!-- Prevent MSBuild from treating any files under python\ as C/C++ compilation units -->
+  <ClCompile Remove="python\**\*.*" />
+</ItemGroup>
 
 </Project>

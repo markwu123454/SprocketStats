@@ -289,6 +289,9 @@ export default function MatchScoutingPage() {
 
     const phase = PHASE_ORDER[phaseIndex]
 
+    // Whether variant A has taken over (combined phase in variant A)
+    const variantAFullControl = abTestVariant === "a" && phase === "combined"
+
     const baseDisabled =
         scoutingData.match_type === null ||
         scoutingData.match === 0 ||
@@ -428,6 +431,32 @@ export default function MatchScoutingPage() {
         )
     }, [phaseIndex, scoutingData, scoutingAction, PHASE_ORDER, navigate])
 
+    // ─── Variant A navigation callbacks ───
+    // These let AVariant control phase transitions itself
+    const variantAGoToPost = useCallback(async () => {
+        const postIndex = PHASE_ORDER.indexOf('post')
+        setPhaseIndex(postIndex)
+        await scoutingAction(
+            scoutingData.match!,
+            scoutingData.teamNumber!,
+            scoutingData.match_type!,
+            scoutingData.alliance!,
+            `set_post` as any,
+        )
+    }, [scoutingData, scoutingAction, PHASE_ORDER])
+
+    const variantAExitToPre = useCallback(async () => {
+        const preIndex = PHASE_ORDER.indexOf('pre')
+        setPhaseIndex(preIndex)
+        await scoutingAction(
+            scoutingData.match!,
+            scoutingData.teamNumber!,
+            scoutingData.match_type!,
+            scoutingData.alliance!,
+            `set_pre` as any,
+        )
+    }, [scoutingData, scoutingAction, PHASE_ORDER])
+
     return (
         <>
             {/* Confirm Submit Dialog */}
@@ -528,25 +557,27 @@ export default function MatchScoutingPage() {
 
             {/* Main Layout */}
             <div className="w-screen min-h-0 h-screen flex flex-col overflow-hidden bg-zinc-900 text-white touch-none select-none overscroll-none ">
-                {/* Top Bar */}
-                <div className="h-12 flex justify-between items-center px-4 bg-zinc-800 text-ml font-semibold shrink-0">
-                    <div>{scouterName}</div>
-                    <div>
-                        {scoutingData.teamNumber !== null
-                            ? `Team ${scoutingData.teamNumber}`
-                            : 'Team –'}
+                {/* Top Bar — hidden when variant A has full control */}
+                {!variantAFullControl && (
+                    <div className="h-12 flex justify-between items-center px-4 bg-zinc-800 text-ml font-semibold shrink-0">
+                        <div>{scouterName}</div>
+                        <div>
+                            {scoutingData.teamNumber !== null
+                                ? `Team ${scoutingData.teamNumber}`
+                                : 'Team –'}
+                        </div>
+                        <div>
+                            Match #{scoutingData.match || '–'} ({scoutingData.alliance?.toUpperCase() || '–'})
+                        </div>
+                        <div className="capitalize">
+                            {phase === 'combined' ? 'Auto + Teleop' : phase}
+                        </div>
                     </div>
-                    <div>
-                        Match #{scoutingData.match || '–'} ({scoutingData.alliance?.toUpperCase() || '–'})
-                    </div>
-                    <div className="capitalize">
-                        {phase === 'combined' ? 'Auto + Teleop' : phase}
-                    </div>
-                </div>
+                )}
 
                 {/* Phases */}
-                <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain touch-auto scrollbar-dark">
-                    <div className="text-4xl">
+                <div className={`flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain touch-auto scrollbar-dark ${variantAFullControl ? '' : ''}`}>
+                    <div className={variantAFullControl ? "h-full" : "text-4xl"}>
                         {phase === 'pre' && (
                             <PrePhase key="pre" data={scoutingData} setData={setScoutingData}/>
                         )}
@@ -557,7 +588,15 @@ export default function MatchScoutingPage() {
                             <TeleopPhase key="teleop" data={scoutingData} setData={setScoutingData}/>
                         )}
                         {abTestVariant === "a" && phase === 'combined' && (
-                            <AVariant key="combined" data={scoutingData} setData={setScoutingData}/>
+                            <AVariant
+                                key="combined"
+                                data={scoutingData}
+                                setData={setScoutingData}
+                                handleSubmit={handleSubmit}
+                                handleBack={variantAExitToPre}
+                                handleNext={variantAGoToPost}
+                                exitToPre={variantAExitToPre}
+                            />
                         )}
                         {abTestVariant === "b" && phase === 'combined' && (
                             <BVariant key="combined" data={scoutingData} setData={setScoutingData}/>
@@ -568,36 +607,38 @@ export default function MatchScoutingPage() {
                     </div>
                 </div>
 
-                {/* Bottom Bar */}
-                <div className="h-16 relative flex justify-between items-center px-4 bg-zinc-800 text-xl font-semibold shrink-0">
-                    <Button
-                        onClick={handleBack}
-                        disabled={submitStatus === 'loading'}
-                        className={submitStatus === 'loading' ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}
-                    >
-                        {phaseIndex < 1 ? 'home' : 'back'}
-                    </Button>
+                {/* Bottom Bar — hidden when variant A has full control */}
+                {!variantAFullControl && (
+                    <div className="h-16 relative flex justify-between items-center px-4 bg-zinc-800 text-xl font-semibold shrink-0">
+                        <Button
+                            onClick={handleBack}
+                            disabled={submitStatus === 'loading'}
+                            className={submitStatus === 'loading' ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}
+                        >
+                            {phaseIndex < 1 ? 'home' : 'back'}
+                        </Button>
 
-                    <div className="absolute left-1/2 transform -translate-x-1/2 text-base text-zinc-400 pointer-events-none select-none">
-                        {isOnline && serverOnline ? "Online" : "Offline"}
+                        <div className="absolute left-1/2 transform -translate-x-1/2 text-base text-zinc-400 pointer-events-none select-none">
+                            {isOnline && serverOnline ? "Online" : "Offline"}
+                        </div>
+
+                        <LoadButton
+                            status={submitStatus === "local" ? "success" : submitStatus}
+                            onClick={phase === 'post' ? handleSubmit : handleNext}
+                            disabled={baseDisabled}
+                            className={baseDisabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}
+                            message={
+                                submitStatus === "success"
+                                    ? "Submitted!"
+                                    : submitStatus === "local"
+                                        ? "Saved Locally"
+                                        : undefined
+                            }
+                        >
+                            {phase === 'post' ? 'Submit' : 'Next'}
+                        </LoadButton>
                     </div>
-
-                    <LoadButton
-                        status={submitStatus === "local" ? "success" : submitStatus}
-                        onClick={phase === 'post' ? handleSubmit : handleNext}
-                        disabled={baseDisabled}
-                        className={baseDisabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}
-                        message={
-                            submitStatus === "success"
-                                ? "Submitted!"
-                                : submitStatus === "local"
-                                    ? "Saved Locally"
-                                    : undefined
-                        }
-                    >
-                        {phase === 'post' ? 'Submit' : 'Next'}
-                    </LoadButton>
-                </div>
+                )}
             </div>
         </>
     )

@@ -515,7 +515,7 @@ class BatchOCRProcessor:
 
         # Log why OCR failed (only if verbose mode)
         if self.verbose:
-            print(f"\n⚠️  OCR FAILED for {label}:")
+            print(f"\n️  OCR FAILED for {label}:")
             print(f"   Tried {len(failed_attempts)} combinations, none succeeded:")
             for attempt in failed_attempts[:6]:  # Show first 6 attempts
                 print(f"     • {attempt}")
@@ -732,11 +732,11 @@ class ScoreTracker:
                 if red_score is None and self.last_red is not None:
                     red_score = self.last_red
                     if self._verbose:
-                        print(f"\n  💾 [FALLBACK] t={timestamp:.1f}s: Using last RED score: {red_score}")
+                        print(f"\n   [FALLBACK] t={timestamp:.1f}s: Using last RED score: {red_score}")
                 if blue_score is None and self.last_blue is not None:
                     blue_score = self.last_blue
                     if self._verbose:
-                        print(f"\n  💾 [FALLBACK] t={timestamp:.1f}s: Using last BLUE score: {blue_score}")
+                        print(f"\n   [FALLBACK] t={timestamp:.1f}s: Using last BLUE score: {blue_score}")
 
             if match_phase is None:
                 match_phase = self.determine_phase_from_timer(match_time)
@@ -769,7 +769,7 @@ class ScoreTracker:
 
             # Reject scores above max plausible
             if score > max_plausible:
-                print(f"\n  🚫 [FILTER] t={event.timestamp:.1f}s {alliance.upper()}: "
+                print(f"\n   [FILTER] t={event.timestamp:.1f}s {alliance.upper()}: "
                       f"{score} exceeds max ({max_plausible})")
                 if alliance == "red":
                     event.red_score = None
@@ -805,7 +805,7 @@ class ScoreTracker:
                                         break
 
                     if not fixed:
-                        print(f"\n  🚫 [FILTER] t={event.timestamp:.1f}s {alliance.upper()}: "
+                        print(f"\n   [FILTER] t={event.timestamp:.1f}s {alliance.upper()}: "
                               f"Jump {last}→{score} (+{diff}) too large")
                         if alliance == "red":
                             event.red_score = None
@@ -815,7 +815,7 @@ class ScoreTracker:
 
                 # Reject large decreases (OCR errors, small penalties allowed)
                 if diff < -20:
-                    print(f"\n  🚫 [FILTER] t={event.timestamp:.1f}s {alliance.upper()}: "
+                    print(f"\n   [FILTER] t={event.timestamp:.1f}s {alliance.upper()}: "
                           f"Decrease {last}→{score} ({diff}) too large")
                     if alliance == "red":
                         event.red_score = None
@@ -901,7 +901,7 @@ class ScoreTracker:
         # OCR performance stats
         if self.ocr_attempts > 0:
             success_rate = (self.ocr_successes / self.ocr_attempts) * 100
-            print(f"\n📊 OCR Performance:")
+            print(f"\n OCR Performance:")
             print(f"  Total attempts: {self.ocr_attempts}")
             print(f"  Successful:     {self.ocr_successes} ({success_rate:.1f}%)")
             print(f"  Failed:         {self.ocr_failures} ({100-success_rate:.1f}%)")
@@ -947,7 +947,7 @@ def find_match_start(source: str, config: ScoreRegionConfig,
 
     duration = reader.total_frames / reader.fps if reader.total_frames > 0 else 180
 
-    print(f"\n🔍 Phase 1: Finding match in video...")
+    print(f"\n Phase 1: Finding match in video...")
     print(f"Video duration: ~{duration:.0f}s ({reader.total_frames} frames @ {reader.fps:.1f} fps)")
 
     tracker = ScoreTracker(config, debug=debug, use_gpu=GPU_AVAILABLE)
@@ -995,7 +995,7 @@ def find_match_start(source: str, config: ScoreRegionConfig,
     reader.release()
 
     if first_timer_found is None:
-        print("❌ Could not find match timer")
+        print(" Could not find match timer")
         return None
 
     # Estimate match start
@@ -1003,12 +1003,12 @@ def find_match_start(source: str, config: ScoreRegionConfig,
         elapsed_in_teleop = MATCH_TELEOP_DURATION - first_timer_value
         time_since_match_start = MATCH_AUTO_DURATION + MATCH_TRANSITION_DURATION + elapsed_in_teleop
         estimated_match_start = first_timer_found - time_since_match_start
-        print(f"\n📊 Timer shows teleop ({first_timer_value}s)")
+        print(f"\n Timer shows teleop ({first_timer_value}s)")
         print(f"  Estimated match start: t={estimated_match_start:.1f}s")
     else:
         elapsed_in_auto = MATCH_AUTO_DURATION - first_timer_value
         estimated_match_start = first_timer_found - elapsed_in_auto
-        print(f"\n📊 Timer shows auto ({first_timer_value}s)")
+        print(f"\n Timer shows auto ({first_timer_value}s)")
         print(f"  Estimated match start: t={estimated_match_start:.1f}s")
 
     return estimated_match_start
@@ -1227,10 +1227,10 @@ def get_stream_url(youtube_url: str) -> str:
         print(f"✓ Got stream URL")
         return url
     except FileNotFoundError:
-        print("❌ yt-dlp not found. Install it: pip install yt-dlp")
+        print(" yt-dlp not found. Install it: pip install yt-dlp")
         sys.exit(1)
     except subprocess.CalledProcessError as e:
-        print(f"❌ yt-dlp failed: {e.stderr}")
+        print(f" yt-dlp failed: {e.stderr}")
         sys.exit(1)
 
 
@@ -1256,7 +1256,7 @@ def process_video_smart(source: str, config: ScoreRegionConfig,
     # Phase 1: Find match start
     match_start = find_match_start(source, config, debug=debug)
     if match_start is None:
-        print("❌ Could not detect match start")
+        print(" Could not detect match start")
         return
 
     # Calculate phase boundaries
@@ -1276,7 +1276,7 @@ def process_video_smart(source: str, config: ScoreRegionConfig,
                           use_gpu=use_gpu, verbose=verbose)
     reader = OptimizedVideoReader(source, cache_size=batch_size * 8)  # Larger cache
 
-    print(f"⚙️  Processing Configuration:")
+    print(f"  Processing Configuration:")
     print(f"  GPU Acceleration: {'✓ ' + GPU_TYPE if use_gpu and GPU_AVAILABLE else '✗ Disabled'}")
     print(f"  Batch Size: {batch_size}")
     print(f"  Sample Interval: {sample_interval}s")
@@ -1294,7 +1294,7 @@ def process_video_smart(source: str, config: ScoreRegionConfig,
 
     try:
         for window_start, window_end, phase in sampling_windows:
-            print(f"\n🎯 Processing {phase.upper()} phase ({window_start:.1f}s - {window_end:.1f}s)...")
+            print(f"\n Processing {phase.upper()} phase ({window_start:.1f}s - {window_end:.1f}s)...")
 
             current_time = window_start
 
@@ -1334,14 +1334,14 @@ def process_video_smart(source: str, config: ScoreRegionConfig,
                 current_time = batch_timestamps[-1] + sample_interval
 
     except KeyboardInterrupt:
-        print("\n\n⚠️  Stopped by user")
+        print("\n\n  Stopped by user")
 
     finally:
         reader.release()
         tracker.shutdown()
 
     elapsed = time.time() - start_time
-    print(f"\n\n⏱️  Processed {processed} frames in {elapsed:.1f}s "
+    print(f"\n\n  Processed {processed} frames in {elapsed:.1f}s "
           f"({processed/elapsed:.1f} fps)")
 
     # Export results
@@ -1398,7 +1398,7 @@ def main():
     else:
         source = args.file
         if not Path(source).exists():
-            print(f"❌ File not found: {source}")
+            print(f" File not found: {source}")
             sys.exit(1)
 
     # Calibration mode
