@@ -93,6 +93,7 @@ REPL_GLOBALS = globals()
 # Configure stderr to be unbuffered for real-time logging
 sys.stderr.reconfigure(line_buffering=True)
 
+
 def log(*args, sep=" ", end="\n", file=None, flush=False):
     """
     Print-compatible logger.
@@ -104,6 +105,72 @@ def log(*args, sep=" ", end="\n", file=None, flush=False):
         if flush:
             sys.stderr.flush()
 
+
+# -- Semantic ANSI log helpers ----------------------------------------------
+
+_RESET   = "\x1b[0m"
+_BOLD    = "\x1b[1m"
+_DIM     = "\x1b[38;5;245m"
+_RED     = "\x1b[1;31m"
+_GREEN   = "\x1b[1;32m"
+_YELLOW  = "\x1b[1;33m"
+_BLUE    = "\x1b[1;34m"
+_MAGENTA = "\x1b[1;35m"
+_PURPLE  = "\x1b[38;2;145;92;201m"
+_CYAN    = "\x1b[1;36m"
+_WHITE   = "\x1b[1;37m"
+
+_BAR = "=" * 44
+
+
+def log_header(title):
+    """Print a prominent section header."""
+    log(f"\n{_PURPLE}{_BAR}")
+    log(f"  {title}")
+    log(f"{_PURPLE}{_BAR}{_RESET}")
+
+
+def log_step(msg):
+    """Print a top-level action step."""
+    log(f"  {_BLUE}>{_RESET} {msg}")
+
+
+def log_substep(msg):
+    """Print an indented sub-detail."""
+    log(f"    {_DIM}|_{_RESET} {msg}")
+
+
+def log_stat(label, value, indent=4):
+    """Print a key -> value statistic."""
+    pad = " " * indent
+    log(f"{pad}{_DIM}{label}:{_RESET} {_YELLOW}{value}{_RESET}")
+
+
+def log_success(msg):
+    """Print a success message."""
+    log(f"  {_GREEN}[OK]{_RESET} {msg}")
+
+
+def log_warn(msg):
+    """Print a warning message."""
+    log(f"  {_YELLOW}[!!]{_RESET} {msg}")
+
+
+def log_error(msg):
+    """Print an error message."""
+    log(f"  {_RED}[ERR]{_RESET} {msg}")
+
+
+def log_done(summary=None):
+    """Print a section footer, optionally with a summary line."""
+    if summary:
+        log(f"\n{_GREEN}{_BAR}")
+        log(f"  [OK] Done -- {summary}")
+        log(f"{_GREEN}{_BAR}{_RESET}\n")
+    else:
+        log(f"\n{_GREEN}{_BAR}")
+        log(f"  [OK] Done")
+        log(f"{_BAR}{_RESET}\n")
 
 
 # ============================================================================
@@ -219,7 +286,10 @@ def python_init():
     errors = []
     warnings = []
 
-    log("Loading... Checking environment")
+    log_header("INITIALIZATION")
+
+    # -- Environment --------------------------------------------------------
+    log_step("Checking environment...")
 
     try:
         env_path = dotenv.find_dotenv()
@@ -230,16 +300,21 @@ def python_init():
         if not DATABASE_KEY:
             errors.append("DATABASE_KEY is missing from .env file")
             has_errored = True
+            log_error("DATABASE_KEY is missing")
         elif not TBA_API_KEY:
             errors.append("TBA_API_KEY is missing from .env file")
             has_errored = True
+            log_error("TBA_API_KEY is missing")
         else:
             got_db_key = True
+            log_success("Environment loaded")
     except Exception as e:
         errors.append(str(e))
         has_errored = True
+        log_error(f"Environment error: {e}")
 
-    log("Loading... Checking dependencies")
+    # -- Dependencies -------------------------------------------------------
+    log_step("Checking dependencies...")
 
     missing_packages = []
     try:
@@ -265,8 +340,13 @@ def python_init():
     if missing_packages:
         errors.append(f"Missing Python packages: {', '.join(missing_packages)}")
         has_errored = True
+        for pkg in missing_packages:
+            log_warn(f"Missing: {_CYAN}{pkg}{_RESET}")
+    else:
+        log_success("All dependencies found")
 
-    log("Loading... Checking database")
+    # -- Database -----------------------------------------------------------
+    log_step("Checking database...")
 
     try:
         if got_db_key:
@@ -274,43 +354,57 @@ def python_init():
             if not ok:
                 errors.extend(db_errors)
                 has_errored = True
+                for err in db_errors:
+                    log_error(err)
+            else:
+                log_success("Database schema verified")
         else:
             errors.append("Database validation skipped (missing DATABASE_KEY)")
             has_errored = True
+            log_warn("Database validation skipped")
     except Exception as e:
         errors.append(f"verify_db failed: {e}")
         has_errored = True
+        log_error(f"verify_db failed: {e}")
 
-    log("Done.")
-    time.sleep(1)
-    log("\x1b[J")
-    _print_banner()
-
+    # -- Score tracker library ----------------------------------------------
     if not has_errored:
-        log("\x1b[32mInitialization complete.\x1b[0m")
         try:
             from frc_score_tracker_lib import FRCScoreTracker as _Tracker, ScoreRegionConfig as _Config
             FRCScoreTracker = _Tracker
             ScoreRegionConfig = _Config
+            log_success("FRC score tracker loaded")
         except ImportError:
             warnings.append("FRC score tracker library not available")
-    else:
+            log_warn("FRC score tracker library not available")
+
+    # -- Banner & summary --------------------------------------------------
+    time.sleep(1)
+    log(f"\x1b[2J{_DIM}v26.1.0 pre.1{_RESET}")
+    _print_banner()
+    log("")
+    log(f"  {_DIM}Use list_globals() to see available functions{_RESET}")
+    log("")
+
+    if has_errored:
         for err in errors:
-            log(f"\x1b[31mERROR: {err}\x1b[0m")
-        log("\x1b[33mInitialization complete with errors.\x1b[0m")
+            log_error(err)
+        log(f"\n  {_YELLOW}[!!] Initialization complete with errors{_RESET}\n")
+    else:
+        log(f"  {_GREEN}[OK] Initialization complete{_RESET}\n")
 
     return {"errors": errors, "warnings": warnings, "success": not has_errored}
 
 
 def _print_banner():
-    log("\x1b[35m $$$$$$\  $$$$$$$\  $$$$$$$\   $$$$$$\   $$$$$$\  $$\   $$\ $$$$$$$$\ $$$$$$$$\   $$$$$$\ $$$$$$$$\  $$$$$$\ $$$$$$$$\  $$$$$$\  \x1b[0m")
-    log("\x1b[35m$$  __$$\ $$  __$$\ $$  __$$\ $$  __$$\ $$  __$$\ $$ | $$  |$$  _____|\__$$  __| $$  __$$\\\__$$  __|$$  __$$\\\__$$  __|$$  __$$\ \x1b[0m")
-    log("\x1b[35m$$ /  \__|$$ |  $$ |$$ |  $$ |$$ /  $$ |$$ /  \__|$$ |$$  / $$ |         $$ |    $$ /  \__|  $$ |   $$ /  $$ |  $$ |   $$ /  \__|\x1b[0m")
-    log("\x1b[35m\$$$$$$\  $$$$$$$  |$$$$$$$  |$$ |  $$ |$$ |      $$$$$  /  $$$$$\       $$ |    \$$$$$$\    $$ |   $$$$$$$$ |  $$ |   \$$$$$$\  \x1b[0m")
-    log("\x1b[35m \____$$\ $$  ____/ $$  __$$< $$ |  $$ |$$ |      $$  $$<   $$  __|      $$ |     \____$$\   $$ |   $$  __$$ |  $$ |    \____$$\ \x1b[0m")
-    log("\x1b[35m$$\   $$ |$$ |      $$ |  $$ |$$ |  $$ |$$ |  $$\ $$ |\$$\  $$ |         $$ |    $$\   $$ |  $$ |   $$ |  $$ |  $$ |   $$\   $$ |\x1b[0m")
-    log("\x1b[35m\$$$$$$  |$$ |      $$ |  $$ | $$$$$$  |\$$$$$$  |$$ | \$$\ $$$$$$$$\    $$ |    \$$$$$$  |  $$ |   $$ |  $$ |  $$ |   \$$$$$$  |\x1b[0m")
-    log("\x1b[35m \______/ \__|      \__|  \__| \______/  \______/ \__|  \__|\________|   \__|     \______/   \__|   \__|  \__|  \__|    \______/\x1b[0m")
+    log(f"{_PURPLE} $$$$$$\\  $$$$$$$\\  $$$$$$$\\   $$$$$$\\   $$$$$$\\  $$\\   $$\\ $$$$$$$$\\ $$$$$$$$\\   $$$$$$\\ $$$$$$$$\\  $$$$$$\\ $$$$$$$$\\  $$$$$$\\  {_RESET}")
+    log(f"{_PURPLE}$$  __$$\\ $$  __$$\\ $$  __$$\\ $$  __$$\\ $$  __$$\\ $$ | $$  |$$  _____|\\__$$  __| $$  __$$\\\\__$$  __|$$  __$$\\\\__$$  __|$$  __$$\\ {_RESET}")
+    log(f"{_PURPLE}$$ /  \\__|$$ |  $$ |$$ |  $$ |$$ /  $$ |$$ /  \\__|$$ |$$  / $$ |         $$ |    $$ /  \\__|  $$ |   $$ /  $$ |  $$ |   $$ /  \\__|{_RESET}")
+    log(f"{_PURPLE}\\$$$$$$\\  $$$$$$$  |$$$$$$$  |$$ |  $$ |$$ |      $$$$$  /  $$$$$\\       $$ |    \\$$$$$$\\    $$ |   $$$$$$$$ |  $$ |   \\$$$$$$\\  {_RESET}")
+    log(f"{_PURPLE} \\____$$\\ $$  ____/ $$  __$$< $$ |  $$ |$$ |      $$  $$<   $$  __|      $$ |     \\____$$\\   $$ |   $$  __$$ |  $$ |    \\____$$\\ {_RESET}")
+    log(f"{_PURPLE}$$\\   $$ |$$ |      $$ |  $$ |$$ |  $$ |$$ |  $$\\ $$ |\\$$\\  $$ |         $$ |    $$\\   $$ |  $$ |   $$ |  $$ |  $$ |   $$\\   $$ |{_RESET}")
+    log(f"{_PURPLE}\\$$$$$$  |$$ |      $$ |  $$ | $$$$$$  |\\$$$$$$  |$$ | \\$$\\ $$$$$$$$\\    $$ |    \\$$$$$$  |  $$ |   $$ |  $$ |  $$ |   \\$$$$$$  |{_RESET}")
+    log(f"{_PURPLE} \\______/ \\__|      \\__|  \\__| \\______/  \\______/ \\__|  \\__|\\________|   \\__|     \\______/   \\__|   \\__|  \\__|  \\__|    \\______/ {_RESET}")
 
 
 # ============================================================================
@@ -321,19 +415,19 @@ async def download_data(event_key):
     """Download scouting data from the database."""
     global downloaded_data
 
-    log("\n=== START DOWNLOAD ===")
+    log_header("DOWNLOAD DATA")
 
     try:
-        log(" Connecting to database...")
+        log_step("Connecting to database...")
         conn = await get_connection()
-        log(" Database connected")
+        log_success("Database connected")
 
-        event_name = event_key or 'all events'
-        log(f" Fetching data from \x1b[36m{event_name}\x1b[0m...")
+        event_name = event_key or "all events"
+        log_step(f"Fetching data from {_CYAN}{event_name}{_RESET}")
         event_filter = f"%{event_key}%" if event_key else None
 
-        # Match scouting data
-        log(" Fetching match data...")
+        # -- Match scouting -------------------------------------------------
+        log_step("Fetching match scouting...")
         match_query = """
                       SELECT event_key, match, match_type, team, alliance, scouter, data
                       FROM match_scouting
@@ -352,10 +446,11 @@ async def download_data(event_key):
             (r["event_key"], r["match_type"], r["match"])
             for r in match
         })
-        log(f"  \x1b[33m{robot_entries}\x1b[0m robot entries from \x1b[33m{match_count}\x1b[0m matches")
+        log_stat("Robot entries", robot_entries)
+        log_stat("Unique matches", match_count)
 
-        # Pit scouting data
-        log(" Fetching team data...")
+        # -- Pit scouting --------------------------------------------------
+        log_step("Fetching pit scouting...")
         pit_query = """
                     SELECT event_key, team, scouter, data
                     FROM pit_scouting
@@ -369,10 +464,10 @@ async def download_data(event_key):
             rows = await conn.fetch(pit_query)
 
         pit = [dict(r) for r in rows]
-        log(f"  \x1b[33m{len(pit)}\x1b[0m pit entries")
+        log_stat("Pit entries", len(pit))
 
-        # Match schedules
-        log(" Fetching match schedules...")
+        # -- Match schedules -----------------------------------------------
+        log_step("Fetching match schedules...")
         schedule_query = """
                          SELECT key, event_key, match_type, match_number, set_number,
                              scheduled_time, actual_time,
@@ -387,8 +482,9 @@ async def download_data(event_key):
             rows = await conn.fetch(schedule_query)
 
         all_matches = [dict(r) for r in rows]
-        log(f"  \x1b[33m{len(all_matches)}\x1b[0m schedule entries")
+        log_stat("Schedule entries", len(all_matches))
 
+        # -- Store & return ------------------------------------------------
         downloaded_data = {
             "match_scouting": match,
             "pit_scouting": pit,
@@ -397,33 +493,33 @@ async def download_data(event_key):
 
         total_records = robot_entries + len(pit) + len(all_matches)
         await conn.close()
-        log(f" Done - \x1b[33m{total_records}\x1b[0m total records\n")
 
+        log_done(f"{_YELLOW}{total_records}{_RESET} total records")
         return {"success": True, "records": total_records}
 
     except Exception as e:
-        log(f"\x1b[31mError: {e}\x1b[0m")
+        log_error(str(e))
         return {"success": False, "error": str(e)}
 
 
 async def upload_data(event_key):
     """Upload calculation results to the database."""
-    log("\n=== START UPLOAD ===")
+    log_header("UPLOAD DATA")
 
     if not calc_result or "result" not in calc_result:
-        log("\x1b[31mError: No calculator output found. Run calculation first.\x1b[0m")
+        log_error("No calculator output found -- run calculation first")
         return {"success": False, "error": "No calculation results"}
 
     try:
-        log(" Connecting to database...")
+        log_step("Connecting to database...")
         conn = await get_connection()
-        log(" Database connected")
+        log_success("Database connected")
 
         if not event_key:
-            log("\x1b[31mError: Event key is required for upload\x1b[0m")
+            log_error("Event key is required for upload")
             return {"success": False, "error": "Event key required"}
 
-        log(f" Uploading to \x1b[36m{event_key}\x1b[0m...")
+        log_step(f"Uploading to {_CYAN}{event_key}{_RESET}...")
 
         await conn.execute(
             "INSERT INTO processed_data (event_key, data) VALUES ($1, $2)",
@@ -433,15 +529,15 @@ async def upload_data(event_key):
 
         result = calc_result["result"]
         record_count = len(result) if isinstance(result, (list, dict)) else 1
-        log(f"  \x1b[33m{record_count}\x1b[0m records uploaded")
+        log_stat("Records uploaded", record_count)
 
         await conn.close()
-        log(" Done\n")
 
+        log_done(f"{_YELLOW}{record_count}{_RESET} records uploaded to {_CYAN}{event_key}{_RESET}")
         return {"success": True, "records": record_count}
 
     except Exception as e:
-        log(f"\x1b[31mError: {e}\x1b[0m")
+        log_error(str(e))
         return {"success": False, "error": str(e)}
 
 
@@ -453,66 +549,70 @@ def run_calculation(setting):
     """Execute scouting data calculations."""
     global calc_result, downloaded_data
 
-    log("\n=== START CALCULATION ===")
-    log("Output data is in calc_result")
+    log_header("CALCULATION")
 
     try:
         setting = json.loads(setting) if isinstance(setting, str) else setting
 
         if not setting.get("event_key"):
-            log("\x1b[31mError: Event key is required\x1b[0m")
+            log_error("Event key is required")
             return {"success": False, "error": "Event key required"}
 
         event_key = setting["event_key"]
         stop_on_warning = setting.get("stop_on_warning", False)
 
-        log(f" Running calculations for \x1b[36m{event_key}\x1b[0m...")
+        log_step(f"Running calculations for {_CYAN}{event_key}{_RESET}")
         if stop_on_warning:
-            log("   (stop on warning: \x1b[33menabled\x1b[0m)")
+            log_substep(f"Stop on warning: {_YELLOW}enabled{_RESET}")
 
-        log(" Validating downloaded data...")
+        # -- Validate local data -------------------------------------------
+        log_step("Validating downloaded data...")
         if not validate_downloaded_data(event_key, stop_on_warning):
+            log_error("Data validation failed")
             return {"success": False, "error": "Data validation failed"}
+        log_success("Data validated")
 
-        log(" Fetching Statbotics data...")
+        # -- Statbotics ----------------------------------------------------
+        log_step("Fetching Statbotics data...")
         try:
             sb_data = sb.get_matches(event=event_key)
             sb_count = len(sb_data) if isinstance(sb_data, (list, dict)) else 0
 
             if sb_count == 0:
-                log("   \x1b[31mWarning: No Statbotics data returned\x1b[0m")
+                log_warn("No Statbotics data returned")
                 if stop_on_warning:
                     return {"success": False, "error": "No Statbotics data"}
             else:
-                log(f"   \x1b[33m{sb_count}\x1b[0m Statbotics entries")
-
+                log_stat("Statbotics entries", sb_count)
         except UserWarning as e:
-            log(f"   \x1b[31mStatbotics error: {e}\x1b[0m")
+            log_warn(f"Statbotics error: {e}")
             if stop_on_warning:
                 return {"success": False, "error": f"Statbotics error: {e}"}
             sb_data = {}
 
-        log(" Fetching TBA data...")
+        # -- TBA -----------------------------------------------------------
+        log_step("Fetching TBA data...")
         tba_response = requests.get(
             f"https://www.thebluealliance.com/api/v3/event/{event_key}/matches",
             headers={"X-TBA-Auth-Key": TBA_API_KEY}
         )
 
         if tba_response.status_code != 200:
-            log(f"   \x1b[31mTBA request failed (status {tba_response.status_code})\x1b[0m")
+            log_error(f"TBA request failed (status {tba_response.status_code})")
             if stop_on_warning:
                 return {"success": False, "error": "TBA request failed"}
             tba_data = []
         else:
             tba_data = tba_response.json()
             if not tba_data:
-                log("   \x1b[31mWarning: No TBA matches returned\x1b[0m")
+                log_warn("No TBA matches returned")
                 if stop_on_warning:
                     return {"success": False, "error": "No TBA data"}
             else:
-                log(f"   \x1b[33m{len(tba_data)}\x1b[0m TBA matches")
+                log_stat("TBA matches", len(tba_data))
 
-        log(" Initializing calculation results...")
+        # -- Initialize result structure -----------------------------------
+        log_step("Initializing calculation results...")
         calc_result.clear()
         calc_result["ranking"] = {}
         calc_result["alliance"] = {}
@@ -527,15 +627,15 @@ def run_calculation(setting):
                 event_key=event_key,
                 stop_on_warning=stop_on_warning
         ):
+            log_error("Structure initialization failed")
             return {"success": False, "error": "Structure initialization failed"}
 
-        log("\x1b[33mNo calculations yet.\x1b[0m")
-        log(" Done\n")
-
+        log_warn("No calculations yet")
+        log_done()
         return {"success": True}
 
     except Exception as e:
-        log(f"\x1b[31mError: {e}\x1b[0m")
+        log_error(str(e))
         return {"success": False, "error": str(e)}
 
 
@@ -544,14 +644,14 @@ def validate_downloaded_data(event_key, stop_on_warning=False):
     global downloaded_data
 
     if not downloaded_data:
-        log("   \x1b[31mError: No data downloaded. Run download_data() first.\x1b[0m")
+        log_error("No data downloaded -- run download_data() first")
         return False
 
     required_keys = ["match_scouting", "pit_scouting", "all_matches"]
     missing_keys = [k for k in required_keys if k not in downloaded_data]
 
     if missing_keys:
-        log(f"   \x1b[31mError: Missing data keys: {', '.join(missing_keys)}\x1b[0m")
+        log_error(f"Missing data keys: {', '.join(missing_keys)}")
         return False
 
     match_scouting = [
@@ -567,17 +667,17 @@ def validate_downloaded_data(event_key, stop_on_warning=False):
         if m.get("event_key") == event_key
     ]
 
-    log(f"   Match scouting entries: \x1b[33m{len(match_scouting)}\x1b[0m")
-    log(f"   Pit scouting entries: \x1b[33m{len(pit_scouting)}\x1b[0m")
-    log(f"   Match schedules: \x1b[33m{len(all_matches)}\x1b[0m")
+    log_stat("Match scouting entries", len(match_scouting), indent=6)
+    log_stat("Pit scouting entries", len(pit_scouting), indent=6)
+    log_stat("Match schedules", len(all_matches), indent=6)
 
     if len(match_scouting) == 0:
-        log("   \x1b[31mWarning: No match scouting data for this event\x1b[0m")
+        log_warn("No match scouting data for this event")
         if stop_on_warning:
             return False
 
     if len(all_matches) == 0:
-        log("   \x1b[31mWarning: No match schedules for this event\x1b[0m")
+        log_warn("No match schedules for this event")
         if stop_on_warning:
             return False
 
@@ -600,7 +700,7 @@ def initialize_structure(calc_result, tba_data, sb_data, downloaded_data, event_
     calc_result["match_index"] = {}
     calc_result["match_reverse_index"] = {}
 
-    log(" Initializing teams and matches from TBA...")
+    log_step("Initializing teams and matches from TBA...")
 
     tba_match_keys = {m["key"] for m in tba_data if "key" in m}
     grouped = {"qm": [], "sf": [], "f": []}
@@ -630,24 +730,24 @@ def initialize_structure(calc_result, tba_data, sb_data, downloaded_data, event_
             calc_result["match_index"][canon_key] = tba_key
             calc_result["match_reverse_index"][tba_key] = canon_key
 
-    log(f"   Initialized \x1b[33m{len(calc_result['match'])}\x1b[0m matches")
-    log(f"   Initialized \x1b[33m{len(calc_result['team'])}\x1b[0m teams")
+    log_stat("Matches initialized", len(calc_result["match"]))
+    log_stat("Teams initialized", len(calc_result["team"]))
 
     sb_match_keys = set(sb_matches.keys())
     missing_in_sb = tba_match_keys - sb_match_keys
     extra_in_sb = sb_match_keys - tba_match_keys
 
     if missing_in_sb:
-        log(f"\x1b[31mWarning: {len(missing_in_sb)} TBA matches missing in Statbotics\x1b[0m")
+        log_warn(f"{len(missing_in_sb)} TBA matches missing in Statbotics")
         if stop_on_warning:
             return False
 
     if extra_in_sb:
-        log(f"\x1b[31mWarning: {len(extra_in_sb)} Statbotics matches not in TBA\x1b[0m")
+        log_warn(f"{len(extra_in_sb)} Statbotics matches not in TBA")
         if stop_on_warning:
             return False
 
-    log(" Validating against downloaded data...")
+    log_step("Validating against downloaded data...")
 
     match_scouting = [
         m for m in downloaded_data.get("match_scouting", [])
@@ -657,11 +757,11 @@ def initialize_structure(calc_result, tba_data, sb_data, downloaded_data, event_
     most_recent = determine_most_recent_match(match_scouting, calc_result)
     if most_recent:
         calc_result["most_recent_match"] = most_recent
-        log(f"   Most recent match (>3 submissions): \x1b[32m{most_recent}\x1b[0m")
+        log_substep(f"Most recent match (>3 submissions): {_GREEN}{most_recent}{_RESET}")
     else:
-        log("   \x1b[33mNo match with >3 submissions found\x1b[0m")
+        log_substep(f"No match with >3 submissions found")
 
-    log(" Structure initialization complete\n")
+    log_success("Structure initialization complete")
     return True
 
 
@@ -725,14 +825,10 @@ def parse_team_key(team_key):
 
 def list_globals():
     """List all functions and variables in the global scope."""
-    functions = []
-    classes = []
-    variables = []
+    functions, classes, variables = [], [], []
 
     for name, obj in globals().items():
-        if name.startswith('_'):
-            continue
-        if isinstance(obj, types.ModuleType):
+        if name.startswith('_') or isinstance(obj, types.ModuleType):
             continue
 
         if isinstance(obj, types.FunctionType):
@@ -742,8 +838,19 @@ def list_globals():
         else:
             variables.append(name)
 
-    result = {"functions": sorted(functions), "classes": sorted(classes), "variables": sorted(variables)}
-    return result
+    log(f"\n{_CYAN}Functions:{_RESET}")
+    for f in sorted(functions):
+        log(f"  {_DIM}-{_RESET} {f}")
+
+    log(f"{_YELLOW}Classes:{_RESET}")
+    for c in sorted(classes):
+        log(f"  {_DIM}-{_RESET} {c}")
+
+    log(f"{_GREEN}Variables:{_RESET}")
+    for v in sorted(variables):
+        log(f"  {_DIM}-{_RESET} {v}")
+
+    log("")
 
 
 # ============================================================================
@@ -762,7 +869,7 @@ def _err(msg):
 
 def exec_or_eval(code: str):
     try:
-        REPL_GLOBALS["print"] = log  # redirect print  log
+        REPL_GLOBALS["print"] = log  # redirect print -> log
 
         try:
             result = eval(code, REPL_GLOBALS, REPL_GLOBALS)

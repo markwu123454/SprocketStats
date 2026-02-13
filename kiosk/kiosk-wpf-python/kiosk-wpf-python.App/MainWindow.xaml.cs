@@ -370,36 +370,68 @@ public partial class MainWindow
         };
 
         var buffer = _console.Buffer;
+        var defaultBg = buffer.DefaultBackground;
 
         for (int r = 0; r < buffer.Rows; r++)
         {
             var row = buffer.Cells[r];
-            Color? lastColor = null;
+
+            // Find last non-space character to trim trailing whitespace
+            int lastNonSpace = -1;
+            for (int c = buffer.Columns - 1; c >= 0; c--)
+            {
+                if (row[c].Char != ' ' || row[c].Background != defaultBg)
+                {
+                    lastNonSpace = c;
+                    break;
+                }
+            }
+
+            if (lastNonSpace < 0)
+            {
+                // Empty row — just add line break
+                para.Inlines.Add(new LineBreak());
+                continue;
+            }
+
+            Color? lastFg = null;
+            Color? lastBg = null;
+            CellAttributes lastAttr = (CellAttributes)(-1);
             var sb = new StringBuilder();
 
-            for (int c = 0; c < buffer.Columns; c++)
+            for (int c = 0; c <= lastNonSpace; c++)
             {
                 var cell = row[c];
 
-                if (lastColor != cell.Foreground && sb.Length > 0)
+                var fg = cell.Foreground;
+                var bg = cell.Background;
+                var attr = cell.Attributes;
+
+                // Handle inverse attribute: swap fg/bg
+                if (attr.HasFlag(CellAttributes.Inverse))
+                    (fg, bg) = (bg, fg);
+
+                // Hidden: make foreground same as background
+                if (attr.HasFlag(CellAttributes.Hidden))
+                    fg = bg;
+
+                bool changed = fg != lastFg || bg != lastBg || attr != lastAttr;
+
+                if (changed && sb.Length > 0)
                 {
-                    para.Inlines.Add(new Run(sb.ToString())
-                    {
-                        Foreground = new SolidColorBrush(lastColor!.Value)
-                    });
+                    FlushRun(para, sb.ToString(), lastFg!.Value, lastBg!.Value, lastAttr, defaultBg);
                     sb.Clear();
                 }
 
-                lastColor = cell.Foreground;
+                lastFg = fg;
+                lastBg = bg;
+                lastAttr = attr;
                 sb.Append(cell.Char);
             }
 
             if (sb.Length > 0)
             {
-                para.Inlines.Add(new Run(sb.ToString())
-                {
-                    Foreground = new SolidColorBrush(lastColor!.Value)
-                });
+                FlushRun(para, sb.ToString(), lastFg!.Value, lastBg!.Value, lastAttr, defaultBg);
             }
 
             para.Inlines.Add(new LineBreak());
@@ -408,6 +440,55 @@ public partial class MainWindow
         doc.Blocks.Add(para);
         LogOutput.Document = doc;
         LogOutput.ScrollToEnd();
+    }
+
+    private static void FlushRun(Paragraph para, string text, Color fg, Color bg, CellAttributes attr, Color defaultBg)
+    {
+        var run = new Run(text)
+        {
+            Foreground = new SolidColorBrush(fg)
+        };
+
+        // Background (only set if non-default to keep transparent look)
+        if (bg != defaultBg)
+        {
+            run.Background = new SolidColorBrush(bg);
+        }
+
+        // Bold
+        if (attr.HasFlag(CellAttributes.Bold))
+        {
+            run.FontWeight = FontWeights.Bold;
+        }
+
+        // Dim — reduce foreground opacity
+        if (attr.HasFlag(CellAttributes.Dim))
+        {
+            var dimColor = Color.FromArgb(128, fg.R, fg.G, fg.B);
+            run.Foreground = new SolidColorBrush(dimColor);
+        }
+
+        // Italic
+        if (attr.HasFlag(CellAttributes.Italic))
+        {
+            run.FontStyle = FontStyles.Italic;
+        }
+
+        // Underline
+        if (attr.HasFlag(CellAttributes.Underline))
+        {
+            run.TextDecorations = TextDecorations.Underline;
+        }
+
+        // Strikethrough
+        if (attr.HasFlag(CellAttributes.Strikethrough))
+        {
+            run.TextDecorations = attr.HasFlag(CellAttributes.Underline)
+                ? new TextDecorationCollection(TextDecorations.Underline.Concat(TextDecorations.Strikethrough))
+                : TextDecorations.Strikethrough;
+        }
+
+        para.Inlines.Add(run);
     }
 
     // Optional: React to settings changes
