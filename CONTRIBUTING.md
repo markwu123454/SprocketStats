@@ -3,6 +3,33 @@
 This document serves as a concise guide for developers working on the FRC Scouting App — covering setup, infrastructure,
 and collaboration rules to ensure consistent, stable development.
 
+## Contribution & Ownership
+
+**Copyright Ownership**
+
+SprocketStats is owned and copyrighted by **Mark Wu (Mai Wu)**.
+
+**Contributor Agreement**
+
+By contributing code, documentation, bug fixes, or any other materials to this project, you agree to:
+
+1. Assign all intellectual property rights in your contributions to Mark Wu (Mai Wu)
+2. Grant Mark Wu (Mai Wu) perpetual, irrevocable rights to use, modify, distribute, and license your contributions
+3. Warrant that you have the right to make these contributions
+
+This unified ownership structure enables:
+- Consistent licensing to other FRC teams
+- Clear legal status for the project
+- Simplified decision-making and maintenance
+
+**Questions?**
+
+If you have concerns about this policy before contributing, contact me@markwu.org
+
+**Internal Contributors (Team 3473 Members)**
+
+Team members contributing as part of team activities should acknowledge this policy before submitting code or pull requests.
+
 > [!WARNING]
 > **Internal Development Documentation**
 >
