@@ -334,43 +334,6 @@ export default function MorePage() {
                     </Select>
                 </div>
 
-                {/* A/B Test Variant */}
-                <div className="space-y-1">
-                    <Label className="theme-subtext-color">
-                        Match Scouting Interface
-                    </Label>
-                    <p className="text-xs italic theme-subtext-color mb-2">
-                        Choose between different scouting layouts. Changes take effect on next session.
-                    </p>
-
-                    <Select
-                        value={abTestVariant}
-                        onValueChange={(val) =>
-                            setAbTestVariant(val as Settings["match_ab_test"])
-                        }
-                    >
-                        <SelectTrigger
-                            className="w-full border rounded-md transition theme-button-bg theme-border theme-text theme-button-hover"
-                        >
-                            <SelectValue placeholder="Select interface"/>
-                        </SelectTrigger>
-
-                        <SelectContent
-                            className="rounded-md shadow-lg transition theme-border theme-button-bg"
-                        >
-                            <SelectItem value="default" className="theme-text">
-                                Stable
-                            </SelectItem>
-                            <SelectItem value="a" className="theme-text">
-                                Variant A
-                            </SelectItem>
-                            <SelectItem value="b" className="theme-text">
-                                Variant B
-                            </SelectItem>
-                        </SelectContent>
-                    </Select>
-                </div>
-
                 {/* Debug Mode */}
                 <div className="flex items-center justify-between py-2">
                     <Label className="theme-subtext-color">
@@ -392,6 +355,45 @@ export default function MorePage() {
                         />
                     </button>
                 </div>
+
+                {/* A/B Test Variant - Only visible when debug is enabled */}
+                {debug && (
+                    <div className="space-y-1">
+                        <Label className="theme-subtext-color">
+                            Match Scouting Interface
+                        </Label>
+                        <p className="text-xs italic theme-subtext-color mb-2">
+                            Choose between different scouting layouts. Changes take effect on next session.
+                        </p>
+
+                        <Select
+                            value={abTestVariant}
+                            onValueChange={(val) =>
+                                setAbTestVariant(val as Settings["match_ab_test"])
+                            }
+                        >
+                            <SelectTrigger
+                                className="w-full border rounded-md transition theme-button-bg theme-border theme-text theme-button-hover"
+                            >
+                                <SelectValue placeholder="Select interface"/>
+                            </SelectTrigger>
+
+                            <SelectContent
+                                className="rounded-md shadow-lg transition theme-border theme-button-bg"
+                            >
+                                <SelectItem value="default" className="theme-text">
+                                    Stable
+                                </SelectItem>
+                                <SelectItem value="a" className="theme-text">
+                                    Variant A
+                                </SelectItem>
+                                <SelectItem value="b" className="theme-text">
+                                    Variant B
+                                </SelectItem>
+                            </SelectContent>
+                        </Select>
+                    </div>
+                )}
 
                 <hr className="my-6 theme-border"/>
 
