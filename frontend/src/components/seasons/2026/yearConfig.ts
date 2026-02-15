@@ -1,44 +1,58 @@
 import type {AllianceType, MatchType} from "@/types"
 
-export type Actions = ActionStart | ActionIntake | ActionShoot | ActionClimb
+// ---------------------------------------------------------------------------
+// Core Action Types (from A.tsx)
+// ---------------------------------------------------------------------------
 
-export type ActionStart = {
-    type: 'starting'
+export type MatchPhase = "prestart" | "auto" | "between" | "teleop" | "post"
+
+export type SubPhaseName =
+    | "auto"
+    | "transition"
+    | "shift_1"
+    | "shift_2"
+    | "shift_3"
+    | "shift_4"
+    | "endgame"
+
+export type StartingAction = {
+    type: "starting"
     x: number
     y: number
 }
 
-export type ActionIntake = {
-    type: 'intake'
-    x1: number
-    y1: number
-    x2: number
-    y2: number
-    amount: number
-    _amount: number[]
+export type ZoneAction = {
+    type: "zone_change"
+    zone: string
+    timestamp: number
+    phase: MatchPhase
+    subPhase: SubPhaseName | null
 }
 
-export type ActionShoot = {
-    type: 'shooting'
-    x1: number
-    y1: number
-    x2: number
-    y2: number
-    shot: number
-    _shot: number[]
-    scoring: boolean
-    scored: number
-    _scored: number[]
-}
-
-export type ActionClimb = {
-    type: 'climb'
+export type ScoreAction = {
+    type: "score"
     x: number
     y: number
-    attempted: boolean
+    score: number
+    timestamp: number
+    phase: MatchPhase
+    subPhase: SubPhaseName | null
+}
+
+export type ClimbAction = {
+    type: "climb"
+    timestamp: number
+    level: "L1" | "L2" | "L3"
     success: boolean
-    time: number
+    phase: MatchPhase
+    subPhase: SubPhaseName | null
 }
+
+export type Actions = StartingAction | ZoneAction | ScoreAction | ClimbAction
+
+// ---------------------------------------------------------------------------
+// Match Scouting Data Structure
+// ---------------------------------------------------------------------------
 
 export type MatchScoutingData = {
     match_type: MatchType
@@ -48,20 +62,14 @@ export type MatchScoutingData = {
     manualTeam: boolean
     scouter: string | null
 
-    auto: Actions[],
+    // Starting position
+    startPosition: { x: number; y: number } | null
 
-    teleop: {
-        shootLocation: Actions[]
-        bumpL: number
-        trenchL: number
-        bumpR: number
-        trenchR: number
-    }
+    // All actions during the match (zone changes, scores, climbs)
+    actions: Actions[]
 
+    // Post-match qualitative data
     postmatch: {
-        climb: "none" | "attempted" | "low" | "mid" | "high"
-        climbSpeed: number
-        climbSuccess: boolean
         offense: boolean
         defense: boolean
         skill: number
@@ -75,6 +83,10 @@ export type MatchScoutingData = {
     }
 }
 
+// ---------------------------------------------------------------------------
+// Default Data Factory
+// ---------------------------------------------------------------------------
+
 export const createDefaultScoutingData = (): Omit<MatchScoutingData, "scouter"> => {
     return {
         match_type: null,
@@ -83,23 +95,10 @@ export const createDefaultScoutingData = (): Omit<MatchScoutingData, "scouter"> 
         teamNumber: null,
         manualTeam: false,
 
-        auto: [
-            {type: "starting", x: 0.5, y: 0.5},
-            {type: "climb", x: 0.5, y: 0.5, attempted: false, success: false, time: 0},
-        ],
-
-        teleop: {
-            shootLocation: [],
-            bumpL: 0,
-            trenchL: 0,
-            bumpR: 0,
-            trenchR: 0,
-        },
+        startPosition: null,
+        actions: [],
 
         postmatch: {
-            climb: "none",
-            climbSpeed: 0,
-            climbSuccess: false,
             offense: false,
             defense: false,
             skill: 0,
@@ -114,6 +113,9 @@ export const createDefaultScoutingData = (): Omit<MatchScoutingData, "scouter"> 
     }
 }
 
+// ---------------------------------------------------------------------------
+// Pit Scouting Questions
+// ---------------------------------------------------------------------------
 
 export const pitQuestions = [
     {section: "Robot Info"},
@@ -122,83 +124,135 @@ export const pitQuestions = [
         key: "driveBase",
         label: "Drive Base Type",
         type: "select",
-        options: ["Swerve", "Tank"],
+        options: ["Swerve", "Tank", "Mecanum", "H-Drive"],
     },
     {
         key: "robotSpeed",
         label: "Robot Speed",
         type: "select",
-        options: ["Gear 1", "Gear 2", "Gear 3"],
+        options: ["Slow", "Medium", "Fast", "Very Fast"],
     },
     {
         key: "driverSkill",
         label: "Driver Skill",
         type: "text",
-        placeholder: "eg. Experienced, Amateur"
+        placeholder: "eg. Experienced, Amateur, Rookie"
     },
+
     {section: "Mechanism & Manipulation"},
+
     {
-        key: "fuelCapability",
-        label: "Amount of fuel that can be held at once",
+        key: "gameElementCapacity",
+        label: "Game element capacity",
         type: "text",
-        placeholder: "eg. 8, 10, ∞"
+        placeholder: "eg. 1, 3, 5+"
     },
     {
-        key: "intake",
-        label: "Robot Intake Location",
+        key: "intakeLocation",
+        label: "Primary Intake Location",
         type: "select",
-        options: ["Depo", "Outpost", "Neutral Zone"],
+        options: ["Ground", "Station", "Both"],
     },
     {
         key: "intakeType",
         label: "Intake Type",
         type: "select",
-        options: ["Under Bumper", "Between Bumper", "Over Bumper", "Outpost"],
+        options: ["Under Bumper", "Between Bumper", "Over Bumper", "Other"],
     },
+    {
+        key: "scoringLocations",
+        label: "Scoring Locations",
+        type: "text",
+        placeholder: "eg. High, Mid, Low"
+    },
+
     {section: "Strategy & Function"},
 
     {
-        key: "role",
-        label: "Preferred Travel",
-        type: "select",
-        options: ["Trench", "Bump"],
+        key: "preferredZone",
+        label: "Preferred Operating Zone",
+        type: "text",
+        placeholder: "eg. Neutral, Shooting, Transition"
     },
     {
-        key: "fuel",
-        label: "Average amount of fuel scored by human players",
+        key: "avgCycleTime",
+        label: "Average cycle time (seconds)",
         type: "text",
-        placeholder: "eg. 5, 10",
+        placeholder: "eg. 10, 15, 20",
     },
     {
         key: "autonStart",
         label: "Auton start location",
         type: "select",
-        options: ["Center", "Depot Side", "Outpost Side"],
+        options: ["Left", "Center", "Right", "Flexible"],
     },
-    {key: "climb", label: "Level capable of climbing to", type: "select", options: ["None", "L1", "L2", "L3"]},
+    {
+        key: "autonCapabilities",
+        label: "Autonomous capabilities",
+        type: "text",
+        placeholder: "eg. Scores 3, mobility only"
+    },
+    {
+        key: "climb",
+        label: "Level capable of climbing to",
+        type: "select",
+        options: ["None", "L1", "L2", "L3"],
+    },
     {
         key: "climbTime",
         label: "Time it takes to climb",
         type: "text",
-        placeholder: "eg. 0:30, 1:25",
+        placeholder: "eg. 0:15, 0:30, 1:00",
     },
 
-    {section: "Programming"},
+    {section: "Programming & Vision"},
+
+    {
+        key: "visionTracking",
+        label: "Vision tracking capabilities",
+        type: "select",
+        options: ["None", "AprilTags", "Object Detection", "Both"],
+    },
+    {
+        key: "autoAlignment",
+        label: "Auto-alignment for scoring",
+        type: "select",
+        options: ["Yes", "No", "Partial"],
+    },
+
+    {section: "Defense & Durability"},
+
+    {
+        key: "defensiveCapability",
+        label: "Defensive capability",
+        type: "select",
+        options: ["None", "Light", "Moderate", "Heavy"],
+    },
+    {
+        key: "durability",
+        label: "Robot durability/robustness",
+        type: "select",
+        options: ["Fragile", "Average", "Robust", "Tank"],
+    },
 
     {section: "Misc"},
-    {
-        key: "Friendliness",
-        label: "Friendliness",
-        type: "text",
-        placeholder: "Do they want to be here"
 
+    {
+        key: "teamAttitude",
+        label: "Team Attitude",
+        type: "text",
+        placeholder: "Enthusiastic, focused, etc."
     },
-    {key: "comments", label: "Robot name", type: "text", placeholder: "e.g. Nautilus"},
+    {
+        key: "robotName",
+        label: "Robot name",
+        type: "text",
+        placeholder: "e.g. Nautilus, Phoenix"
+    },
     {
         key: "addcomments",
         label: "Additional Comments",
         type: "text",
-        placeholder: "Anything else"
-
+        placeholder: "Anything else noteworthy"
     },
 ]

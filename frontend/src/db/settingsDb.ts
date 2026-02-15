@@ -6,6 +6,7 @@ export type Settings = {
     field_orientation?: "0" | "90" | "180" | "270"
     match_scouting_device_type?: "mobile" | "tablet"
     match_ab_test?: "default" | "a" | "b"
+    debug?: boolean
 } & Record<string, string | boolean | number | undefined>
 
 export const DEFAULT_SETTINGS: Required<Pick<Settings, "theme" | "field_orientation">> &
@@ -13,7 +14,8 @@ export const DEFAULT_SETTINGS: Required<Pick<Settings, "theme" | "field_orientat
     theme: "2026",
     field_orientation: "0",
     match_scouting_device_type: "mobile",
-    match_ab_test: "default"
+    match_ab_test: "default",
+    debug: "false"
 }
 
 export interface SettingRow {
@@ -78,6 +80,8 @@ export function getSettingSync<K extends keyof Settings>(
     try {
         const cached = localStorage.getItem(`setting_${key}`)
         if (cached !== null) {
+            if (cached === "true") return true as Settings[K]
+            if (cached === "false") return false as Settings[K]
             return cached as Settings[K]
         }
     } catch { /* empty */

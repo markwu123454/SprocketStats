@@ -1,6 +1,6 @@
 // src/lib/db.ts
 import Dexie, { type Table } from 'dexie'
-import type { ScoutingData, ScoutingStatus } from 'frontend/src/types'
+import type { ScoutingData, ScoutingStatus } from '@/types'
 
 export type ScoutingDataWithKey = ScoutingData & {
     key: string
@@ -18,7 +18,8 @@ class ScoutingAppDB extends Dexie {
         super('ScoutingAppDB')
         this.version(1).stores({
             // Indexed fields: primary key and searchable fields
-            scouting: '&key,match,teamNumber,match_type'
+            // Added 'status' to the index so it can be queried
+            scouting: '&key,match,teamNumber,match_type,status'
         })
     }
 }

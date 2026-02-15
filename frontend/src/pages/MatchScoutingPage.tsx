@@ -70,6 +70,21 @@ const exitFullscreenIfNeeded = async () => {
     }
 };
 
+// ─── Build the upload payload consistently ───
+function buildUploadPayload(entry: ScoutingDataWithKey | MatchScoutingData, fallbackEmail: string) {
+    const {match, match_type, teamNumber, alliance, scouter, ...rest} = entry as any
+    return {
+        match: Number(match),
+        teamNumber: teamNumber!,
+        payload: {
+            match_type,
+            alliance,
+            scouter: scouter || fallbackEmail,
+            data: rest as Omit<MatchScoutingData, "match" | "alliance" | "teamNumber" | "scouter">,
+        },
+    }
+}
+
 // ─── Custom hook: resume dialog logic ───
 function useResumeDialog(scouterEmail: string, abTestVariant: string, PHASE_ORDER: Phase[]) {
     const {isOnline, serverOnline} = useClientEnvironment()
@@ -127,7 +142,7 @@ function useResumeDialog(scouterEmail: string, abTestVariant: string, PHASE_ORDE
                 }
 
                 let phaseToUpdate = entry.status as Phase;
-                if (abTestVariant !== "default" && (entry.status === "auto" || entry.status === "teleop")) {
+                if (abTestVariant !== "a" && (entry.status === "auto" || entry.status === "teleop")) {
                     phaseToUpdate = "combined";
                 }
 
@@ -143,7 +158,7 @@ function useResumeDialog(scouterEmail: string, abTestVariant: string, PHASE_ORDE
             });
 
             let targetPhase = entry.status as Phase;
-            if (abTestVariant !== "default" && (entry.status === "auto" || entry.status === "teleop")) {
+            if (abTestVariant !== "a" && (entry.status === "auto" || entry.status === "teleop")) {
                 targetPhase = "combined";
             }
 
@@ -252,6 +267,63 @@ function useUnclaimOnExit(
     }, [isOnline, serverOnline, scouterEmail, unclaimTeamBeacon]);
 }
 
+// ─── Custom hook: single background upload loop ───
+// This is the ONLY place that uploads completed entries to the server.
+// It runs on mount, on a 30s interval, and can be triggered manually.
+function useBackgroundSync(
+    isOnline: boolean,
+    serverOnline: boolean,
+    submitData: (match: number, team: number, data: any) => Promise<boolean>,
+    scouterEmail: string,
+) {
+    const isSyncingRef = useRef(false)
+    const triggerRef = useRef(0) // bump to force re-run
+
+    const sync = useCallback(async () => {
+        if (!isOnline || !serverOnline) return
+        // Prevent concurrent sync runs
+        if (isSyncingRef.current) return
+        isSyncingRef.current = true
+
+        try {
+            const completed = await db.scouting
+                .where('status')
+                .equals('completed')
+                .toArray()
+
+            for (const entry of completed) {
+                try {
+                    const {match, teamNumber, payload} = buildUploadPayload(entry, scouterEmail)
+                    const success = await submitData(match, teamNumber, payload)
+
+                    if (success) {
+                        await db.scouting.delete(entry.key)
+                    }
+                } catch (err) {
+                    console.warn("Background upload failed for entry, will retry:", err)
+                }
+            }
+        } finally {
+            isSyncingRef.current = false
+        }
+    }, [isOnline, serverOnline, submitData, scouterEmail])
+
+    // Run on mount, interval, and whenever connectivity changes
+    useEffect(() => {
+        sync()
+        const interval = setInterval(sync, 30_000)
+        return () => clearInterval(interval)
+    }, [sync])
+
+    // Manual trigger: bump counter to kick off sync
+    const triggerSync = useCallback(() => {
+        // Fire-and-forget — sync guards itself against concurrency
+        sync()
+    }, [sync])
+
+    return {triggerSync}
+}
+
 
 // ═══════════════════════════════════════════════════════════════
 // Main component
@@ -282,7 +354,7 @@ export default function MatchScoutingPage() {
 
     // ─── Derived ───
     const PHASE_ORDER: Phase[] = useMemo(() => {
-        return abTestVariant === "default"
+        return abTestVariant === "a"
             ? ['pre', 'auto', 'teleop', 'post']
             : ['pre', 'combined', 'post']
     }, [abTestVariant])
@@ -290,7 +362,7 @@ export default function MatchScoutingPage() {
     const phase = PHASE_ORDER[phaseIndex]
 
     // Whether variant A has taken over (combined phase in variant A)
-    const variantAFullControl = abTestVariant === "a" && phase === "combined"
+    const variantAFullControl = abTestVariant === "default" && phase === "combined"
 
     const baseDisabled =
         scoutingData.match_type === null ||
@@ -315,13 +387,8 @@ export default function MatchScoutingPage() {
     // ─── Resume dialog hook ───
     const resume = useResumeDialog(scouterEmail!, abTestVariant, PHASE_ORDER)
 
-    // Initialize: if no resume entries found, start fresh
-    useEffect(() => {
-        if (!resume.showResumeDialog) {
-            // Only reset if dialog was never shown (no entries found on mount)
-            // The startNew callback handles the explicit "Start New" case
-        }
-    }, [])
+    // ─── Background sync hook (single upload loop) ───
+    const {triggerSync} = useBackgroundSync(isOnline, serverOnline, submitData, scouterEmail!)
 
     // ─── Autosave hook (reads from ref, stable interval) ───
     useAutosave(phase, phaseIndex, scoutingDataRef, PHASE_ORDER)
@@ -336,61 +403,40 @@ export default function MatchScoutingPage() {
         scouterEmail!,
     )
 
-    // ─── Submit logic ───
+    // ─── Submit logic (offline-first) ───
+    //
+    // 1. Save the FULL current data snapshot to IndexedDB as "completed"
+    // 2. Show success immediately (data is safe locally)
+    // 3. Kick off background sync to upload if online
+    //
     const executeSubmit = useCallback(async () => {
         if (baseDisabled) return
 
         setSubmitStatus("loading")
-        const {match, match_type, teamNumber, alliance, scouter, ...rest} = scoutingData
-        const fullData = {
-            match_type,
-            alliance,
-            scouter: scouterEmail!,
-            data: rest as Omit<MatchScoutingData, "match" | "alliance" | "teamNumber" | "scouter">,
-        }
-
-        const offlineAtSubmit = !isOnline || !serverOnline
 
         try {
-            if (offlineAtSubmit) {
-                await updateScoutingStatus(match_type!, match!, teamNumber!, "completed")
-                await deleteScoutingData(match_type!, match!, teamNumber!)
-                setSubmitStatus("local")
+            // FIX #1: Save the full data snapshot, not just a status update.
+            // This ensures no data is lost between the last autosave and submit.
+            const snapshot = structuredClone(scoutingData)
+            await saveScoutingData(snapshot, "completed")
 
-                setTimeout(async () => {
-                    const ok = await refresh()
-                    if (!ok || !permissions?.match_scouting) return
-                    setSubmitStatus("idle")
-                    resetToNew()
-                }, 1000)
-            } else {
-                const submitted = await submitData(Number(match), teamNumber!, fullData)
-                if (!submitted) {
-                    console.error("submitData returned false")
-                    setSubmitStatus("error")
-                    return
-                }
+            // Offline-first: always show success since data is persisted locally.
+            setSubmitStatus("success")
 
-                await deleteScoutingData(match_type!, match!, teamNumber!)
-                setSubmitStatus("success")
+            // FIX #2: Trigger the single background sync loop.
+            // No duplicate upload logic — useBackgroundSync handles everything.
+            triggerSync()
 
-                setTimeout(() => {
-                    setSubmitStatus("idle")
-                    resetToNew()
-                }, 1000)
-            }
-        } catch {
-            await updateScoutingStatus(match_type!, match!, teamNumber!, "completed")
-            setSubmitStatus("warning")
-
-            setTimeout(async () => {
-                const ok = await refresh()
-                if (!ok || !permissions?.match_scouting) return
+            setTimeout(() => {
                 setSubmitStatus("idle")
                 resetToNew()
             }, 1000)
+
+        } catch (err) {
+            console.error("Local save failed:", err)
+            setSubmitStatus("error")
         }
-    }, [baseDisabled, scoutingData, scouterEmail, isOnline, serverOnline, submitData, deleteScoutingData, refresh, permissions, resetToNew])
+    }, [baseDisabled, scoutingData, resetToNew, triggerSync])
 
     const handleSubmit = useCallback(() => {
         if (baseDisabled) return
@@ -432,7 +478,6 @@ export default function MatchScoutingPage() {
     }, [phaseIndex, scoutingData, scoutingAction, PHASE_ORDER, navigate])
 
     // ─── Variant A navigation callbacks ───
-    // These let AVariant control phase transitions itself
     const variantAGoToPost = useCallback(async () => {
         const postIndex = PHASE_ORDER.indexOf('post')
         setPhaseIndex(postIndex)
@@ -581,13 +626,13 @@ export default function MatchScoutingPage() {
                         {phase === 'pre' && (
                             <PrePhase key="pre" data={scoutingData} setData={setScoutingData}/>
                         )}
-                        {abTestVariant === "default" && phase === 'auto' && (
+                        {abTestVariant === "a" && phase === 'auto' && (
                             <AutoPhase key="auto" data={scoutingData} setData={setScoutingData}/>
                         )}
-                        {abTestVariant === "default" && phase === 'teleop' && (
+                        {abTestVariant === "a" && phase === 'teleop' && (
                             <TeleopPhase key="teleop" data={scoutingData} setData={setScoutingData}/>
                         )}
-                        {abTestVariant === "a" && phase === 'combined' && (
+                        {abTestVariant === "default" && phase === 'combined' && (
                             <AVariant
                                 key="combined"
                                 data={scoutingData}

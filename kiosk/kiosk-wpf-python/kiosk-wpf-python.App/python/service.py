@@ -18,6 +18,8 @@ Key Components:
 """
 
 import asyncio
+import statistics
+
 import asyncpg
 import certifi
 import dotenv
@@ -885,12 +887,52 @@ def initialize_structure(calc_result, tba_data, sb_data, downloaded_data, event_
     most_recent = determine_most_recent_match(match_scouting, calc_result, log)
     if most_recent:
         calc_result["most_recent_match"] = most_recent
-        log.substep(f"Most recent match (>3 submissions): {Logger.GREEN}{most_recent}{Logger.RESET}")
+        log.substep(f"Most recent match identified: {Logger.GREEN}{most_recent}{Logger.RESET}")
     else:
         log.substep(f"No match with >3 submissions found")
 
     log.success("Structure initialization complete")
     return True
+
+
+def one_var_stats(data):
+    """
+    Calculate descriptive statistics for a list of numbers.
+    Returns Minitab-style summary statistics.
+
+    Args:
+        data: List of numeric values
+
+    Returns:
+        dict: Statistical summary including mean, median, std dev, min, max, etc.
+    """
+    if not data:
+        return {
+            "n": 0,
+            "mean": None,
+            "median": None,
+            "std_dev": None,
+            "min": None,
+            "max": None,
+            "q1": None,
+            "q3": None,
+            "iqr": None
+        }
+
+    sorted_data = sorted(data)
+    n = len(data)
+
+    return {
+        "n": n,
+        "mean": statistics.mean(data),
+        "median": statistics.median(data),
+        "std_dev": statistics.stdev(data) if n > 1 else 0,
+        "min": min(data),
+        "max": max(data),
+        "q1": statistics.quantiles(data, n=4)[0] if n >= 4 else None,
+        "q3": statistics.quantiles(data, n=4)[2] if n >= 4 else None,
+        # Could add: mode, range, variance, skewness, etc.
+    }
 
 
 def run_calculation(setting):
@@ -1023,7 +1065,7 @@ def list_globals():
     for v in sorted(variables):
         log.raw(f"  {Logger.DIM}-{Logger.RESET} {v}")
 
-    log.raw("")
+    log.raw("use inspect_object() to get more information about anything listed.")
 
 
 def inspect_object(obj, name=None):

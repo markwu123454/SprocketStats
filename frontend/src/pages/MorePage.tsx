@@ -4,6 +4,7 @@ import {ArrowLeft, RotateCcw, RotateCw} from "lucide-react"
 import {getSetting, getSettingSync, setSetting, type Settings} from "@/db/settingsDb.ts"
 import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from "@/components/ui/select"
 import {Label} from "@/components/ui/label"
+
 import CardLayoutWrapper from "@/components/wrappers/CardLayoutWrapper.tsx"
 import {usePushNotifications} from "@/hooks/usePushNotifications.ts";
 import {useAPI} from "@/hooks/useAPI.ts";
@@ -42,6 +43,10 @@ export default function MorePage() {
 
     const [abTestVariant, setAbTestVariant] = useState<Settings["match_ab_test"]>(
         () => getSettingSync("match_ab_test") ?? "default"
+    )
+
+    const [debug, setDebug] = useState<boolean>(
+        () => Boolean(getSettingSync("debug"))
     )
 
     const [features, setFeatures] = useState({
@@ -92,6 +97,7 @@ export default function MorePage() {
             const ab = await getSetting("match_ab_test")
             const att = await getSetting("attendance")
             const ms = await getSetting("match_scouting")
+            const dbg = await getSetting("debug")
 
             setFeatures({
                 attendance: !!att,
@@ -105,6 +111,7 @@ export default function MorePage() {
             }
             if (d) setDeviceType(d)
             if (ab) setAbTestVariant(ab)
+            setDebug(Boolean(dbg))
         }
         void load()
     }, [])
@@ -122,6 +129,9 @@ export default function MorePage() {
     useEffect(() => {
         if (abTestVariant) void setSetting({match_ab_test: abTestVariant})
     }, [abTestVariant])
+    useEffect(() => {
+        void setSetting({debug})
+    }, [debug])
 
     // Apply theme class to root
     useEffect(() => {
@@ -359,6 +369,28 @@ export default function MorePage() {
                             </SelectItem>
                         </SelectContent>
                     </Select>
+                </div>
+
+                {/* Debug Mode */}
+                <div className="flex items-center justify-between py-2">
+                    <Label className="theme-subtext-color">
+                        Debug Mode
+                    </Label>
+                    <button
+                        type="button"
+                        role="switch"
+                        aria-checked={debug}
+                        onClick={() => setDebug(d => !d)}
+                        className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 ${
+                            debug ? "bg-green-500" : "bg-neutral-600"
+                        }`}
+                    >
+                        <span
+                            className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
+                                debug ? "translate-x-5" : "translate-x-0"
+                            }`}
+                        />
+                    </button>
                 </div>
 
                 <hr className="my-6 theme-border"/>

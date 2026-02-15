@@ -37,8 +37,8 @@ class FullData(BaseModel):
     alliance: AllianceType
     scouter: str
     match_type: MatchType
-    auto: Optional[Dict[str, Any]] = None
-    teleop: Optional[Dict[str, Any]] = None
+    auto: Optional[Any] = None
+    teleop: Optional[Any] = None
     postmatch: Optional[Dict[str, Any]] = None
 
 
