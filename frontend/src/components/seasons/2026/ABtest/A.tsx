@@ -1382,16 +1382,9 @@ export default function MatchScouting({
                                 {climbSuccess ? "✓ SUCCESS" : "SUCCESS?"}
                             </button>
                         </>
-                    ) : (
-                        /* Empty placeholder — same reserved space, no content */
-                        null
-                    )}
+                    ) : null}
                 </div>
 
-                {/* Current zone indicator */}
-                <span className="text-xs text-zinc-500">
-                Current zone: {currentZone || "none"}
-            </span>
             </div>
         )
     }
