@@ -86,20 +86,31 @@ export default function GuestDataPage() {
         localStorage.setItem("guest_pw_expiry", expiry.toString())
     }
 
+    const [attemptedLogin, setAttemptedLogin] = useState(false)
+
     async function handleLogin(e: React.FormEvent, overrideToken?: string) {
         e.preventDefault()
         setLoginFailed(false)
 
         const token = overrideToken ?? password.trim()
         if (!token) {
-            setLoginFailed(true)
             return
         }
 
+        setAttemptedLogin(true)
         saveToken(token)
         await refresh()
     }
 
+    // Add this useEffect to detect failed login attempts
+    useEffect(() => {
+        if (attemptedLogin && !loading && !authSuccess) {
+            setLoginFailed(true)
+            setAttemptedLogin(false)
+        } else if (attemptedLogin && !loading && authSuccess) {
+            setAttemptedLogin(false)
+        }
+    }, [attemptedLogin, loading, authSuccess])
     // Convert permissions → PageLink[]
     // Adjust this logic based on the actual structure of the permissions array.
     const accessiblePages = useMemo<PageLink[]>(() => {
@@ -271,7 +282,7 @@ export default function GuestDataPage() {
                         </h1>
 
                         <p className="text-purple-300 mt-3 max-w-2xl text-center text-sm sm:text-base">
-                            You’ve been granted guest access as an alliance partner.
+                            You've been granted guest access as an alliance partner.
                             This portal provides synchronized scouting data to aid strategy planning.
                         </p>
                     </header>
@@ -281,10 +292,21 @@ export default function GuestDataPage() {
                         className="grow flex flex-col items-center justify-start
                        max-w-6xl mx-auto px-4 sm:px-6 w-full pb-8 animate-fadeIn"
                     >
-                        <h2 className="text-xl sm:text-2xl font-semibold mb-4
-                           border-b border-purple-700 pb-2 w-full text-left">
-                            Available Data
-                        </h2>
+                        <div className="w-full flex items-center justify-between mb-4 border-b border-purple-700 pb-2">
+                            <h2 className="text-xl sm:text-2xl font-semibold">
+                                Available Data
+                            </h2>
+                            <button
+                                onClick={async () => {
+                                    localStorage.removeItem("guest_pw_token")
+                                    localStorage.removeItem("guest_pw_expiry")
+                                    window.location.reload()
+                                }}
+                                className="text-sm text-purple-400 hover:text-purple-200 transition underline"
+                            >
+                                Logout
+                            </button>
+                        </div>
 
                         <div
                             className="w-full flex-1 overflow-y-auto overflow-x-hidden pr-1"
@@ -484,7 +506,7 @@ export default function GuestDataPage() {
                 <h2 className="text-2xl sm:text-3xl font-bold mb-6">Partner With Us</h2>
                 <p className="max-w-2xl mx-auto text-purple-300 text-sm sm:text-base">
                     Team Sprocket shares scouted data with alliance partners to enhance strategy and performance
-                    across matches. Contact us if you’d like access or integration for your own team.
+                    across matches. Contact us if you'd like access or integration for your own team.
                 </p>
             </section>
 
