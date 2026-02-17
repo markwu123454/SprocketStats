@@ -130,7 +130,25 @@ async def scouting(
                         break
 
                 if not owned:
-                    result, message = "fail", "You do not currently own any team."
+                    # No existing team — just claim the target instead
+                    target_row = teams.get(team)
+                    target_scouter = target_row["scouter"] if target_row else None
+                    if target_scouter is None:
+                        updated = await db.update_match_scouting(
+                            match=match,
+                            m_type=m_type,
+                            team=team,
+                            scouter=None,
+                            scouter_new=scouter_email,
+                            status=enums.StatusType.PRE,
+                            data=None,
+                        )
+                        if updated:
+                            result = "success"
+                        else:
+                            result, message = "fail", "Failed to claim: database update rejected."
+                    else:
+                        result, message = "fail", "Target team is already claimed."
                 elif owned == team:
                     result, message = "fail", "You already own this team."
                 else:
@@ -310,42 +328,29 @@ async def submit_data(
         m_type: enums.MatchType,
         match: int,
         team: int,
-        full_data: enums.FullData,
+        full_data: dict = Body(...),
         session: enums.SessionInfo = Depends(db.require_permission("match_scouting"))
 ):
-    data = full_data.model_dump()
-    data.pop("alliance", None)
-    data.pop("scouter", None)
-    data.pop("match_type", None)
+    alliance = full_data.pop("alliance")
+    full_data.pop("scouter", None)
+    full_data.pop("match_type", None)
 
-    # Check if entry exists
     existing = await db.get_match_scouting(
-        match=match,
-        m_type=m_type,
-        team=team,
-        scouter=session.email
+        match=match, m_type=m_type, team=team, scouter=session.email
     )
 
     if not existing:
-        # Add it first
         await db.add_match_scouting(
-            match=match,
-            m_type=m_type,
-            team=team,
-            alliance=full_data.alliance,
-            scouter=session.email,
-            status=enums.StatusType.POST,  # Initial status before submit
-            data={}  # Start with empty data
+            match=match, m_type=m_type, team=team,
+            alliance=alliance, scouter=session.email,
+            status=enums.StatusType.POST, data={}
         )
 
-    # Then update it with the submitted data
     await db.update_match_scouting(
-        match=match,
-        m_type=m_type,
-        team=team,
+        match=match, m_type=m_type, team=team,
         scouter=session.email,
         status=enums.StatusType.SUBMITTED,
-        data=data
+        data=full_data,
     )
 
     return {"status": "submitted"}
@@ -440,4 +445,3 @@ async def update_match_schedule(
     await db.update_matches_bulk(payload.matches)
 
     return {"status": "ok"}
-

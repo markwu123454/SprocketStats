@@ -21,19 +21,18 @@ export type StartingAction = {
     y: number
 }
 
-export type ZoneAction = {
-    type: "zone_change"
-    zone: string
-    timestamp: number
-    phase: MatchPhase
-    subPhase: SubPhaseName | null
-}
-
 export type ScoreAction = {
     type: "score"
     x: number
     y: number
     score: number
+    timestamp: number
+    phase: MatchPhase
+    subPhase: SubPhaseName | null
+}
+
+export type PassAction = {
+    type: "passing"
     timestamp: number
     phase: MatchPhase
     subPhase: SubPhaseName | null
@@ -48,7 +47,51 @@ export type ClimbAction = {
     subPhase: SubPhaseName | null
 }
 
-export type Actions = StartingAction | ZoneAction | ScoreAction | ClimbAction
+export type DefenseAction = {
+    type: "defense"
+    timestamp: number
+    phase: MatchPhase
+    subPhase: SubPhaseName | null
+}
+
+export type TraversalAction = {
+    type: "traversal"
+    timestamp: number
+    phase: MatchPhase
+    subPhase: SubPhaseName | null
+}
+
+export type IdleAction = {
+    type: "idle"
+    timestamp: number
+    phase: MatchPhase
+    subPhase: SubPhaseName | null
+}
+
+export type IntakeAction = {
+    type: "intake"
+    timestamp: number
+    phase: MatchPhase
+    subPhase: SubPhaseName | null
+}
+
+export type ShootingAction = {
+    type: "shooting"
+    timestamp: number
+    phase: MatchPhase
+    subPhase: SubPhaseName | null
+}
+
+export type Actions =
+    | StartingAction
+    | ScoreAction
+    | ClimbAction
+    | PassAction
+    | DefenseAction
+    | TraversalAction
+    | IdleAction
+    | IntakeAction
+    | ShootingAction
 
 // ---------------------------------------------------------------------------
 // Match Scouting Data Structure

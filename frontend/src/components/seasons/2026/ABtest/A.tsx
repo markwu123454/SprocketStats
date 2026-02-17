@@ -1,13 +1,11 @@
-import React, {useEffect, useRef, useState, useCallback} from "react"
+import React, {useCallback, useEffect, useRef, useState} from "react"
 import {getSettingSync} from "@/db/settingsDb"
 import type {
-    MatchScoutingData,
     Actions,
-    StartingAction,
-    ZoneAction,
-    ScoreAction,
     ClimbAction,
+    ScoreAction,
     MatchPhase,
+    MatchScoutingData,
     SubPhaseName
 } from "../yearConfig"
 
@@ -51,72 +49,56 @@ const ZONES = {
 
 // ---------------------------------------------------------------------------
 // Field button zones — padded 2×2 grid of visually square buttons
-// Field is 2:1 aspect, so width = size/2 in normalized coords for squares.
 // ---------------------------------------------------------------------------
-const _FB_PAD = 0.015  // outer padding from region edges (reduced)
-const _FB_GAP_Y = 0.012  // gap between buttons vertically (normalized, slightly reduced)
-const _FB_GAP_X = 0.0075  // gap between buttons horizontally (half of vertical)
+const _FB_PAD = 0.015
+const _FB_GAP_Y = 0.012
+const _FB_GAP_X = 0.0075
 const _FB_REGION = {x1: 0.35, y1: 0.020, x2: 0.987, y2: 0.978}
-// Available inner space
 const _FB_INNER_W = (_FB_REGION.x2 - _FB_REGION.x1) - _FB_PAD * 2
 const _FB_INNER_H = (_FB_REGION.y2 - _FB_REGION.y1) - _FB_PAD * 2
-// Each button size: use the smaller dimension so they fit as squares
-// Visual square: btnH (norm) = btnW (norm) * 2 (because field is 2:1)
-// Two buttons + gap in each direction:
-// Horizontal: 3 * btnW + 2*gap_x = innerW → btnW = (innerW - 2*gap_x) / 3
-// Vertical:   2 * btnH + gap_y = innerH → btnH = (innerH - gap_y) / 2
-// For visual square: btnH = btnW * 2
-// Pick the limiting axis:
 const _FB_BTN_W_from_x = (_FB_INNER_W - _FB_GAP_X * 2) / 3
-const _FB_BTN_H_from_x = _FB_BTN_W_from_x * 2
+// const _FB_BTN_H_from_x = _FB_BTN_W_from_x * 2
 const _FB_BTN_H_from_y = (_FB_INNER_H - _FB_GAP_Y) / 2
 const _FB_BTN_W_from_y = _FB_BTN_H_from_y / 2
-// Use whichever fits
 const _FB_BTN_W = Math.min(_FB_BTN_W_from_x, _FB_BTN_W_from_y)
 const _FB_BTN_H = _FB_BTN_W * 2
-// Center the grid in the region
 const _FB_GRID_W = _FB_BTN_W * 3 + _FB_GAP_X * 2
 const _FB_GRID_H = _FB_BTN_H * 2 + _FB_GAP_Y
 const _FB_OX = _FB_REGION.x1 + (_FB_REGION.x2 - _FB_REGION.x1 - _FB_GRID_W) / 2
 const _FB_OY = _FB_REGION.y1 + (_FB_REGION.y2 - _FB_REGION.y1 - _FB_GRID_H) / 2
 
 const FIELD_BUTTONS = {
-    traversal: { // top-left
+    traversal: {
         x1: _FB_OX,
         y1: _FB_OY,
         x2: _FB_OX + _FB_BTN_W,
         y2: _FB_OY + _FB_BTN_H
     } as Rect,
-
-    intake: { // top-middle
+    intake: {
         x1: _FB_OX + _FB_BTN_W + _FB_GAP_X,
         y1: _FB_OY,
         x2: _FB_OX + _FB_BTN_W * 2 + _FB_GAP_X,
         y2: _FB_OY + _FB_BTN_H
     } as Rect,
-
-    passing: { // top-right
+    passing: {
         x1: _FB_OX + _FB_BTN_W * 2 + _FB_GAP_X * 2,
         y1: _FB_OY,
         x2: _FB_OX + _FB_BTN_W * 3 + _FB_GAP_X * 2,
         y2: _FB_OY + _FB_BTN_H
     } as Rect,
-
-    climb: { // bottom-left
+    climb: {
         x1: _FB_OX,
         y1: _FB_OY + _FB_BTN_H + _FB_GAP_Y,
         x2: _FB_OX + _FB_BTN_W,
         y2: _FB_OY + _FB_BTN_H * 2 + _FB_GAP_Y
     } as Rect,
-
-    defense: { // bottom-middle
+    defense: {
         x1: _FB_OX + _FB_BTN_W + _FB_GAP_X,
         y1: _FB_OY + _FB_BTN_H + _FB_GAP_Y,
         x2: _FB_OX + _FB_BTN_W * 2 + _FB_GAP_X,
         y2: _FB_OY + _FB_BTN_H * 2 + _FB_GAP_Y
     } as Rect,
-
-    idle: { // bottom-right
+    idle: {
         x1: _FB_OX + _FB_BTN_W * 2 + _FB_GAP_X * 2,
         y1: _FB_OY + _FB_BTN_H + _FB_GAP_Y,
         x2: _FB_OX + _FB_BTN_W * 3 + _FB_GAP_X * 2,
@@ -136,7 +118,6 @@ function getPhaseInfo(matchElapsed: number): {
     subPhaseElapsed: number
     subPhaseTotal: number
 } {
-    // Auto: 0ms - 20000ms
     if (matchElapsed < AUTO_DURATION) {
         return {
             phase: "auto",
@@ -148,7 +129,6 @@ function getPhaseInfo(matchElapsed: number): {
         }
     }
 
-    // Between: 20000ms - 25000ms
     const betweenStart = AUTO_DURATION
     const betweenEnd = betweenStart + BETWEEN_DURATION
     if (matchElapsed < betweenEnd) {
@@ -163,13 +143,10 @@ function getPhaseInfo(matchElapsed: number): {
         }
     }
 
-    // Teleop: 25000ms - 165000ms (140000ms total)
     const teleopStart = betweenEnd
     const teleopEnd = teleopStart + TELEOP_DURATION
     if (matchElapsed < teleopEnd) {
         const teleopElapsed = matchElapsed - teleopStart
-
-        // Find which subphase we're in
         let cumulative = 0
         for (const sp of TELEOP_SEQUENCE) {
             if (teleopElapsed < cumulative + sp.duration) {
@@ -185,8 +162,6 @@ function getPhaseInfo(matchElapsed: number): {
             }
             cumulative += sp.duration
         }
-
-        // Shouldn't reach here, but if we do, we're in the last subphase
         const lastSp = TELEOP_SEQUENCE[TELEOP_SEQUENCE.length - 1]
         return {
             phase: "teleop",
@@ -198,7 +173,6 @@ function getPhaseInfo(matchElapsed: number): {
         }
     }
 
-    // Post: after 165000ms
     return {
         phase: "post",
         phaseElapsed: 0,
@@ -219,6 +193,7 @@ function HeaderStrip({
                          subPhaseTotal,
                          phaseRemaining,
                          flashing,
+                         timerExpired,
                      }: {
     phase: MatchPhase
     subPhase: SubPhaseConfig | null
@@ -226,12 +201,14 @@ function HeaderStrip({
     subPhaseTotal: number
     phaseRemaining: number
     flashing: boolean
+    timerExpired?: boolean
 }) {
     const getPhaseColor = () => {
         if (phase === "prestart") return "bg-zinc-700"
         if (phase === "auto") return "bg-blue-700"
         if (phase === "between") return "bg-yellow-700 animate-pulse"
         if (phase === "teleop") {
+            if (timerExpired) return "bg-red-900"
             if (subPhase?.phase === "endgame") return "bg-red-700"
             return "bg-green-700"
         }
@@ -244,6 +221,7 @@ function HeaderStrip({
         if (phase === "auto") return "AUTONOMOUS"
         if (phase === "between") return "TRANSITION"
         if (phase === "teleop") {
+            if (timerExpired) return "MATCH OVER — FINISH INPUTS"
             if (!subPhase) return "TELEOP"
             const labels: Record<SubPhaseName, string> = {
                 auto: "AUTO",
@@ -261,8 +239,9 @@ function HeaderStrip({
     }
 
     const fmt = (ms: number) => {
-        const s = Math.floor(ms / 1000)
-        const t = Math.floor((ms % 1000) / 100)
+        const clamped = Math.max(0, ms)
+        const s = Math.floor(clamped / 1000)
+        const t = Math.floor((clamped % 1000) / 100)
         return `${s}.${t}s`
     }
 
@@ -278,11 +257,13 @@ function HeaderStrip({
                 <span className="text-white font-bold text-lg">{getPhaseLabel()}</span>
                 {phase !== "prestart" && phase !== "post" && (
                     <div className="flex gap-4 items-center">
-                        <span className="text-white font-mono text-base">
-                            {fmt(subPhaseElapsed)} / {fmt(subPhaseTotal)}
-                        </span>
-                        <span className="text-white font-mono text-xl font-bold">
-                            {fmt(phaseRemaining)}
+                        {!timerExpired && (
+                            <span className="text-white font-mono text-base">
+                                {fmt(subPhaseElapsed)} / {fmt(subPhaseTotal)}
+                            </span>
+                        )}
+                        <span className={`font-mono text-xl font-bold ${timerExpired ? "text-red-300" : "text-white"}`}>
+                            {timerExpired ? "0.0s" : fmt(phaseRemaining)}
                         </span>
                     </div>
                 )}
@@ -314,22 +295,23 @@ export default function MatchScouting({
     const fieldRef = useRef<HTMLDivElement>(null)
     const sliderTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
-    // Extract alliance from data, default to "red" if not set
     const alliance = (data.alliance || "red") as Alliance
 
-    // Debug overrides (only used when debug === true)
+    // Debug overrides
     const [debugAlliance, setDebugAlliance] = useState<Alliance>(alliance)
     const [debugOrientation, setDebugOrientation] = useState<string>(
         getSettingSync("field_orientation") ?? "0"
     )
 
-    // Effective values: use debug overrides when debug mode is on
     const effectiveAlliance = debug ? debugAlliance : alliance
     const effectiveOrientation = debug ? debugOrientation : (getSettingSync("field_orientation") ?? 0)
 
-    // *** CENTRALIZED TIMING - Single source of truth ***
+    // *** CENTRALIZED TIMING ***
     const [matchStartTime, setMatchStartTime] = useState(0)
     const [, forceUpdate] = useState(0)
+
+    // Manual post-match transition: match timer expired but user hasn't clicked "Go to Post Match" yet
+    const [manualPost, setManualPost] = useState(false)
 
     // Flash state
     const [flashing, setFlashing] = useState(false)
@@ -337,44 +319,51 @@ export default function MatchScouting({
     const lastPhaseRef = useRef<MatchPhase>("prestart")
     const lastSubPhaseRef = useRef<SubPhaseName | null>(null)
 
-    // Field flip is controlled by field_orientation setting (0 or 180)
-    // When 180, the field image is rotated and coordinates are flipped
     const isRedAlliance = effectiveAlliance === "red"
-
-    // fieldFlip: whether the field IMAGE is rotated 180° (affects coordinate storage)
     const fieldFlip = effectiveOrientation === "180"
-
-    // uiFlip: whether the UI layout is mirrored (shooting zone / buttons swap sides)
-    // Logic: orientation 180 flips once, red alliance flips again (XOR)
     const uiFlip = fieldFlip !== isRedAlliance
-
-    // For backward compatibility, "flip" means the combined transform for
-    // converting between screen coords and stored (canonical) coords.
-    // Screen coords are what the user sees; canonical coords are blue-alliance,
-    // 0°-orientation normalized coords.
-    // When fieldFlip is true, the image is rotated so screen→canonical needs inversion.
     const flip = fieldFlip
 
-    // Actions
-    // Convert field coords from data to screen coords for display
-    // Flip coordinates if field is rotated 180°
-    const [startPos, setStartPos] = useState<{ x: number; y: number } | null>(
-        data.startPosition
-            ? {
-                x: flip ? 1 - data.startPosition.x : data.startPosition.x,
-                y: flip ? 1 - data.startPosition.y : data.startPosition.y,
-            }
-            : null
-    )
-    const [actions, setActions] = useState<Actions[]>(data.actions)
+    // ---------------------------------------------------------------------------
+    // Read actions and startPosition directly from data
+    // ---------------------------------------------------------------------------
+    const actions = data.actions
+    const startPosition = data.startPosition // canonical (field) coords
+
+    // Helpers to write directly into data
+    const setActions = useCallback((updater: Actions[] | ((prev: Actions[]) => Actions[])) => {
+        setData(d => {
+            const newActions = typeof updater === "function" ? updater(d.actions) : updater
+            if (d.actions === newActions) return d
+            return {...d, actions: newActions}
+        })
+    }, [setData])
+
+    const setStartPosition = useCallback((pos: { x: number; y: number } | null) => {
+        setData(d => {
+            if (JSON.stringify(d.startPosition) === JSON.stringify(pos)) return d
+            return {...d, startPosition: pos}
+        })
+    }, [setData])
+
+    // Screen-space start position (derived from canonical for display)
+    const startPosScreen = startPosition
+        ? {
+            x: flip ? 1 - startPosition.x : startPosition.x,
+            y: flip ? 1 - startPosition.y : startPosition.y,
+        }
+        : null
+
+    // Local UI state (transient, not scouting data)
     const [currentZone, setCurrentZone] = useState<string | null>(null)
+    const currentZoneRef = useRef<string | null>(null)
 
     // Score slider
     const [shot, setShot] = useState(0)
     const sliderRef = useRef<HTMLDivElement>(null)
     const [sliderActive, setSliderActive] = useState(false)
-    const [sliderY, setSliderY] = useState(0.5) // 0=top(max add), 1=bottom(max subtract), 0.5=neutral
-    const sliderYRef = useRef(0.5)             // ref mirror so rAF loop reads live value
+    const [sliderY, setSliderY] = useState(0.5)
+    const sliderYRef = useRef(0.5)
     const shotRafRaf = useRef<number | null>(null)
 
     // Field interaction
@@ -382,18 +371,15 @@ export default function MatchScouting({
 
     const [climbSuccess, setClimbSuccess] = useState(false)
 
-    // Shooting zone click — robot rectangle + yellow dot trail to reef hexagon
+    // Shooting zone
     const [shootClickPos, setShootClickPos] = useState<{ x: number; y: number } | null>(null)
     const [draggingShootRobot, setDraggingShootRobot] = useState(false)
 
-    // Shot lifecycle: each click on → off the shooting zone = one "shot"
     const [shotPendingReset, setShotPendingReset] = useState(false)
     const [shotEditHint, setShotEditHint] = useState(false)
 
-    // Reef hexagon center in normalized field coords (blue-side / unflipped)
     const REEF_CENTER = {x: 0.285, y: 0.500}
 
-    // Helper: mirror a Rect horizontally (for uiFlip)
     const mirrorRect = (r: Rect): Rect => ({
         x1: 1 - r.x2,
         y1: r.y1,
@@ -404,7 +390,7 @@ export default function MatchScouting({
     // *** DERIVE ALL TIMING FROM matchStartTime ***
     const now = Date.now()
     const matchElapsed = matchStartTime > 0 ? now - matchStartTime : 0
-    const phaseInfo = matchStartTime > 0 ? getPhaseInfo(matchElapsed) : {
+    const rawPhaseInfo = matchStartTime > 0 ? getPhaseInfo(matchElapsed) : {
         phase: "prestart" as MatchPhase,
         phaseElapsed: 0,
         phaseRemaining: 0,
@@ -412,6 +398,29 @@ export default function MatchScouting({
         subPhaseElapsed: 0,
         subPhaseTotal: 0,
     }
+
+    // If the raw timer says "post" but the user hasn't manually transitioned yet,
+    // keep the effective phase as "teleop" (endgame) so the field stays interactive.
+    const timerExpired = rawPhaseInfo.phase === "post" && !manualPost
+    const phaseInfo = timerExpired
+        ? {
+            phase: "teleop" as MatchPhase,
+            phaseElapsed: TELEOP_DURATION,
+            phaseRemaining: 0,
+            subPhase: TELEOP_SEQUENCE[TELEOP_SEQUENCE.length - 1],
+            subPhaseElapsed: TELEOP_SEQUENCE[TELEOP_SEQUENCE.length - 1].duration,
+            subPhaseTotal: TELEOP_SEQUENCE[TELEOP_SEQUENCE.length - 1].duration,
+        }
+        : manualPost
+            ? {
+                phase: "post" as MatchPhase,
+                phaseElapsed: 0,
+                phaseRemaining: 0,
+                subPhase: null,
+                subPhaseElapsed: 0,
+                subPhaseTotal: 0,
+            }
+            : rawPhaseInfo
 
     const matchPhase = phaseInfo.phase
     const subPhase = phaseInfo.subPhase
@@ -442,6 +451,9 @@ export default function MatchScouting({
             if (lastPhaseRef.current !== "prestart") {
                 triggerFlash()
             }
+            if (lastPhaseRef.current === "auto" && matchPhase === "between") {
+                handleNext?.()
+            }
             lastPhaseRef.current = matchPhase
         }
 
@@ -455,25 +467,30 @@ export default function MatchScouting({
     }, [matchPhase, subPhase, triggerFlash])
 
     // ---------------------------------------------------------------------------
-    // Logarithmic ms/point curve
-    // magnitude 0 → MAX_MS (slow), magnitude 1 → MIN_MS (fast)
-    // Uses exponential interpolation so the *perceived* speed change is even.
+    // Flash when timer expires (transition to overtime)
+    // ---------------------------------------------------------------------------
+    const prevTimerExpiredRef = useRef(false)
+    useEffect(() => {
+        if (timerExpired && !prevTimerExpiredRef.current) {
+            triggerFlash()
+        }
+        prevTimerExpiredRef.current = timerExpired
+    }, [timerExpired, triggerFlash])
+
+    // ---------------------------------------------------------------------------
+    // Slider speed curve
     // ---------------------------------------------------------------------------
     const SLIDER_MAX_MS = 300
     const SLIDER_MIN_MS = 30
     const SLIDER_DEAD_ZONE = 0.05
 
     const msFromMagnitude = (magnitude: number): number => {
-        // Clamp just in case
         const m = Math.min(1, Math.max(0, magnitude))
-        // Exponential: MIN * (MAX/MIN)^(1-m)
-        // At m=0 → MAX_MS, at m=1 → MIN_MS, logarithmic curve in between
         return SLIDER_MIN_MS * Math.pow(SLIDER_MAX_MS / SLIDER_MIN_MS, 1 - m)
     }
 
     // ---------------------------------------------------------------------------
     // Score slider — rAF accumulator loop
-    // Reads sliderYRef every frame so dragging never interrupts scoring.
     // ---------------------------------------------------------------------------
     useEffect(() => {
         if (!sliderActive) {
@@ -481,7 +498,6 @@ export default function MatchScouting({
                 cancelAnimationFrame(shotRafRaf.current)
                 shotRafRaf.current = null
             }
-            console.log("[ScoreSlider] Slider released, loop stopped. Current score via state.")
             return
         }
 
@@ -503,7 +519,6 @@ export default function MatchScouting({
 
                 accumulator += dt
 
-                // Drain as many whole ticks as accumulated
                 let ticks = 0
                 while (accumulator >= msPerPoint) {
                     accumulator -= msPerPoint
@@ -514,22 +529,16 @@ export default function MatchScouting({
                     setShot((prev) => {
                         const next = prev + ticks
                         if (next < 0) return 0
-                        console.log(
-                            `[ScoreSlider] Tick | ${ticks > 0 ? "+" : ""}${ticks} → score: ${next} ` +
-                            `(msPerPoint: ${msPerPoint.toFixed(0)}ms, y: ${y.toFixed(3)})`
-                        )
                         return next
                     })
                 }
             } else {
-                // In dead zone — reset accumulator so we don't burst when leaving it
                 accumulator = 0
             }
 
             shotRafRaf.current = requestAnimationFrame(loop)
         }
 
-        console.log("[ScoreSlider] Loop started")
         shotRafRaf.current = requestAnimationFrame(loop)
 
         return () => {
@@ -541,13 +550,13 @@ export default function MatchScouting({
     }, [sliderActive])
 
     // ---------------------------------------------------------------------------
-    // Smooth timer (60 fps) - only force re-render when match is active
+    // Smooth timer (60 fps) — keep running during timerExpired overtime too
     // ---------------------------------------------------------------------------
     useEffect(() => {
-        if (matchPhase === "prestart" || matchPhase === "post") return
+        if (matchPhase === "prestart" || (matchPhase === "post" && !timerExpired)) return
         const id = setInterval(() => forceUpdate((n) => n + 1), 1000 / 60)
         return () => clearInterval(id)
-    }, [matchPhase])
+    }, [matchPhase, timerExpired])
 
     // ---------------------------------------------------------------------------
     // Field pointer handlers
@@ -564,7 +573,6 @@ export default function MatchScouting({
         const screenPos = getFieldPosScreen(e)
         let x = screenPos.x
         let y = screenPos.y
-        // Convert screen coords back to un-flipped normalized coords
         if (flip) {
             x = 1 - x
             y = 1 - y
@@ -572,26 +580,32 @@ export default function MatchScouting({
         return {x, y}
     }
 
+    // Helper: compute auto line X in screen space
+    function getAutoLineX(): number {
+        if (effectiveOrientation === "0") {
+            return isRedAlliance ? 0.77 : 0.23
+        } else {
+            return isRedAlliance ? 0.225 : 0.77
+        }
+    }
+
+    // Helper: convert screen coords to canonical (field) coords
+    function screenToCanonical(screenX: number, screenY: number) {
+        return {
+            x: flip ? 1 - screenX : screenX,
+            y: flip ? 1 - screenY : screenY,
+        }
+    }
+
     function handlePointerDown(e: React.PointerEvent) {
         if (matchPhase === "prestart") {
-            // Store starting position in screen coords so it always appears where clicked
             const screenPos = getFieldPosScreen(e)
-
-            // Snap x to auto start line based on alliance and orientation
-            // Orientation 0°: blue=0.26, red=0.77
-            // Orientation 180°: coordinates are flipped, so blue=0.23 (1-0.77), red=0.74 (1-0.26)
-            let autoLineX: number
-            if (effectiveOrientation === "0") {
-                autoLineX = isRedAlliance ? 0.77 : 0.23
-            } else {
-                autoLineX = isRedAlliance ? 0.225 : 0.77
-            }
-
-            setStartPos({x: autoLineX, y: screenPos.y})
+            const autoLineX = getAutoLineX()
+            const canonical = screenToCanonical(autoLineX, screenPos.y)
+            setStartPosition(canonical)
             setDragging(true)
             return
         }
-        // During auto/between/teleop, clicking anywhere in the shooting zone snaps the robot there
         if (matchPhase === "auto" || matchPhase === "between" || matchPhase === "teleop") {
             const screenPos = getFieldPosScreen(e)
             const zone = uiFlip ? mirrorRect(ZONES.shootingFull) : ZONES.shootingFull
@@ -601,7 +615,6 @@ export default function MatchScouting({
                 screenPos.y >= zone.y1 &&
                 screenPos.y <= zone.y2
             ) {
-                // If returning to shooting zone after visiting another zone, reset shot for new cycle
                 if (shotPendingReset) {
                     setShot(0)
                     setShotPendingReset(false)
@@ -609,7 +622,11 @@ export default function MatchScouting({
                 }
                 const pos = getFieldPos(e)
                 setShootClickPos({x: pos.x, y: pos.y})
-                handleZoneClick("shooting")
+                // Only create a new shooting action if not already in shooting zone;
+                // otherwise just update position (robot drag start).
+                if (currentZoneRef.current !== "shooting") {
+                    handleZoneClick("shooting")
+                }
                 setDraggingShootRobot(true)
                 ;(e.target as HTMLElement).setPointerCapture?.(e.pointerId)
                 return
@@ -619,23 +636,14 @@ export default function MatchScouting({
 
     function handlePointerMove(e: React.PointerEvent) {
         if (dragging && matchPhase === "prestart") {
-            // Store starting position in screen coords so it always appears where clicked
             const screenPos = getFieldPosScreen(e)
-
-            // Snap x to auto start line based on alliance and orientation
-            let autoLineX: number
-            if (effectiveOrientation === "0") {
-                autoLineX = isRedAlliance ? 0.77 : 0.23
-            } else {
-                autoLineX = isRedAlliance ? 0.225 : 0.77
-            }
-
-            setStartPos({x: autoLineX, y: screenPos.y})
+            const autoLineX = getAutoLineX()
+            const canonical = screenToCanonical(autoLineX, screenPos.y)
+            setStartPosition(canonical)
             return
         }
         if (draggingShootRobot) {
             const screenPos = getFieldPosScreen(e)
-            // Clamp to shooting zone bounds (screen-space, uiFlip-aware)
             const zone = uiFlip ? mirrorRect(ZONES.shootingFull) : ZONES.shootingFull
             const clampedX = Math.min(zone.x2, Math.max(zone.x1, screenPos.x))
             const clampedY = Math.min(zone.y2, Math.max(zone.y1, screenPos.y))
@@ -652,25 +660,25 @@ export default function MatchScouting({
     }
 
     // ---------------------------------------------------------------------------
-    // Zone click handler
+    // Zone click handler — writes directly to data.actions via setData
     // ---------------------------------------------------------------------------
     const handleZoneClick = useCallback(
-        (zoneName: string) => {
+        (zoneName: string, opts?: { skipIfSameZone?: boolean }) => {
+            const wasInZone = currentZoneRef.current === zoneName
+
             setCurrentZone(zoneName)
+            currentZoneRef.current = zoneName
+
+            // If we're already in this zone and the caller says to skip, don't create a new action.
+            // This is used for shooting (dragging robot) and climb (changing level/success).
+            if (wasInZone && opts?.skipIfSameZone) return
+
             const now = Date.now()
 
-            // Auto-record L1 climb when entering climb zone during auto
-            if (zoneName === "climb" && matchPhase === "auto") {
+            if (zoneName === "climb") {
                 setActions((prev) => [...prev,
                     {
-                        type: "zone_change",
-                        zone: zoneName,
-                        timestamp: matchStartTime > 0 ? now - matchStartTime : 0,
-                        phase: matchPhase,
-                        subPhase: subPhase?.phase ?? null,
-                    },
-                    {
-                        type: "climb",
+                        type: "climb" as const,
                         timestamp: matchStartTime > 0 ? now - matchStartTime : 0,
                         level: "L1",
                         success: climbSuccess,
@@ -679,59 +687,34 @@ export default function MatchScouting({
                     }
                 ])
             } else {
+                const actionType = zoneName as "defense" | "traversal" | "idle" | "intake" | "shooting" | "passing" | "climb"
                 setActions((prev) => [
                     ...prev,
                     {
-                        type: "zone_change",
-                        zone: zoneName,
+                        type: actionType,
                         timestamp: matchStartTime > 0 ? now - matchStartTime : 0,
                         phase: matchPhase,
                         subPhase: subPhase?.phase ?? null,
-                    },
+                    } as Actions,
                 ])
             }
         },
-        [matchStartTime, matchPhase, subPhase, climbSuccess],
+        [matchStartTime, matchPhase, subPhase, climbSuccess, setActions],
     )
 
     // ---------------------------------------------------------------------------
-    // Start match
+    // Start match — writes starting action directly to data
     // ---------------------------------------------------------------------------
     const handleStartMatch = () => {
         const now = Date.now()
         setMatchStartTime(now)
         lastPhaseRef.current = "auto"
         lastSubPhaseRef.current = "auto"
-        if (startPos) {
-            // Convert screen coords to field coords for storage
-            const fieldX = flip ? 1 - startPos.x : startPos.x
-            const fieldY = flip ? 1 - startPos.y : startPos.y
-            setActions([{type: "starting", x: fieldX, y: fieldY}])
+        if (startPosition) {
+            setActions([{type: "starting", x: startPosition.x, y: startPosition.y}])
         }
+        handleNext?.()
     }
-
-    // ---------------------------------------------------------------------------
-    // Sync to parent
-    // ---------------------------------------------------------------------------
-    useEffect(() => {
-        // Convert screen coords to field coords for storage
-        const fieldStartPos = startPos
-            ? {
-                x: flip ? 1 - startPos.x : startPos.x,
-                y: flip ? 1 - startPos.y : startPos.y,
-            }
-            : null
-
-        setData((d) => {
-            // Only update if values actually changed to prevent infinite loops
-            const posChanged = JSON.stringify(d.startPosition) !== JSON.stringify(fieldStartPos)
-            const actionsChanged = JSON.stringify(d.actions) !== JSON.stringify(actions)
-            if (posChanged || actionsChanged) {
-                return {...d, startPosition: fieldStartPos, actions}
-            }
-            return d
-        })
-    }, [startPos, actions, setData, flip])
 
     // ---------------------------------------------------------------------------
     // Keep the last ScoreAction in sync when shot is edited during hint period
@@ -739,17 +722,22 @@ export default function MatchScouting({
     useEffect(() => {
         if (!shotEditHint) return
         setActions((prev) => {
-            const lastScoreIdx = prev.findLastIndex((a) => a.type === "score")
+            const lastScoreIdx = (() => {
+                for (let i = prev.length - 1; i >= 0; i--) {
+                    if (prev[i].type === "score") return i
+                }
+                return -1
+            })()
             if (lastScoreIdx === -1) return prev
-            const updated = [...prev]
-            const action = updated[lastScoreIdx] as ScoreAction
+            const action = prev[lastScoreIdx] as ScoreAction
             if (action.score === shot) return prev
+            const updated = [...prev]
             updated[lastScoreIdx] = {...action, score: shot}
             return updated
         })
-    }, [shot, shotEditHint])
+    }, [shot, shotEditHint, setActions])
 
-    // View helpers — convert normalized coords to screen coords for the start dot
+    // View helpers
     const viewX = (v: number) => (flip ? 1 - v : v)
     const viewY = (v: number) => (flip ? 1 - v : v)
 
@@ -769,9 +757,7 @@ export default function MatchScouting({
                 setDraggingShootRobot(false)
             }}
             className="relative w-full aspect-2/1 rounded-xl overflow-hidden touch-none"
-            // Container is NEVER rotated — only the image and zone positions flip
         >
-            {/* Field image rotates 180° when field_orientation setting is 180 */}
             <img
                 src="/seasons/2026/field-lovat.png"
                 className="absolute inset-0 w-full h-full object-contain pointer-events-none"
@@ -779,10 +765,9 @@ export default function MatchScouting({
                 style={{transform: flip ? "rotate(180deg)" : "none"}}
             />
 
-            {/* Overlays: shooting box/buttons stay fixed; field-relative markers still use flip */}
             {showZones && (
                 <>
-                    {/* Shooting zone — green-bordered rectangle, captures click position */}
+                    {/* Shooting zone */}
                     {(() => {
                         const zone = uiFlip ? mirrorRect(ZONES.shootingFull) : ZONES.shootingFull
                         const left = zone.x1
@@ -792,14 +777,15 @@ export default function MatchScouting({
                         const isActive = currentZone === "shooting"
                         return (
                             <button
-                                onClick={(e) => {
-                                    // If returning to shooting zone after visiting another zone, reset shot for new cycle
+                                onPointerDown={(e) => {
+                                    // Stop this from bubbling to the parent handlePointerDown
+                                    // so we don't get double handling. We handle everything here.
+                                    e.stopPropagation()
                                     if (shotPendingReset) {
                                         setShot(0)
                                         setShotPendingReset(false)
                                         setShotEditHint(false)
                                     }
-                                    handleZoneClick("shooting")
                                     if (!fieldRef.current) return
                                     const rect = fieldRef.current.getBoundingClientRect()
                                     let nx = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width))
@@ -809,6 +795,9 @@ export default function MatchScouting({
                                         ny = 1 - ny
                                     }
                                     setShootClickPos({x: nx, y: ny})
+                                    handleZoneClick("shooting")
+                                    setDraggingShootRobot(true)
+                                    ;(e.target as HTMLElement).setPointerCapture?.(e.pointerId)
                                 }}
                                 className={`absolute rounded transition-all duration-200 border-2 ${isActive ? "bg-green-500/15 border-green-500" : "bg-transparent border-zinc-500"}`}
                                 style={{
@@ -821,7 +810,7 @@ export default function MatchScouting({
                         )
                     })()}
 
-                    {/* 4 Field Buttons — card-style with icons */}
+                    {/* Field Buttons */}
                     {(
                         [
                             {
@@ -937,7 +926,6 @@ export default function MatchScouting({
                                 key={key}
                                 onClick={() => {
                                     console.log(`[FieldButton] ${label} clicked | zone: ${key} | phase: ${matchPhase} | subPhase: ${subPhase?.phase ?? "none"} | time: ${matchElapsed}ms`)
-                                    // If there's a shot recorded and we haven't already saved it, finalize it
                                     if (shot !== 0 && !shotPendingReset) {
                                         const now = Date.now()
                                         setActions((prev) => [
@@ -987,23 +975,19 @@ export default function MatchScouting({
                 </>
             )}
 
-            {/* Starting position indicator */}
-            {matchPhase === "prestart" && startPos && (
+            {/* Starting position indicator — uses screen-space derived from canonical */}
+            {matchPhase === "prestart" && startPosScreen && (
                 <div
                     className="absolute"
                     style={{
                         width: "3.75%",
                         height: "7.5%",
-                        // Use screen coords directly - no flip transformation
-                        left: `${startPos.x * 100}%`,
-                        top: `${startPos.y * 100}%`,
+                        left: `${startPosScreen.x * 100}%`,
+                        top: `${startPosScreen.y * 100}%`,
                         transform: "translate(-50%, -50%)",
                     }}
                 >
-                    {/* robot perimeter */}
                     <div className="absolute inset-[6%] rounded-xs bg-zinc-600/50"/>
-
-                    {/* bumpers */}
                     <div
                         className={`absolute inset-[-12%] rounded-xs border-6 ${effectiveAlliance === "red"
                             ? "border-red-700"
@@ -1011,92 +995,79 @@ export default function MatchScouting({
                         }`}
                     />
                 </div>
+            )}
 
-            )
-            }
-
-
-            {/* Shooting zone: yellow dot trail from robot to reef hexagon center */}
-            {
-                showZones && shootClickPos && (() => {
-                    // Use the correct reef based on alliance
-                    const reefCenter = effectiveAlliance === "red"
-                        ? {x: 1 - REEF_CENTER.x, y: REEF_CENTER.y}  // Red reef is mirrored
-                        : REEF_CENTER                                  // Blue reef
-                    const sx = viewX(shootClickPos.x)
-                    const sy = viewY(shootClickPos.y)
-                    const cx = viewX(reefCenter.x)
-                    const cy = viewY(reefCenter.y)
-                    const dx = cx - sx
-                    const dy = cy - sy
-                    // dist in "visual" space (field is 2:1, so x is doubled)
-                    const dist = Math.sqrt((dx * 2) ** 2 + dy ** 2)
-                    const ballDiameter = 0.0167 * 1.5
-                    const count = Math.max(0, Math.floor(dist / ballDiameter))
-                    const balls: React.ReactNode[] = []
-                    // Determine if a non-shooting zone is active (ball trail goes B&W)
-                    const nonShootingActive = currentZone !== null && currentZone !== "shooting"
-                    for (let i = 0; i < count; i++) {
-                        const t = 1 - (i * ballDiameter) / dist
-                        if (t <= 0) break
-                        balls.push(
-                            <div
-                                key={i}
-                                className={`absolute rounded-full pointer-events-none ${nonShootingActive
-                                    ? "bg-zinc-600"
-                                    : "bg-yellow-400 border border-black/30"
-                                }`}
-                                style={{
-                                    width: "0.833%",
-                                    height: "1.67%",
-                                    left: `${(sx + dx * t) * 100}%`,
-                                    top: `${(sy + dy * t) * 100}%`,
-                                    transform: "translate(-50%, -50%)",
-                                    transition: "background-color 0.2s, border-color 0.2s",
-                                }}
-                            />
-                        )
-                    }
-
-                    // Angle from robot toward reef center
-                    const angle = Math.atan2(dy, dx * 2) * (180 / Math.PI)
-
-                    return (
-                        <>
-                            {balls}
-                            {/* Robot rectangle at click position — draggable */}
-                            <div
-                                className="absolute"
-                                style={{
-                                    width: "3.75%",
-                                    height: "7.5%",
-                                    left: `${sx * 100}%`,
-                                    top: `${sy * 100}%`,
-                                    transform: `translate(-50%, -50%) rotate(${angle}deg)`,
-                                    cursor: "grab",
-                                    touchAction: "none",
-                                }}
-                            >
-                                {/* robot perimeter */}
-                                <div
-                                    className={`absolute inset-[6%] rounded-xs border-2 ${draggingShootRobot
-                                        ? "bg-zinc-500/60 border-zinc-600"
-                                        : "bg-zinc-600/50 border-zinc-800"
-                                    }`}
-                                />
-
-                                {/* bumpers */}
-                                <div
-                                    className={`absolute inset-[-12%] rounded-xs border-6 ${effectiveAlliance === "red"
-                                        ? "border-red-700"
-                                        : "border-blue-700"
-                                    }`}
-                                />
-                            </div>
-                        </>
+            {/* Shooting zone: yellow dot trail */}
+            {showZones && shootClickPos && (() => {
+                const reefCenter = effectiveAlliance === "red"
+                    ? {x: 1 - REEF_CENTER.x, y: REEF_CENTER.y}
+                    : REEF_CENTER
+                const sx = viewX(shootClickPos.x)
+                const sy = viewY(shootClickPos.y)
+                const cx = viewX(reefCenter.x)
+                const cy = viewY(reefCenter.y)
+                const dx = cx - sx
+                const dy = cy - sy
+                const dist = Math.sqrt((dx * 2) ** 2 + dy ** 2)
+                const ballDiameter = 0.0167 * 1.5
+                const count = Math.max(0, Math.floor(dist / ballDiameter))
+                const balls: React.ReactNode[] = []
+                const nonShootingActive = currentZone !== null && currentZone !== "shooting"
+                for (let i = 0; i < count; i++) {
+                    const t = 1 - (i * ballDiameter) / dist
+                    if (t <= 0) break
+                    balls.push(
+                        <div
+                            key={i}
+                            className={`absolute rounded-full pointer-events-none ${nonShootingActive
+                                ? "bg-zinc-600"
+                                : "bg-yellow-400 border border-black/30"
+                            }`}
+                            style={{
+                                width: "0.833%",
+                                height: "1.67%",
+                                left: `${(sx + dx * t) * 100}%`,
+                                top: `${(sy + dy * t) * 100}%`,
+                                transform: "translate(-50%, -50%)",
+                                transition: "background-color 0.2s, border-color 0.2s",
+                            }}
+                        />
                     )
-                })()
-            }
+                }
+
+                const angle = Math.atan2(dy, dx * 2) * (180 / Math.PI)
+
+                return (
+                    <>
+                        {balls}
+                        <div
+                            className="absolute"
+                            style={{
+                                width: "3.75%",
+                                height: "7.5%",
+                                left: `${sx * 100}%`,
+                                top: `${sy * 100}%`,
+                                transform: `translate(-50%, -50%) rotate(${angle}deg)`,
+                                cursor: "grab",
+                                touchAction: "none",
+                            }}
+                        >
+                            <div
+                                className={`absolute inset-[6%] rounded-xs border-2 ${draggingShootRobot
+                                    ? "bg-zinc-500/60 border-zinc-600"
+                                    : "bg-zinc-600/50 border-zinc-800"
+                                }`}
+                            />
+                            <div
+                                className={`absolute inset-[-12%] rounded-xs border-6 ${effectiveAlliance === "red"
+                                    ? "border-red-700"
+                                    : "border-blue-700"
+                                }`}
+                            />
+                        </div>
+                    </>
+                )
+            })()}
         </div>
     )
 
@@ -1127,7 +1098,6 @@ export default function MatchScouting({
         )
     }
 
-
     const renderControls = () => {
         if (matchPhase === "prestart") {
             return (
@@ -1137,13 +1107,13 @@ export default function MatchScouting({
                     </div>
                     <button
                         onClick={handleStartMatch}
-                        disabled={!startPos}
-                        className={`h-20 rounded-xl text-2xl font-bold transition-colors ${startPos
+                        disabled={!startPosition}
+                        className={`h-20 rounded-xl text-2xl font-bold transition-colors ${startPosition
                             ? "bg-green-700 hover:bg-green-600"
                             : "bg-zinc-800 opacity-40 cursor-not-allowed"
                         }`}
                     >
-                        {startPos ? "START MATCH ▶" : "Set starting position first"}
+                        {startPosition ? "START MATCH ▶" : "Set starting position first"}
                     </button>
                 </div>
             )
@@ -1157,7 +1127,7 @@ export default function MatchScouting({
                     </div>
                     <button
                         onClick={() => {
-                            handleSubmit()
+                            handleSubmit?.()
                         }}
                         className="h-16 bg-green-700 rounded-xl text-xl font-bold"
                     >
@@ -1169,12 +1139,10 @@ export default function MatchScouting({
 
         return (
             <div className="flex flex-col gap-3 items-center h-full">
-                {/* Score display - always show during active match phases */}
                 <div className="text-white text-3xl font-bold font-mono">
                     Shot: {shot}
                 </div>
 
-                {/* Status text — always rendered to reserve space, content changes */}
                 <div className="text-xs text-center px-2 h-4">
                     {shotEditHint ? (
                         <span className="text-yellow-400">
@@ -1187,12 +1155,10 @@ export default function MatchScouting({
                     )}
                 </div>
 
-                {/* Slider container */}
                 <div
                     className={`relative flex flex-col items-center select-none flex-1 w-full max-w-[16rem] transition-all duration-300 ${!shootClickPos ? "opacity-30 pointer-events-none grayscale blur-[1px]" : ""
                     }`}
                 >
-                    {/* Labels */}
                     <span className="text-green-400 text-xs font-bold mb-1">+ ADD</span>
 
                     <div
@@ -1206,30 +1172,23 @@ export default function MatchScouting({
                             sliderYRef.current = y
                             setSliderY(y)
 
-                            // Instant +1 or -1
                             const displacement = y - 0.5
                             if (Math.abs(displacement) > 0.05) {
                                 const direction = displacement < 0 ? 1 : -1
                                 setShot((prev) => {
                                     const next = prev + direction
                                     if (next < 0) return 0
-                                    console.log(`[ScoreSlider] INSTANT ${direction > 0 ? '+' : ''}${direction}`)
                                     return next
                                 })
                             }
 
-                            // Start continuous increment after 150ms
-                            const holdTimeout = setTimeout(() => {
+                            sliderTimeoutRef.current = setTimeout(() => {
                                 setSliderActive(true)
-                                console.log("[ScoreSlider] Hold threshold reached, starting continuous")
                             }, 150)
-
-                            // Store timeout ID to clear on release
-                            sliderTimeoutRef.current = holdTimeout
                         }}
 
                         onPointerUp={() => {
-                            clearTimeout(sliderTimeoutRef.current)
+                            if (sliderTimeoutRef.current) clearTimeout(sliderTimeoutRef.current)
                             setSliderActive(false)
                             sliderYRef.current = 0.5
                             setSliderY(0.5)
@@ -1238,25 +1197,22 @@ export default function MatchScouting({
                             if (!sliderActive) return
                             const rect = sliderRef.current!.getBoundingClientRect()
                             const y = Math.min(1, Math.max(0, (e.clientY - rect.top) / rect.height))
-                            sliderYRef.current = y   // ref updates instantly for the rAF loop
-                            setSliderY(y)             // state updates for visual rendering
+                            sliderYRef.current = y
+                            setSliderY(y)
                         }}
                         onPointerLeave={() => {
                             if (sliderActive) {
                                 setSliderActive(false)
                                 sliderYRef.current = 0.5
                                 setSliderY(0.5)
-                                console.log("[ScoreSlider] Pointer left — reset to center")
                             }
                         }}
                     >
-                        {/* Center dead zone line */}
                         <div
                             className="absolute left-0 right-0 border-t-2 border-dashed border-zinc-400/50"
                             style={{top: "50%"}}
                         />
 
-                        {/* Thumb */}
                         <div
                             className={`absolute left-1 right-1 h-10 rounded-xl transition-colors duration-100 flex items-center justify-center ${sliderActive
                                 ? sliderY < 0.45
@@ -1293,21 +1249,18 @@ export default function MatchScouting({
                     <span className="text-red-400 text-xs font-bold mt-1">− SUB</span>
                 </div>
 
-                {/* Climb controls — always reserves space to prevent layout shift */}
+                {/* Climb controls */}
                 <div className="flex flex-col gap-2 w-full max-w-[16rem] pt-2 border-t border-zinc-700"
                      style={{height: "5.5rem"}}
                 >
                     {currentZone === "climb" ? (
                         <>
-
-                            {/* Auto phase: L1 only, auto-recorded on zone entry */}
                             {matchPhase === "auto" && (
                                 <div className="text-orange-400 text-xs font-bold text-center">
                                     Auto climb (L1) recorded
                                 </div>
                             )}
 
-                            {/* Teleop endgame: L1/L2/L3 selection - records immediately on click */}
                             {matchPhase === "teleop" && (
                                 <div className="flex gap-2">
                                     {(["L1", "L2", "L3"] as const).map(level => {
@@ -1318,20 +1271,22 @@ export default function MatchScouting({
                                                 key={level}
                                                 onClick={() => {
                                                     setActions(prev => {
-                                                        const lastClimbIdx = prev.findLastIndex(a => a.type === "climb")
+                                                        const lastClimbIdx = (() => {
+                                                            for (let i = prev.length - 1; i >= 0; i--) {
+                                                                if (prev[i].type === "climb") return i
+                                                            }
+                                                            return -1
+                                                        })()
                                                         if (lastClimbIdx !== -1) {
                                                             const updated = [...prev]
                                                             const existing = updated[lastClimbIdx] as ClimbAction
                                                             if (existing.level === level) {
-                                                                // Deselect — remove climb action
                                                                 updated.splice(lastClimbIdx, 1)
                                                                 return updated
                                                             }
-                                                            // Switch level on existing action
                                                             updated[lastClimbIdx] = {...existing, level}
                                                             return updated
                                                         }
-                                                        // No climb action yet — create one
                                                         const now = Date.now()
                                                         return [...prev, {
                                                             type: "climb" as const,
@@ -1356,14 +1311,17 @@ export default function MatchScouting({
                                 </div>
                             )}
 
-                            {/* Success toggle - always visible in climb zone */}
                             <button
                                 onClick={() => {
                                     const next = !climbSuccess
                                     setClimbSuccess(next)
-                                    // Sync to existing climb action
                                     setActions(prev => {
-                                        const lastClimbIdx = prev.findLastIndex(a => a.type === "climb")
+                                        const lastClimbIdx = (() => {
+                                            for (let i = prev.length - 1; i >= 0; i--) {
+                                                if (prev[i].type === "climb") return i
+                                            }
+                                            return -1
+                                        })()
                                         if (lastClimbIdx === -1) return prev
                                         const updated = [...prev]
                                         updated[lastClimbIdx] = {
@@ -1385,6 +1343,18 @@ export default function MatchScouting({
                     ) : null}
                 </div>
 
+                {/* "Go to Post Match" button — appears when timer has expired */}
+                {timerExpired && (
+                    <button
+                        onClick={() => {
+                            setManualPost(true)
+                            handleNext?.()
+                        }}
+                        className="w-full max-w-[16rem] h-14 rounded-xl text-lg font-bold bg-amber-600 hover:bg-amber-500 text-white transition-colors animate-pulse"
+                    >
+                        GO TO POST MATCH →
+                    </button>
+                )}
             </div>
         )
     }
@@ -1402,6 +1372,7 @@ export default function MatchScouting({
                     subPhaseTotal={subPhaseTotal}
                     phaseRemaining={phaseRemaining}
                     flashing={flashing}
+                    timerExpired={timerExpired}
                 />
                 <div className="flex-1 flex gap-3 p-3 overflow-hidden">
                     <div className="flex-3 flex flex-col gap-3">{renderField()}{renderDebug()}</div>
@@ -1420,6 +1391,7 @@ export default function MatchScouting({
                 subPhaseTotal={subPhaseTotal}
                 phaseRemaining={phaseRemaining}
                 flashing={flashing}
+                timerExpired={timerExpired}
             />
             <div className="flex-1 flex flex-col p-2 gap-4 overflow-y-auto">
                 {renderField()}

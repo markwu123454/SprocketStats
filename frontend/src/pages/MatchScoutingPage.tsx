@@ -2,12 +2,12 @@ import {useState, useEffect, useRef, useMemo, useCallback} from 'react'
 
 import {useNavigate} from "react-router-dom"
 
-import type {MatchScoutingData, ScoutingStatus} from '@/types'
+import type {MatchScoutingData, MatchType, ScoutingStatus} from '@/types'
 
 import {useAPI} from '@/hooks/useAPI.ts'
 import {useAuth} from '@/hooks/useAuth.ts'
 import {useClientEnvironment} from "@/hooks/useClientEnvironment.ts"
-import {saveScoutingData, deleteScoutingData, db, type ScoutingDataWithKey, updateScoutingStatus} from "@/db/db.ts"
+import {saveScoutingData, db, type ScoutingDataWithKey} from "@/db/db.ts"
 import useFeatureFlags from "@/hooks/useFeatureFlags.ts";
 
 import {Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter} from "@/components/ui/dialog"
@@ -141,8 +141,9 @@ function useResumeDialog(scouterEmail: string, abTestVariant: string, PHASE_ORDE
                     return;
                 }
 
+                // For variant b, map auto/teleop to combined for server status
                 let phaseToUpdate = entry.status as Phase;
-                if (abTestVariant !== "a" && (entry.status === "auto" || entry.status === "teleop")) {
+                if (abTestVariant === "b" && (entry.status === "auto" || entry.status === "teleop")) {
                     phaseToUpdate = "combined";
                 }
 
@@ -157,8 +158,9 @@ function useResumeDialog(scouterEmail: string, abTestVariant: string, PHASE_ORDE
                 scouter: scouterEmail,
             });
 
+            // For variant b, map auto/teleop to combined for phase index lookup
             let targetPhase = entry.status as Phase;
-            if (abTestVariant !== "a" && (entry.status === "auto" || entry.status === "teleop")) {
+            if (abTestVariant === "b" && (entry.status === "auto" || entry.status === "teleop")) {
                 targetPhase = "combined";
             }
 
@@ -217,10 +219,11 @@ function useUnclaimOnExit(
     submitStatusRef: React.RefObject<string>,
     isOnline: boolean,
     serverOnline: boolean,
-    unclaimTeamBeacon: (match: number, team: number, matchType: string, email: string) => void,
+    unclaimTeamBeacon: (match: number, team: number, match_type: MatchType, email: string) => void,
     scouterEmail: string,
 ) {
     const didUnclaimRef = useRef(false);
+    const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
     // Reset the flag when key data changes
     useEffect(() => {
@@ -250,7 +253,11 @@ function useUnclaimOnExit(
         };
 
         const onVisibilityChange = () => {
-            if (document.visibilityState === "hidden") tryUnclaim();
+            if (document.visibilityState === "hidden") {
+                timeoutRef.current = setTimeout(tryUnclaim, 30000);
+            } else {
+                if (timeoutRef.current) clearTimeout(timeoutRef.current);
+            }
         };
         const onPageHide = () => tryUnclaim();
         const onBeforeUnload = () => tryUnclaim();
@@ -277,7 +284,6 @@ function useBackgroundSync(
     scouterEmail: string,
 ) {
     const isSyncingRef = useRef(false)
-    const triggerRef = useRef(0) // bump to force re-run
 
     const sync = useCallback(async () => {
         if (!isOnline || !serverOnline) return
@@ -332,7 +338,7 @@ export default function MatchScoutingPage() {
     const navigate = useNavigate()
     const {isOnline, serverOnline} = useClientEnvironment()
     const {submitData, scoutingAction, unclaimTeamBeacon} = useAPI()
-    const {name: scouterName, email: scouterEmail, permissions, refresh} = useAuth()
+    const {name: scouterName, email: scouterEmail} = useAuth()
     const featureFlags = useFeatureFlags()
 
     // ─── Core state ───
@@ -353,16 +359,18 @@ export default function MatchScoutingPage() {
     submitStatusRef.current = submitStatus
 
     // ─── Derived ───
+    // Both "default" (stable) and "a" use auto/teleop/post phases for tracking.
+    // Only "b" uses the combined phase.
     const PHASE_ORDER: Phase[] = useMemo(() => {
-        return abTestVariant === "a"
-            ? ['pre', 'auto', 'teleop', 'post']
-            : ['pre', 'combined', 'post']
+        return abTestVariant === "b"
+            ? ['pre', 'combined', 'post']
+            : ['pre', 'auto', 'teleop', 'post']
     }, [abTestVariant])
 
     const phase = PHASE_ORDER[phaseIndex]
 
-    // Whether variant A has taken over (combined phase in variant A)
-    const variantAFullControl = abTestVariant === "default" && phase === "combined"
+    // In "default" variant, AVariant takes full control during auto and teleop phases
+    const variantAFullControl = abTestVariant === "default" && (phase === "auto" || phase === "teleop")
 
     const baseDisabled =
         scoutingData.match_type === null ||
@@ -450,6 +458,7 @@ export default function MatchScoutingPage() {
     const handleNext = useCallback(async () => {
         if (baseDisabled) return
         const nextIndex = phaseIndex + 1
+        console.log(nextIndex, phaseIndex)
         setPhaseIndex(nextIndex)
         await scoutingAction(
             scoutingData.match!,
@@ -458,6 +467,7 @@ export default function MatchScoutingPage() {
             scoutingData.alliance!,
             `set_${PHASE_ORDER[nextIndex]}` as any,
         )
+
     }, [baseDisabled, phaseIndex, scoutingData, scoutingAction, PHASE_ORDER])
 
     const handleBack = useCallback(async () => {
@@ -478,6 +488,8 @@ export default function MatchScoutingPage() {
     }, [phaseIndex, scoutingData, scoutingAction, PHASE_ORDER, navigate])
 
     // ─── Variant A navigation callbacks ───
+    // In default variant, AVariant controls auto+teleop but tracks them separately.
+    // "Go to post" jumps to the post phase.
     const variantAGoToPost = useCallback(async () => {
         const postIndex = PHASE_ORDER.indexOf('post')
         setPhaseIndex(postIndex)
@@ -601,10 +613,12 @@ export default function MatchScoutingPage() {
             </Dialog>
 
             {/* Main Layout */}
-            <div className="w-screen min-h-0 h-screen flex flex-col overflow-hidden bg-zinc-900 text-white touch-none select-none overscroll-none ">
+            <div
+                className="w-screen min-h-0 h-screen flex flex-col overflow-hidden bg-zinc-900 text-white touch-none select-none overscroll-none ">
                 {/* Top Bar — hidden when variant A has full control */}
                 {!variantAFullControl && (
-                    <div className="h-12 flex justify-between items-center px-4 bg-zinc-800 text-ml font-semibold shrink-0">
+                    <div
+                        className="h-12 flex justify-between items-center px-4 bg-zinc-800 text-ml font-semibold shrink-0">
                         <div>{scouterName}</div>
                         <div>
                             {scoutingData.teamNumber !== null
@@ -621,7 +635,8 @@ export default function MatchScoutingPage() {
                 )}
 
                 {/* Phases */}
-                <div className={`flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain touch-auto scrollbar-dark ${variantAFullControl ? '' : ''}`}>
+                <div
+                    className={`flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain touch-auto scrollbar-dark ${variantAFullControl ? '' : ''}`}>
                     <div className={variantAFullControl ? "h-full" : "text-4xl"}>
                         {phase === 'pre' && (
                             <PrePhase key="pre" data={scoutingData} setData={setScoutingData}/>
@@ -632,7 +647,7 @@ export default function MatchScoutingPage() {
                         {abTestVariant === "a" && phase === 'teleop' && (
                             <TeleopPhase key="teleop" data={scoutingData} setData={setScoutingData}/>
                         )}
-                        {abTestVariant === "default" && phase === 'combined' && (
+                        {abTestVariant === "default" && (phase === 'auto' || phase === 'teleop') && (
                             <AVariant
                                 key="combined"
                                 data={scoutingData}
@@ -654,7 +669,8 @@ export default function MatchScoutingPage() {
 
                 {/* Bottom Bar — hidden when variant A has full control */}
                 {!variantAFullControl && (
-                    <div className="h-16 relative flex justify-between items-center px-4 bg-zinc-800 text-xl font-semibold shrink-0">
+                    <div
+                        className="h-16 relative flex justify-between items-center px-4 bg-zinc-800 text-xl font-semibold shrink-0">
                         <Button
                             onClick={handleBack}
                             disabled={submitStatus === 'loading'}
@@ -663,7 +679,8 @@ export default function MatchScoutingPage() {
                             {phaseIndex < 1 ? 'home' : 'back'}
                         </Button>
 
-                        <div className="absolute left-1/2 transform -translate-x-1/2 text-base text-zinc-400 pointer-events-none select-none">
+                        <div
+                            className="absolute left-1/2 transform -translate-x-1/2 text-base text-zinc-400 pointer-events-none select-none">
                             {isOnline && serverOnline ? "Online" : "Offline"}
                         </div>
 
