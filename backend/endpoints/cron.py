@@ -5,7 +5,7 @@ import asyncio
 import json
 import os
 
-from fastapi import APIRouter, Response
+from fastapi import APIRouter, Response, status
 from pywebpush import webpush, WebPushException
 
 import db
@@ -144,6 +144,9 @@ async def cron_attendance():
     la_tz = ZoneInfo("America/Los_Angeles")
     start_la = meeting["start"].astimezone(la_tz)
     end_la = meeting["end"].astimezone(la_tz)
+
+    if sent == 0 and failed == 0:
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
 
     return Response(
         content=(

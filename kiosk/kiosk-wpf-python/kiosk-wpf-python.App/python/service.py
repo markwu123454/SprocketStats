@@ -18,21 +18,28 @@ Key Components:
 """
 
 import asyncio
-import statistics
+# import math
+# import random
+# import statistics
+# import string
 
 import asyncpg
 import certifi
 import dotenv
-import json
-import requests
-import numpy
+# import json
+# import requests
+# import numpy
 import os
 import ssl
-import sys
+# import sys
 import time
 import traceback
 import types
-import statbotics
+# import statbotics
+
+from calculator import *
+from logger import *
+# import frc_score_tracker_lib
 
 FRCScoreTracker = ScoreRegionConfig = None
 
@@ -46,9 +53,10 @@ asyncio.set_event_loop(_loop)
 
 DATABASE_KEY = ""  # PostgreSQL connection string (DSN)
 TBA_API_KEY = ""
+FRC_API_KEY = ""
 
 # Expected database schema - maps table names to their required columns
-DATABASE_SCHEMA = {
+_DATABASE_SCHEMA = {
     "match_scouting": {
         "match", "match_type", "team", "alliance", "scouter",
         "status", "data", "last_modified", "event_key"
@@ -84,198 +92,10 @@ downloaded_data = {}
 # Calculation results - populated by run_calculation(), consumed by upload_data()
 calc_result = {"result": {}}
 
-sb = statbotics.Statbotics()
-
 REPL_GLOBALS = globals()
-
-# ============================================================================
-# LOGGING SYSTEM
-# ============================================================================
 
 # Configure stderr to be unbuffered for real-time logging
 sys.stderr.reconfigure(line_buffering=True)
-
-
-class Logger:
-    """
-    Hierarchical logger with ANSI formatting and indentation support.
-
-    Features:
-    - Automatic indentation tracking
-    - Context managers for nested sections
-    - Semantic log levels (header, step, substep, success, warn, error)
-    - Statistics and key-value logging
-    """
-
-    # ANSI codes
-    RESET   = "\x1b[0m"
-    BOLD    = "\x1b[1m"
-    DIM     = "\x1b[38;5;245m"
-    RED     = "\x1b[1;31m"
-    GREEN   = "\x1b[1;32m"
-    YELLOW  = "\x1b[1;33m"
-    BLUE    = "\x1b[1;34m"
-    MAGENTA = "\x1b[1;35m"
-    PURPLE  = "\x1b[38;2;145;92;201m"
-    CYAN    = "\x1b[1;36m"
-    WHITE   = "\x1b[1;37m"
-
-    BAR = "=" * 44
-
-    def __init__(self):
-        self.indent_level = 0
-        self.indent_size = 2
-
-    def _write(self, text, end="\n"):
-        """Write to stderr with current indentation."""
-        indent = " " * (self.indent_level * self.indent_size)
-        sys.stderr.write(indent + text + end)
-        sys.stderr.flush()
-
-    def raw(self, *args, sep=" ", end="\n"):
-        """Print-like interface without indentation."""
-        text = sep.join(map(str, args))
-        if text or end.strip():
-            sys.stderr.write(text + end)
-            sys.stderr.flush()
-
-    def header(self, title):
-        """Print a prominent section header."""
-        self.raw(f"\n{self.PURPLE}{self.BAR}")
-        self.raw(f"  {title}")
-        self.raw(f"{self.PURPLE}{self.BAR}{self.RESET}")
-        self.indent_level = 0
-
-    def step(self, msg):
-        """Print a top-level action step."""
-        self._write(f"{self.BLUE}>{self.RESET} {msg}")
-
-    def substep(self, msg):
-        """Print an indented sub-detail."""
-        self._write(f"{self.DIM}|_{self.RESET} {msg}")
-
-    def stat(self, label, value):
-        """Print a key -> value statistic."""
-        self._write(f"{self.DIM}{label}:{self.RESET} {self.YELLOW}{value}{self.RESET}")
-
-    def success(self, msg):
-        """Print a success message."""
-        self._write(f"{self.GREEN}[OK]{self.RESET} {msg}")
-
-    def warn(self, msg):
-        """Print a warning message."""
-        self._write(f"{self.YELLOW}[!!]{self.RESET} {msg}")
-
-    def error(self, msg):
-        """Print an error message."""
-        self._write(f"{self.RED}[ERR]{self.RESET} {msg}")
-
-    def done(self, summary=None):
-        """Print a section footer."""
-        if summary:
-            self.raw(f"\n{self.GREEN}{self.BAR}")
-            self.raw(f"  [OK] Done -- {summary}")
-            self.raw(f"{self.GREEN}{self.BAR}{self.RESET}\n")
-        else:
-            self.raw(f"\n{self.GREEN}{self.BAR}")
-            self.raw(f"  [OK] Done")
-            self.raw(f"{self.BAR}{self.RESET}\n")
-        self.indent_level = 0
-
-    def indent(self, levels=1):
-        """Increase indentation level."""
-        self.indent_level += levels
-        return self
-
-    def dedent(self, levels=1):
-        """Decrease indentation level."""
-        self.indent_level = max(0, self.indent_level - levels)
-        return self
-
-    def section(self, title=None):
-        """Context manager for indented sections."""
-        return LogSection(self, title)
-
-    def banner(self):
-        """Print the application banner."""
-        self.raw(f"{self.PURPLE} $$$$$$\\  $$$$$$$\\  $$$$$$$\\   $$$$$$\\   $$$$$$\\  $$\\   $$\\ $$$$$$$$\\ $$$$$$$$\\   $$$$$$\\ $$$$$$$$\\  $$$$$$\\ $$$$$$$$\\  $$$$$$\\  {self.RESET}")
-        self.raw(f"{self.PURPLE}$$  __$$\\ $$  __$$\\ $$  __$$\\ $$  __$$\\ $$  __$$\\ $$ | $$  |$$  _____|\\__$$  __| $$  __$$\\\\__$$  __|$$  __$$\\\\__$$  __|$$  __$$\\ {self.RESET}")
-        self.raw(f"{self.PURPLE}$$ /  \\__|$$ |  $$ |$$ |  $$ |$$ /  $$ |$$ /  \\__|$$ |$$  / $$ |         $$ |    $$ /  \\__|  $$ |   $$ /  $$ |  $$ |   $$ /  \\__|{self.RESET}")
-        self.raw(f"{self.PURPLE}\\$$$$$$\\  $$$$$$$  |$$$$$$$  |$$ |  $$ |$$ |      $$$$$  /  $$$$$\\       $$ |    \\$$$$$$\\    $$ |   $$$$$$$$ |  $$ |   \\$$$$$$\\  {self.RESET}")
-        self.raw(f"{self.PURPLE} \\____$$\\ $$  ____/ $$  __$$< $$ |  $$ |$$ |      $$  $$<   $$  __|      $$ |     \\____$$\\   $$ |   $$  __$$ |  $$ |    \\____$$\\ {self.RESET}")
-        self.raw(f"{self.PURPLE}$$\\   $$ |$$ |      $$ |  $$ |$$ |  $$ |$$ |  $$\\ $$ |\\$$\\  $$ |         $$ |    $$\\   $$ |  $$ |   $$ |  $$ |  $$ |   $$\\   $$ |{self.RESET}")
-        self.raw(f"{self.PURPLE}\\$$$$$$  |$$ |      $$ |  $$ | $$$$$$  |\\$$$$$$  |$$ | \\$$\\ $$$$$$$$\\    $$ |    \\$$$$$$  |  $$ |   $$ |  $$ |  $$ |   \\$$$$$$  |{self.RESET}")
-        self.raw(f"{self.PURPLE} \\______/ \\__|      \\__|  \\__| \\______/  \\______/ \\__|  \\__|\\________|   \\__|     \\______/   \\__|   \\__|  \\__|  \\__|    \\______/ {self.RESET}")
-
-
-class LogSection:
-    """Context manager for indented log sections."""
-
-    def __init__(self, logger, title=None):
-        self.logger = logger
-        self.title = title
-
-    def __enter__(self):
-        if self.title:
-            self.logger.step(self.title)
-        self.logger.indent()
-        return self.logger
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        self.logger.dedent()
-        return False
-
-class ProgressBar:
-    """
-    ASCII progress bar with dynamic per-update text.
-    """
-
-    def __init__(self, logger, total, width=30, prefix=None):
-        self.logger = logger
-        self.total = max(1, total)
-        self.width = width
-        self.prefix = prefix or ""
-        self.current = 0
-        self.message = ""
-        self._last_len = 0
-
-    def update(self, value, message=None):
-        self.current = min(value, self.total)
-        if message is not None:
-            self.message = str(message)
-        self._render()
-
-    def advance(self, step=1, message=None):
-        self.update(self.current + step, message)
-
-    def _render(self):
-        ratio = self.current / self.total
-        filled = int(self.width * ratio)
-        bar = "#" * filled + "-" * (self.width - filled)
-        percent = int(ratio * 100)
-
-        indent = " " * (self.logger.indent_level * self.logger.indent_size)
-
-        parts = []
-        if self.prefix:
-            parts.append(self.prefix)
-        parts.append(f"[{bar}]")
-        parts.append(f"{percent:3d}%")
-        if self.message:
-            parts.append(f"- {self.message}")
-
-        line = indent + " ".join(parts)
-
-        # ANSI-safe overwrite - move to start first, then clear, then write
-        sys.stderr.write("\x1b[A\r\x1b[K")
-        sys.stderr.write(line)
-        sys.stderr.flush()
-
-        self._last_len = len(line)
-
-        if self.current >= self.total:
-            sys.stderr.write("\n")
-            sys.stderr.flush()
 
 
 # ============================================================================
@@ -311,24 +131,21 @@ async def get_connection():
     return conn
 
 
-async def verify_db(log):
+async def verify_db():
     """
     Validate database connectivity and schema integrity.
-
-    Args:
-        log: Logger instance for output
 
     Returns:
         tuple: (ok: bool, errors: list[str])
     """
-    global DATABASE_KEY, DATABASE_SCHEMA
+    global DATABASE_KEY, _DATABASE_SCHEMA
 
     errors = []
 
     if not DATABASE_KEY:
         return False, ["DATABASE_KEY is not set"]
 
-    if not isinstance(DATABASE_SCHEMA, dict) or not DATABASE_SCHEMA:
+    if not isinstance(_DATABASE_SCHEMA, dict) or not _DATABASE_SCHEMA:
         return False, ["DATABASE_SCHEMA is not defined or empty"]
 
     conn = None
@@ -343,11 +160,11 @@ async def verify_db(log):
                                 """)
         existing_tables = {r["table_name"] for r in rows}
 
-        for table in DATABASE_SCHEMA:
+        for table in _DATABASE_SCHEMA:
             if table not in existing_tables:
                 errors.append(f"Missing table: {table}")
 
-        for table, required_cols in DATABASE_SCHEMA.items():
+        for table, required_cols in _DATABASE_SCHEMA.items():
             if table not in existing_tables:
                 continue
 
@@ -428,7 +245,7 @@ def python_init():
     """Initialize the Python environment and validate database connectivity."""
     log = Logger()
 
-    global DATABASE_KEY, TBA_API_KEY, FRCScoreTracker, ScoreRegionConfig
+    global DATABASE_KEY, TBA_API_KEY, FRC_API_KEY, FRCScoreTracker, ScoreRegionConfig
 
     has_errored = False
     got_db_key = False
@@ -445,6 +262,7 @@ def python_init():
         dotenv.load_dotenv(env_path, override=True)
         DATABASE_KEY = os.getenv("DATABASE_KEY")
         TBA_API_KEY = os.getenv("TBA_API_KEY")
+        FRC_API_KEY = os.getenv("FRC_API_KEY")
 
         if not DATABASE_KEY:
             errors.append("DATABASE_KEY is missing from .env file")
@@ -454,6 +272,10 @@ def python_init():
             errors.append("TBA_API_KEY is missing from .env file")
             has_errored = True
             log.error("TBA_API_KEY is missing")
+        elif not FRC_API_KEY:
+            errors.append("FRC_API_KEY is missing from .env file")
+            has_errored = True
+            log.error("FRC_API_KEY is missing")
         else:
             got_db_key = True
             log.success("Environment loaded")
@@ -478,7 +300,7 @@ def python_init():
 
     try:
         if got_db_key:
-            ok, db_errors = _loop.run_until_complete(verify_db(log))
+            ok, db_errors = _loop.run_until_complete(verify_db())
             if not ok:
                 errors.extend(db_errors)
                 has_errored = True
@@ -498,9 +320,7 @@ def python_init():
     # -- Score tracker library ----------------------------------------------
     if not has_errored:
         try:
-            from frc_score_tracker_lib import FRCScoreTracker as _Tracker, ScoreRegionConfig as _Config
-            FRCScoreTracker = _Tracker
-            ScoreRegionConfig = _Config
+            import frc_score_tracker_lib  # noqa: F401
             log.success("FRC score tracker loaded")
         except ImportError:
             warnings.append("FRC score tracker library not available")
@@ -679,357 +499,129 @@ async def upload_data(event_key):
 
 
 # ============================================================================
-# CALCULATION ENGINE
+# USER FUNCTIONS
 # ============================================================================
 
-def validate_downloaded_data(event_key, log, stop_on_warning=False):
+def generate_frc_passcode(team_name, team_number):
     """
-    Validate that downloaded_data contains necessary information.
+    Generate a temporary passcode for FRC teams by sprinkling
+    individual digits throughout shuffled words.
 
-    Args:
-        event_key: Event key to validate data for
-        log: Logger instance for output
-        stop_on_warning: Whether to fail on warnings
-
-    Returns:
-        bool: True if validation passed
+    Output length is forced into the 15–20 character range.
     """
-    global downloaded_data
 
-    if not downloaded_data:
-        log.error("No data downloaded -- run download_data() first")
-        return False
+    min_len = 12
+    max_len = 17
 
-    required_keys = ["match_scouting", "pit_scouting", "all_matches"]
-    missing_keys = [k for k in required_keys if k not in downloaded_data]
+    # --- Prepare words ---
+    words = team_name.split()
 
-    if missing_keys:
-        log.error(f"Missing data keys: {', '.join(missing_keys)}")
-        return False
-
-    match_scouting = [
-        m for m in downloaded_data["match_scouting"]
-        if m.get("event_key") == event_key
-    ]
-    pit_scouting = [
-        p for p in downloaded_data["pit_scouting"]
-        if p.get("event_key") == event_key
-    ]
-    all_matches = [
-        m for m in downloaded_data["all_matches"]
-        if m.get("event_key") == event_key
-    ]
-
-    log.stat("Match scouting entries", len(match_scouting))
-    log.stat("Pit scouting entries", len(pit_scouting))
-    log.stat("Match schedules", len(all_matches))
-
-    if len(match_scouting) == 0:
-        log.warn("No match scouting data for this event")
-        if stop_on_warning:
-            return False
-
-    if len(all_matches) == 0:
-        log.warn("No match schedules for this event")
-        if stop_on_warning:
-            return False
-
-    return True
-
-
-def parse_team_key(team_key):
-    """Convert a TBA or Statbotics team key into an integer team number."""
-    if isinstance(team_key, int):
-        return team_key
-    if isinstance(team_key, str):
-        if team_key.startswith("frc"):
-            return int(team_key[3:])
-        if team_key.isdigit():
-            return int(team_key)
-    raise ValueError(f"Unrecognized team key format: {team_key}")
-
-
-def determine_most_recent_match(match_scouting, calc_result, log):
-    """
-    Determine the most recent match based on submissions.
-
-    Args:
-        match_scouting: List of match scouting entries
-        calc_result: Calculation result dictionary
-        log: Logger instance for output
-
-    Returns:
-        str: Most recent match key, or None
-    """
-    submission_counts = {}
-
-    for entry in match_scouting:
-        match_type = entry.get("match_type", "")
-        match_num = entry.get("match", 0)
-        match_id = f"{match_type}{match_num}"
-        submission_counts[match_id] = submission_counts.get(match_id, 0) + 1
-
-    qualifying_matches = []
-
-    for match_id, count in submission_counts.items():
-        if count > 3:
-            tba_key = None
-            for tba_k, canon_k in calc_result.get("match_reverse_index", {}).items():
-                if tba_k.endswith(f"_{match_id}"):
-                    tba_key = tba_k
-                    break
-
-            if tba_key:
-                canon_key = calc_result["match_reverse_index"][tba_key]
-                qualifying_matches.append((canon_key, count))
-
-    if not qualifying_matches:
-        return None
-
-    def match_sort_key(item):
-        canon_key = item[0]
-        if canon_key.startswith("f"):
-            level = 2
-        elif canon_key.startswith("sf"):
-            level = 1
+    # Shorten very long words
+    cleaned_words = []
+    for w in words:
+        if len(w) > 7:
+            cleaned_words.append(w[:5])
         else:
-            level = 0
-        num = int(''.join(filter(str.isdigit, canon_key)))
-        return (level, num)
+            cleaned_words.append(w)
 
-    qualifying_matches.sort(key=match_sort_key, reverse=True)
-    return qualifying_matches[0][0]
+    # Allow word repetition or deletion
+    pool = cleaned_words.copy()
+    while len(pool) < 3:
+        pool.append(random.choice(cleaned_words))
 
+    random.shuffle(pool)
 
-def initialize_structure(calc_result, tba_data, sb_data, downloaded_data, event_key, log, stop_on_warning=False):
-    """
-    Initialize empty calculation structures for teams and matches.
-
-    Args:
-        calc_result: Dictionary to populate with structure
-        tba_data: TBA match data
-        sb_data: Statbotics data
-        downloaded_data: Downloaded scouting data
-        event_key: Event key being processed
-        log: Logger instance for output
-        stop_on_warning: Whether to fail on warnings
-
-    Returns:
-        bool: True if initialization succeeded
-    """
-    sb_matches = {}
-    if isinstance(sb_data, dict):
-        sb_matches = sb_data
-    elif isinstance(sb_data, list):
-        for m in sb_data:
-            if "key" in m:
-                sb_matches[m["key"]] = m
-
-    calc_result["team"] = {}
-    calc_result["match"] = {}
-    calc_result["match_index"] = {}
-    calc_result["match_reverse_index"] = {}
-
-    log.step("Initializing teams and matches from TBA...")
-
-    tba_match_keys = {m["key"] for m in tba_data if "key" in m}
-    grouped = {"qm": [], "sf": [], "f": []}
-
-    for match in tba_data:
-        level = match.get("comp_level")
-        if level in grouped:
-            grouped[level].append(match)
-
-        alliances = match.get("alliances", {})
-        for color in ("red", "blue"):
-            for raw_team_key in alliances.get(color, {}).get("team_keys", []):
-                team_num = parse_team_key(raw_team_key)
-                calc_result["team"].setdefault(team_num, {})
-
-    for level in ("qm", "sf", "f"):
-        matches = sorted(
-            grouped[level],
-            key=lambda m: (m.get("set_number", 0), m.get("match_number", 0))
+    # Random capitalization
+    def style_word(word):
+        return ''.join(
+            c.upper() if random.random() > 0.5 else c.lower()
+            for c in word
         )
 
-        for idx, match in enumerate(matches, start=1):
-            canon_key = f"{level}{idx}"
-            tba_key = match["key"]
+    passcode_chars = list(''.join(style_word(w) for w in pool))
 
-            calc_result["match"][canon_key] = {}
-            calc_result["match_index"][canon_key] = tba_key
-            calc_result["match_reverse_index"][tba_key] = canon_key
+    # --- Sprinkle digits ---
+    digits = list(str(team_number))
 
-    log.stat("Matches initialized", len(calc_result["match"]))
-    log.stat("Teams initialized", len(calc_result["team"]))
+    # Optionally add extra digits (reuse allowed)
+    while random.random() > 0.6:
+        digits.append(random.choice(digits))
 
-    sb_match_keys = set(sb_matches.keys())
-    missing_in_sb = tba_match_keys - sb_match_keys
-    extra_in_sb = sb_match_keys - tba_match_keys
+    for d in digits:
+        pos = random.randint(0, len(passcode_chars))
+        passcode_chars.insert(pos, d)
 
-    if missing_in_sb:
-        log.warn(f"{len(missing_in_sb)} TBA matches missing in Statbotics")
-        if stop_on_warning:
-            return False
+    # --- Insert symbol anywhere ---
+    symbols = ['!', '@', '#', '$', '*', '&']
+    symbol = random.choice(symbols)
+    pos = random.randint(0, len(passcode_chars))
+    passcode_chars.insert(pos, symbol)
 
-    if extra_in_sb:
-        log.warn(f"{len(extra_in_sb)} Statbotics matches not in TBA")
-        if stop_on_warning:
-            return False
+    # --- Force length constraints ---
+    while len(passcode_chars) < min_len:
+        passcode_chars.insert(
+            random.randint(0, len(passcode_chars)),
+            random.choice(string.ascii_letters + string.digits)
+        )
 
-    log.step("Validating against downloaded data...")
+    while len(passcode_chars) > max_len:
+        del passcode_chars[random.randrange(len(passcode_chars))]
 
-    match_scouting = [
-        m for m in downloaded_data.get("match_scouting", [])
-        if m.get("event_key") == event_key
-    ]
+    return ''.join(passcode_chars)
 
-    most_recent = determine_most_recent_match(match_scouting, calc_result, log)
-    if most_recent:
-        calc_result["most_recent_match"] = most_recent
-        log.substep(f"Most recent match identified: {Logger.GREEN}{most_recent}{Logger.RESET}")
-    else:
-        log.substep(f"No match with >3 submissions found")
-
-    log.success("Structure initialization complete")
-    return True
-
-
-def one_var_stats(data):
-    """
-    Calculate descriptive statistics for a list of numbers.
-    Returns Minitab-style summary statistics.
-
-    Args:
-        data: List of numeric values
-
-    Returns:
-        dict: Statistical summary including mean, median, std dev, min, max, etc.
-    """
-    if not data:
-        return {
-            "n": 0,
-            "mean": None,
-            "median": None,
-            "std_dev": None,
-            "min": None,
-            "max": None,
-            "q1": None,
-            "q3": None,
-            "iqr": None
-        }
-
-    sorted_data = sorted(data)
-    n = len(data)
-
-    return {
-        "n": n,
-        "mean": statistics.mean(data),
-        "median": statistics.median(data),
-        "std_dev": statistics.stdev(data) if n > 1 else 0,
-        "min": min(data),
-        "max": max(data),
-        "q1": statistics.quantiles(data, n=4)[0] if n >= 4 else None,
-        "q3": statistics.quantiles(data, n=4)[2] if n >= 4 else None,
-        # Could add: mode, range, variance, skewness, etc.
-    }
-
-
-def run_calculation(setting):
-    """Execute scouting data calculations."""
+# run_async(initialize_event("2025capoh"))
+async def initialize_event(event_key):
     log = Logger()
 
-    global calc_result, downloaded_data
+    log.header(f"INITIALIZING EVENT: {event_key}")
 
-    log.header("CALCULATION")
+    log.step("Fetching data...")
+    matches = requests.get(
+        f"https://www.thebluealliance.com/api/v3/event/{event_key}/matches/simple",
+        headers={"X-TBA-Auth-Key": TBA_API_KEY}
+    )
+    teams = requests.get(
+        f"https://www.thebluealliance.com/api/v3/event/{event_key}/teams",
+        headers={"X-TBA-Auth-Key": TBA_API_KEY}
+    )
+    if matches.status_code != 200:
+        log.error(f"match fetch failed: {matches.status_code}")
+        return
+    if teams.status_code != 200:
+        log.error(f"team fetch failed: {teams.status_code}")
+        return
+    log.success("Event data fetched successfully")
 
-    try:
-        setting = json.loads(setting) if isinstance(setting, str) else setting
+    teams = teams.json()
+    matches = matches.json()
 
-        if not setting.get("event_key"):
-            log.error("Event key is required")
-            return {"success": False, "error": "Event key required"}
+    data = []
 
-        event_key = setting["event_key"]
-        stop_on_warning = setting.get("stop_on_warning", False)
+    bar = ProgressBar(
+        logger=log,
+        total=len(teams)+len(matches),
+        prefix="Processing teams",
+    )
 
-        log.step(f"Running calculations for {Logger.CYAN}{event_key}{Logger.RESET}")
-        if stop_on_warning:
-            log.substep(f"Stop on warning: {Logger.YELLOW}enabled{Logger.RESET}")
+    for team in teams:
+        team_number = parse_team_key(team["team_number"])
+        data.append({
+            "password": generate_frc_passcode(team["nickname"], team_number),
+            "number": team_number,
+            "name": team["nickname"],
+            "permissions": {
+                "teams": [],
+                "matches": [],
+            }
+        })
+        bar.advance()
 
-        # -- Validate local data -------------------------------------------
-        with log.section("Validating downloaded data"):
-            if not validate_downloaded_data(event_key, log, stop_on_warning):
-                log.error("Data validation failed")
-                return {"success": False, "error": "Data validation failed"}
-            log.success("Data validated")
+    for match in matches:
+        pass
 
-        # -- Statbotics ----------------------------------------------------
-        with log.section("Fetching Statbotics data"):
-            try:
-                sb_data = sb.get_matches(event=event_key)
-                sb_count = len(sb_data) if isinstance(sb_data, (list, dict)) else 0
+    log.step(data)
 
-                if sb_count == 0:
-                    log.warn("No Statbotics data returned")
-                    if stop_on_warning:
-                        return {"success": False, "error": "No Statbotics data"}
-                else:
-                    log.stat("Statbotics entries", sb_count)
-            except UserWarning as e:
-                log.warn(f"Statbotics error: {e}")
-                if stop_on_warning:
-                    return {"success": False, "error": f"Statbotics error: {e}"}
-                sb_data = {}
 
-        # -- TBA -----------------------------------------------------------
-        with log.section("Fetching TBA data"):
-            tba_response = requests.get(
-                f"https://www.thebluealliance.com/api/v3/event/{event_key}/matches",
-                headers={"X-TBA-Auth-Key": TBA_API_KEY}
-            )
-
-            if tba_response.status_code != 200:
-                log.error(f"TBA request failed (status {tba_response.status_code})")
-                if stop_on_warning:
-                    return {"success": False, "error": "TBA request failed"}
-                tba_data = []
-            else:
-                tba_data = tba_response.json()
-                if not tba_data:
-                    log.warn("No TBA matches returned")
-                    if stop_on_warning:
-                        return {"success": False, "error": "No TBA data"}
-                else:
-                    log.stat("TBA matches", len(tba_data))
-
-        # -- Initialize result structure -----------------------------------
-        with log.section("Initializing calculation results"):
-            calc_result.clear()
-            calc_result["ranking"] = {}
-            calc_result["alliance"] = {}
-            calc_result["sb"] = sb_data
-            calc_result["tba"] = tba_data
-
-            if not initialize_structure(
-                    calc_result=calc_result,
-                    tba_data=tba_data,
-                    sb_data=sb_data,
-                    downloaded_data=downloaded_data,
-                    event_key=event_key,
-                    log=log,
-                    stop_on_warning=stop_on_warning
-            ):
-                log.error("Structure initialization failed")
-                return {"success": False, "error": "Structure initialization failed"}
-
-        log.warn("No calculations yet")
-        log.done()
-        return {"success": True}
-
-    except Exception as e:
-        log.error(str(e))
-        return {"success": False, "error": str(e)}
 
 
 # ============================================================================
@@ -1037,34 +629,11 @@ def run_calculation(setting):
 # ============================================================================
 
 def list_globals():
-    """List all functions and variables in the global scope."""
     log = Logger()
-
-    functions, classes, variables = [], [], []
-
-    for name, obj in globals().items():
-        if name.startswith('_') or isinstance(obj, types.ModuleType):
-            continue
-
-        if isinstance(obj, types.FunctionType):
-            functions.append(name)
-        elif isinstance(obj, type):
-            classes.append(name)
-        else:
-            variables.append(name)
-
-    log.raw(f"\n{Logger.CYAN}Functions:{Logger.RESET}")
-    for f in sorted(functions):
-        log.raw(f"  {Logger.DIM}-{Logger.RESET} {f}")
-
-    log.raw(f"{Logger.YELLOW}Classes:{Logger.RESET}")
-    for c in sorted(classes):
-        log.raw(f"  {Logger.DIM}-{Logger.RESET} {c}")
-
-    log.raw(f"{Logger.GREEN}Variables:{Logger.RESET}")
-    for v in sorted(variables):
-        log.raw(f"  {Logger.DIM}-{Logger.RESET} {v}")
-
+    log.raw(f"\n{Logger.CYAN}Global names:{Logger.RESET}")
+    for name in sorted(globals()):
+        if not name.startswith('_') and not isinstance(globals()[name], types.ModuleType):
+            log.raw(f"  {Logger.DIM}-{Logger.RESET} {name}")
     log.raw("use inspect_object() to get more information about anything listed.")
 
 
@@ -1187,6 +756,33 @@ def inspect_object(obj, name=None):
     log.raw(f"{Logger.DIM}{Logger.BAR}{Logger.RESET}\n")
 
 
+def run_async(target, *args, **kwargs):
+    """
+    Run an async coroutine or async function synchronously.
+
+    Valid usage:
+        run_async(download_data, "2024miket")
+        run_async(download_data("2024miket"))
+        run_async("download_data", "2024miket")
+    """
+    # Case 1: coroutine object
+    if asyncio.iscoroutine(target):
+        return _loop.run_until_complete(target)
+
+    # Case 2: function name
+    if isinstance(target, str):
+        func = globals().get(target)
+        if func is None:
+            raise NameError(f"Async function '{target}' not found")
+    else:
+        func = target
+
+    # Case 3: async function
+    if asyncio.iscoroutinefunction(func):
+        return _loop.run_until_complete(func(*args, **kwargs))
+
+    raise TypeError("run_async() expects a coroutine or async function")
+
 # ============================================================================
 # JSON COMMAND INTERFACE
 # ============================================================================
@@ -1259,12 +855,11 @@ def handle(req: dict):
 
     if cmd == "run_calculation":
         setting = req.get("setting", {})
-        result = run_calculation(setting)
+        result = run_calculation(setting, downloaded_data, TBA_API_KEY)
         return result
 
     if cmd == "verify_db":
-        log = Logger()
-        ok, errors = _loop.run_until_complete(verify_db(log))
+        ok, errors = _loop.run_until_complete(verify_db())
         return _ok(valid=ok, errors=errors)
 
     if cmd == "list_globals":

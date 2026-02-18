@@ -1,5 +1,6 @@
 import React, {useCallback, useEffect, useRef, useState} from "react"
 import {getSettingSync} from "@/db/settingsDb"
+import useFeatureFlags from "@/hooks/useFeatureFlags.ts";
 import type {
     Actions,
     ClimbAction,
@@ -8,6 +9,7 @@ import type {
     MatchScoutingData,
     SubPhaseName
 } from "../yearConfig"
+import type {Phase} from "@/types";
 
 type Alliance = "red" | "blue"
 
@@ -279,21 +281,19 @@ export default function MatchScouting({
                                           data,
                                           setData,
                                           handleSubmit,
-                                          handleBack,
-                                          handleNext,
-                                          exitToPre
+                                          setPhase,
                                       }: {
     data: MatchScoutingData
     setData: React.Dispatch<React.SetStateAction<MatchScoutingData>>
-    handleSubmit?: () => void
-    handleBack?: () => void
-    handleNext?: () => void
-    exitToPre?: () => void
+    handleSubmit: () => void
+    setPhase: (targetPhase: Phase) => Promise<void>
 }) {
     const deviceType = getSettingSync("match_scouting_device_type") ?? "mobile"
     const debug = getSettingSync("debug") === true
     const fieldRef = useRef<HTMLDivElement>(null)
     const sliderTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+
+    const featureFlags = useFeatureFlags()
 
     const alliance = (data.alliance || "red") as Alliance
 
@@ -452,7 +452,7 @@ export default function MatchScouting({
                 triggerFlash()
             }
             if (lastPhaseRef.current === "auto" && matchPhase === "between") {
-                handleNext?.()
+                void setPhase("teleop")
             }
             lastPhaseRef.current = matchPhase
         }
@@ -464,7 +464,7 @@ export default function MatchScouting({
             }
             lastSubPhaseRef.current = currentSubPhaseName
         }
-    }, [matchPhase, subPhase, triggerFlash])
+    }, [matchPhase, subPhase])
 
     // ---------------------------------------------------------------------------
     // Flash when timer expires (transition to overtime)
@@ -713,7 +713,6 @@ export default function MatchScouting({
         if (startPosition) {
             setActions([{type: "starting", x: startPosition.x, y: startPosition.y}])
         }
-        handleNext?.()
     }
 
     // ---------------------------------------------------------------------------
@@ -1348,7 +1347,7 @@ export default function MatchScouting({
                     <button
                         onClick={() => {
                             setManualPost(true)
-                            handleNext?.()
+                            void setPhase("post")
                         }}
                         className="w-full max-w-[16rem] h-14 rounded-xl text-lg font-bold bg-amber-600 hover:bg-amber-500 text-white transition-colors animate-pulse"
                     >

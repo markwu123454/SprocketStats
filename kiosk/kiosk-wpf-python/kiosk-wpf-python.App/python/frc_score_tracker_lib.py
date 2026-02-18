@@ -1,14 +1,15 @@
 ﻿"""
-FRC Match Score Tracker via OCR on YouTube Livestreams — Library Version
+FRC Match Score Tracker via OCR on YouTube Livestreams — Library Version (Refactored)
 
 This module exposes the full functionality of the FRC score tracker as a
-Python library so it can be imported and driven from another script instead
-of (or in addition to) the CLI.
+Python library with flexible region tracking - you can track any number of
+numeric or text regions, not just red/blue/timer.
 
 Quick-start
 -----------
-    from frc_score_tracker_lib import FRCScoreTracker, ScoreRegionConfig
+    from frc_score_tracker_lib import FRCScoreTracker, ScoreRegionConfig, Region
 
+    # Use defaults (red, blue, timer)
     tracker = FRCScoreTracker(
         url="https://www.youtube.com/watch?v=XXXXX",
         interval=1.0,
@@ -17,30 +18,23 @@ Quick-start
     result = tracker.run()
     print(result.scoring_moments)
 
-With pre-calibrated regions
----------------------------
-    config = ScoreRegionConfig(
-        red_x1=0.528, red_y1=0.058, red_x2=0.595, red_y2=0.117,
-        blue_x1=0.409, blue_y1=0.058, blue_x2=0.472, blue_y2=0.119,
-        timer_x1=0.466, timer_y1=0.056, timer_x2=0.534, timer_y2=0.114,
-    )
+With custom regions
+-------------------
+    config = ScoreRegionConfig(regions=[
+        Region("red", 0.528, 0.058, 0.595, 0.117, "number"),
+        Region("blue", 0.409, 0.058, 0.472, 0.119, "number"),
+        Region("timer", 0.466, 0.056, 0.534, 0.114, "text"),
+        Region("bonus", 0.300, 0.100, 0.350, 0.150, "number"),  # Custom!
+    ])
     tracker = FRCScoreTracker(file="match.mp4", config=config)
-    result = tracker.run()
-
-With cookies for authenticated YouTube access
-----------------------------------------------
-    tracker = FRCScoreTracker(
-        url="https://www.youtube.com/watch?v=XXXXX",
-        cookies="/path/to/cookies.txt",       # Netscape-format cookie file
-        # OR
-        cookies_from_browser="firefox",       # auto-extract from browser
-    )
     result = tracker.run()
 
 Calibration (interactive)
 -------------------------
     FRCScoreTracker.calibrate("match.mp4")
-    # Opens an OpenCV window; prints ScoreRegionConfig when done.
+    # Opens OpenCV window; use number keys to add regions
+    # Press 'n' for new region, type name, select area
+    # Prints ScoreRegionConfig when done
 """
 
 from __future__ import annotations
@@ -69,6 +63,7 @@ from PIL import Image
 TESSERACT_AVAILABLE = False
 try:
     import pytesseract
+
     try:
         pytesseract.get_tesseract_version()
         TESSERACT_AVAILABLE = True
@@ -91,12 +86,12 @@ def check_gpu_support(quiet: bool = False) -> bool:
             GPU_AVAILABLE = True
             GPU_TYPE = "OpenCL (AMD/Intel)"
             if not quiet:
-                print(f" GPU Acceleration enabled: {GPU_TYPE}")
+                print(f"✓ GPU Acceleration enabled: {GPU_TYPE}")
                 try:
                     device = cv2.ocl.Device.getDefault()
                     print(f"  Device: {device.name()}")
-                    print(f"  Global Memory: {device.globalMemSize() / (1024**3):.1f} GB")
-                    print(f"  Max Alloc Size: {device.maxMemAllocSize() / (1024**3):.1f} GB")
+                    print(f"  Global Memory: {device.globalMemSize() / (1024 ** 3):.1f} GB")
+                    print(f"  Max Alloc Size: {device.maxMemAllocSize() / (1024 ** 3):.1f} GB")
                 except Exception:
                     pass
             return True
@@ -106,7 +101,7 @@ def check_gpu_support(quiet: bool = False) -> bool:
             GPU_AVAILABLE = True
             GPU_TYPE = "CUDA (NVIDIA)"
             if not quiet:
-                print(f" GPU Acceleration enabled: {GPU_TYPE}")
+                print(f"✓ GPU Acceleration enabled: {GPU_TYPE}")
                 try:
                     cv2.cuda.setBufferPoolUsage(True)
                     cv2.cuda.setBufferPoolConfig(cv2.cuda.getDevice(), 1024 * 1024 * 1024, 2)
@@ -117,7 +112,7 @@ def check_gpu_support(quiet: bool = False) -> bool:
         pass
 
     if not quiet:
-        print(" No GPU acceleration available — using CPU")
+        print("✗ No GPU acceleration available — using CPU")
     return False
 
 
@@ -136,50 +131,114 @@ FRAME_PRECISION_SEARCH = 0.1
 
 
 @dataclass
-class ScoreRegionConfig:
-    """Score overlay region configuration (normalised 0-1 coordinates)."""
-    red_x1: float = 0.528
-    red_y1: float = 0.058
-    red_x2: float = 0.595
-    red_y2: float = 0.117
+class Region:
+    """A single tracked region with normalized coordinates."""
+    name: str
+    x1: float
+    y1: float
+    x2: float
+    y2: float
+    type: str = "number"  # "number" or "text"
 
-    blue_x1: float = 0.409
-    blue_y1: float = 0.058
-    blue_x2: float = 0.472
-    blue_y2: float = 0.119
-
-    timer_x1: float = 0.466
-    timer_y1: float = 0.056
-    timer_x2: float = 0.534
-    timer_y2: float = 0.114
-
-    def to_dict(self) -> Dict[str, float]:
+    def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
 
     @classmethod
-    def from_dict(cls, d: Dict[str, float]) -> "ScoreRegionConfig":
-        return cls(**{k: v for k, v in d.items() if k in cls.__dataclass_fields__})
+    def from_dict(cls, d: Dict[str, Any]) -> "Region":
+        return cls(**d)
+
+
+@dataclass
+class ScoreRegionConfig:
+    """Score overlay region configuration with flexible regions."""
+    regions: List[Region] = field(default_factory=list)
+
+    def __post_init__(self):
+        # Provide default regions if none specified
+        if not self.regions:
+            self.regions = [
+                Region("red", 0.528, 0.058, 0.595, 0.117, "number"),
+                Region("blue", 0.409, 0.058, 0.472, 0.119, "number"),
+                Region("timer", 0.466, 0.056, 0.534, 0.114, "text"),
+            ]
+            self.regions = [
+                Region("red", 0.533, 0.060, 0.592, 0.116, "number"),
+                Region("blue", 0.408, 0.060, 0.468, 0.115, "number"),
+                Region("timer", 0.471, 0.063, 0.528, 0.114, "text"),
+                Region("red_coral", 0.925, 0.069, 0.967, 0.104, "number"),
+                Region("blue_coral", 0.034, 0.069, 0.076, 0.106, "number"),
+                Region("red_algae", 0.847, 0.071, 0.887, 0.102, "number"),
+                Region("blue_algae", 0.112, 0.069, 0.152, 0.103, "number"),
+            ]
+
+    def get_region(self, name: str) -> Optional[Region]:
+        """Get a region by name."""
+        for r in self.regions:
+            if r.name == name:
+                return r
+        return None
+
+    def add_region(self, name: str, x1: float, y1: float, x2: float, y2: float,
+                   region_type: str = "number") -> None:
+        """Add a new region to track."""
+        self.regions.append(Region(name, x1, y1, x2, y2, region_type))
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {"regions": [r.to_dict() for r in self.regions]}
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "ScoreRegionConfig":
+        if "regions" in d:
+            regions = [Region.from_dict(r) for r in d["regions"]]
+            return cls(regions=regions)
+        # Legacy support - convert old format to new
+        legacy_regions = []
+        for prefix in ["red", "blue", "timer"]:
+            x1_key = f"{prefix}_x1"
+            if x1_key in d:
+                region_type = "text" if prefix == "timer" else "number"
+                legacy_regions.append(Region(
+                    prefix,
+                    d[f"{prefix}_x1"],
+                    d[f"{prefix}_y1"],
+                    d[f"{prefix}_x2"],
+                    d[f"{prefix}_y2"],
+                    region_type
+                ))
+        return cls(regions=legacy_regions) if legacy_regions else cls()
 
 
 @dataclass
 class ScoreEvent:
     """A single score reading at a point in time."""
     timestamp: float
-    red_score: Optional[int]
-    blue_score: Optional[int]
-    match_time: Optional[str] = None
+    values: Dict[str, Optional[Any]]  # region_name -> value
     match_phase: Optional[str] = None
+
+    def __getitem__(self, key: str) -> Optional[Any]:
+        """Allow dict-like access: event['red']"""
+        return self.values.get(key)
+
+    def get(self, key: str, default=None) -> Optional[Any]:
+        """Get with default value."""
+        return self.values.get(key, default)
 
 
 @dataclass
 class ScoringMoment:
-    """A detected change in score."""
+    """A detected change in a tracked value."""
     timestamp: float
-    alliance: str
-    points_gained: int
-    new_total: int
-    match_time: Optional[str] = None
+    region_name: str
+    old_value: Optional[Any]
+    new_value: Any
     match_phase: Optional[str] = None
+
+    @property
+    def points_gained(self) -> Optional[int]:
+        """For numeric regions, calculate the delta."""
+        if isinstance(self.old_value, (int, float)) and isinstance(self.new_value, (int, float)):
+            return int(self.new_value - self.old_value)
+        return None
 
 
 @dataclass
@@ -202,41 +261,47 @@ class TrackingResult:
     ocr_failures: int
     elapsed_seconds: float
     frames_processed: int
+    tracked_regions: List[str]  # Names of all tracked regions
 
     # Convenience helpers ─────────────────────────────────────
-    @property
-    def final_red(self) -> Optional[int]:
-        red = [r.red_score for r in self.readings if r.red_score is not None]
-        return red[-1] if red else None
+    def get_final_value(self, region_name: str) -> Optional[Any]:
+        """Get the final value for a specific region."""
+        for reading in reversed(self.readings):
+            val = reading.get(region_name)
+            if val is not None:
+                return val
+        return None
 
     @property
-    def final_blue(self) -> Optional[int]:
-        blue = [r.blue_score for r in self.readings if r.blue_score is not None]
-        return blue[-1] if blue else None
+    def final_values(self) -> Dict[str, Optional[Any]]:
+        """Get final values for all tracked regions."""
+        return {name: self.get_final_value(name) for name in self.tracked_regions}
 
     @property
     def ocr_success_rate(self) -> float:
         return (self.ocr_successes / self.ocr_attempts * 100) if self.ocr_attempts else 0.0
 
     def export_events_csv(self, path: str) -> None:
+        """Export scoring moments to CSV."""
         with open(path, "w", newline="") as f:
             w = csv.writer(f)
-            w.writerow(["video_timestamp_s", "match_time", "match_phase",
-                        "alliance", "points_gained", "new_total"])
+            w.writerow(["video_timestamp_s", "match_phase", "region_name",
+                        "old_value", "new_value", "delta"])
             for m in self.scoring_moments:
-                w.writerow([f"{m.timestamp:.1f}", m.match_time or "",
-                            m.match_phase or "", m.alliance, m.points_gained, m.new_total])
+                delta = m.points_gained if m.points_gained is not None else ""
+                w.writerow([f"{m.timestamp:.1f}", m.match_phase or "",
+                            m.region_name, m.old_value or "", m.new_value, delta])
 
     def export_readings_csv(self, path: str) -> None:
+        """Export all readings to CSV."""
         with open(path, "w", newline="") as f:
             w = csv.writer(f)
-            w.writerow(["video_timestamp_s", "match_time", "match_phase",
-                        "red_score", "blue_score"])
+            header = ["video_timestamp_s", "match_phase"] + self.tracked_regions
+            w.writerow(header)
             for r in self.readings:
-                w.writerow([f"{r.timestamp:.1f}", r.match_time or "",
-                            r.match_phase or "",
-                            r.red_score if r.red_score is not None else "",
-                            r.blue_score if r.blue_score is not None else ""])
+                row = [f"{r.timestamp:.1f}", r.match_phase or ""]
+                row.extend([r.get(name, "") for name in self.tracked_regions])
+                w.writerow(row)
 
 
 # ──────────────────────────────────────────────────────────────
@@ -390,14 +455,23 @@ class BatchOCRProcessor:
         self.verbose = verbose
 
     def process_batch(self, rois: List[np.ndarray],
-                      labels: List[str]) -> List[Optional[int]]:
+                      region_types: List[str]) -> List[Optional[Any]]:
+        """Process a batch of ROIs based on their types (number/text)."""
         if not TESSERACT_AVAILABLE:
             return [None] * len(rois)
-        futures = [self.executor.submit(self._extract_number, roi, lbl)
-                   for roi, lbl in zip(rois, labels)]
+        futures = [self.executor.submit(self._extract_value, roi, rtype)
+                   for roi, rtype in zip(rois, region_types)]
         return [f.result() for f in futures]
 
-    def _extract_number(self, roi: np.ndarray, label: str) -> Optional[int]:
+    def _extract_value(self, roi: np.ndarray, region_type: str) -> Optional[Any]:
+        """Extract either a number or text based on region type."""
+        if region_type == "number":
+            return self._extract_number(roi)
+        else:  # text
+            return self._extract_text(roi)
+
+    def _extract_number(self, roi: np.ndarray) -> Optional[int]:
+        """Extract numeric value from ROI."""
         strategies = ["default", "adaptive", "morphology"]
         all_results: List[int] = []
         gpu_proc = GPUImageProcessor(use_gpu=GPU_AVAILABLE)
@@ -427,6 +501,20 @@ class BatchOCRProcessor:
             return Counter(all_results).most_common(1)[0][0]
         return None
 
+    def _extract_text(self, roi: np.ndarray) -> Optional[str]:
+        """Extract text value from ROI (e.g., timer)."""
+        gpu_proc = GPUImageProcessor(use_gpu=GPU_AVAILABLE)
+        processed = gpu_proc._preprocess_single(roi, "default")
+
+        try:
+            text = pytesseract.image_to_string(
+                Image.fromarray(processed),
+                config=r'--oem 3 --psm 7 -c tessedit_char_whitelist=0123456789:'
+            ).strip()
+            return text if text else None
+        except Exception:
+            return None
+
     def shutdown(self):
         self.executor.shutdown(wait=True)
 
@@ -436,42 +524,132 @@ class BatchOCRProcessor:
 # ──────────────────────────────────────────────────────────────
 
 class TemplateMatchingOCR:
-    def __init__(self, template_dir: str = "digit_templates"):
-        self.templates: Dict[int, np.ndarray] = {}
-        td = Path(template_dir)
-        if td.exists():
-            for digit in range(10):
-                p = td / f"{digit}.png"
-                if p.exists():
-                    self.templates[digit] = cv2.imread(str(p), cv2.IMREAD_GRAYSCALE)
+    def __init__(self, min_confidence: float = 0.65):
+        self.known_glyphs: list[tuple[np.ndarray, int]] = []
+        self.min_confidence = min_confidence
+
+    # ─────────────────────────────────────────────
+    # Public API
+    # ─────────────────────────────────────────────
 
     def extract_number(self, roi: np.ndarray) -> Optional[int]:
-        if not self.templates:
+        bin_img = self._binarize(roi)
+        glyphs = self._segment_glyphs(bin_img)
+
+        if not glyphs:
             return None
-        gray = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY) if len(roi.shape) == 3 else roi
-        _, thresh = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+
+        digits = []
+        for g in glyphs:
+            d, conf = self._classify_glyph(g)
+            if d is None or conf < self.min_confidence:
+                return None
+            digits.append(str(d))
+
+        try:
+            return int("".join(digits))
+        except ValueError:
+            return None
+
+    # ─────────────────────────────────────────────
+    # Core logic
+    # ─────────────────────────────────────────────
+
+    def _classify_glyph(self, glyph: np.ndarray) -> tuple[Optional[int], float]:
+        glyph = self._normalize(glyph)
+
+        best_digit, best_score = None, -1.0
+
+        for known_img, digit in self.known_glyphs:
+            score = self._similarity(glyph, known_img)
+            if score > best_score:
+                best_digit, best_score = digit, score
+
+        # If confident, reuse label
+        if best_score >= self.min_confidence:
+            return best_digit, best_score
+
+        # Otherwise: attempt digit inference by topology
+        inferred = self._infer_digit_shape(glyph)
+        if inferred is not None:
+            self.known_glyphs.append((glyph, inferred))
+            return inferred, 1.0
+
+        return None, 0.0
+
+    # ─────────────────────────────────────────────
+    # Image utilities
+    # ─────────────────────────────────────────────
+
+    def _binarize(self, roi: np.ndarray) -> np.ndarray:
+        gray = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY) if roi.ndim == 3 else roi
+        _, thresh = cv2.threshold(gray, 0, 255,
+                                  cv2.THRESH_BINARY + cv2.THRESH_OTSU)
         if np.mean(thresh) < 127:
             thresh = cv2.bitwise_not(thresh)
-        best, best_score = None, 0.0
-        for num in range(301):
-            ns = str(num)
-            if not all(int(d) in self.templates for d in ns):
+        return thresh
+
+    def _segment_glyphs(self, bin_img: np.ndarray) -> list[np.ndarray]:
+        contours, _ = cv2.findContours(
+            bin_img, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
+        )
+
+        glyphs = []
+        h = bin_img.shape[0]
+
+        for c in contours:
+            x, y, w, h_c = cv2.boundingRect(c)
+            if h_c < h * 0.45:
                 continue
-            imgs = [self.templates[int(d)] for d in ns]
-            combined = np.hstack(imgs) if len(imgs) > 1 else imgs[0]
-            if combined.shape[0] <= 0:
-                continue
-            scale = thresh.shape[0] / combined.shape[0]
-            nw, nh = int(combined.shape[1] * scale), thresh.shape[0]
-            if nw <= 0 or nh <= 0:
-                continue
-            resized = cv2.resize(combined, (nw, nh))
-            if resized.shape[1] > thresh.shape[1] or resized.shape[0] > thresh.shape[0]:
-                continue
-            _, mx, _, _ = cv2.minMaxLoc(cv2.matchTemplate(thresh, resized, cv2.TM_CCOEFF_NORMED))
-            if mx > best_score:
-                best_score, best = mx, num
-        return best if best is not None and best_score > 0.7 else None
+            glyphs.append((x, bin_img[y:y + h_c, x:x + w]))
+
+        glyphs.sort(key=lambda g: g[0])
+        return [g[1] for g in glyphs]
+
+    def _normalize(self, img: np.ndarray) -> np.ndarray:
+        img = cv2.resize(img, (28, 28))
+        img = img.astype(np.float32) / 255.0
+        return img
+
+    def _similarity(self, a: np.ndarray, b: np.ndarray) -> float:
+        return cv2.matchTemplate(
+            a, b, cv2.TM_CCOEFF_NORMED
+        )[0][0]
+
+    # ─────────────────────────────────────────────
+    # Shape-based digit inference (no templates)
+    # ─────────────────────────────────────────────
+
+    def _infer_digit_shape(self, glyph: np.ndarray) -> Optional[int]:
+        """Infer digit using simple topology rules."""
+        g = (glyph > 0.5).astype(np.uint8)
+
+        contours, hierarchy = cv2.findContours(
+            g, cv2.RETR_CCOMP, cv2.CHAIN_APPROX_SIMPLE
+        )
+
+        holes = 0
+        if hierarchy is not None:
+            holes = sum(1 for h in hierarchy[0] if h[3] != -1)
+
+        h, w = g.shape
+        aspect = w / h
+
+        if holes == 2:
+            return 8
+        if holes == 1:
+            if aspect > 0.8:
+                return 0
+            return 9
+        if holes == 0:
+            if aspect < 0.35:
+                return 1
+            if aspect > 0.75:
+                return 2
+            return None
+
+        return None
+
 
 
 # ──────────────────────────────────────────────────────────────
@@ -481,21 +659,28 @@ class TemplateMatchingOCR:
 class _ScoreTracker:
     def __init__(self, config: ScoreRegionConfig, *,
                  debug: bool = False, batch_size: int = 64,
-                 use_gpu: bool = True, verbose: bool = False):
+                 use_gpu: bool = True, verbose: bool = False, recognition_mode: str = "ocr", ):
         self.config = config
         self._debug = debug
         self._verbose = verbose
         self.readings: List[ScoreEvent] = []
         self.scoring_moments: List[ScoringMoment] = []
-        self.last_red: Optional[int] = None
-        self.last_blue: Optional[int] = None
+        self.last_values: Dict[str, Optional[Any]] = {r.name: None for r in config.regions}
         self.match_phase: Optional[str] = None
         self.match_active: bool = False
+        self.recognition_mode = recognition_mode
 
         self.gpu_processor = GPUImageProcessor(use_gpu=use_gpu)
         self.batch_size = batch_size
-        self.ocr_processor = BatchOCRProcessor(max_workers=8, verbose=verbose)
-        self.template_ocr = TemplateMatchingOCR() if not TESSERACT_AVAILABLE else None
+        self.ocr_processor = None
+        self.template_ocr = None
+
+        if self.recognition_mode in ("ocr", "auto"):
+            if TESSERACT_AVAILABLE:
+                self.ocr_processor = BatchOCRProcessor(max_workers=8, verbose=verbose)
+
+        if self.recognition_mode in ("template", "auto"):
+            self.template_ocr = TemplateMatchingOCR()
 
         self.ocr_attempts = 0
         self.ocr_successes = 0
@@ -524,118 +709,154 @@ class _ScoreTracker:
         return None
 
     @staticmethod
-    def get_roi(frame: np.ndarray, x1: float, y1: float,
-                x2: float, y2: float) -> np.ndarray:
+    def get_roi(frame: np.ndarray, region: Region) -> np.ndarray:
         h, w = frame.shape[:2]
-        return frame[int(y1 * h):int(y2 * h), int(x1 * w):int(x2 * w)]
+        return frame[int(region.y1 * h):int(region.y2 * h),
+        int(region.x1 * w):int(region.x2 * w)]
 
     # ── batch processing ─────────────────────────────────────
     def process_frames_batch(self, frames_data: List[Tuple[float, np.ndarray, str]]) -> List[ScoreEvent]:
         if not frames_data:
             return []
-        cfg = self.config
 
-        red_rois = [self.get_roi(f, cfg.red_x1, cfg.red_y1, cfg.red_x2, cfg.red_y2)
-                    for _, f, _ in frames_data]
-        blue_rois = [self.get_roi(f, cfg.blue_x1, cfg.blue_y1, cfg.blue_x2, cfg.blue_y2)
-                     for _, f, _ in frames_data]
-        timer_rois = [self.get_roi(f, cfg.timer_x1, cfg.timer_y1, cfg.timer_x2, cfg.timer_y2)
-                      for _, f, _ in frames_data]
+        # Extract ROIs for all regions
+        all_rois: Dict[str, List[np.ndarray]] = {}
+        for region in self.config.regions:
+            all_rois[region.name] = [
+                self.get_roi(frame, region) for _, frame, _ in frames_data
+            ]
 
-        red_processed = self.gpu_processor.preprocess_batch(red_rois)
-        blue_processed = self.gpu_processor.preprocess_batch(blue_rois)
-        timer_processed = self.gpu_processor.preprocess_batch(timer_rois)
+        # Preprocess all ROIs
+        processed_rois: Dict[str, List[np.ndarray]] = {}
+        for region in self.config.regions:
+            processed_rois[region.name] = self.gpu_processor.preprocess_batch(
+                all_rois[region.name]
+            )
 
-        red_scores = self.ocr_processor.process_batch(
-            red_processed, [f"RED_{i}" for i in range(len(red_rois))])
-        blue_scores = self.ocr_processor.process_batch(
-            blue_processed, [f"BLUE_{i}" for i in range(len(blue_rois))])
+        # OCR all regions
+        ocr_results: Dict[str, List[Optional[Any]]] = {}
+        for region in self.config.regions:
+            region_types = [region.type] * len(processed_rois[region.name])
+            results = []
 
-        for s in red_scores + blue_scores:
-            self.ocr_attempts += 1
-            if s is not None:
-                self.ocr_successes += 1
-            else:
-                self.ocr_failures += 1
+            for roi, rtype in zip(processed_rois[region.name], region_types):
+                value = None
 
-        match_times: List[Optional[str]] = []
-        for troi in timer_processed:
-            if TESSERACT_AVAILABLE:
-                try:
-                    text = pytesseract.image_to_string(
-                        Image.fromarray(troi),
-                        config=r'--oem 3 --psm 7 -c tessedit_char_whitelist=0123456789:'
-                    ).strip()
-                    match_times.append(text if ":" in text else None)
-                except Exception:
-                    match_times.append(None)
-            else:
-                match_times.append(None)
+                if self.recognition_mode in ("ocr", "auto"):
+                    if self.ocr_processor:
+                        value = self.ocr_processor._extract_value(roi, rtype)
 
+                if value is None and self.recognition_mode in ("template", "auto"):
+                    if self.template_ocr:
+                        if rtype == "number":
+                            value = self.template_ocr.extract_number(roi)
+                        else:
+                            value = self.template_ocr.extract_text(roi)
+
+                results.append(value)
+
+            ocr_results[region.name] = results
+
+            # Track OCR stats
+            for result in results:
+                self.ocr_attempts += 1
+                if result is not None:
+                    self.ocr_successes += 1
+                else:
+                    self.ocr_failures += 1
+
+        # Build events
         events: List[ScoreEvent] = []
         for i, (ts, _frame, phase) in enumerate(frames_data):
-            rs, bs, mt = red_scores[i], blue_scores[i], match_times[i]
-            if phase is not None:
-                if rs is None and self.last_red is not None:
-                    rs = self.last_red
-                if bs is None and self.last_blue is not None:
-                    bs = self.last_blue
-            if phase is None:
-                phase = self.determine_phase_from_timer(mt)
-            ev = ScoreEvent(timestamp=ts, red_score=rs, blue_score=bs,
-                            match_time=mt, match_phase=phase)
+            values = {}
+            for region in self.config.regions:
+                value = ocr_results[region.name][i]
+                # If we failed to read and have a last value during match, use it
+                if value is None and phase is not None:
+                    value = self.last_values.get(region.name)
+                values[region.name] = value
+
+            # Determine phase from timer if available
+            timer_region = self.config.get_region("timer")
+            if timer_region and phase is None:
+                timer_value = values.get("timer")
+                phase = self.determine_phase_from_timer(timer_value)
+
+            ev = ScoreEvent(timestamp=ts, values=values, match_phase=phase)
             self.readings.append(ev)
-            self._detect_scoring(ev)
+            self._detect_changes(ev)
             events.append(ev)
+
         return events
 
-    def _detect_scoring(self, event: ScoreEvent):
-        max_plausible, max_jump = 300, 30
-        for alliance, score_attr in [("red", "red_score"), ("blue", "blue_score")]:
-            score = getattr(event, score_attr)
-            last = self.last_red if alliance == "red" else self.last_blue
-            if score is None:
+    def _detect_changes(self, event: ScoreEvent):
+        """Detect changes in any tracked region."""
+        max_plausible = 300
+        max_jump = 30
+
+        # Validate and fix numeric values
+        for region in self.config.regions:
+            if region.type != "number":
                 continue
-            if score > max_plausible:
-                setattr(event, score_attr, None)
+
+            value = event.values.get(region.name)
+            last_value = self.last_values.get(region.name)
+
+            if value is None:
                 continue
-            if last is not None:
-                diff = score - last
+
+            # Sanity check
+            if value > max_plausible:
+                event.values[region.name] = None
+                continue
+
+            if last_value is not None:
+                diff = value - last_value
+
+                # Check for unrealistic jump
                 if diff > max_jump:
+                    # Try to fix spurious '0'
                     fixed = False
-                    s = str(score)
+                    s = str(value)
                     if "0" in s:
                         for i, ch in enumerate(s):
                             if ch == "0":
                                 ns = s[:i] + s[i + 1:]
                                 if ns:
                                     nv = int(ns)
-                                    if 0 <= nv - last <= max_jump and 0 <= nv <= max_plausible:
-                                        score = nv
-                                        setattr(event, score_attr, nv)
+                                    if 0 <= nv - last_value <= max_jump and 0 <= nv <= max_plausible:
+                                        value = nv
+                                        event.values[region.name] = nv
                                         fixed = True
                                         break
                     if not fixed:
-                        setattr(event, score_attr, None)
+                        event.values[region.name] = None
                         continue
+
+                # Check for backward movement
                 if diff < -20:
-                    setattr(event, score_attr, None)
+                    event.values[region.name] = None
                     continue
 
-        # Record scoring events
-        for alliance, score_attr in [("red", "red_score"), ("blue", "blue_score")]:
-            score = getattr(event, score_attr)
-            last = self.last_red if alliance == "red" else self.last_blue
-            if score is not None and last is not None and score != last:
-                self.scoring_moments.append(ScoringMoment(
-                    timestamp=event.timestamp, alliance=alliance,
-                    points_gained=score - last, new_total=score,
-                    match_time=event.match_time, match_phase=event.match_phase))
+        # Record changes
+        for region in self.config.regions:
+            value = event.values.get(region.name)
+            last_value = self.last_values.get(region.name)
 
-        if event.red_score is not None:
-            self.last_red = event.red_score
-        if event.blue_score is not None:
-            self.last_blue = event.blue_score
+            if value is not None and last_value is not None and value != last_value:
+                self.scoring_moments.append(ScoringMoment(
+                    timestamp=event.timestamp,
+                    region_name=region.name,
+                    old_value=last_value,
+                    new_value=value,
+                    match_phase=event.match_phase
+                ))
+
+        # Update last values
+        for region in self.config.regions:
+            value = event.values.get(region.name)
+            if value is not None:
+                self.last_values[region.name] = value
 
     def shutdown(self):
         self.ocr_processor.shutdown()
@@ -668,7 +889,7 @@ def _resolve_stream_url(youtube_url: str, *,
         result = subprocess.run(cmd, capture_output=True, text=True, check=True)
         url = result.stdout.strip()
         if not quiet:
-            print(" Got stream URL")
+            print("✓ Got stream URL")
         return url
     except FileNotFoundError:
         raise RuntimeError("yt-dlp not found. Install it: pip install yt-dlp")
@@ -679,12 +900,21 @@ def _resolve_stream_url(youtube_url: str, *,
 def _find_match_start(source: str, config: ScoreRegionConfig, *,
                       use_gpu: bool = True, debug: bool = False,
                       quiet: bool = False) -> Optional[float]:
+    """Find match start by looking for a timer region."""
     reader = OptimizedVideoReader(source)
     duration = reader.total_frames / reader.fps if reader.total_frames > 0 else 180
 
     if not quiet:
-        print(f"\n Phase 1: Finding match in video…")
-        print(f"Video duration: ~{duration:.0f}s ({reader.total_frames} frames @ {reader.fps:.1f} fps)")
+        print(f"\n🔍 Phase 1: Finding match in video…")
+        print(f"   Video duration: ~{duration:.0f}s ({reader.total_frames} frames @ {reader.fps:.1f} fps)")
+
+    # Find a timer region to use for detection
+    timer_region = config.get_region("timer")
+    if not timer_region:
+        if not quiet:
+            print("⚠️  No 'timer' region defined - cannot auto-detect match start")
+        reader.release()
+        return None
 
     tracker = _ScoreTracker(config, debug=debug, use_gpu=use_gpu)
     middle = duration / 2
@@ -692,7 +922,7 @@ def _find_match_start(source: str, config: ScoreRegionConfig, *,
     search_end = min(duration, middle + 30)
 
     if not quiet:
-        print(f"Searching for timer around middle ({middle:.0f}s ± 30s)…")
+        print(f"   Searching for timer around middle ({middle:.0f}s ± 30s)…")
 
     found_time: Optional[float] = None
     found_value: Optional[float] = None
@@ -703,8 +933,8 @@ def _find_match_start(source: str, config: ScoreRegionConfig, *,
         if frame is None:
             t += INITIAL_SAMPLE_INTERVAL
             continue
-        troi = tracker.get_roi(frame, config.timer_x1, config.timer_y1,
-                               config.timer_x2, config.timer_y2)
+
+        troi = tracker.get_roi(frame, timer_region)
         if TESSERACT_AVAILABLE:
             processed = tracker.gpu_processor._preprocess_single(troi, "default")
             try:
@@ -717,7 +947,7 @@ def _find_match_start(source: str, config: ScoreRegionConfig, *,
                     if secs is not None:
                         found_time, found_value = t, secs
                         if not quiet:
-                            print(f"   Found timer '{text}' ({secs}s) at t={t:.1f}s")
+                            print(f"   ✓ Found timer '{text}' ({secs}s) at t={t:.1f}s")
                         break
             except Exception:
                 pass
@@ -728,7 +958,7 @@ def _find_match_start(source: str, config: ScoreRegionConfig, *,
 
     if found_time is None:
         if not quiet:
-            print(" Could not find match timer")
+            print("   ✗ Could not find match timer")
         return None
 
     if found_value > MATCH_AUTO_DURATION:
@@ -738,7 +968,7 @@ def _find_match_start(source: str, config: ScoreRegionConfig, *,
         est = found_time - (MATCH_AUTO_DURATION - found_value)
 
     if not quiet:
-        print(f"  Estimated match start: t={est:.1f}s")
+        print(f"   ✓ Estimated match start: t={est:.1f}s")
     return est
 
 
@@ -756,8 +986,8 @@ def _calculate_boundaries(match_start: float) -> MatchBoundaries:
 
 def calibrate(source: str) -> Optional[ScoreRegionConfig]:
     """
-    Interactive calibration mode.  Opens an OpenCV window so the user can
-    draw rectangles over the score regions.
+    Interactive calibration mode. Opens an OpenCV window so the user can
+    draw rectangles over any regions they want to track.
 
     Returns
     -------
@@ -780,17 +1010,41 @@ def calibrate(source: str) -> Optional[ScoreRegionConfig]:
     h, w = frame.shape[:2]
     duration = total_frames / fps if total_frames > 0 else 0
 
-    print(f"\nFrame size: {w}x{h}")
+    print(f"\n{'=' * 60}")
+    print(f"Calibration Mode")
+    print(f"{'=' * 60}")
+    print(f"Frame size: {w}x{h}")
     print(f"Video: {total_frames} frames, ~{duration:.0f}s")
-    print(f"\nCalibration Mode:")
-    print(f"  LEFT/RIGHT = ±1s | UP/DOWN = ±30s | ,/. = ±1 frame | 0-9 = jump")
-    print(f"  r = RED region | b = BLUE region | t = TIMER region | q = done\n")
+    print(f"\nNavigation:")
+    print(f"  LEFT/RIGHT = ±1s | UP/DOWN = ±30s")
+    print(f"  ,/. = ±1 frame | 0-9 = jump to 0%-90%")
+    print(f"\nRegion Selection:")
+    print(f"  n = Add new region (you'll be prompted for name & type)")
+    print(f"  d = Delete region (click on it)")
+    print(f"  q = Done (save and exit)")
+    print(f"\nQuick presets:")
+    print(f"  r = Add 'red' (number) | b = Add 'blue' (number)")
+    print(f"  t = Add 'timer' (text)")
+    print(f"{'=' * 60}\n")
 
-    regions: Dict[str, Tuple[float, float, float, float]] = {}
-    current_label: Optional[str] = None
+    regions: List[Region] = []
+    current_region_name: Optional[str] = None
+    current_region_type: str = "number"
     drawing = False
     start_point: Optional[Tuple[int, int]] = None
     current_rect = None
+
+    # Color cycle for different regions
+    colors = [
+        (0, 0, 255),  # Red
+        (255, 0, 0),  # Blue
+        (0, 255, 0),  # Green
+        (255, 255, 0),  # Cyan
+        (255, 0, 255),  # Magenta
+        (0, 255, 255),  # Yellow
+        (128, 128, 255),  # Light red
+        (255, 128, 128),  # Light blue
+    ]
 
     def seek_to(fn: int):
         nonlocal frame, current_frame
@@ -802,36 +1056,70 @@ def calibrate(source: str) -> Optional[ScoreRegionConfig]:
 
     def mouse_cb(event, x, y, flags, param):
         nonlocal drawing, start_point, current_rect
+
         if event == cv2.EVENT_LBUTTONDOWN:
-            drawing, start_point = True, (x, y)
+            # Check if clicking on existing region to delete
+            if current_region_name == "DELETE":
+                for i, region in enumerate(regions):
+                    x1, y1 = int(region.x1 * w), int(region.y1 * h)
+                    x2, y2 = int(region.x2 * w), int(region.y2 * h)
+                    if x1 <= x <= x2 and y1 <= y <= y2:
+                        print(f"  ✗ Deleted region '{region.name}'")
+                        regions.pop(i)
+                        break
+            elif current_region_name:
+                drawing, start_point = True, (x, y)
+
         elif event == cv2.EVENT_MOUSEMOVE and drawing:
             current_rect = (start_point, (x, y))
-        elif event == cv2.EVENT_LBUTTONUP:
+
+        elif event == cv2.EVENT_LBUTTONUP and drawing:
             drawing = False
-            if current_label and start_point:
-                r = (min(start_point[0], x) / w, min(start_point[1], y) / h,
-                     max(start_point[0], x) / w, max(start_point[1], y) / h)
-                regions[current_label] = r
-                print(f"  {current_label}: ({r[0]:.3f}, {r[1]:.3f}, {r[2]:.3f}, {r[3]:.3f})")
+            if current_region_name and current_region_name != "DELETE" and start_point:
+                x1_norm = min(start_point[0], x) / w
+                y1_norm = min(start_point[1], y) / h
+                x2_norm = max(start_point[0], x) / w
+                y2_norm = max(start_point[1], y) / h
+
+                new_region = Region(
+                    current_region_name,
+                    x1_norm, y1_norm, x2_norm, y2_norm,
+                    current_region_type
+                )
+                regions.append(new_region)
+                print(f"  ✓ Added '{current_region_name}' ({current_region_type}): "
+                      f"({x1_norm:.3f}, {y1_norm:.3f}, {x2_norm:.3f}, {y2_norm:.3f})")
+                current_rect = None
 
     cv2.namedWindow("Calibration")
     cv2.setMouseCallback("Calibration", mouse_cb)
 
     while True:
         disp = frame.copy()
-        colours = {"red": (0, 0, 255), "blue": (255, 0, 0), "timer": (0, 255, 0)}
-        for lbl, (x1, y1, x2, y2) in regions.items():
-            c = colours.get(lbl, (255, 255, 255))
-            cv2.rectangle(disp, (int(x1 * w), int(y1 * h)),
-                          (int(x2 * w), int(y2 * h)), c, 2)
-            cv2.putText(disp, lbl, (int(x1 * w), int(y1 * h) - 5),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, c, 1)
+
+        # Draw all regions
+        for i, region in enumerate(regions):
+            color = colors[i % len(colors)]
+            x1, y1 = int(region.x1 * w), int(region.y1 * h)
+            x2, y2 = int(region.x2 * w), int(region.y2 * h)
+            cv2.rectangle(disp, (x1, y1), (x2, y2), color, 2)
+            label = f"{region.name} ({region.type})"
+            cv2.putText(disp, label, (x1, y1 - 5),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1)
+
+        # Draw current selection
         if drawing and current_rect:
             cv2.rectangle(disp, current_rect[0], current_rect[1], (0, 255, 255), 2)
 
-        info = (f"Mode: {current_label or 'none'} | "
+        # Info text
+        mode_text = current_region_name if current_region_name else "Navigate"
+        if current_region_name and current_region_name != "DELETE":
+            mode_text += f" ({current_region_type})"
+
+        info = (f"Mode: {mode_text} | "
                 f"Frame {current_frame}/{total_frames} | "
-                f"{current_frame / fps:.1f}s / {duration:.0f}s")
+                f"{current_frame / fps:.1f}s / {duration:.0f}s | "
+                f"Regions: {len(regions)}")
         cv2.putText(disp, info, (10, h - 10),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 255), 1)
         cv2.imshow("Calibration", disp)
@@ -840,13 +1128,14 @@ def calibrate(source: str) -> Optional[ScoreRegionConfig]:
         skip1 = int(fps)
         skip30 = int(fps * 30)
 
-        if key in (81, 2):
+        # Navigation
+        if key in (81, 2):  # Left
             seek_to(current_frame - skip1)
-        elif key in (83, 3):
+        elif key in (83, 3):  # Right
             seek_to(current_frame + skip1)
-        elif key in (82, 0):
+        elif key in (82, 0):  # Up
             seek_to(current_frame + skip30)
-        elif key in (84, 1):
+        elif key in (84, 1):  # Down
             seek_to(current_frame - skip30)
         elif key == ord(","):
             seek_to(current_frame - 1)
@@ -854,15 +1143,40 @@ def calibrate(source: str) -> Optional[ScoreRegionConfig]:
             seek_to(current_frame + 1)
         elif key in range(ord("0"), ord("9") + 1) and total_frames > 0:
             seek_to(int(total_frames * (key - ord("0")) / 10))
+
+        # Region management
+        elif key == ord("n"):
+            print("\n  Enter region name: ", end="", flush=True)
+            cv2.destroyWindow("Calibration")
+            name = input().strip()
+            if name:
+                print("  Type (n)umber or (t)ext? [n]: ", end="", flush=True)
+                type_choice = input().strip().lower()
+                current_region_type = "text" if type_choice == "t" else "number"
+                current_region_name = name
+                print(f"  → Draw rectangle for '{name}' ({current_region_type})")
+            cv2.namedWindow("Calibration")
+            cv2.setMouseCallback("Calibration", mouse_cb)
+
         elif key == ord("r"):
-            current_label = "red"
-            print("  Select RED score region…")
+            current_region_name = "red"
+            current_region_type = "number"
+            print("  → Select RED score region (number)…")
+
         elif key == ord("b"):
-            current_label = "blue"
-            print("  Select BLUE score region…")
+            current_region_name = "blue"
+            current_region_type = "number"
+            print("  → Select BLUE score region (number)…")
+
         elif key == ord("t"):
-            current_label = "timer"
-            print("  Select TIMER region…")
+            current_region_name = "timer"
+            current_region_type = "text"
+            print("  → Select TIMER region (text)…")
+
+        elif key == ord("d"):
+            current_region_name = "DELETE"
+            print("  → Click on a region to delete it…")
+
         elif key == ord("q"):
             break
 
@@ -870,20 +1184,18 @@ def calibrate(source: str) -> Optional[ScoreRegionConfig]:
     cap.release()
 
     if not regions:
+        print("\n✗ No regions defined")
         return None
 
-    kwargs: Dict[str, float] = {}
-    mapping = {"red": ("red_x1", "red_y1", "red_x2", "red_y2"),
-               "blue": ("blue_x1", "blue_y1", "blue_x2", "blue_y2"),
-               "timer": ("timer_x1", "timer_y1", "timer_x2", "timer_y2")}
-    for lbl, keys in mapping.items():
-        if lbl in regions:
-            for k, v in zip(keys, regions[lbl]):
-                kwargs[k] = v
-
-    cfg = ScoreRegionConfig(**kwargs)
-    print(f"\nCalibrated config:\n{cfg}")
-    return cfg
+    config = ScoreRegionConfig(regions=regions)
+    print(f"\n{'=' * 60}")
+    print(f"Calibrated Configuration")
+    print(f"{'=' * 60}")
+    for region in config.regions:
+        print(f"{region.name:12s} ({region.type:6s}): "
+              f"({region.x1:.3f}, {region.y1:.3f}, {region.x2:.3f}, {region.y2:.3f})")
+    print(f"{'=' * 60}\n")
+    return config
 
 
 # ──────────────────────────────────────────────────────────────
@@ -933,6 +1245,7 @@ class FRCScoreTracker:
             interval: float = 1.0,
             batch_size: int = 64,
             use_gpu: bool = True,
+            recognition_mode: str = "ocr",
             debug: bool = False,
             verbose: bool = False,
             show_preview: bool = False,
@@ -952,6 +1265,7 @@ class FRCScoreTracker:
         self.interval = interval
         self.batch_size = batch_size
         self.use_gpu = use_gpu
+        self.recognition_mode = recognition_mode
         self.debug = debug
         self.verbose = verbose
         self.show_preview = show_preview
@@ -995,43 +1309,55 @@ class FRCScoreTracker:
         )
 
     def _process(self, source: str) -> TrackingResult:
-        # Phase 1 — find match
+        # Phase 1 — find match (if timer region exists)
         match_start = _find_match_start(
             source, self.config, use_gpu=self.use_gpu,
             debug=self.debug, quiet=self.quiet)
+
         if match_start is None:
-            return TrackingResult(
-                readings=[], scoring_moments=[], boundaries=None,
-                ocr_attempts=0, ocr_successes=0, ocr_failures=0,
-                elapsed_seconds=0.0, frames_processed=0)
+            if not self.quiet:
+                print("⚠️  Skipping match boundary detection - processing entire video")
+            boundaries = None
+            # Process entire video
+            reader = OptimizedVideoReader(source, cache_size=self.batch_size * 8)
+            duration = reader.total_frames / reader.fps if reader.total_frames > 0 else 180
+            windows = [(0, duration, None)]
+            reader.release()
+        else:
+            boundaries = _calculate_boundaries(match_start)
+            if not self.quiet:
+                print(f"\n{'=' * 60}")
+                print(f"Match Phase Boundaries")
+                print(f"{'=' * 60}")
+                print(f"Auto:       {boundaries.match_start:.1f}s – {boundaries.auto_end:.1f}s")
+                print(f"Transition: {boundaries.auto_end:.1f}s – {boundaries.teleop_start:.1f}s")
+                print(f"Teleop:     {boundaries.teleop_start:.1f}s – {boundaries.teleop_end:.1f}s")
+                print(f"{'=' * 60}\n")
+            windows = [
+                (boundaries.match_start, boundaries.auto_end, "auto"),
+                (boundaries.auto_end, boundaries.teleop_start, "transition"),
+                (boundaries.teleop_start, boundaries.teleop_end, "teleop"),
+            ]
 
-        boundaries = _calculate_boundaries(match_start)
-
-        if not self.quiet:
-            print(f"\n{'=' * 60}")
-            print(f"Match Phase Boundaries")
-            print(f"{'=' * 60}")
-            print(f"Auto:       {boundaries.match_start:.1f}s – {boundaries.auto_end:.1f}s")
-            print(f"Transition: {boundaries.auto_end:.1f}s – {boundaries.teleop_start:.1f}s")
-            print(f"Teleop:     {boundaries.teleop_start:.1f}s – {boundaries.teleop_end:.1f}s")
-            print(f"{'=' * 60}\n")
-
-        # Phase 2 — track scores
+        # Phase 2 — track all regions
         tracker = _ScoreTracker(self.config, debug=self.debug,
                                 batch_size=self.batch_size,
-                                use_gpu=self.use_gpu, verbose=self.verbose)
+                                use_gpu=self.use_gpu, verbose=self.verbose, recognition_mode=self.recognition_mode)
         reader = OptimizedVideoReader(source, cache_size=self.batch_size * 8)
 
         if not self.quiet:
-            print(f"  GPU: {' ' + (GPU_TYPE or '') if self.use_gpu and GPU_AVAILABLE else '✗'}")
-            print(f"  Batch: {self.batch_size} | Interval: {self.interval}s")
-            print(f"  Resolution: {reader.width}×{reader.height} @ {reader.fps:.1f} fps\n")
-
-        windows = [
-            (boundaries.match_start, boundaries.auto_end, "auto"),
-            (boundaries.auto_end, boundaries.teleop_start, "transition"),
-            (boundaries.teleop_start, boundaries.teleop_end, "teleop"),
-        ]
+            print(f"\n{'=' * 60}")
+            print(f"Tracking Configuration")
+            print(f"{'=' * 60}")
+            print(f"Regions tracked: {len(self.config.regions)}")
+            for region in self.config.regions:
+                print(f"  • {region.name} ({region.type})")
+            print(f"\nProcessing:")
+            print(f"  GPU: {'✓ ' + (GPU_TYPE or '') if self.use_gpu and GPU_AVAILABLE else '✗ CPU only'}")
+            print(f"  Batch size: {self.batch_size}")
+            print(f"  Interval: {self.interval}s")
+            print(f"  Resolution: {reader.width}×{reader.height} @ {reader.fps:.1f} fps")
+            print(f"{'=' * 60}\n")
 
         processed = 0
         t0 = time.time()
@@ -1039,7 +1365,8 @@ class FRCScoreTracker:
         try:
             for ws, we, phase in windows:
                 if not self.quiet:
-                    print(f"\n Processing {phase.upper()} ({ws:.1f}s – {we:.1f}s)…")
+                    phase_name = phase.upper() if phase else "FULL VIDEO"
+                    print(f"\n⚙️  Processing {phase_name} ({ws:.1f}s – {we:.1f}s)…")
                 ct = ws
                 while ct <= we:
                     batch_ts = []
@@ -1058,22 +1385,30 @@ class FRCScoreTracker:
                             last = evts[-1]
                             el = time.time() - t0
                             spd = processed / el if el else 0
-                            print(f"\r  t={last.timestamp:>7.1f}s  "
-                                  f"R:{last.red_score or '?':>4}  "
-                                  f"B:{last.blue_score or '?':>4}  "
-                                  f"Evts:{len(tracker.scoring_moments):>3}  "
-                                  f"{spd:.1f} fps", end="", flush=True)
+
+                            # Build status line with all tracked values
+                            status_parts = [f"t={last.timestamp:>7.1f}s"]
+                            for region in self.config.regions:
+                                val = last.get(region.name, "?")
+                                if isinstance(val, int):
+                                    status_parts.append(f"{region.name}:{val:>4}")
+                                else:
+                                    status_parts.append(f"{region.name}:{str(val)[:6]:>6}")
+                            status_parts.append(f"Changes:{len(tracker.scoring_moments):>3}")
+                            status_parts.append(f"{spd:.1f} fps")
+
+                            print(f"\r  {' | '.join(status_parts)}", end="", flush=True)
                     ct = batch_ts[-1] + self.interval
         except KeyboardInterrupt:
             if not self.quiet:
-                print("\n\n  Stopped by user")
+                print("\n\n⚠️  Stopped by user")
         finally:
             reader.release()
             tracker.shutdown()
 
         elapsed = time.time() - t0
         if not self.quiet:
-            print(f"\n\n  {processed} frames in {elapsed:.1f}s ({processed / elapsed:.1f} fps)")
+            print(f"\n\n✓ {processed} frames in {elapsed:.1f}s ({processed / elapsed:.1f} fps)")
 
         result = TrackingResult(
             readings=tracker.readings,
@@ -1084,6 +1419,7 @@ class FRCScoreTracker:
             ocr_failures=tracker.ocr_failures,
             elapsed_seconds=elapsed,
             frames_processed=processed,
+            tracked_regions=[r.name for r in self.config.regions],
         )
 
         # Auto-export if prefix given
@@ -1091,7 +1427,7 @@ class FRCScoreTracker:
             result.export_events_csv(f"{self.output_prefix}_events.csv")
             result.export_readings_csv(f"{self.output_prefix}_readings.csv")
             if not self.quiet:
-                print(f" Exported CSVs with prefix '{self.output_prefix}'")
+                print(f"✓ Exported CSVs with prefix '{self.output_prefix}'")
 
         return result
 
@@ -1102,7 +1438,7 @@ class FRCScoreTracker:
 
 def main():
     parser = argparse.ArgumentParser(
-        description="FRC Match Score Tracker (Library + CLI)",
+        description="FRC Match Score Tracker (Library + CLI) - Flexible Region Tracking",
         formatter_class=argparse.RawDescriptionHelpFormatter)
 
     src = parser.add_mutually_exclusive_group(required=True)
@@ -1120,6 +1456,12 @@ def main():
     parser.add_argument("--cookies", help="Path to cookies.txt for yt-dlp")
     parser.add_argument("--cookies-from-browser",
                         help="Browser to extract cookies from (e.g. firefox)")
+    parser.add_argument(
+        "--recognition",
+        choices=["ocr", "template", "auto"],
+        default="ocr",
+        help="Text recognition mode"
+    )
 
     args = parser.parse_args()
 
@@ -1145,29 +1487,33 @@ def main():
         output_prefix=args.output,
         cookies=args.cookies,
         cookies_from_browser=args.cookies_from_browser,
+        recognition_mode=args.recognition
     )
 
     result = tracker.run()
 
     # Print summary
     print(f"\n{'=' * 60}")
-    print(f"Score Tracking Summary")
+    print(f"Tracking Summary")
     print(f"{'=' * 60}")
     print(f"Frames processed: {result.frames_processed}")
-    print(f"Scoring events: {len(result.scoring_moments)}")
+    print(f"Value changes detected: {len(result.scoring_moments)}")
     if result.ocr_attempts:
         print(f"OCR success rate: {result.ocr_success_rate:.1f}%")
-    print(f"Final — Red: {result.final_red}  Blue: {result.final_blue}")
+
+    print(f"\nFinal values:")
+    for name, value in result.final_values.items():
+        print(f"  {name}: {value}")
 
     if result.scoring_moments:
-        print(f"\nLast 20 events:")
-        print(f"  {'Time':>8s}  {'Match':>6s}  {'Phase':<7s}  "
-              f"{'Alliance':<6s}  {'Pts':>4s}  {'Total':>5s}")
-        print(f"  {'-' * 48}")
+        print(f"\nLast 20 changes:")
+        print(f"  {'Time':>8s}  {'Phase':<7s}  {'Region':<12s}  {'Old':>6s}  {'New':>6s}  {'Delta':>6s}")
+        print(f"  {'-' * 60}")
         for m in result.scoring_moments[-20:]:
-            print(f"  {m.timestamp:>7.1f}s  {m.match_time or '':>6s}  "
-                  f"{m.match_phase or '?':<7s}  {m.alliance:<6s}  "
-                  f"+{m.points_gained:>3d}  {m.new_total:>5d}")
+            delta = f"+{m.points_gained}" if m.points_gained else ""
+            print(f"  {m.timestamp:>7.1f}s  {m.match_phase or '?':<7s}  "
+                  f"{m.region_name:<12s}  {str(m.old_value):>6s}  "
+                  f"{str(m.new_value):>6s}  {delta:>6s}")
 
 
 if __name__ == "__main__":

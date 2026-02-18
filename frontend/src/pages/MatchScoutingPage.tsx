@@ -380,7 +380,24 @@ export default function MatchScoutingPage() {
 
     // ─── Reset helper ───
     const resetToNew = useCallback(() => {
-        setScoutingData({...createDefaultScoutingData(), scouter: scouterEmail!})
+        setScoutingData(prev => {
+            const defaults = createDefaultScoutingData()
+
+            return {
+                ...defaults,
+
+                // carry forward
+                match_type: prev.match_type,
+                match: (prev.match ?? 0) + 1,
+
+                // explicitly reset
+                alliance: null,
+
+                // always re-stamp scouter
+                scouter: scouterEmail!,
+            }
+        })
+
         setPhaseIndex(0)
     }, [scouterEmail])
 
@@ -452,67 +469,52 @@ export default function MatchScoutingPage() {
             setShowConfirmDialog(true)
             return
         }
-        executeSubmit()
+        void executeSubmit()
     }, [baseDisabled, featureFlags.confirmBeforeUpload, executeSubmit])
+
+    const setPhase = useCallback(
+        async (targetPhase: Phase) => {
+            const targetIndex = PHASE_ORDER.indexOf(targetPhase)
+            if (targetIndex === -1) return
+
+            setPhaseIndex(targetIndex)
+
+            await scoutingAction(
+                scoutingData.match!,
+                scoutingData.teamNumber!,
+                scoutingData.match_type!,
+                scoutingData.alliance!,
+                `set_${targetPhase}` as any,
+            )
+        },
+        [PHASE_ORDER, scoutingAction, scoutingData],
+    )
 
     const handleNext = useCallback(async () => {
         if (baseDisabled) return
-        const nextIndex = phaseIndex + 1
-        console.log(nextIndex, phaseIndex)
-        setPhaseIndex(nextIndex)
-        await scoutingAction(
-            scoutingData.match!,
-            scoutingData.teamNumber!,
-            scoutingData.match_type!,
-            scoutingData.alliance!,
-            `set_${PHASE_ORDER[nextIndex]}` as any,
-        )
 
-    }, [baseDisabled, phaseIndex, scoutingData, scoutingAction, PHASE_ORDER])
+        const nextPhase = PHASE_ORDER[phaseIndex + 1]
+
+        if (!nextPhase) return
+
+        await setPhase(nextPhase)
+    }, [baseDisabled, PHASE_ORDER, phaseIndex, setPhase])
 
     const handleBack = useCallback(async () => {
-        if (phaseIndex === 0) {
-            await exitFullscreenIfNeeded();
-            navigate("/");
-            return;
+        const currentPhase = PHASE_ORDER[phaseIndex]
+
+        if (currentPhase === 'pre') {
+            await exitFullscreenIfNeeded()
+            navigate("/")
+            return
         }
-        const prevIndex = phaseIndex - 1;
-        setPhaseIndex(prevIndex);
-        await scoutingAction(
-            scoutingData.match!,
-            scoutingData.teamNumber!,
-            scoutingData.match_type!,
-            scoutingData.alliance!,
-            `set_${PHASE_ORDER[prevIndex]}` as any,
-        )
-    }, [phaseIndex, scoutingData, scoutingAction, PHASE_ORDER, navigate])
 
-    // ─── Variant A navigation callbacks ───
-    // In default variant, AVariant controls auto+teleop but tracks them separately.
-    // "Go to post" jumps to the post phase.
-    const variantAGoToPost = useCallback(async () => {
-        const postIndex = PHASE_ORDER.indexOf('post')
-        setPhaseIndex(postIndex)
-        await scoutingAction(
-            scoutingData.match!,
-            scoutingData.teamNumber!,
-            scoutingData.match_type!,
-            scoutingData.alliance!,
-            `set_post` as any,
-        )
-    }, [scoutingData, scoutingAction, PHASE_ORDER])
+        const prevPhase = PHASE_ORDER[phaseIndex - 1]
+        if (!prevPhase) return
 
-    const variantAExitToPre = useCallback(async () => {
-        const preIndex = PHASE_ORDER.indexOf('pre')
-        setPhaseIndex(preIndex)
-        await scoutingAction(
-            scoutingData.match!,
-            scoutingData.teamNumber!,
-            scoutingData.match_type!,
-            scoutingData.alliance!,
-            `set_pre` as any,
-        )
-    }, [scoutingData, scoutingAction, PHASE_ORDER])
+        await setPhase(prevPhase)
+    }, [PHASE_ORDER, phaseIndex, setPhase, navigate])
+
 
     return (
         <>
@@ -539,7 +541,7 @@ export default function MatchScoutingPage() {
                             className="bg-green-600 hover:bg-green-700"
                             onClick={() => {
                                 setShowConfirmDialog(false);
-                                executeSubmit();
+                                void executeSubmit();
                             }}
                         >
                             Confirm & Submit
@@ -653,9 +655,7 @@ export default function MatchScoutingPage() {
                                 data={scoutingData}
                                 setData={setScoutingData}
                                 handleSubmit={handleSubmit}
-                                handleBack={variantAExitToPre}
-                                handleNext={variantAGoToPost}
-                                exitToPre={variantAExitToPre}
+                                setPhase={setPhase}
                             />
                         )}
                         {abTestVariant === "b" && phase === 'combined' && (
