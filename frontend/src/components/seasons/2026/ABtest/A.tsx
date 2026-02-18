@@ -22,19 +22,19 @@ interface SubPhaseConfig {
 // Sub-phase sequence for teleop
 // ---------------------------------------------------------------------------
 const TELEOP_SEQUENCE: SubPhaseConfig[] = [
-    {phase: "transition", duration: 10000},
-    {phase: "shift_1", duration: 25000},
-    {phase: "shift_2", duration: 25000},
-    {phase: "shift_3", duration: 25000},
-    {phase: "shift_4", duration: 25000},
-    {phase: "endgame", duration: 30000},
+    {phase: "transition", duration: 1000},
+    {phase: "shift_1", duration: 2500},
+    {phase: "shift_2", duration: 2500},
+    {phase: "shift_3", duration: 2500},
+    {phase: "shift_4", duration: 2500},
+    {phase: "endgame", duration: 3000},
 ]
 
 // ---------------------------------------------------------------------------
 // Phase duration constants
 // ---------------------------------------------------------------------------
-const AUTO_DURATION = 20000
-const BETWEEN_DURATION = 3000
+const AUTO_DURATION = 2000
+const BETWEEN_DURATION = 300
 const TELEOP_DURATION = TELEOP_SEQUENCE.reduce((s, c) => s + c.duration, 0)
 
 // ---------------------------------------------------------------------------
@@ -1248,99 +1248,7 @@ export default function MatchScouting({
                     <span className="text-red-400 text-xs font-bold mt-1">− SUB</span>
                 </div>
 
-                {/* Climb controls */}
-                <div className="flex flex-col gap-2 w-full max-w-[16rem] pt-2 border-t border-zinc-700"
-                     style={{height: "5.5rem"}}
-                >
-                    {currentZone === "climb" ? (
-                        <>
-                            {matchPhase === "auto" && (
-                                <div className="text-orange-400 text-xs font-bold text-center">
-                                    Auto climb (L1) recorded
-                                </div>
-                            )}
 
-                            {matchPhase === "teleop" && (
-                                <div className="flex gap-2">
-                                    {(["L1", "L2", "L3"] as const).map(level => {
-                                        const lastClimb = [...actions].reverse().find(a => a.type === "climb") as ClimbAction | undefined
-                                        const isSelected = lastClimb?.level === level
-                                        return (
-                                            <button
-                                                key={level}
-                                                onClick={() => {
-                                                    setActions(prev => {
-                                                        const lastClimbIdx = (() => {
-                                                            for (let i = prev.length - 1; i >= 0; i--) {
-                                                                if (prev[i].type === "climb") return i
-                                                            }
-                                                            return -1
-                                                        })()
-                                                        if (lastClimbIdx !== -1) {
-                                                            const updated = [...prev]
-                                                            const existing = updated[lastClimbIdx] as ClimbAction
-                                                            if (existing.level === level) {
-                                                                updated.splice(lastClimbIdx, 1)
-                                                                return updated
-                                                            }
-                                                            updated[lastClimbIdx] = {...existing, level}
-                                                            return updated
-                                                        }
-                                                        const now = Date.now()
-                                                        return [...prev, {
-                                                            type: "climb" as const,
-                                                            timestamp: matchStartTime > 0 ? now - matchStartTime : 0,
-                                                            level,
-                                                            success: climbSuccess,
-                                                            phase: matchPhase,
-                                                            subPhase: subPhase?.phase ?? null,
-                                                        }]
-                                                    })
-                                                }}
-                                                className={`flex-1 h-10 rounded-lg text-sm font-bold transition-all ${
-                                                    isSelected
-                                                        ? "bg-orange-600 ring-2 ring-orange-400 text-white"
-                                                        : "bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-600"
-                                                }`}
-                                            >
-                                                {level}
-                                            </button>
-                                        )
-                                    })}
-                                </div>
-                            )}
-
-                            <button
-                                onClick={() => {
-                                    const next = !climbSuccess
-                                    setClimbSuccess(next)
-                                    setActions(prev => {
-                                        const lastClimbIdx = (() => {
-                                            for (let i = prev.length - 1; i >= 0; i--) {
-                                                if (prev[i].type === "climb") return i
-                                            }
-                                            return -1
-                                        })()
-                                        if (lastClimbIdx === -1) return prev
-                                        const updated = [...prev]
-                                        updated[lastClimbIdx] = {
-                                            ...(updated[lastClimbIdx] as ClimbAction),
-                                            success: next
-                                        }
-                                        return updated
-                                    })
-                                }}
-                                className={`h-10 rounded-lg text-sm font-bold transition-all ${
-                                    climbSuccess
-                                        ? "bg-green-700 hover:bg-green-600 text-white"
-                                        : "bg-red-800 hover:bg-red-700 text-red-200"
-                                }`}
-                            >
-                                {climbSuccess ? "✓ SUCCESS" : "SUCCESS?"}
-                            </button>
-                        </>
-                    ) : null}
-                </div>
 
                 {/* "Go to Post Match" button — appears when timer has expired */}
                 {timerExpired && (

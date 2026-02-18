@@ -113,10 +113,18 @@ export type MatchScoutingData = {
 
     // Post-match qualitative data
     postmatch: {
-        offense: boolean
-        defense: boolean
-        skill: number
-        defenseSkill: number
+        skill: number // 0-1
+        defenseSkill: number // 0-1
+        role: "Shooter" | "Intake" | "Defense" | "Generalist" | "Useless"
+        traversalLocation: "Trench" | "Bump" | "No Preference" // slider?
+        teleopClimbPos: "Center" | "Left" | "Right" | "Left Side" | "Right Side" | null
+        autoClimbPos: "Center" | "Left" | "Right" | "Left Side" | "Right Side" | null
+        intakePos: {
+            neutral: boolean
+            depot: boolean
+            outpost: boolean
+            opponent: boolean
+        }
         faults: {
             system: boolean
             idle: boolean
@@ -142,10 +150,19 @@ export const createDefaultScoutingData = (): Omit<MatchScoutingData, "scouter"> 
         actions: [],
 
         postmatch: {
-            offense: false,
-            defense: false,
+            // stashing strat
             skill: 0,
             defenseSkill: 0,
+            role: "Useless",
+            traversalLocation: "No Preference",
+            teleopClimbPos: null,
+            autoClimbPos: null,
+            intakePos: {
+                neutral: false,
+                depot: false,
+                outpost: false,
+                opponent: false,
+            },
             faults: {
                 system: false,
                 idle: false,
