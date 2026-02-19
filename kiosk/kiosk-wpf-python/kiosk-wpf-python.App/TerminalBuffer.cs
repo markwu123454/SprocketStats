@@ -176,15 +176,15 @@ public sealed class TerminalBuffer
                 EraseLine(0);
                 // Clear all lines below
                 for (int r = CursorRow + 1; r < _rows.Count; r++)
-                    for (int c = 0; c < Columns; c++)
-                        ResetCell(_rows[r][c]);
+                for (int c = 0; c < Columns; c++)
+                    ResetCell(_rows[r][c]);
                 break;
 
             case 1: // start to cursor
                 // Clear all lines above
                 for (int r = 0; r < CursorRow; r++)
-                    for (int c = 0; c < Columns; c++)
-                        ResetCell(_rows[r][c]);
+                for (int c = 0; c < Columns; c++)
+                    ResetCell(_rows[r][c]);
                 // Clear current line up to cursor
                 EraseLine(1);
                 break;
@@ -192,8 +192,8 @@ public sealed class TerminalBuffer
             case 2: // entire screen
             case 3: // entire screen + scrollback
                 for (int r = 0; r < _rows.Count; r++)
-                    for (int c = 0; c < Columns; c++)
-                        ResetCell(_rows[r][c]);
+                for (int c = 0; c < Columns; c++)
+                    ResetCell(_rows[r][c]);
                 CursorRow = 0;
                 CursorCol = 0;
                 break;

@@ -17,29 +17,33 @@ Key Components:
     - Real-time log streaming
 """
 
+# 1. Standard library
 import asyncio
 # import math
 # import random
 # import statistics
 # import string
-
-import asyncpg
-import certifi
-import dotenv
-# import json
-# import requests
-# import numpy
 import os
 import ssl
 # import sys
+# import json
 import time
 import traceback
 import types
+
+# 2. Third-party/installed
+import asyncpg
+import certifi
+import dotenv
+import jedi
+# import numpy
+# import requests
 # import statbotics
 
+# 3. Local/custom
+# import frc_score_tracker_lib
 from calculator import *
 from logger import *
-# import frc_score_tracker_lib
 
 FRCScoreTracker = ScoreRegionConfig = None
 
@@ -783,6 +787,32 @@ def run_async(target, *args, **kwargs):
 
     raise TypeError("run_async() expects a coroutine or async function")
 
+
+def _handle_complete(data, repl_namespace):
+    code = data.get("code", "")
+    line = data.get("line", 1)
+    column = data.get("column", 0)
+
+    try:
+        # Pass your live REPL namespace so jedi knows about runtime variables
+        script = jedi.Interpreter(code, [repl_namespace])
+        completions = script.complete(line, column)
+
+        return {
+            "success": True,
+            "completions": [
+                {
+                    "name": c.name,
+                    "complete": c.complete,  # the part to insert
+                    "type": c.type,  # 'function', 'module', 'instance', etc.
+                    "description": c.description
+                }
+                for c in completions[:20]  # cap it
+            ]
+        }
+    except Exception as e:
+        return {"success": True, "completions": []}  # fail silently
+
 # ============================================================================
 # JSON COMMAND INTERFACE
 # ============================================================================
@@ -817,65 +847,63 @@ def exec_or_eval(code: str):
 
 def handle(req: dict):
     """Handle incoming JSON commands."""
-    cmd = req.get("cmd")
+    match req.get("cmd"):
+        case "ping":
+            return _ok(log="Python ready")
 
-    if cmd == "ping":
-        return _ok(log="Python ready")
+        case "init":
+            return python_init()
 
-    if cmd == "init":
-        result = python_init()
-        return result
+        case "exec":
+            return exec_or_eval(req.get("code", ""))
 
-    if cmd == "exec":
-        return exec_or_eval(req.get("code", ""))
+        case "complete":
+            return _handle_complete(req, REPL_GLOBALS)
 
-    if cmd == "call_async":
-        coro_name = req.get("name")
-        args = req.get("args", [])
-        func = globals().get(coro_name)
+        case "call_async":
+            coro_name = req.get("name")
+            args = req.get("args", [])
+            func = globals().get(coro_name)
 
-        if not func or not asyncio.iscoroutinefunction(func):
-            return _err(f"{coro_name} is not async")
+            if not func or not asyncio.iscoroutinefunction(func):
+                return _err(f"{coro_name} is not async")
 
-        try:
-            result = _loop.run_until_complete(func(*args))
-            return _ok(result=result)
-        except Exception:
-            return _err(traceback.format_exc())
+            try:
+                result = _loop.run_until_complete(func(*args))
+                return _ok(result=result)
+            except Exception:
+                return _err(traceback.format_exc())
 
-    if cmd == "download_data":
-        event_key = req.get("event_key")
-        result = _loop.run_until_complete(download_data(event_key))
-        return result
+        case "download_data":
+            result = _loop.run_until_complete(download_data(req.get("event_key")))
+            return result
 
-    if cmd == "upload_data":
-        event_key = req.get("event_key")
-        result = _loop.run_until_complete(upload_data(event_key))
-        return result
+        case "upload_data":
+            result = _loop.run_until_complete(upload_data(req.get("event_key")))
+            return result
 
-    if cmd == "run_calculation":
-        setting = req.get("setting", {})
-        result = run_calculation(setting, downloaded_data, TBA_API_KEY)
-        return result
+        case "run_calculation":
+            return run_calculation(req.get("setting", {}), downloaded_data, TBA_API_KEY)
 
-    if cmd == "verify_db":
-        ok, errors = _loop.run_until_complete(verify_db())
-        return _ok(valid=ok, errors=errors)
+        case "verify_db":
+            ok, errors = _loop.run_until_complete(verify_db())
+            return _ok(valid=ok, errors=errors)
 
-    if cmd == "list_globals":
-        list_globals()
-        return _ok()
+        case "list_globals":
+            list_globals()
+            return _ok()
 
-    if cmd == "get_data":
-        data_type = req.get("type")
-        if data_type == "downloaded":
-            return _ok(data=downloaded_data)
-        elif data_type == "calc_result":
-            return _ok(data=calc_result)
-        else:
-            return _err(f"Unknown data type: {data_type}")
+        case "get_data":
+            match req.get("type"):
+                case "downloaded":
+                    return _ok(data=downloaded_data)
+                case "calc_result":
+                    return _ok(data=calc_result)
+                case other:
+                    return _err(f"Unknown data type: {other}")
 
-    return _err(f"Unknown command: {cmd}")
+        case other:
+            return _err(f"Unknown command: {other}")
 
 
 # ============================================================================

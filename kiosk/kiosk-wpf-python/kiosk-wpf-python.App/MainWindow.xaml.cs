@@ -1,6 +1,7 @@
 ﻿using System.Text;
 using System.Text.Json;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Documents;
 using System.Windows.Input;
 using System.Windows.Media;
@@ -13,14 +14,31 @@ public partial class MainWindow
     private readonly List<string> _commandHistory = new();
     private int _historyIndex = -1;
     private bool _isBusy;
+    
+    private CancellationTokenSource? _completionCts;
+    private record CompletionItem(string Name, string Complete, string Type);
+    
+    private static readonly Dictionary<string, string> _autoPairs = new()
+    {
+        { "(", ")" },
+        { "[", "]" },
+        { "{", "}" },
+        { "\"", "\"" },
+        { "'", "'" },
+        { "`", "`" },
+    };
 
     public MainWindow()
     {
         InitializeComponent();
         
+        CommandInput.LostFocus += (_, _) => CompletionPopup.IsOpen = false;
+        Deactivated += (_, _) => CompletionPopup.IsOpen = false;
+        StateChanged += (_, _) => CompletionPopup.IsOpen = false;
+
         // Subscribe to real-time log events from Python
         App.Python.LogReceived += OnPythonLog;
-        
+
         ContentRendered += OnRendered;
     }
 
@@ -77,6 +95,15 @@ public partial class MainWindow
         {
             case Key.Up:
             {
+                if (CompletionPopup.IsOpen)
+                {
+                    var idx = CompletionList.SelectedIndex;
+                    CompletionList.SelectedIndex = Math.Max(0, idx - 1);
+                    CompletionList.ScrollIntoView(CompletionList.SelectedItem);
+                    e.Handled = true;
+                    break;
+                }
+
                 if (_commandHistory.Count == 0)
                     return;
 
@@ -93,6 +120,15 @@ public partial class MainWindow
 
             case Key.Down:
             {
+                if (CompletionPopup.IsOpen)
+                {
+                    var idx = CompletionList.SelectedIndex;
+                    CompletionList.SelectedIndex = Math.Min(CompletionList.Items.Count - 1, idx + 1);
+                    CompletionList.ScrollIntoView(CompletionList.SelectedItem);
+                    e.Handled = true;
+                    break;
+                }
+
                 if (_commandHistory.Count == 0 || _historyIndex == -1)
                     return;
 
@@ -111,6 +147,22 @@ public partial class MainWindow
                 e.Handled = true;
                 break;
             }
+            
+            case Key.Tab:
+                if (CompletionPopup.IsOpen && CompletionList.SelectedItem is CompletionItem tabItem)
+                {
+                    ApplyCompletion(tabItem);
+                    e.Handled = true;
+                }
+                break;
+
+            case Key.Escape:
+                if (CompletionPopup.IsOpen)
+                {
+                    CompletionPopup.IsOpen = false;
+                    e.Handled = true;
+                }
+                break;
 
             case Key.Enter:
             {
@@ -148,8 +200,87 @@ public partial class MainWindow
                 e.Handled = true;
                 break;
             }
+            
+            case Key.Back:
+            {
+                var caret = CommandInput.CaretIndex;
+                var text = CommandInput.Text;
+
+                if (caret > 0 && caret < text.Length)
+                {
+                    var prev = text[caret - 1].ToString();
+                    var next = text[caret].ToString();
+
+                    if (_autoPairs.TryGetValue(prev, out var expectedClose) && next == expectedClose)
+                    {
+                        // Delete both the opening and closing char at once
+                        CommandInput.Text = text.Remove(caret - 1, 2);
+                        CommandInput.CaretIndex = caret - 1;
+                        e.Handled = true;
+                    }
+                }
+                break;
+            }
         }
     }
+    
+    private void CommandInput_PreviewTextInput(object sender, TextCompositionEventArgs e)
+    {
+        if (!_autoPairs.TryGetValue(e.Text, out var closing))
+            return;
+
+        var caret = CommandInput.CaretIndex;
+        var text = CommandInput.Text;
+
+        // For closing chars that are same as opening (quotes/backtick),
+        // if the next char is already the closing char, just skip over it
+        if (e.Text == closing && caret < text.Length && text[caret].ToString() == closing)
+        {
+            CommandInput.CaretIndex = caret + 1;
+            e.Handled = true;
+            return;
+        }
+
+        // Insert both chars and place cursor between them
+        var newText = text.Insert(caret, e.Text + closing);
+        CommandInput.Text = newText;
+        CommandInput.CaretIndex = caret + 1;
+        e.Handled = true;
+    }
+    
+    private void CommandInput_MouseDoubleClick(object sender, MouseButtonEventArgs e)
+    {
+        var text = CommandInput.Text;
+        var caret = CommandInput.CaretIndex;
+
+        if (text.Length == 0) return;
+
+        // Clamp caret to valid range
+        var pos = Math.Min(caret, text.Length - 1);
+
+        // If we clicked past the end, select nothing
+        if (caret >= text.Length && text.Length > 0)
+            pos = text.Length - 1;
+
+        // Expand left
+        var start = pos;
+        while (start > 0 && IsPythonWordChar(text[start - 1]))
+            start--;
+
+        // Expand right
+        var end = pos;
+        while (end < text.Length && IsPythonWordChar(text[end]))
+            end++;
+
+        if (end > start)
+        {
+            CommandInput.Select(start, end - start);
+            e.Handled = true;
+        }
+    }
+
+    private static bool IsPythonWordChar(char c) =>
+        char.IsLetterOrDigit(c) || c == '_';
 
     // ===============================
     // Actions
@@ -163,10 +294,10 @@ public partial class MainWindow
             // Get current settings from SettingsView
             // Assuming you have a reference to your SettingsView control named SettingsViewControl
             var settings = SettingsViewControl.CurrentSettings;
-            
+
             // Extract event_key from settings (assuming it exists)
-            var eventKey = settings.TryGetValue("event_key", out var key) 
-                ? key?.ToString() ?? "" 
+            var eventKey = settings.TryGetValue("event_key", out var key)
+                ? key?.ToString() ?? ""
                 : "";
 
             await Task.Run(() =>
@@ -206,14 +337,14 @@ public partial class MainWindow
         {
             // Get current settings from SettingsView
             var settings = SettingsViewControl.CurrentSettings;
-            
+
             // Extract event_key and stop_on_warning from settings
-            var eventKey = settings.TryGetValue("event_key", out var key) 
-                ? key?.ToString() ?? "" 
+            var eventKey = settings.TryGetValue("event_key", out var key)
+                ? key?.ToString() ?? ""
                 : "";
-            
-            var stopOnWarning = settings.TryGetValue("stop_on_warning", out var stop) 
-                && stop is bool stopBool && stopBool;
+
+            var stopOnWarning = settings.TryGetValue("stop_on_warning", out var stop)
+                                && stop is bool stopBool && stopBool;
 
             await Task.Run(() =>
             {
@@ -256,10 +387,10 @@ public partial class MainWindow
         {
             // Get current settings from SettingsView
             var settings = SettingsViewControl.CurrentSettings;
-            
+
             // Extract event_key from settings
-            var eventKey = settings.TryGetValue("event_key", out var key) 
-                ? key?.ToString() ?? "" 
+            var eventKey = settings.TryGetValue("event_key", out var key)
+                ? key?.ToString() ?? ""
                 : "";
 
             if (string.IsNullOrWhiteSpace(eventKey))
@@ -495,5 +626,95 @@ public partial class MainWindow
     private void OnSettingsChanged(object? sender, EventArgs e)
     {
         AppendLog("Settings updated");
+    }
+    
+    // TextChanged handler — triggers completion
+    private void CommandInput_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        var text = CommandInput.Text;
+        if (text.Length > 0 && !text.EndsWith(' '))
+            _ = TriggerCompletionAsync();
+        else
+            CompletionPopup.IsOpen = false;
+    }
+
+    private async Task TriggerCompletionAsync()
+    {
+        _completionCts?.Cancel();
+        _completionCts = new CancellationTokenSource();
+        var cts = _completionCts;
+
+        var code = CommandInput.Text;
+        var caretIndex = CommandInput.CaretIndex;
+
+        try { await Task.Delay(120, cts.Token); }
+        catch (TaskCanceledException) { return; }
+        if (cts.IsCancellationRequested) return;
+
+        var lines = code[..caretIndex].Split('\n');
+        var line = lines.Length;
+        var column = lines[^1].Length;
+
+        var completions = await Task.Run(() =>
+        {
+            try
+            {
+                var res = App.Python.Call(new { cmd = "complete", code, line, column });
+                if (res.TryGetProperty("completions", out var arr))
+                    return arr.EnumerateArray()
+                        .Select(c => new CompletionItem(
+                            c.GetProperty("name").GetString()!,
+                            c.GetProperty("complete").GetString()!,
+                            c.GetProperty("type").GetString()!))
+                        .ToList();
+            }
+            catch { }
+            return new List<CompletionItem>();
+        });
+
+        if (!cts.IsCancellationRequested)
+            ShowCompletionPopup(completions);
+    }
+
+    private void ShowCompletionPopup(List<CompletionItem> completions)
+    {
+        Dispatcher.Invoke(() =>
+        {
+            if (completions.Count == 0) { CompletionPopup.IsOpen = false; return; }
+            CompletionList.ItemsSource = completions;
+            CompletionList.SelectedIndex = 0;
+            CompletionPopup.IsOpen = true;
+        });
+    }
+
+    private void ApplyCompletion(CompletionItem item)
+    {
+        var caret = CommandInput.CaretIndex;
+        CommandInput.Text = CommandInput.Text.Insert(caret, item.Complete);
+        CommandInput.CaretIndex = caret + item.Complete.Length;
+        CompletionPopup.IsOpen = false;
+        CommandInput.Focus();
+    }
+
+    private void CompletionList_MouseDoubleClick(object sender, MouseButtonEventArgs e)
+    {
+        if (CompletionList.SelectedItem is CompletionItem item)
+            ApplyCompletion(item);
+    }
+
+    private void CompletionList_PreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key is Key.Enter or Key.Tab)
+        {
+            if (CompletionList.SelectedItem is CompletionItem item)
+                ApplyCompletion(item);
+            e.Handled = true;
+        }
+        else if (e.Key == Key.Escape)
+        {
+            CompletionPopup.IsOpen = false;
+            CommandInput.Focus();
+            e.Handled = true;
+        }
     }
 }

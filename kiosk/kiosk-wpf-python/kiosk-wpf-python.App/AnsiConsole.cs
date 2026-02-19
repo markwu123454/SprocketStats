@@ -94,10 +94,10 @@ public sealed class AnsiConsole
         // 16–231: 6x6x6 color cube
         int[] levels = [0, 95, 135, 175, 215, 255];
         for (int r = 0; r < 6; r++)
-            for (int g = 0; g < 6; g++)
-                for (int b = 0; b < 6; b++)
-                    palette[16 + (36 * r) + (6 * g) + b] =
-                        Color.FromRgb((byte)levels[r], (byte)levels[g], (byte)levels[b]);
+        for (int g = 0; g < 6; g++)
+        for (int b = 0; b < 6; b++)
+            palette[16 + (36 * r) + (6 * g) + b] =
+                Color.FromRgb((byte)levels[r], (byte)levels[g], (byte)levels[b]);
 
         // 232–255: grayscale ramp
         for (int i = 0; i < 24; i++)
@@ -129,10 +129,21 @@ public sealed class AnsiConsole
                 var j = i + 2;
                 while (j < text.Length)
                 {
-                    if (text[j] == '\x07') { i = j; break; }
-                    if (text[j] == '\x1b' && j + 1 < text.Length && text[j + 1] == '\\') { i = j + 1; break; }
+                    if (text[j] == '\x07')
+                    {
+                        i = j;
+                        break;
+                    }
+
+                    if (text[j] == '\x1b' && j + 1 < text.Length && text[j + 1] == '\\')
+                    {
+                        i = j + 1;
+                        break;
+                    }
+
                     j++;
                 }
+
                 if (j >= text.Length) i = text.Length - 1;
                 continue;
             }
@@ -166,10 +177,28 @@ public sealed class AnsiConsole
             if (c == '\x1b' && i + 1 < text.Length)
             {
                 var next = text[i + 1];
-                if (next == '7') { Buffer.SaveCursor(); i++; continue; }
-                if (next == '8') { Buffer.RestoreCursor(); i++; continue; }
+                if (next == '7')
+                {
+                    Buffer.SaveCursor();
+                    i++;
+                    continue;
+                }
+
+                if (next == '8')
+                {
+                    Buffer.RestoreCursor();
+                    i++;
+                    continue;
+                }
+
                 // ESC c = full reset
-                if (next == 'c') { Buffer.EraseScreen(2); Buffer.ResetAttributes(); i++; continue; }
+                if (next == 'c')
+                {
+                    Buffer.EraseScreen(2);
+                    Buffer.ResetAttributes();
+                    i++;
+                    continue;
+                }
             }
 
             // ── Regular characters ──
@@ -451,6 +480,7 @@ public sealed class AnsiConsole
                 else
                     Buffer.CurrentBackground = Palette256[idx];
             }
+
             return i + 2;
         }
 
@@ -471,6 +501,7 @@ public sealed class AnsiConsole
                 else
                     Buffer.CurrentBackground = color;
             }
+
             return i + 4;
         }
 

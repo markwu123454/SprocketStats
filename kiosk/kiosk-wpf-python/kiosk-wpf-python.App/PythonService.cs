@@ -18,7 +18,7 @@ public sealed class PythonService : IDisposable
         var psi = new ProcessStartInfo
         {
             FileName = pythonExe,
-            Arguments = $"-u \"{serviceScript}\"",  // -u for unbuffered output
+            Arguments = $"-u \"{serviceScript}\"", // -u for unbuffered output
             UseShellExecute = false,
             RedirectStandardInput = true,
             RedirectStandardOutput = true,
@@ -76,6 +76,8 @@ public sealed class PythonService : IDisposable
             if (!_process.HasExited)
                 _process.Kill(entireProcessTree: true);
         }
-        catch { }
+        catch
+        {
+        }
     }
 }

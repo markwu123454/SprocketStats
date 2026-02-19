@@ -7,9 +7,9 @@
         <Nullable>enable</Nullable>
         <ImplicitUsings>enable</ImplicitUsings>
         <UseWPF>true</UseWPF>
-<PublishSingleFile>true</PublishSingleFile>
-  <SelfContained>true</SelfContained>
-  <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+        <PublishSingleFile>true</PublishSingleFile>
+        <SelfContained>true</SelfContained>
+        <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     </PropertyGroup>
 
     <ItemGroup>
@@ -29,25 +29,25 @@
             <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
         </Content>
     </ItemGroup>
-<!-- DEV: copy real .env -->
-<ItemGroup Condition="'$(Configuration)' == 'Debug'">
-  <Content Include=".env">
-    <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-  </Content>
-</ItemGroup>
+    <!-- DEV: copy real .env -->
+    <ItemGroup Condition="'$(Configuration)' == 'Debug'">
+        <Content Include=".env">
+            <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+        </Content>
+    </ItemGroup>
 
-<!-- PROD: copy example as .env -->
-<ItemGroup Condition="'$(Configuration)' == 'Release'">
-  <Content Include=".env.example">
-    <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    <TargetPath>.env</TargetPath>
-  </Content>
-</ItemGroup>
+    <!-- PROD: copy example as .env -->
+    <ItemGroup Condition="'$(Configuration)' == 'Release'">
+        <Content Include=".env.example">
+            <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+            <TargetPath>.env</TargetPath>
+        </Content>
+    </ItemGroup>
 
 
     <ItemGroup>
-  <!-- Prevent MSBuild from treating any files under python\ as C/C++ compilation units -->
-  <ClCompile Remove="python\**\*.*" />
-</ItemGroup>
+        <!-- Prevent MSBuild from treating any files under python\ as C/C++ compilation units -->
+        <ClCompile Remove="python\**\*.*"/>
+    </ItemGroup>
 
 </Project>

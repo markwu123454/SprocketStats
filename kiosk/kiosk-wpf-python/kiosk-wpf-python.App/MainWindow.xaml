@@ -62,19 +62,69 @@
             </Border>
 
             <!-- Command Entry -->
-            <DockPanel Grid.Row="3" Margin="0,12,0,0">
-                <TextBlock Text=">>>"
+            <Grid Grid.Row="3" Margin="0,12,0,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+
+                <TextBlock Text="&gt;&gt;&gt;"
+                           Grid.Column="0"
                            FontFamily="Consolas"
                            FontSize="16"
                            Foreground="{StaticResource TerminalGreen}"
                            VerticalAlignment="Center"
                            Margin="0,0,6,0" />
 
-                <TextBox x:Name="CommandInput"
-                         FontFamily="Consolas"
-                         FontSize="14"
-                         PreviewKeyDown="CommandInput_PreviewKeyDown" />
-            </DockPanel>
+                <Grid Grid.Column="1">
+                    <TextBox x:Name="CommandInput"
+                             FontFamily="Consolas"
+                             FontSize="14"
+                             PreviewKeyDown="CommandInput_PreviewKeyDown"
+                             PreviewTextInput="CommandInput_PreviewTextInput"
+                             MouseDoubleClick="CommandInput_MouseDoubleClick"
+                             TextChanged="CommandInput_TextChanged" />
+
+                    <Popup x:Name="CompletionPopup"
+                           PlacementTarget="{Binding ElementName=CommandInput}"
+                           Placement="Bottom"
+                           StaysOpen="True">
+                        <Border Background="#252526"
+                                BorderBrush="#454545"
+                                BorderThickness="1">
+                            <ListBox x:Name="CompletionList"
+                                     FontFamily="Consolas"
+                                     FontSize="13"
+                                     Background="Transparent"
+                                     Foreground="#E6E6E6"
+                                     BorderThickness="0"
+                                     MaxHeight="200"
+                                     Focusable="False"
+                                     PreviewKeyDown="CompletionList_PreviewKeyDown"
+                                     MouseDoubleClick="CompletionList_MouseDoubleClick">
+                                <ListBox.ItemContainerStyle>
+                                    <Style TargetType="ListBoxItem">
+                                        <Setter Property="Focusable" Value="False" />
+                                    </Style>
+                                </ListBox.ItemContainerStyle>
+
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="{Binding Type}"
+                                                       Foreground="#569CD6"
+                                                       Width="65"
+                                                       FontSize="11"
+                                                       VerticalAlignment="Center" />
+                                            <TextBlock Text="{Binding Name}" />
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+                        </Border>
+                    </Popup>
+                </Grid>
+            </Grid>
         </Grid>
 
         <!-- ================= RIGHT PANE ================= -->
