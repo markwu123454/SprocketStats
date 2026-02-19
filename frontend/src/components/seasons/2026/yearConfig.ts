@@ -115,6 +115,7 @@ export type MatchScoutingData = {
     postmatch: {
         skill: number // 0-1
         defenseSkill: number // 0-1
+        speed: number
         role: "Shooter" | "Intake" | "Defense" | "Generalist" | "Useless"
         traversalLocation: "Trench" | "Bump" | "No Preference" // slider?
         teleopClimbPos: "Center" | "Left" | "Right" | "Left Side" | "Right Side" | null
@@ -126,8 +127,13 @@ export type MatchScoutingData = {
             opponent: boolean
         }
         faults: {
-            system: boolean
-            idle: boolean
+            disconnected: boolean // solid light, not connected to driver station
+            nonfunctional: boolean // does not move at all (does nothing)
+            unbalanced: boolean // tipsy, higher probability of tipping over, high cg
+            jammed: boolean // game piece gets stuck in robot
+            disabled: boolean // robot stays connected but stops moving, a subsystem doesn't work
+            broken: boolean // piece breaks off
+            penalties: boolean
             other: boolean
         }
         notes: string
@@ -182,21 +188,21 @@ export const pitQuestions = [
 
     {
         key: "driveBase",
-        label: "Drive Base Type",
+        label: "Drive base type",
         type: "select",
         options: ["Swerve", "Tank", "Mecanum", "H-Drive"],
     },
     {
         key: "robotSpeed",
-        label: "Robot Speed",
+        label: "Robot speed",
         type: "select",
-        options: ["Slow", "Medium", "Fast", "Very Fast"],
+        options: ["Gear 1", "Gear 2", "Gear 3", "Not swerve"],
     },
     {
-        key: "driverSkill",
-        label: "Driver Skill",
-        type: "text",
-        placeholder: "eg. Experienced, Amateur, Rookie"
+        key: "driverPractice",
+        label: "Driver practice time (hrs)",
+        type: "number",
+        placeholder: "eg. 5, 10, 15"
     },
 
     {section: "Mechanism & Manipulation"},
@@ -204,8 +210,8 @@ export const pitQuestions = [
     {
         key: "gameElementCapacity",
         label: "Game element capacity",
-        type: "text",
-        placeholder: "eg. 1, 3, 5+"
+        type: "number",
+        placeholder: "eg. 10, 30, 50"
     },
     {
         key: "intakeLocation",
@@ -217,27 +223,21 @@ export const pitQuestions = [
         key: "intakeType",
         label: "Intake Type",
         type: "select",
-        options: ["Under Bumper", "Between Bumper", "Over Bumper", "Other"],
-    },
-    {
-        key: "scoringLocations",
-        label: "Scoring Locations",
-        type: "text",
-        placeholder: "eg. High, Mid, Low"
+        options: ["Between Bumper", "Over Bumper", "Source", "None"],
     },
 
     {section: "Strategy & Function"},
 
     {
         key: "preferredZone",
-        label: "Preferred Operating Zone",
-        type: "text",
-        placeholder: "eg. Neutral, Shooting, Transition"
+        label: "Preferred Intake Zone",
+        type: "select",
+        options: ["Neutral", "Source", "Depot"]
     },
     {
-        key: "avgCycleTime",
-        label: "Average cycle time (seconds)",
-        type: "text",
+        key: "avgCycle",
+        label: "Average cycles per match",
+        type: "number",
         placeholder: "eg. 10, 15, 20",
     },
     {
@@ -260,9 +260,15 @@ export const pitQuestions = [
     },
     {
         key: "climbTime",
-        label: "Time it takes to climb",
-        type: "text",
-        placeholder: "eg. 0:15, 0:30, 1:00",
+        label: "Time it takes to climb (sec)",
+        type: "number",
+        placeholder: "eg. 10, 15, 20",
+    },
+    {
+        key: "traversal",
+        label: "Trench or bump",
+        type: "select",
+        options: ["Trench", "Bump", "Both", "None"],
     },
 
     {section: "Programming & Vision"},
@@ -280,28 +286,13 @@ export const pitQuestions = [
         options: ["Yes", "No", "Partial"],
     },
 
-    {section: "Defense & Durability"},
-
-    {
-        key: "defensiveCapability",
-        label: "Defensive capability",
-        type: "select",
-        options: ["None", "Light", "Moderate", "Heavy"],
-    },
-    {
-        key: "durability",
-        label: "Robot durability/robustness",
-        type: "select",
-        options: ["Fragile", "Average", "Robust", "Tank"],
-    },
-
     {section: "Misc"},
 
     {
         key: "teamAttitude",
         label: "Team Attitude",
-        type: "text",
-        placeholder: "Enthusiastic, focused, etc."
+        type: "multi",
+        options: ["Enthusiastic", "Uninterested", "Nice", "Rude", "Condescending"],
     },
     {
         key: "robotName",
@@ -310,9 +301,9 @@ export const pitQuestions = [
         placeholder: "e.g. Nautilus, Phoenix"
     },
     {
-        key: "addcomments",
-        label: "Additional Comments",
+        key: "funFacts",
+        label: "Fun facts",
         type: "text",
-        placeholder: "Anything else noteworthy"
+        placeholder: "Anything else cool to know"
     },
 ]

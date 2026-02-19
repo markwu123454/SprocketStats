@@ -206,7 +206,7 @@ export default function PitScoutingLayout() {
                     {pitQuestions.map((q, i) => {
                         if (q.section)
                             return (
-                                <div key={`section-${i}`} className="pt-6">
+                                <div key={`section-${i}`} className="pt-3">
                                     <div
                                         className="border-b my-4 theme-border"
                                     ></div>
@@ -284,20 +284,20 @@ export default function PitScoutingLayout() {
                                 <div key={q.key}>
                                     <Label>{q.label}</Label>
                                     <div className="flex flex-col space-y-1 mt-1">
-                                        {q.options?.map((opt: any) => (
-                                            <label key={opt.key || opt} className="flex items-center space-x-2">
+                                        {q.options?.map((opt) => (
+                                            <label key={opt} className="flex items-center space-x-2">
                                                 <input
                                                     type="checkbox"
                                                     checked={
                                                         Array.isArray(answers[q.key]) &&
-                                                        answers[q.key].includes(opt.key || opt)
+                                                        answers[q.key]?.includes(opt)
                                                     }
                                                     onChange={(e) =>
-                                                        handleMultiToggle(q.key, opt.key || opt, e.target.checked)
+                                                        handleMultiToggle(q.key, opt, e.target.checked)
                                                     }
                                                     className="h-4 w-4 hover:themed-button-hover"
                                                 />
-                                                <span>{opt.label || opt}</span>
+                                                <span>{opt}</span>
                                             </label>
                                         ))}
                                     </div>
@@ -322,7 +322,7 @@ export default function PitScoutingLayout() {
 
                     <Button
                         type="submit"
-                        className="w-4/5 flex items-center justify-center space-x-2 transition theme-button-bg theme-text"
+                        className="w-4/5 flex items-center justify-center space-x-2 transition theme-button-bg theme-text hover:theme-button-hover"
                         disabled={loading || submitting || notFound || !teamNumber}
                     >
                         {submitted ? (
