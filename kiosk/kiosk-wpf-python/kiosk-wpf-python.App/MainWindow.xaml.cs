@@ -15,6 +15,7 @@ public partial class MainWindow
     private int _historyIndex = -1;
     private bool _isBusy;
     
+    private bool _suppressCompletion;
     private CancellationTokenSource? _completionCts;
     private record CompletionItem(string Name, string Complete, string Type);
     
@@ -112,8 +113,10 @@ public partial class MainWindow
                 else if (_historyIndex > 0)
                     _historyIndex--;
 
+                _suppressCompletion = true;
                 CommandInput.Text = _commandHistory[_historyIndex];
                 CommandInput.CaretIndex = CommandInput.Text.Length;
+                _suppressCompletion = false;
                 e.Handled = true;
                 break;
             }
@@ -132,6 +135,7 @@ public partial class MainWindow
                 if (_commandHistory.Count == 0 || _historyIndex == -1)
                     return;
 
+                _suppressCompletion = true;
                 if (_historyIndex < _commandHistory.Count - 1)
                 {
                     _historyIndex++;
@@ -144,6 +148,7 @@ public partial class MainWindow
                 }
 
                 CommandInput.CaretIndex = CommandInput.Text.Length;
+                _suppressCompletion = false;
                 e.Handled = true;
                 break;
             }
@@ -631,8 +636,11 @@ public partial class MainWindow
     // TextChanged handler — triggers completion
     private void CommandInput_TextChanged(object sender, TextChangedEventArgs e)
     {
+        if (_suppressCompletion)
+            return;
+        
         var text = CommandInput.Text;
-        if (text.Length > 0 && !text.EndsWith(' '))
+        if (text.Length > 0)
             _ = TriggerCompletionAsync();
         else
             CompletionPopup.IsOpen = false;
@@ -647,7 +655,7 @@ public partial class MainWindow
         var code = CommandInput.Text;
         var caretIndex = CommandInput.CaretIndex;
 
-        try { await Task.Delay(120, cts.Token); }
+        try { await Task.Delay(50, cts.Token); }
         catch (TaskCanceledException) { return; }
         if (cts.IsCancellationRequested) return;
 

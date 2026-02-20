@@ -80,7 +80,7 @@ function buildUploadPayload(entry: ScoutingDataWithKey | MatchScoutingData, fall
             match_type,
             alliance,
             scouter: scouter || fallbackEmail,
-            data: rest as Omit<MatchScoutingData, "match" | "alliance" | "teamNumber" | "scouter">,
+            data: rest,
         },
     }
 }

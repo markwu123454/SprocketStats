@@ -538,7 +538,7 @@ async def update_match_scouting(
 
             current_data: Dict[str, Any] = row["data"]
             if data:
-                current_data |= data
+                current_data = data
 
             new_status = status.value if status else row["status"]
             new_scouter = scouter_new if scouter_new is not _sentinel else scouter

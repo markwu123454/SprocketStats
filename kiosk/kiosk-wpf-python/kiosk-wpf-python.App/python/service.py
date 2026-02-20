@@ -19,12 +19,16 @@ Key Components:
 
 # 1. Standard library
 import asyncio
+# import base64
+
 # import math
 # import random
 # import statistics
 # import string
 import os
+import random
 import ssl
+import string
 # import sys
 # import json
 import time
@@ -599,31 +603,43 @@ async def initialize_event(event_key):
     teams = teams.json()
     matches = matches.json()
 
-    data = []
-
-    bar = ProgressBar(
-        logger=log,
-        total=len(teams)+len(matches),
-        prefix="Processing teams",
-    )
+    data = {}
 
     for team in teams:
         team_number = parse_team_key(team["team_number"])
-        data.append({
-            "password": generate_frc_passcode(team["nickname"], team_number),
-            "number": team_number,
-            "name": team["nickname"],
-            "permissions": {
-                "teams": [],
-                "matches": [],
+        if team_number != 3473:
+            data[team_number] = {
+                "password": generate_frc_passcode(team["nickname"], team_number),
+                "name": team["nickname"],
+                "permissions": {
+                    "teams": [],
+                    "matches": [],
+                }
             }
-        })
-        bar.advance()
 
     for match in matches:
-        pass
+        alliances = match["alliances"]
+        red_teams = [parse_team_key(t) for t in alliances["red"]["team_keys"]]
+        blue_teams = [parse_team_key(t) for t in alliances["blue"]["team_keys"]]
+        all_teams = red_teams + blue_teams
 
-    log.step(data)
+        if 3473 not in all_teams:
+            continue
+
+        alliance_of_3473 = red_teams if 3473 in red_teams else blue_teams
+        partners = [t for t in alliance_of_3473 if t != 3473]
+        match_key = match["key"]
+
+        for partner in partners:
+            if partner not in data:
+                continue
+            for team_number in all_teams:
+                if team_number not in data[partner]["permissions"]["teams"]:
+                    data[partner]["permissions"]["teams"].append(team_number)
+            if match_key not in data[partner]["permissions"]["matches"]:
+                data[partner]["permissions"]["matches"].append(parse_match_key(match_key))
+
+    log.done()
 
 
 
@@ -827,7 +843,7 @@ def _err(msg):
     return {"success": False, "error": msg}
 
 
-def exec_or_eval(code: str):
+async def exec_or_eval(code: str):
     """Execute or evaluate Python code in the REPL environment."""
     log = Logger()
 
@@ -836,6 +852,9 @@ def exec_or_eval(code: str):
 
         try:
             result = eval(code, REPL_GLOBALS, REPL_GLOBALS)
+            # Await if the eval returned a coroutine
+            if asyncio.iscoroutine(result):
+                result = await result
         except SyntaxError:
             exec(code, REPL_GLOBALS, REPL_GLOBALS)
             result = None
@@ -847,6 +866,8 @@ def exec_or_eval(code: str):
 
 def handle(req: dict):
     """Handle incoming JSON commands."""
+    global calc_result
+
     match req.get("cmd"):
         case "ping":
             return _ok(log="Python ready")
@@ -855,7 +876,7 @@ def handle(req: dict):
             return python_init()
 
         case "exec":
-            return exec_or_eval(req.get("code", ""))
+            return _loop.run_until_complete(exec_or_eval(req.get("code", "")))
 
         case "complete":
             return _handle_complete(req, REPL_GLOBALS)
@@ -883,7 +904,8 @@ def handle(req: dict):
             return result
 
         case "run_calculation":
-            return run_calculation(req.get("setting", {}), downloaded_data, TBA_API_KEY)
+            calc_result = run_calculation(req.get("setting", {}), downloaded_data, TBA_API_KEY)
+            return {"success": True}
 
         case "verify_db":
             ok, errors = _loop.run_until_complete(verify_db())

@@ -1,8 +1,6 @@
 import json
 import math
-import random
 import statistics
-import string
 
 import requests
 import statbotics
@@ -20,93 +18,118 @@ def run_calculation(setting, downloaded_data, tba_key):
 
     log.header("CALCULATION")
 
-    try:
-        setting = json.loads(setting) if isinstance(setting, str) else setting
+    setting = json.loads(setting) if isinstance(setting, str) else setting
 
-        if not setting.get("event_key"):
-            log.error("Event key is required")
-            return {"success": False, "error": "Event key required"}
+    if not setting.get("event_key"):
+        log.error("Event key is required")
+        return {"success": False, "error": "Event key required"}
 
-        event_key = setting["event_key"]
-        stop_on_warning = setting.get("stop_on_warning", False)
+    event_key = setting["event_key"]
+    stop_on_warning = setting.get("stop_on_warning", False)
 
-        log.step(f"Running calculations for {Logger.CYAN}{event_key}{Logger.RESET}")
-        if stop_on_warning:
-            log.substep(f"Stop on warning: {Logger.YELLOW}enabled{Logger.RESET}")
+    log.step(f"Running calculations for {Logger.CYAN}{event_key}{Logger.RESET}")
+    if stop_on_warning:
+        log.substep(f"Stop on warning: {Logger.YELLOW}enabled{Logger.RESET}")
 
-        # -- Validate local data -------------------------------------------
-        with log.section("Validating downloaded data"):
-            if not validate_downloaded_data(event_key, log, downloaded_data, stop_on_warning):
-                log.error("Data validation failed")
-                return {"success": False, "error": "Data validation failed"}
-            log.success("Data validated")
+    # -- Validate local data -------------------------------------------
+    with log.section("Validating downloaded data"):
+        if not validate_downloaded_data(event_key, log, downloaded_data, stop_on_warning):
+            log.error("Data validation failed")
+            return {"success": False, "error": "Data validation failed"}
+        log.success("Data validated")
 
-        # -- Statbotics ----------------------------------------------------
-        with log.section("Fetching Statbotics data"):
-            try:
-                sb_data = _sb.get_matches(event=event_key)
-                sb_count = len(sb_data) if isinstance(sb_data, (list, dict)) else 0
+    # -- Statbotics ----------------------------------------------------
+    with log.section("Fetching Statbotics data"):
+        try:
+            sb_data = _sb.get_matches(event=event_key)
+            sb_count = len(sb_data) if isinstance(sb_data, (list, dict)) else 0
 
-                if sb_count == 0:
-                    log.warn("No Statbotics data returned")
-                    if stop_on_warning:
-                        return {"success": False, "error": "No Statbotics data"}
-                else:
-                    log.stat("Statbotics entries", sb_count)
-            except UserWarning as e:
-                log.warn(f"Statbotics error: {e}")
+            if sb_count == 0:
+                log.warn("No Statbotics data returned")
                 if stop_on_warning:
-                    return {"success": False, "error": f"Statbotics error: {e}"}
-                sb_data = {}
-
-        # -- TBA -----------------------------------------------------------
-        with log.section("Fetching TBA data"):
-            tba_response = requests.get(
-                f"https://www.thebluealliance.com/api/v3/event/{event_key}/matches",
-                headers={"X-TBA-Auth-Key": tba_key}
-            )
-
-            if tba_response.status_code != 200:
-                log.error(f"TBA request failed (status {tba_response.status_code})")
-                if stop_on_warning:
-                    return {"success": False, "error": "TBA request failed"}
-                tba_data = []
+                    return {"success": False, "error": "No Statbotics data"}
             else:
-                tba_data = tba_response.json()
-                if not tba_data:
-                    log.warn("No TBA matches returned")
-                    if stop_on_warning:
-                        return {"success": False, "error": "No TBA data"}
-                else:
-                    log.stat("TBA matches", len(tba_data))
+                log.stat("Statbotics entries", sb_count)
+        except UserWarning as e:
+            log.error(f"Statbotics error: {e}")
+            if stop_on_warning:
+                return {"success": False, "error": f"Statbotics error: {e}"}
+            sb_data = {}
 
-        # -- Initialize result structure -----------------------------------
-        with log.section("Initializing calculation results"):
-            calc_result.clear()
-            calc_result["ranking"] = {}
-            calc_result["alliance"] = {}
-            calc_result["sb"] = sb_data
-            calc_result["tba"] = tba_data
+    # -- TBA -----------------------------------------------------------
+    with log.section("Fetching TBA data"):
+        tba_response = requests.get(
+            f"https://www.thebluealliance.com/api/v3/event/{event_key}/matches",
+            headers={"X-TBA-Auth-Key": tba_key}
+        )
 
-            if not initialize_structure(
-                    calc_result=calc_result,
-                    tba_data=tba_data,
-                    sb_data=sb_data,
-                    downloaded_data=downloaded_data,
-                    event_key=event_key,
-                    log=log,
-                    stop_on_warning=stop_on_warning
-            ):
-                log.error("Structure initialization failed")
-                return {"success": False, "error": "Structure initialization failed"}
+        if tba_response.status_code != 200:
+            log.error(f"TBA request failed (status {tba_response.status_code})")
+            if stop_on_warning:
+                return {"success": False, "error": "TBA request failed"}
+            tba_data = []
+        else:
+            tba_data = tba_response.json()
+            if not tba_data:
+                log.warn("No TBA matches returned")
+                if stop_on_warning:
+                    return {"success": False, "error": "No TBA data"}
+            else:
+                log.stat("TBA matches", len(tba_data))
 
-        log.warn("No calculations yet")
-        log.done()
-        return calc_result
+    # -- Initialize result structure -----------------------------------
+    with log.section("Initializing calculation results"):
+        calc_result.clear()
+        calc_result["ranking"] = {}
+        calc_result["alliance"] = {}
+        calc_result["sb"] = sb_data
+        calc_result["tba"] = tba_data
 
-    except Exception as e:
-        log.error(str(e))
-        return calc_result
+        if not initialize_structure(
+                calc_result=calc_result,
+                tba_data=tba_data,
+                sb_data=sb_data,
+                downloaded_data=downloaded_data,
+                event_key=event_key,
+                log=log,
+                stop_on_warning=stop_on_warning
+        ):
+            log.error("Structure initialization failed")
+            return {"success": False, "error": "Structure initialization failed"}
+
+    with log.section("Processing match scouting entries:"):
+        processed_match_entries = {}
+        for entry in downloaded_data["match_scouting"]:
+            processed_match_entries[(entry["match_type"] + str(entry["match"]), int(entry["team"]))] = {
+                "fuel": {
+                    "total": 0,
+                    "auto": 0,
+                    "transition": 0,
+                    "phase 1": 0,
+                    "phase 2": 0,
+                    "endgame": 0,
+                },
+                "climb": {
+                    "auto": {
+                        "duration": 0,
+                        "attempt": False,
+                        "success": False,
+                    },
+                    "endgame": {
+                        "duration": 0,
+                        "level": 3,
+                        "attempt": False,
+                        "success": False,
+                    }
+                },
+                "actions": {
+
+                }
+            }
+
+    log.done()
+    return processed_match_entries
+
 
 
 def validate_downloaded_data(event_key, log, downloaded_data, stop_on_warning=False):
@@ -116,10 +139,11 @@ def validate_downloaded_data(event_key, log, downloaded_data, stop_on_warning=Fa
     Args:
         event_key: Event key to validate data for
         log: Logger instance for output
+        downloaded_data: downloaded ddata
         stop_on_warning: Whether to fail on warnings
 
     Returns:
-        bool: True if validation passed
+        bool: True if validation passed=
     """
 
     if not downloaded_data:
@@ -175,6 +199,34 @@ def parse_team_key(team_key):
     raise ValueError(f"Unrecognized team key format: {team_key}")
 
 
+def parse_match_key(match_key):
+    # Remove the event prefix (everything up to and including the first underscore)
+    suffix = match_key.split("_", 1)[1]  # e.g. "qm35", "sf6m1", "f2"
+
+    # Qualification match: qm35 -> qm35 (no change needed)
+    # Semifinal: sf6m1 -> sf6
+    # Final: f2 -> f2
+
+    if suffix.startswith("sf"):
+        # Strip the match number (m1, m2, etc.) from semifinals
+        return suffix.split("m")[0]  # sf6m1 -> sf6
+
+    return suffix  # qm35, f2 as-is
+
+
+def encode_match_entry(code: str, number: int) -> str:
+    """Convert ('qm1', 4414) -> 'qm|1|4414'"""
+    # Split letters and digits in the code part
+    letters = ''.join(c for c in code if c.isalpha())
+    digits = ''.join(c for c in code if c.isdigit())
+    return f"{letters}|{digits}|{number}"
+
+def decode_match_entry(s: str) -> tuple[str, int]:
+    """Convert 'qm|1|4414' -> ('qm1', 4414)"""
+    parts = s.split('|')
+    return parts[0] + parts[1], int(parts[2])
+
+
 def determine_most_recent_match(match_scouting, calc_result):
     """
     Determine the most recent match based on submissions.
@@ -182,7 +234,6 @@ def determine_most_recent_match(match_scouting, calc_result):
     Args:
         match_scouting: List of match scouting entries
         calc_result: Calculation result dictionary
-        log: Logger instance for output
 
     Returns:
         str: Most recent match key, or None

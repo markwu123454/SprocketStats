@@ -335,6 +335,9 @@ async def submit_data(
     full_data.pop("scouter", None)
     full_data.pop("match_type", None)
 
+    # Unwrap nested "data" key if present
+    scouting_data = full_data.pop("data", full_data)
+
     existing = await db.get_match_scouting(
         match=match, m_type=m_type, team=team, scouter=session.email
     )
@@ -350,7 +353,7 @@ async def submit_data(
         match=match, m_type=m_type, team=team,
         scouter=session.email,
         status=enums.StatusType.SUBMITTED,
-        data=full_data,
+        data=scouting_data,
     )
 
     return {"status": "submitted"}
