@@ -1871,7 +1871,7 @@ async def compute_attendance_totals() -> list[dict]:
 # ---------------------------------------------------------
 # maxsize=2 is sufficient to hold the current bucket
 # and potentially the previous one during a transition.
-@alru_cache(maxsize=2)
+# @alru_cache(maxsize=2)
 async def _compute_attendance_impl(refresh_key: int) -> list[dict]:
     """
     The actual heavy lifting.
