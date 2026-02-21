@@ -12,12 +12,12 @@ from logger import *
 
 _sb = statbotics.Statbotics()
 
-
 # --- Reusable types ---
 
 TowerLevel = Literal["Level1", "Level2", "Level3", "None"]
 CompLevel = Literal["qm", "ef", "qf", "sf", "f"]
 WinningAlliance = Literal["red", "blue", ""]
+
 
 # ===========================================================================
 # Statbotics types (season-agnostic)
@@ -28,9 +28,11 @@ class StatboticsAllianceData(BaseModel):
     surrogate_team_keys: list[int]
     dq_team_keys: list[int]
 
+
 class StatboticsAlliances(BaseModel):
     red: StatboticsAllianceData
     blue: StatboticsAllianceData
+
 
 class StatboticsPred(BaseModel):
     winner: Optional[Literal["red", "blue"]]
@@ -46,6 +48,7 @@ class StatboticsPred(BaseModel):
     blue_rp_3: Optional[float] = None
     # Allow any extra season-specific prediction fields
     model_config = {"extra": "allow"}
+
 
 class StatboticsResult(BaseModel):
     winner: Optional[Literal["red", "blue"]]
@@ -71,6 +74,7 @@ class StatboticsResult(BaseModel):
     # Allow any extra season-specific result fields
     model_config = {"extra": "allow"}
 
+
 class StatboticsMatch(BaseModel):
     key: str
     year: int
@@ -89,6 +93,7 @@ class StatboticsMatch(BaseModel):
     pred: Optional[StatboticsPred]
     result: Optional[StatboticsResult]
 
+
 # ===========================================================================
 # Downloaded (local scouting) data types
 # ===========================================================================
@@ -100,10 +105,12 @@ SubPhaseName = Literal["auto", "transition", "shift_1", "shift_2", "shift_3", "s
 ClimbLevel = Literal["L1", "L2", "L3"]
 ClimbPos = Literal["Center", "Left", "Right", "Left Side", "Right Side"]
 
+
 class StartingAction(BaseModel):
     type: Literal["starting"]
     x: float
     y: float
+
 
 class ScoreAction(BaseModel):
     type: Literal["score"]
@@ -114,11 +121,13 @@ class ScoreAction(BaseModel):
     phase: MatchPhase
     subPhase: Optional[SubPhaseName]
 
+
 class PassAction(BaseModel):
     type: Literal["passing"]
     timestamp: int
     phase: MatchPhase
     subPhase: Optional[SubPhaseName]
+
 
 class ClimbAction(BaseModel):
     type: Literal["climb"]
@@ -128,11 +137,13 @@ class ClimbAction(BaseModel):
     phase: MatchPhase
     subPhase: Optional[SubPhaseName]
 
+
 class DefenseAction(BaseModel):
     type: Literal["defense"]
     timestamp: int
     phase: MatchPhase
     subPhase: Optional[SubPhaseName]
+
 
 class TraversalAction(BaseModel):
     type: Literal["traversal"]
@@ -140,11 +151,13 @@ class TraversalAction(BaseModel):
     phase: MatchPhase
     subPhase: Optional[SubPhaseName]
 
+
 class IdleAction(BaseModel):
     type: Literal["idle"]
     timestamp: int
     phase: MatchPhase
     subPhase: Optional[SubPhaseName]
+
 
 class IntakeAction(BaseModel):
     type: Literal["intake"]
@@ -152,11 +165,13 @@ class IntakeAction(BaseModel):
     phase: MatchPhase
     subPhase: Optional[SubPhaseName]
 
+
 class ShootingAction(BaseModel):
     type: Literal["shooting"]
     timestamp: int
     phase: MatchPhase
     subPhase: Optional[SubPhaseName]
+
 
 from typing import Annotated, Union
 from pydantic import Field
@@ -176,6 +191,7 @@ ScoutingAction = Annotated[
     Field(discriminator="type")
 ]
 
+
 # --- Match scouting postmatch ---
 
 class ScoutingFaults(BaseModel):
@@ -188,23 +204,26 @@ class ScoutingFaults(BaseModel):
     penalties: bool
     other: bool
 
+
 class ScoutingIntakePos(BaseModel):
     neutral: bool
     depot: bool
     outpost: bool
     opponent: bool
 
+
 class ScoutingPostmatch(BaseModel):
-    skill: float           # 0-1
-    defenseSkill: float    # 0-1
+    skill: float  # 0-1
+    defenseSkill: float  # 0-1
     speed: float
     role: Literal["Shooter", "Intake", "Defense", "Generalist", "Useless"]
     traversalLocation: Literal["Trench", "Bump", "No Preference"]
     teleopClimbPos: Optional[ClimbPos]
     autoClimbPos: Optional[ClimbPos]
     intakePos: ScoutingIntakePos
-    faults: Any # ScoutingFaults
+    faults: Any  # ScoutingFaults
     notes: str
+
 
 # --- Match scouting entry data ---
 
@@ -215,6 +234,7 @@ class ScoutingEntryData(BaseModel):
     postmatch: ScoutingPostmatch
     manualTeam: bool
     startPosition: Optional[dict[str, float]] = None
+
 
 # --- Match scouting entry ---
 
@@ -227,6 +247,7 @@ class MatchScoutingEntry(BaseModel):
     scouter: str
     data: ScoutingEntryData
 
+
 # --- Pit scouting entry ---
 
 class PitScoutingEntry(BaseModel):
@@ -234,6 +255,7 @@ class PitScoutingEntry(BaseModel):
     team: str
     scouter: str
     data: dict[str, Any]  # free-form pit scouting fields
+
 
 # --- Match schedule entry ---
 
@@ -252,12 +274,14 @@ class ScheduledMatch(BaseModel):
     blue2: int
     blue3: int
 
+
 # --- Top-level downloaded data ---
 
 class DownloadedData(BaseModel):
     match_scouting: list[MatchScoutingEntry]
     pit_scouting: list[PitScoutingEntry]
     all_matches: list[ScheduledMatch]
+
 
 # --- Score Breakdown ---
 
@@ -280,6 +304,7 @@ class HubScore(BaseModel):
     totalPoints: int
     transitionCount: int
     transitionPoints: int
+
 
 class AllianceScoreBreakdown2026(BaseModel):
     adjustPoints: int
@@ -305,9 +330,11 @@ class AllianceScoreBreakdown2026(BaseModel):
     totalTowerPoints: int
     traversalAchieved: bool
 
+
 class MatchScoreBreakdown2026(BaseModel):
     blue: AllianceScoreBreakdown2026
     red: AllianceScoreBreakdown2026
+
 
 # --- Alliance ---
 
@@ -317,15 +344,18 @@ class MatchAlliance(BaseModel):
     surrogate_team_keys: list[str]
     dq_team_keys: list[str]
 
+
 class MatchAlliances(BaseModel):
     red: MatchAlliance
     blue: MatchAlliance
+
 
 # --- Video ---
 
 class MatchVideo(BaseModel):
     type: Literal["youtube", "tba"]
     key: str
+
 
 # --- Full Match ---
 
@@ -441,65 +471,15 @@ def run_calculation(setting, downloaded_data: DownloadedData, tba_key: str):
     with log.section("Processing match scouting entries:"):
         processed_match_entries = {}
         for entry in downloaded_data["match_scouting"]:
-            log.substep(entry)
-            processed_match_entries[(entry["match_type"] + str(entry["match"]), int(entry["team"]))] = {
-                "fuel": {
-                    "total": {
-                        "shot":0,
-                        "scored":0,
-                        "accuracy":0,
-                    },
-                    "auto": {
-                        "shot":0,
-                        "scored":0,
-                        "accuracy":0,
-                    },
-                    "transition": {
-                        "shot":0,
-                        "scored":0,
-                        "accuracy":0,
-                    },
-                    "phase_1": {
-                        "shot":0,
-                        "scored":0,
-                        "accuracy":0,
-                    },
-                    "phase_2": {
-                        "shot":0,
-                        "scored":0,
-                        "accuracy":0,
-                    },
-                    "endgame": {
-                        "shot":0,
-                        "scored":0,
-                        "accuracy":0,
-                    },
-                },
-                "climb": {
-                    "auto": {
-                        "duration": 0,
-                        "attempt": False,
-                        "success": False,
-                    },
-                    "endgame": {
-                        "duration": 0,
-                        "level": 3,
-                        "attempt": False,
-                        "success": False,
-                    }
-                },
-                "actions": {
-
-                },
-                "metadata": {
-
-                }
-            }
+            key = encode_match_entry(
+                entry["match_type"] + str(entry["match"]),
+                int(entry["team"])
+            )
+            processed_match_entries[key] = process_match_entry(entry["data"])
         log.substep(processed_match_entries)
 
     log.done()
     return processed_match_entries
-
 
 
 def validate_downloaded_data(event_key, log, downloaded_data, stop_on_warning=False):
@@ -590,6 +570,7 @@ def encode_match_entry(code: str, number: int) -> str:
     letters = ''.join(c for c in code if c.isalpha())
     digits = ''.join(c for c in code if c.isdigit())
     return f"{letters}|{digits}|{number}"
+
 
 def decode_match_entry(s: str) -> tuple[str, int]:
     """Convert 'qm|1|4414' -> ('qm1', 4414)"""
@@ -742,6 +723,76 @@ def initialize_structure(calc_result, tba_data, sb_data, downloaded_data, event_
     return True
 
 
+def process_match_entry(entry):
+    data = entry["data"] if isinstance(entry, dict) and "data" in entry else entry
+    actions = data["actions"] if isinstance(data, dict) and "actions" in data else data
+
+    # subPhase -> fuel bucket mapping
+    SUBPHASE_TO_BUCKET = {
+        "auto": "auto",
+        "transition": "transition",
+        "shift_1": "phase_1",
+        "shift_2": "phase_1",  # or split into phase_1/phase_2 - see note
+        "shift_3": "phase_2",
+        "shift_4": "phase_2",
+        "endgame": "endgame",
+    }
+    # Note: adjust shift_1/2/3/4 -> phase_1/phase_2 mapping as needed
+
+    result = {
+        "fuel": {
+            "total": {"shot": 0, "scored": 0, "accuracy": 0},
+            "auto": {"shot": 0, "scored": 0, "accuracy": 0},
+            "transition": {"shot": 0, "scored": 0, "accuracy": 0},
+            "phase_1": {"shot": 0, "scored": 0, "accuracy": 0},
+            "phase_2": {"shot": 0, "scored": 0, "accuracy": 0},
+            "endgame": {"shot": 0, "scored": 0, "accuracy": 0},
+        },
+        "climb": {
+            "auto": {"duration": 0, "attempt": False, "success": False},
+            "endgame": {"duration": 0, "level": 3, "attempt": False, "success": False},
+        },
+        "actions": {},
+        "metadata": {},
+    }
+
+    fuel = result["fuel"]
+
+    for action in actions:
+        atype = action.get("type")
+        subphase = action.get("subPhase")
+        phase = action.get("phase")
+        bucket = SUBPHASE_TO_BUCKET.get(subphase)
+
+        if atype == "shooting":
+            fuel["total"]["shot"] += 1
+            if bucket:
+                fuel[bucket]["shot"] += 1
+
+        elif atype == "score":
+            score_val = action.get("score", 0)
+            fuel["total"]["scored"] += score_val
+            if bucket:
+                fuel[bucket]["scored"] += score_val
+
+        elif atype == "climb":
+            climb_phase = "auto" if phase == "auto" else "endgame"
+            result["climb"][climb_phase]["attempt"] = True
+            if action.get("success"):
+                result["climb"][climb_phase]["success"] = True
+            level_map = {"L1": 1, "L2": 2, "L3": 3}
+            result["climb"][climb_phase]["level"] = level_map.get(action.get("level"), 3)
+
+    # Calculate accuracy for all buckets
+    for bucket in fuel:
+        shots = fuel[bucket]["shot"]
+        fuel[bucket]["accuracy"] = (
+            round(fuel[bucket]["scored"] / shots, 3) if shots > 0 else 0
+        )
+
+    return result
+
+
 def one_var_stats(data):
     """
     Calculate descriptive statistics for a list of numbers.
@@ -814,6 +865,6 @@ def prob_sum1_greater_sum2(normals1, normals2):
         raise ValueError("Resulting variance must be positive")
 
     z = (mu1 - mu2) / math.sqrt(total_variance)
-    
+
     # Standard normal CDF via error function
     return 0.5 * (1.0 + math.erf(z / math.sqrt(2.0)))
