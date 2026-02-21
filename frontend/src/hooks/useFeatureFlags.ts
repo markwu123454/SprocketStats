@@ -1,14 +1,14 @@
-import { useAPI } from "@/hooks/useAPI.ts";
-import { useClientEnvironment } from "@/hooks/useClientEnvironment.ts";
-import { useEffect, useRef, useState } from "react";
+import { useAPI } from "@/hooks/useAPI.ts"
+import { useClientEnvironment } from "@/hooks/useClientEnvironment.ts"
+import { useEffect, useRef, useState } from "react"
 
 export type FeatureFlags = {
-    offlineScouting: boolean;
-    pushNotificationWarning: boolean;
-    showAttendanceTimeForComp: boolean;
-    forcePWA: boolean;
-    confirmBeforeUpload: boolean;
-    shotMadeSlider: boolean;
+    offlineScouting: boolean
+    pushNotificationWarning: boolean
+    showAttendanceTimeForComp: boolean
+    forcePWA: boolean
+    confirmBeforeUpload: boolean
+    shotMadeSlider: boolean
 };
 
 const DEFAULT_FEATURE_FLAGS: FeatureFlags = {
