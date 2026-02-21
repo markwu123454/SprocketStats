@@ -15,7 +15,7 @@ public partial class App : Application
         try
         {
             var baseDir = AppContext.BaseDirectory;
-            var pythonExe = Path.Combine(baseDir, "python", "venv", "Scripts", "python.exe");
+            var pythonExe = Path.Combine(baseDir, "python", ".venv", "Scripts", "python.exe");
             var servicePy = Path.Combine(baseDir, "python", "service.py");
 
             if (!File.Exists(pythonExe))

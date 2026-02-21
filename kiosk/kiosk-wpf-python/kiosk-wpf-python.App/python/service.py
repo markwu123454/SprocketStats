@@ -276,16 +276,17 @@ def python_init():
             errors.append("DATABASE_KEY is missing from .env file")
             has_errored = True
             log.error("DATABASE_KEY is missing")
-        elif not TBA_API_KEY:
+        else:
+            got_db_key = True
+        if not TBA_API_KEY:
             errors.append("TBA_API_KEY is missing from .env file")
             has_errored = True
             log.error("TBA_API_KEY is missing")
-        elif not FRC_API_KEY:
+        if not FRC_API_KEY:
             errors.append("FRC_API_KEY is missing from .env file")
             has_errored = True
             log.error("FRC_API_KEY is missing")
-        else:
-            got_db_key = True
+        if not has_errored:
             log.success("Environment loaded")
     except Exception as e:
         errors.append(str(e))

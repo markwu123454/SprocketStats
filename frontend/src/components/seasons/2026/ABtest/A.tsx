@@ -19,16 +19,16 @@ interface SubPhaseConfig {
 }
 
 const TELEOP_SEQUENCE: SubPhaseConfig[] = [
-    {phase: "transition", duration: 1000},
-    {phase: "shift_1", duration: 2500},
-    {phase: "shift_2", duration: 2500},
-    {phase: "shift_3", duration: 2500},
-    {phase: "shift_4", duration: 2500},
-    {phase: "endgame", duration: 3000},
+    {phase: "transition", duration: 10000},
+    {phase: "shift_1", duration: 25000},
+    {phase: "shift_2", duration: 25000},
+    {phase: "shift_3", duration: 25000},
+    {phase: "shift_4", duration: 25000},
+    {phase: "endgame", duration: 30000},
 ]
 
-const AUTO_DURATION = 2000
-const BETWEEN_DURATION = 300
+const AUTO_DURATION = 20000
+const BETWEEN_DURATION = 3000
 const TELEOP_DURATION = TELEOP_SEQUENCE.reduce((s, c) => s + c.duration, 0)
 
 type Rect = { x1: number; y1: number; x2: number; y2: number }

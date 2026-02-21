@@ -6,7 +6,7 @@ from datetime import datetime
 import requests
 import statbotics
 from typing import Any, Literal, Optional
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 
 from logger import *
 
@@ -404,13 +404,19 @@ def run_calculation(setting, downloaded_data: DownloadedData, tba_key: str):
                 return {"success": False, "error": "TBA request failed"}
             tba_data: list[Match] = []
         else:
-            tba_data: list[Match] = [Match(**m) for m in tba_response.json()]
-            if not tba_data:
-                log.warn("No TBA matches returned")
-                if stop_on_warning:
-                    return {"success": False, "error": "No TBA data"}
-            else:
-                log.stat("TBA matches", len(tba_data))
+            try:
+                tba_data: list[Match] = [Match(**m) for m in tba_response.json()]
+                if not tba_data:
+                    log.warn("No TBA matches returned")
+                    if stop_on_warning:
+                        return {"success": False, "error": "No TBA data"}
+                else:
+                    log.stat("TBA matches", len(tba_data))
+            except ValidationError as e:
+                log.error(f"TBA type check failed: {e.error_count()} errors.")
+                return {"success": False, "error": "Type check failed"}
+            except Exception as e:
+                log.error(f"TBA type check failed: {e}")
 
     # -- Initialize result structure -----------------------------------
     with log.section("Initializing calculation results"):
@@ -438,12 +444,36 @@ def run_calculation(setting, downloaded_data: DownloadedData, tba_key: str):
             log.substep(entry)
             processed_match_entries[(entry["match_type"] + str(entry["match"]), int(entry["team"]))] = {
                 "fuel": {
-                    "total": 0,
-                    "auto": 0,
-                    "transition": 0,
-                    "phase_1": 0,
-                    "phase_2": 0,
-                    "endgame": 0,
+                    "total": {
+                        "shot":0,
+                        "scored":0,
+                        "accuracy":0,
+                    },
+                    "auto": {
+                        "shot":0,
+                        "scored":0,
+                        "accuracy":0,
+                    },
+                    "transition": {
+                        "shot":0,
+                        "scored":0,
+                        "accuracy":0,
+                    },
+                    "phase_1": {
+                        "shot":0,
+                        "scored":0,
+                        "accuracy":0,
+                    },
+                    "phase_2": {
+                        "shot":0,
+                        "scored":0,
+                        "accuracy":0,
+                    },
+                    "endgame": {
+                        "shot":0,
+                        "scored":0,
+                        "accuracy":0,
+                    },
                 },
                 "climb": {
                     "auto": {
@@ -462,7 +492,6 @@ def run_calculation(setting, downloaded_data: DownloadedData, tba_key: str):
 
                 },
                 "metadata": {
-                    "auto_win_rate": 0
 
                 }
             }
