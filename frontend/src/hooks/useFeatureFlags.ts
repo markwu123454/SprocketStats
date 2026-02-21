@@ -1,15 +1,15 @@
 import { useAPI } from "@/hooks/useAPI.ts"
 import { useClientEnvironment } from "@/hooks/useClientEnvironment.ts"
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useState } from "react"
 
 export type FeatureFlags = {
     offlineScouting: boolean
-    pushNotificationWarning: boolean
+    pushNotificationWarning: boolean // currently unused
     showAttendanceTimeForComp: boolean
     forcePWA: boolean
     confirmBeforeUpload: boolean
     shotMadeSlider: boolean
-};
+}
 
 const DEFAULT_FEATURE_FLAGS: FeatureFlags = {
     offlineScouting: false,
@@ -18,104 +18,119 @@ const DEFAULT_FEATURE_FLAGS: FeatureFlags = {
     forcePWA: false,
     confirmBeforeUpload: true,
     shotMadeSlider: true,
-};
 
-const STORAGE_KEY = "feature_flags";
-const POLL_INTERVAL_MS = 5_000;
+}
 
-// -------------------------------------------------------------------------
-// Storage helpers
-// -------------------------------------------------------------------------
+const STORAGE_KEY = "feature_flags"
 
-function loadFromStorage(): FeatureFlags {
+function loadFromLocalStorage(): FeatureFlags {
     try {
-        const raw = localStorage.getItem(STORAGE_KEY);
-        if (!raw) return DEFAULT_FEATURE_FLAGS;
-        return { ...DEFAULT_FEATURE_FLAGS, ...(JSON.parse(raw) as Partial<FeatureFlags>) };
+        const raw = localStorage.getItem(STORAGE_KEY)
+        if (!raw) return DEFAULT_FEATURE_FLAGS
+
+        const parsed = JSON.parse(raw) as Partial<FeatureFlags>
+
+        return {
+            ...DEFAULT_FEATURE_FLAGS,
+            ...parsed,
+        }
     } catch {
-        return DEFAULT_FEATURE_FLAGS;
+        return DEFAULT_FEATURE_FLAGS
     }
 }
 
-function saveToStorage(flags: FeatureFlags): void {
+function saveToLocalStorage(flags: FeatureFlags) {
     try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(flags));
-    } catch { /* persistence is optional */ }
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(flags))
+    } catch {
+        // ignore — persistence is optional
+    }
 }
 
-// -------------------------------------------------------------------------
-// Fetch — module-level dedup so concurrent hook instances share one request
-// -------------------------------------------------------------------------
+// Singleton state
+let cachedFlags: FeatureFlags | null = null
+let isFetching = false
+const listeners = new Set<(flags: FeatureFlags) => void>()
 
-let inflightFetch: Promise<FeatureFlags> | null = null;
-let lastFetchAt = 0;
-const MIN_FETCH_INTERVAL_MS = POLL_INTERVAL_MS * 0.9; // slightly under poll rate
+function notifyListeners(flags: FeatureFlags) {
+    listeners.forEach(listener => listener(flags))
+}
 
-async function fetchFlags(
+function subscribeToFlags(listener: (flags: FeatureFlags) => void) {
+    listeners.add(listener)
+    return () => listeners.delete(listener)
+}
+
+async function fetchFeatureFlagsOnce(
     getFeatureFlags: () => Promise<any>,
-    serverOnline: boolean,
+    serverOnline: boolean
 ): Promise<FeatureFlags> {
-    if (!serverOnline) return loadFromStorage();
+    // If already cached, return immediately
+    if (cachedFlags) {
+        return cachedFlags
+    }
 
-    // Throttle: return cached storage if called too soon
-    if (Date.now() - lastFetchAt < MIN_FETCH_INTERVAL_MS) return loadFromStorage();
+    // If not online, load from localStorage
+    if (!serverOnline) {
+        const flags = loadFromLocalStorage()
+        cachedFlags = flags
+        notifyListeners(flags)
+        return flags
+    }
 
-    // Deduplicate concurrent calls
-    if (inflightFetch) return inflightFetch;
-
-    lastFetchAt = Date.now();
-
-    inflightFetch = getFeatureFlags()
-        .then((response): FeatureFlags => {
-            const flags: FeatureFlags = {
-                ...DEFAULT_FEATURE_FLAGS,
-                ...(response?.feature_flags ?? {}),
-            };
-            saveToStorage(flags);
-            return flags;
+    // If already fetching, wait for the current fetch
+    if (isFetching) {
+        return new Promise(resolve => {
+            const unsubscribe = subscribeToFlags(flags => {
+                unsubscribe()
+                resolve(flags)
+            })
         })
-        .catch((): FeatureFlags => {
-            // Reset so a retry can happen sooner after a failure
-            lastFetchAt = 0;
-            return loadFromStorage();
-        })
-        .finally(() => {
-            inflightFetch = null;
-        });
+    }
 
-    return inflightFetch;
-}
+    // Start fetching
+    isFetching = true
 
-// -------------------------------------------------------------------------
-// Hook
-// -------------------------------------------------------------------------
-
-export default function useFeatureFlags(): FeatureFlags {
-    const { getFeatureFlags } = useAPI();
-    const { serverOnline } = useClientEnvironment();
-    const [flags, setFlags] = useState<FeatureFlags>(loadFromStorage);
-    const serverOnlineRef = useRef(serverOnline);
-
-    useEffect(() => {
-        serverOnlineRef.current = serverOnline;
-    }, [serverOnline]);
-
-    useEffect(() => {
-        let cancelled = false;
-
-        async function refresh() {
-            const updated = await fetchFlags(getFeatureFlags, serverOnlineRef.current);
-            if (!cancelled) setFlags(updated);
+    try {
+        const response = await getFeatureFlags()
+        const flags: FeatureFlags = {
+            ...DEFAULT_FEATURE_FLAGS,
+            ...(response?.feature_flags ?? {}),
         }
 
-        refresh();
-        const id = setInterval(refresh, POLL_INTERVAL_MS);
+        cachedFlags = flags
+        saveToLocalStorage(flags)
+        notifyListeners(flags)
+        return flags
+    } catch {
+        const flags = loadFromLocalStorage()
+        cachedFlags = flags
+        notifyListeners(flags)
+        return flags
+    } finally {
+        isFetching = false
+    }
+}
+
+export default function useFeatureFlags(): FeatureFlags {
+    const { getFeatureFlags } = useAPI()
+    const { serverOnline } = useClientEnvironment()
+
+    const [featureFlags, setFeatureFlags] = useState<FeatureFlags>(
+        () => cachedFlags ?? loadFromLocalStorage()
+    )
+
+    useEffect(() => {
+        // Subscribe to flag changes
+        const unsubscribe = subscribeToFlags(setFeatureFlags)
+
+        // Fetch flags (will use cache if available)
+        void fetchFeatureFlagsOnce(getFeatureFlags, serverOnline)
 
         return () => {
-            cancelled = true;
-            clearInterval(id);
-        };
-    }, [getFeatureFlags]);
+            unsubscribe()
+        }
+    }, [getFeatureFlags, serverOnline])
 
-    return flags;
+    return featureFlags
 }
