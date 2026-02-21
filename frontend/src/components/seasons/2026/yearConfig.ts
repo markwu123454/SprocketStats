@@ -114,12 +114,12 @@ export type MatchScoutingData = {
     // Post-match qualitative data
     postmatch: {
         skill: number // 0-1
-        defenseSkill: number // 0-1
-        speed: number
+        defenseSkill: number | null // 0-1
+        speed: number // 0-1
         role: "Shooter" | "Intake" | "Defense" | "Generalist" | "Useless"
         traversalLocation: "Trench" | "Bump" | "No Preference" // slider?
-        teleopClimbPos: "Center" | "Left" | "Right" | "Left Side" | "Right Side" | null
-        autoClimbPos: "Center" | "Left" | "Right" | "Left Side" | "Right Side" | null
+        teleopClimbPos: "Front Center" | "Front Left" | "Front Right" | "Side Left" | "Side Right" | null
+        autoClimbPos: "Front Center" | "Front Left" | "Front Right" | "Side Left" | "Side Right" | null
         intakePos: {
             neutral: boolean
             depot: boolean
@@ -127,13 +127,25 @@ export type MatchScoutingData = {
             opponent: boolean
         }
         faults: {
-            disconnected: boolean // solid light, not connected to driver station
-            nonfunctional: boolean // does not move at all (does nothing)
-            unbalanced: boolean // tipsy, higher probability of tipping over, high cg
-            jammed: boolean // game piece gets stuck in robot
-            disabled: boolean // robot stays connected but stops moving, a subsystem doesn't work
-            broken: boolean // piece breaks off
-            penalties: boolean
+            // Connection / control
+            disconnected: boolean       // robot goes dark / loses comms entirely
+            brownout: boolean           // flickering, sluggish, brief power loss behavior
+            disabled: boolean           // robot stops moving but lights stay on
+
+            // Mobility
+            tip: boolean             // robot falls over or gets stuck on its side
+            immobilized: boolean        // can still function but can't drive (e.g. stuck on field element)
+            erratic_driving: boolean    // spun uncontrollably, drifted, couldn't go straight
+
+            // Game piece handling
+            jam: boolean             // game piece visibly stuck in/on robot
+
+            // Structure
+            structural_failure: boolean // a visible piece of robot detaches
+
+            failed_auto: boolean
+            no_auto: boolean
+
             other: boolean
         }
         notes: string

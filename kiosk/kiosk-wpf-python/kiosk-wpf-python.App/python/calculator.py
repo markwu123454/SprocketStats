@@ -1,16 +1,351 @@
 import json
 import math
 import statistics
+from datetime import datetime
 
 import requests
 import statbotics
+from typing import Any, Literal, Optional
+from pydantic import BaseModel
 
 from logger import *
 
 _sb = statbotics.Statbotics()
 
 
-def run_calculation(setting, downloaded_data, tba_key):
+# --- Reusable types ---
+
+TowerLevel = Literal["Level1", "Level2", "Level3", "None"]
+CompLevel = Literal["qm", "ef", "qf", "sf", "f"]
+WinningAlliance = Literal["red", "blue", ""]
+
+# ===========================================================================
+# Statbotics types (season-agnostic)
+# ===========================================================================
+
+class StatboticsAllianceData(BaseModel):
+    team_keys: list[int]
+    surrogate_team_keys: list[int]
+    dq_team_keys: list[int]
+
+class StatboticsAlliances(BaseModel):
+    red: StatboticsAllianceData
+    blue: StatboticsAllianceData
+
+class StatboticsPred(BaseModel):
+    winner: Optional[Literal["red", "blue"]]
+    red_win_prob: float
+    red_score: float
+    blue_score: float
+    # RP predictions (named generically since they vary by season)
+    red_rp_1: float
+    blue_rp_1: float
+    red_rp_2: float
+    blue_rp_2: float
+    red_rp_3: Optional[float] = None
+    blue_rp_3: Optional[float] = None
+    # Allow any extra season-specific prediction fields
+    model_config = {"extra": "allow"}
+
+class StatboticsResult(BaseModel):
+    winner: Optional[Literal["red", "blue"]]
+    red_score: int
+    blue_score: int
+    red_no_foul: int
+    blue_no_foul: int
+    red_auto_points: int
+    blue_auto_points: int
+    red_teleop_points: int
+    blue_teleop_points: int
+    red_endgame_points: int
+    blue_endgame_points: int
+    red_tiebreaker_points: int
+    blue_tiebreaker_points: int
+    # RP results (named generically)
+    red_rp_1: bool
+    blue_rp_1: bool
+    red_rp_2: bool
+    blue_rp_2: bool
+    red_rp_3: Optional[bool] = None
+    blue_rp_3: Optional[bool] = None
+    # Allow any extra season-specific result fields
+    model_config = {"extra": "allow"}
+
+class StatboticsMatch(BaseModel):
+    key: str
+    year: int
+    event: str
+    week: int
+    elim: bool
+    comp_level: CompLevel
+    set_number: int
+    match_number: int
+    match_name: str
+    time: Optional[int]
+    predicted_time: Optional[int]
+    status: Literal["Completed", "Upcoming", "Ongoing"]
+    video: Optional[str]
+    alliances: StatboticsAlliances
+    pred: Optional[StatboticsPred]
+    result: Optional[StatboticsResult]
+
+# ===========================================================================
+# Downloaded (local scouting) data types
+# ===========================================================================
+
+# --- Match scouting actions ---
+
+MatchPhase = Literal["prestart", "auto", "between", "teleop", "post"]
+SubPhaseName = Literal["auto", "transition", "shift_1", "shift_2", "shift_3", "shift_4", "endgame"]
+ClimbLevel = Literal["L1", "L2", "L3"]
+ClimbPos = Literal["Center", "Left", "Right", "Left Side", "Right Side"]
+
+class StartingAction(BaseModel):
+    type: Literal["starting"]
+    x: float
+    y: float
+
+class ScoreAction(BaseModel):
+    type: Literal["score"]
+    x: float
+    y: float
+    score: int
+    timestamp: int
+    phase: MatchPhase
+    subPhase: Optional[SubPhaseName]
+
+class PassAction(BaseModel):
+    type: Literal["passing"]
+    timestamp: int
+    phase: MatchPhase
+    subPhase: Optional[SubPhaseName]
+
+class ClimbAction(BaseModel):
+    type: Literal["climb"]
+    timestamp: int
+    level: ClimbLevel
+    success: bool
+    phase: MatchPhase
+    subPhase: Optional[SubPhaseName]
+
+class DefenseAction(BaseModel):
+    type: Literal["defense"]
+    timestamp: int
+    phase: MatchPhase
+    subPhase: Optional[SubPhaseName]
+
+class TraversalAction(BaseModel):
+    type: Literal["traversal"]
+    timestamp: int
+    phase: MatchPhase
+    subPhase: Optional[SubPhaseName]
+
+class IdleAction(BaseModel):
+    type: Literal["idle"]
+    timestamp: int
+    phase: MatchPhase
+    subPhase: Optional[SubPhaseName]
+
+class IntakeAction(BaseModel):
+    type: Literal["intake"]
+    timestamp: int
+    phase: MatchPhase
+    subPhase: Optional[SubPhaseName]
+
+class ShootingAction(BaseModel):
+    type: Literal["shooting"]
+    timestamp: int
+    phase: MatchPhase
+    subPhase: Optional[SubPhaseName]
+
+from typing import Annotated, Union
+from pydantic import Field
+
+ScoutingAction = Annotated[
+    Union[
+        StartingAction,
+        ScoreAction,
+        ClimbAction,
+        PassAction,
+        DefenseAction,
+        TraversalAction,
+        IdleAction,
+        IntakeAction,
+        ShootingAction,
+    ],
+    Field(discriminator="type")
+]
+
+# --- Match scouting postmatch ---
+
+class ScoutingFaults(BaseModel):
+    disconnected: bool
+    nonfunctional: bool
+    unbalanced: bool
+    jammed: bool
+    disabled: bool
+    broken: bool
+    penalties: bool
+    other: bool
+
+class ScoutingIntakePos(BaseModel):
+    neutral: bool
+    depot: bool
+    outpost: bool
+    opponent: bool
+
+class ScoutingPostmatch(BaseModel):
+    skill: float           # 0-1
+    defenseSkill: float    # 0-1
+    speed: float
+    role: Literal["Shooter", "Intake", "Defense", "Generalist", "Useless"]
+    traversalLocation: Literal["Trench", "Bump", "No Preference"]
+    teleopClimbPos: Optional[ClimbPos]
+    autoClimbPos: Optional[ClimbPos]
+    intakePos: ScoutingIntakePos
+    faults: Any # ScoutingFaults
+    notes: str
+
+# --- Match scouting entry data ---
+
+class ScoutingEntryData(BaseModel):
+    key: str
+    status: str
+    actions: list[ScoutingAction]
+    postmatch: ScoutingPostmatch
+    manualTeam: bool
+    startPosition: Optional[dict[str, float]] = None
+
+# --- Match scouting entry ---
+
+class MatchScoutingEntry(BaseModel):
+    event_key: str
+    match: int
+    match_type: str
+    team: str
+    alliance: Literal["red", "blue"]
+    scouter: str
+    data: ScoutingEntryData
+
+# --- Pit scouting entry ---
+
+class PitScoutingEntry(BaseModel):
+    event_key: str
+    team: str
+    scouter: str
+    data: dict[str, Any]  # free-form pit scouting fields
+
+# --- Match schedule entry ---
+
+class ScheduledMatch(BaseModel):
+    key: str
+    event_key: str
+    match_type: str
+    match_number: int
+    set_number: int
+    scheduled_time: Optional[datetime]
+    actual_time: Optional[datetime]
+    red1: int
+    red2: int
+    red3: int
+    blue1: int
+    blue2: int
+    blue3: int
+
+# --- Top-level downloaded data ---
+
+class DownloadedData(BaseModel):
+    match_scouting: list[MatchScoutingEntry]
+    pit_scouting: list[PitScoutingEntry]
+    all_matches: list[ScheduledMatch]
+
+# --- Score Breakdown ---
+
+class HubScore(BaseModel):
+    autoCount: int
+    autoPoints: int
+    endgameCount: int
+    endgamePoints: int
+    shift1Count: int
+    shift1Points: int
+    shift2Count: int
+    shift2Points: int
+    shift3Count: int
+    shift3Points: int
+    shift4Count: int
+    shift4Points: int
+    teleopCount: int
+    teleopPoints: int
+    totalCount: int
+    totalPoints: int
+    transitionCount: int
+    transitionPoints: int
+
+class AllianceScoreBreakdown2026(BaseModel):
+    adjustPoints: int
+    autoTowerPoints: int
+    autoTowerRobot1: TowerLevel
+    autoTowerRobot2: TowerLevel
+    autoTowerRobot3: TowerLevel
+    endGameTowerPoints: int
+    endGameTowerRobot1: TowerLevel
+    endGameTowerRobot2: TowerLevel
+    endGameTowerRobot3: TowerLevel
+    energizedAchieved: bool
+    foulPoints: int
+    g206Penalty: bool
+    hubScore: HubScore
+    majorFoulCount: int
+    minorFoulCount: int
+    rp: int
+    superchargedAchieved: bool
+    totalAutoPoints: int
+    totalPoints: int
+    totalTeleopPoints: int
+    totalTowerPoints: int
+    traversalAchieved: bool
+
+class MatchScoreBreakdown2026(BaseModel):
+    blue: AllianceScoreBreakdown2026
+    red: AllianceScoreBreakdown2026
+
+# --- Alliance ---
+
+class MatchAlliance(BaseModel):
+    score: int
+    team_keys: list[str]
+    surrogate_team_keys: list[str]
+    dq_team_keys: list[str]
+
+class MatchAlliances(BaseModel):
+    red: MatchAlliance
+    blue: MatchAlliance
+
+# --- Video ---
+
+class MatchVideo(BaseModel):
+    type: Literal["youtube", "tba"]
+    key: str
+
+# --- Full Match ---
+
+class Match(BaseModel):
+    key: str
+    comp_level: CompLevel
+    set_number: int
+    match_number: int
+    alliances: MatchAlliances
+    winning_alliance: WinningAlliance
+    event_key: str
+    time: Optional[int]
+    actual_time: Optional[int]
+    predicted_time: Optional[int]
+    post_result_time: Optional[int]
+    score_breakdown: Optional[MatchScoreBreakdown2026]
+    videos: list[MatchVideo]
+
+
+def run_calculation(setting, downloaded_data: DownloadedData, tba_key: str):
     """Execute scouting data calculations."""
     log = Logger()
 
@@ -41,7 +376,7 @@ def run_calculation(setting, downloaded_data, tba_key):
     # -- Statbotics ----------------------------------------------------
     with log.section("Fetching Statbotics data"):
         try:
-            sb_data = _sb.get_matches(event=event_key)
+            sb_data: list[StatboticsMatch] = [StatboticsMatch(**m) for m in _sb.get_matches(event=event_key)]
             sb_count = len(sb_data) if isinstance(sb_data, (list, dict)) else 0
 
             if sb_count == 0:
@@ -54,7 +389,7 @@ def run_calculation(setting, downloaded_data, tba_key):
             log.error(f"Statbotics error: {e}")
             if stop_on_warning:
                 return {"success": False, "error": f"Statbotics error: {e}"}
-            sb_data = {}
+            sb_data: list[StatboticsMatch] = []
 
     # -- TBA -----------------------------------------------------------
     with log.section("Fetching TBA data"):
@@ -67,9 +402,9 @@ def run_calculation(setting, downloaded_data, tba_key):
             log.error(f"TBA request failed (status {tba_response.status_code})")
             if stop_on_warning:
                 return {"success": False, "error": "TBA request failed"}
-            tba_data = []
+            tba_data: list[Match] = []
         else:
-            tba_data = tba_response.json()
+            tba_data: list[Match] = [Match(**m) for m in tba_response.json()]
             if not tba_data:
                 log.warn("No TBA matches returned")
                 if stop_on_warning:
@@ -100,13 +435,14 @@ def run_calculation(setting, downloaded_data, tba_key):
     with log.section("Processing match scouting entries:"):
         processed_match_entries = {}
         for entry in downloaded_data["match_scouting"]:
+            log.substep(entry)
             processed_match_entries[(entry["match_type"] + str(entry["match"]), int(entry["team"]))] = {
                 "fuel": {
                     "total": 0,
                     "auto": 0,
                     "transition": 0,
-                    "phase 1": 0,
-                    "phase 2": 0,
+                    "phase_1": 0,
+                    "phase_2": 0,
                     "endgame": 0,
                 },
                 "climb": {
@@ -124,8 +460,13 @@ def run_calculation(setting, downloaded_data, tba_key):
                 },
                 "actions": {
 
+                },
+                "metadata": {
+                    "auto_win_rate": 0
+
                 }
             }
+        log.substep(processed_match_entries)
 
     log.done()
     return processed_match_entries
@@ -444,8 +785,6 @@ def prob_sum1_greater_sum2(normals1, normals2):
         raise ValueError("Resulting variance must be positive")
 
     z = (mu1 - mu2) / math.sqrt(total_variance)
-
+    
     # Standard normal CDF via error function
     return 0.5 * (1.0 + math.erf(z / math.sqrt(2.0)))
-
-
