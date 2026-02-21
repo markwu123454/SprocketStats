@@ -51,25 +51,25 @@ export default function RatingSlider({
     }, [showInfo])
 
 
-    const getColor = (v: number, invert: boolean = true) => {
-        // Ensure v is between 0 and 1
-        let ratio = Math.max(0, Math.min(1, v));
+    const getColor = (v: number) => {
+        // Normalize value between 0 and 1 based on min/max props
+        let ratio = (v - min) / (max - min);
+        ratio = Math.max(0, Math.min(1, ratio));
 
-        // If inverting, we look at the value from the opposite end
-        if (invert) {
-            ratio = 1 - ratio;
-        }
+        // If invertColor is true: 0 = Green, 1 = Red
+        // If invertColor is false: 0 = Red, 1 = Green
+        const colorValue = invertColor ? 1 - ratio : ratio;
 
         let r, g, b;
-        if (ratio < 0.5) {
-            // Range: 0 to 0.5 (Original: Red to Yellow | Inverted: Green to Yellow)
-            const t = ratio / 0.5;
+        if (colorValue < 0.5) {
+            // 0.0 to 0.5: Red (220, 38, 38) to Yellow (234, 179, 8)
+            const t = colorValue / 0.5;
             r = 220 + (234 - 220) * t;
             g = 38 + (179 - 38) * t;
             b = 38 + (8 - 38) * t;
         } else {
-            // Range: 0.5 to 1 (Original: Yellow to Green | Inverted: Yellow to Red)
-            const t = (ratio - 0.5) / 0.5;
+            // 0.5 to 1.0: Yellow (234, 179, 8) to Green (34, 197, 94)
+            const t = (colorValue - 0.5) / 0.5;
             r = 234 + (34 - 234) * t;
             g = 179 + (197 - 179) * t;
             b = 8 + (94 - 8) * t;
@@ -79,7 +79,7 @@ export default function RatingSlider({
     }
 
     return (
-        <div className="w-full max-w-sm px-6 py-2 mx-auto flex flex-col gap-2 relative">
+        <div className="w-full px-6 py-2 mx-auto flex flex-col gap-2 relative">
             <div className="flex items-center justify-between">
                 {title && <div className="text-sm font-medium text-zinc-200">{title}</div>}
                 {infoBox && (

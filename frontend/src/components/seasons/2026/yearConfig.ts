@@ -133,21 +133,20 @@ export type MatchScoutingData = {
             disabled: boolean           // robot stops moving but lights stay on
 
             // Mobility
-            tip: boolean             // robot falls over or gets stuck on its side
-            immobilized: boolean        // can still function but can't drive (e.g. stuck on field element)
+            immobilized: boolean
             erratic_driving: boolean    // spun uncontrollably, drifted, couldn't go straight
 
             // Game piece handling
-            jam: boolean             // game piece visibly stuck in/on robot
+            jam: boolean                // game piece visibly stuck in/on robot
 
             // Structure
             structural_failure: boolean // a visible piece of robot detaches
 
-            failed_auto: boolean
-            no_auto: boolean
+            failed_auto: boolean        // robot have auto but it's obvious it isn't working as intended
 
             other: boolean
         }
+        messed_up: boolean
         notes: string
     }
 }
@@ -171,6 +170,7 @@ export const createDefaultScoutingData = (): Omit<MatchScoutingData, "scouter"> 
             // stashing strat
             skill: 0,
             defenseSkill: 0,
+            speed: 0,
             role: "Useless",
             traversalLocation: "No Preference",
             teleopClimbPos: null,
@@ -182,10 +182,26 @@ export const createDefaultScoutingData = (): Omit<MatchScoutingData, "scouter"> 
                 opponent: false,
             },
             faults: {
-                system: false,
-                idle: false,
+                // Connection / control
+                disconnected: false,       // robot goes dark / loses comms entirely
+                brownout: false,           // flickering, sluggish, brief power loss behavior
+                disabled: false,           // robot stops moving but lights stay on
+
+                // Mobility
+                immobilized: false,        // can still function but can't drive (e.g. stuck on field element)
+                erratic_driving: false,    // spun uncontrollably, drifted, couldn't go straight
+
+                // Game piece handling
+                jam: false,                // game piece visibly stuck in/on robot
+
+                // Structure
+                structural_failure: false, // a visible piece of robot detaches
+
+                failed_auto: false,        // robot have auto but it's obvious it isn't working as intended
+
                 other: false,
             },
+            messed_up: false,
             notes: "",
         },
     }
@@ -234,7 +250,7 @@ export const pitQuestions = [
     {
         key: "intakeType",
         label: "Intake Type",
-        type: "select",
+        type: "multi",
         options: ["Between Bumper", "Over Bumper", "Source", "None"],
     },
 
