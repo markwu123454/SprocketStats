@@ -631,7 +631,7 @@ export default function MatchScoutingPage() {
                             Match #{scoutingData.match || '–'} ({scoutingData.alliance?.toUpperCase() || '–'})
                         </div>
                         <div className="capitalize">
-                            {phase === 'combined' ? 'Auto + Teleop' : phase}
+                            {phase === 'combined' ? 'Auto + Teleop' : phase === 'post' ? 'Post-Match' : phase}
                         </div>
                     </div>
                 )}

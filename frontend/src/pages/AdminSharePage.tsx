@@ -110,7 +110,7 @@ export default function AdminSharePage() {
                     {/* Header with logo and gradient text */}
                     <div className="mb-6 flex flex-col items-center">
                         {/* Logo */}
-                        <div className="relative w-20 h-20 mb-4">
+                        <div className="relative w-30 h-30 mb-4">
                             <img
                                 src="/static/sprocket_logo_ring.png"
                                 alt="Team Sprocket Ring"

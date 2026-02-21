@@ -8,6 +8,7 @@ export type FeatureFlags = {
     showAttendanceTimeForComp: boolean
     forcePWA: boolean
     confirmBeforeUpload: boolean
+    shotMadeSlider: boolean
 }
 
 const DEFAULT_FEATURE_FLAGS: FeatureFlags = {
@@ -16,6 +17,8 @@ const DEFAULT_FEATURE_FLAGS: FeatureFlags = {
     showAttendanceTimeForComp: true,
     forcePWA: false,
     confirmBeforeUpload: true,
+    shotMadeSlider: true,
+
 }
 
 const STORAGE_KEY = "feature_flags"

@@ -26,6 +26,7 @@ export type ScoreAction = {
     x: number
     y: number
     score: number
+    shot: number
     timestamp: number
     phase: MatchPhase
     subPhase: SubPhaseName | null

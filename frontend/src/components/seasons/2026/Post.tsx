@@ -99,7 +99,7 @@ export default function PostMatch({data, setData}: {
 
     return (
         <div className="p-6 w-full h-full mx-auto space-y-6">
-            <div className="text-2xl font-bold border-b border-neutral-800 pb-4">Post-Match Scouting</div>
+            {/*<div className="text-2xl font-bold border-b border-neutral-800 pb-4">Post-Match Scouting</div>*/}
 
             {/* 2x2 Grid Container */}
             <div className="flex flex-col lg:flex-row gap-8 w-full items-start">
