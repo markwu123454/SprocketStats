@@ -639,7 +639,7 @@ export default function MatchScoutingPage() {
                 {/* Phases */}
                 <div
                     className={`flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain touch-auto scrollbar-dark ${variantAFullControl ? '' : ''}`}>
-                    <div className={variantAFullControl ? "h-full" : "text-4xl"}>
+                    <div className={variantAFullControl ? "h-full" : "text-4xl h-full"}>
                         {phase === 'pre' && (
                             <PrePhase key="pre" data={scoutingData} setData={setScoutingData}/>
                         )}
