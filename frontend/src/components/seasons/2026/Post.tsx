@@ -103,7 +103,7 @@ export default function PostMatch({data, setData}: {
 
             {/* 2x2 Grid Container */}
             <div className="flex flex-col lg:flex-row gap-8 w-full items-start">
-                <div className="flex-1 w-full space-y-6">
+                <div className="flex-2 w-full space-y-6">
 
                     {/* ---- SECTION 1: PERFORMANCE & ROLE ---- */}
                     <div className="bg-neutral-900/50 px-6 pb-6 rounded-2xl border border-neutral-800 space-y-2">
@@ -121,6 +121,7 @@ export default function PostMatch({data, setData}: {
                                 title="Defensive Skill"
                                 value={pm.defenseSkill ?? 0}
                                 onChange={v => update("defenseSkill", v)}
+                                step={0.0001}
                                 leftLabel="None"
                                 rightLabel="Shut-down"
                                 infoBox="Effectiveness at pinning, pushing, or blocking opponent cycles."
@@ -129,6 +130,7 @@ export default function PostMatch({data, setData}: {
                                 title="Robot Speed"
                                 value={pm.speed}
                                 onChange={v => update("speed", v)}
+                                step={0.0001}
                                 leftLabel="Slow"
                                 rightLabel="Fast"
                             />
@@ -197,7 +199,7 @@ export default function PostMatch({data, setData}: {
 
                 </div>
 
-                <div className="flex-1 w-full lg:max-w-8xl space-y-6">
+                <div className="flex-3 lg:w-8xl space-y-6">
                     {/* ---- SECTION 2: FAULTS ---- */}
                     <div className="bg-neutral-900/50 px-6 pb-6 rounded-2xl border border-neutral-800">
                         <SectionHeader>Robot Faults (Observable Behavior)</SectionHeader>
