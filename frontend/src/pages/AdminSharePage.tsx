@@ -49,7 +49,8 @@ export default function AdminSharePage() {
                     url: fullLink
                 });
                 return;
-            } catch { /* empty */ }
+            } catch { /* empty */
+            }
         }
         navigator.clipboard.writeText(fullLink);
     };
@@ -114,12 +115,13 @@ export default function AdminSharePage() {
                                 src="/static/sprocket_logo_ring.png"
                                 alt="Team Sprocket Ring"
                                 className="absolute inset-0 w-full h-full object-contain animate-spin-slow"
-                                style={{animationDuration: '20s'}}
+                                style={{animationDuration: '20s', filter: 'brightness(0) invert(1)'}}
                             />
                             <img
                                 src="/static/sprocket_logo_gear.png"
                                 alt="Team Sprocket Gear"
                                 className="absolute inset-0 w-full h-full object-contain"
+                                style={{filter: 'brightness(0) invert(1)'}}
                             />
                         </div>
 
@@ -388,14 +390,14 @@ export default function AdminSharePage() {
 
             {/* STEP 3 — Full Screen Mode */}
             {finalPassword && mode === "fullscreen" && (
-                <div className="absolute inset-0 bg-purple-950 overflow-auto p-8">
+                <div className="absolute inset-0 overflow-auto p-8" style={{backgroundColor: '#462784'}}>
                     {renderShareView()}
                 </div>
             )}
 
             {/* STEP 4 — Print Mode */}
             {finalPassword && mode === "print" && (
-                <div className="absolute inset-0 bg-purple-950 p-8 print:p-0 print-bg">
+                <div className="absolute inset-0 p-8 print:p-0 print-bg" style={{backgroundColor: '#462784'}}>
                     {renderShareView()}
                 </div>
             )}

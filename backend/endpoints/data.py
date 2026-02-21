@@ -32,31 +32,28 @@ def filter_processed_data(data: dict, perms: dict) -> dict:
 
     # Match
     allowed_matches = perms.get("match")
-    if isinstance(allowed_matches, list):
-        # include only whitelisted matches
+    if allowed_matches is True or allowed_matches == "*" or allowed_matches == ["*"]:
+        filtered["match"] = data.get("match", {})
+    elif isinstance(allowed_matches, list):
         filtered["match"] = {
             mid: mdata
             for mid, mdata in data.get("match", {}).items()
             if mid in allowed_matches
         }
-    elif allowed_matches is True:  # allow all matches
-        filtered["match"] = data.get("match", {})
     else:
         filtered["match"] = {}
 
     # Team
     allowed_teams = perms.get("team")
-    if isinstance(allowed_teams, list):
-        # Teams in data may use ints or strings; normalize
+    if allowed_teams is True or allowed_teams == "*" or allowed_teams == ["*"]:
+        filtered["team"] = data.get("team", {})
+    elif isinstance(allowed_teams, list):
         allowed_team_set = {str(t) for t in allowed_teams}
-
         filtered["team"] = {
             str(tid): tdata
             for tid, tdata in data.get("team", {}).items()
             if str(tid) in allowed_team_set
         }
-    elif allowed_teams is True:  # allow all teams
-        filtered["team"] = data.get("team", {})
     else:
         filtered["team"] = {}
 
