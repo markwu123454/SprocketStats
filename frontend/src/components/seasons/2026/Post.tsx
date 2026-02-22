@@ -1,40 +1,11 @@
 import React from "react"
 import type {MatchScoutingData} from "@/types"
-import {AlertTriangle} from "lucide-react";
+import {AlertTriangle, Hand} from "lucide-react";
 import RatingSlider from "@/components/ui/ratingSlider"
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-function SliderField({label, value, onChange, min = 0, max = 1, step = 0.01}: {
-    label: string
-    value: number
-    onChange: (v: number) => void
-    min?: number
-    max?: number
-    step?: number
-}) {
-    const pct = Math.round(value * 100)
-    return (
-        <div className="space-y-1">
-            <div className="flex justify-between text-sm">
-                <span className="font-medium">{label}</span>
-                <span className="tabular-nums text-neutral-400">{pct}%</span>
-            </div>
-            <input
-                type="range"
-                min={min}
-                max={max}
-                step={step}
-                value={value}
-                onChange={e => onChange(parseFloat(e.target.value))}
-                className="w-full accent-blue-500 h-2 rounded-lg cursor-pointer"
-            />
-        </div>
-    )
-}
-
 function ToggleChip({label, active, onToggle}: {
     label: string
     active: boolean
@@ -108,42 +79,42 @@ export default function PostMatch({data, setData}: {
                     {/* ---- SECTION 1: PERFORMANCE & ROLE ---- */}
                     <div className="bg-neutral-900/50 px-6 pb-6 rounded-2xl border border-neutral-800 space-y-2">
                         <SectionHeader>Performance & Role</SectionHeader>
-                            <RatingSlider
-                                title="Offensive Skill"
-                                value={pm.skill}
-                                onChange={v => update("skill", v)}
-                                step={0.0001}
-                                leftLabel="Poor"
-                                rightLabel="Elite"
-                                infoBox="Overall ability to score game pieces and contribute to the alliance score."
-                            />
-                            <RatingSlider
-                                title="Defensive Skill"
-                                value={pm.defenseSkill ?? 0}
-                                onChange={v => update("defenseSkill", v)}
-                                step={0.0001}
-                                leftLabel="None"
-                                rightLabel="Shut-down"
-                                infoBox="Effectiveness at pinning, pushing, or blocking opponent cycles."
-                            />
-                            <RatingSlider
-                                title="Robot Speed"
-                                value={pm.speed}
-                                onChange={v => update("speed", v)}
-                                step={0.0001}
-                                leftLabel="Slow"
-                                rightLabel="Fast"
-                            />
+                        <RatingSlider
+                            title="Offensive Skill"
+                            value={pm.skill}
+                            onChange={v => update("skill", v)}
+                            step={0.0001}
+                            leftLabel="Poor"
+                            rightLabel="Elite"
+                            infoBox="Overall ability to score game pieces and contribute to the alliance score."
+                        />
+                        <RatingSlider
+                            title="Defensive Skill"
+                            value={pm.defenseSkill ?? 0}
+                            onChange={v => update("defenseSkill", v)}
+                            step={0.0001}
+                            leftLabel="None"
+                            rightLabel="Shut-down"
+                            infoBox="Effectiveness at pinning, pushing, or blocking opponent cycles."
+                        />
+                        <RatingSlider
+                            title="Robot Speed"
+                            value={pm.speed}
+                            onChange={v => update("speed", v)}
+                            step={0.0001}
+                            leftLabel="Slow"
+                            rightLabel="Fast"
+                        />
 
-                            <div className="flex flex-wrap gap-2 pt-2">
-                                {["Shooter", "Intake", "Defense", "Generalist", "Useless"].map((role) => (
-                                    <ToggleChip
-                                        key={role}
-                                        label={role}
-                                        active={pm.role === role}
-                                        onToggle={() => update("role", role as any)}
-                                    />
-                                ))}
+                        <div className="flex flex-wrap gap-2 pt-2">
+                            {["Shooter", "Intake", "Defense", "Generalist", "Useless"].map((role) => (
+                                <ToggleChip
+                                    key={role}
+                                    label={role}
+                                    active={pm.role === role}
+                                    onToggle={() => update("role", role as any)}
+                                />
+                            ))}
                         </div>
 
                     </div>
@@ -216,11 +187,11 @@ export default function PostMatch({data, setData}: {
                                 failed_auto: "Robot moved during Auto but missed its targets or crashed into something",
                                 other: "Something went wrong that doesn't fit the categories above"
                             }).map(([key, description]) => {
-                                const isActive = (pm.faults as any)[key];
+                                const isActive = (pm.faults)[key];
                                 return (
                                     <div
                                         key={key}
-                                        onClick={() => toggleNested("faults", key as any)}
+                                        onClick={() => toggleNested("faults", key)}
                                         className={`flex items-center justify-between p-3 rounded-xl border cursor-pointer transition-all group ${isActive
                                             ? "bg-red-950/40 border-red-500 shadow-[inset_0_0_10px_rgba(220,38,38,0.2)]"
                                             : "bg-neutral-900/40 border-neutral-800/50 hover:bg-neutral-800 hover:border-neutral-600"}`}
@@ -242,7 +213,7 @@ export default function PostMatch({data, setData}: {
                                         {/* Right: Checkbox */}
                                         <div className="shrink-0 ml-4">
                                             <div className={`w-6 h-6 rounded-md border-2 flex items-center justify-center transition-all
-                                ${isActive
+                                            ${isActive
                                                 ? "bg-red-800 border-red-500 shadow-[0_0_15px_rgba(220,38,38,0.5)]"
                                                 : "border-neutral-700 bg-neutral-950 group-hover:border-neutral-500"}`}
                                             >
@@ -273,12 +244,28 @@ export default function PostMatch({data, setData}: {
                                 onClick={() => update("messed_up", !pm.messed_up)}
                                 className={`flex items-center gap-2 px-3 py-2 mt-2 rounded-lg text-xs font-bold transition-all border ${
                                     pm.messed_up
-                                        ? "bg-red-900 border-red-500 text-white shadow-[0_0_15px_rgba(220,38,38,0.4)]"
-                                        : "bg-neutral-800 border-neutral-700 text-neutral-400 hover:border-neutral-500"
+                                        ? "bg-emerald-900/60 border-emerald-500 text-emerald-200 shadow-[0_0_15px_rgba(16,185,129,0.3)]"
+                                        : "bg-blue-950/40 border-blue-500/50 text-blue-300 hover:bg-blue-900/40 hover:border-blue-400"
                                 }`}
                             >
-                                <AlertTriangle size={12}/>
-                                I MESSED UP SCOUTING
+                                {pm.messed_up ? (
+                                    <>
+                                        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"
+                                             strokeWidth={3}>
+                                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"/>
+                                        </svg>
+                                        FLAGGED — THANKS FOR YOUR HONESTY
+                                    </>
+                                ) : (
+                                    <>
+                                        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"
+                                             strokeWidth={2.5}>
+                                            <path strokeLinecap="round" strokeLinejoin="round"
+                                                  d="M3 3v1.5M3 21v-6m0 0 2.77-.693a9 9 0 0 1 6.208.682l.108.054a9 9 0 0 0 6.086.71l3.114-.732a48.524 48.524 0 0 1-.005-10.499l-3.11.732a9 9 0 0 1-6.085-.711l-.108-.054a9 9 0 0 0-6.208-.682L3 4.5M3 15V4.5"/>
+                                        </svg>
+                                        FLAG FOR RESCOUT
+                                    </>
+                                )}
                             </button>
                         </div>
 

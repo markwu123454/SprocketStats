@@ -23,6 +23,9 @@ const DEFAULT_FEATURE_FLAGS: FeatureFlags = {
 
 const STORAGE_KEY = "feature_flags"
 
+let _getFeatureFlags: (() => Promise<any>) | null = null
+let _serverOnline = false
+
 function loadFromLocalStorage(): FeatureFlags {
     try {
         const raw = localStorage.getItem(STORAGE_KEY)
@@ -116,6 +119,9 @@ export default function useFeatureFlags(): FeatureFlags {
     const { getFeatureFlags } = useAPI()
     const { serverOnline } = useClientEnvironment()
 
+    _getFeatureFlags = getFeatureFlags
+    _serverOnline = serverOnline
+
     const [featureFlags, setFeatureFlags] = useState<FeatureFlags>(
         () => cachedFlags ?? loadFromLocalStorage()
     )
@@ -133,4 +139,11 @@ export default function useFeatureFlags(): FeatureFlags {
     }, [getFeatureFlags, serverOnline])
 
     return featureFlags
+}
+
+export async function refreshFeatureFlags(): Promise<FeatureFlags> {
+    if (!_getFeatureFlags) return loadFromLocalStorage()
+    cachedFlags = null
+    isFetching = false
+    return fetchFeatureFlagsOnce(_getFeatureFlags, _serverOnline)
 }

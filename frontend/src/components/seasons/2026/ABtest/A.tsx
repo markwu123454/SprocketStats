@@ -1,6 +1,6 @@
 import React, {useCallback, useEffect, useRef, useState} from "react"
 import {getSettingSync} from "@/db/settingsDb"
-import useFeatureFlags from "@/hooks/useFeatureFlags.ts";
+import useFeatureFlags, {refreshFeatureFlags} from "@/hooks/useFeatureFlags.ts";
 import type {
     Actions,
     ClimbAction,
@@ -22,19 +22,19 @@ interface SubPhaseConfig {
 // Sub-phase sequence for teleop
 // ---------------------------------------------------------------------------
 const TELEOP_SEQUENCE: SubPhaseConfig[] = [
-    {phase: "transition", duration: 1000},
-    {phase: "shift_1", duration: 2500},
-    {phase: "shift_2", duration: 2500},
-    {phase: "shift_3", duration: 2500},
-    {phase: "shift_4", duration: 2500},
-    {phase: "endgame", duration: 3000},
+    {phase: "transition", duration: 10000},
+    {phase: "shift_1", duration: 25000},
+    {phase: "shift_2", duration: 25000},
+    {phase: "shift_3", duration: 25000},
+    {phase: "shift_4", duration: 25000},
+    {phase: "endgame", duration: 30000},
 ]
 
 // ---------------------------------------------------------------------------
 // Phase duration constants
 // ---------------------------------------------------------------------------
-const AUTO_DURATION = 2000
-const BETWEEN_DURATION = 300
+const AUTO_DURATION = 20000
+const BETWEEN_DURATION = 3000
 const TELEOP_DURATION = TELEOP_SEQUENCE.reduce((s, c) => s + c.duration, 0)
 
 // ---------------------------------------------------------------------------
@@ -324,10 +324,13 @@ export default function MatchScouting({
     const uiFlip = fieldFlip !== isRedAlliance
     const flip = fieldFlip
 
+    useEffect(() => {
+        void refreshFeatureFlags()
+    }, []);
+
     // ---------------------------------------------------------------------------
     // Read actions and startPosition directly from data
     // ---------------------------------------------------------------------------
-    const actions = data.actions
     const startPosition = data.startPosition // canonical (field) coords
 
     // Helpers to write directly into data
@@ -360,16 +363,20 @@ export default function MatchScouting({
 
     // Score slider
     const [shot, setShot] = useState(0)
+    const [scored, setScored] = useState(0)
     const sliderRef = useRef<HTMLDivElement>(null)
+    const scoredSliderRef = useRef<HTMLDivElement>(null)
     const [sliderActive, setSliderActive] = useState(false)
+    const [scoredSliderActive, setScoredSliderActive] = useState(false)
     const [sliderY, setSliderY] = useState(0.5)
+    const [scoredSliderY, setScoredSliderY] = useState(0.5)
     const sliderYRef = useRef(0.5)
+    const scoredSliderYRef = useRef(0.5)
     const shotRafRaf = useRef<number | null>(null)
+    const scoredRafRef = useRef<number | null>(null)
 
     // Field interaction
     const [dragging, setDragging] = useState(false)
-
-    const [climbSuccess, setClimbSuccess] = useState(false)
 
     // Shooting zone
     const [shootClickPos, setShootClickPos] = useState<{ x: number; y: number } | null>(null)
@@ -550,6 +557,66 @@ export default function MatchScouting({
     }, [sliderActive])
 
     // ---------------------------------------------------------------------------
+    // Scored slider — rAF accumulator loop (only when shotMadeSlider is enabled)
+    // ---------------------------------------------------------------------------
+    useEffect(() => {
+        if (!scoredSliderActive) {
+            if (scoredRafRef.current) {
+                cancelAnimationFrame(scoredRafRef.current)
+                scoredRafRef.current = null
+            }
+            return
+        }
+
+        const DEAD_ZONE = SLIDER_DEAD_ZONE
+        let accumulator = 0
+        let lastTime = performance.now()
+
+        const loop = (now: number) => {
+            const dt = now - lastTime
+            lastTime = now
+
+            const y = scoredSliderYRef.current
+            const displacement = y - 0.5
+
+            if (Math.abs(displacement) > DEAD_ZONE) {
+                const direction = displacement < 0 ? 1 : -1
+                const magnitude = (Math.abs(displacement) - DEAD_ZONE) / (0.5 - DEAD_ZONE)
+                const msPerPoint = msFromMagnitude(magnitude)
+
+                accumulator += dt
+
+                let ticks = 0
+                while (accumulator >= msPerPoint) {
+                    accumulator -= msPerPoint
+                    ticks += direction
+                }
+
+                if (ticks !== 0) {
+                    setScored((prev) => {
+                        const next = prev + ticks
+                        if (next < 0) return 0
+                        return next
+                    })
+                }
+            } else {
+                accumulator = 0
+            }
+
+            scoredRafRef.current = requestAnimationFrame(loop)
+        }
+
+        scoredRafRef.current = requestAnimationFrame(loop)
+
+        return () => {
+            if (scoredRafRef.current) {
+                cancelAnimationFrame(scoredRafRef.current)
+                scoredRafRef.current = null
+            }
+        }
+    }, [scoredSliderActive])
+
+    // ---------------------------------------------------------------------------
     // Smooth timer (60 fps) — keep running during timerExpired overtime too
     // ---------------------------------------------------------------------------
     useEffect(() => {
@@ -617,6 +684,7 @@ export default function MatchScouting({
             ) {
                 if (shotPendingReset) {
                     setShot(0)
+                    setScored(0)
                     setShotPendingReset(false)
                     setShotEditHint(false)
                 }
@@ -681,7 +749,6 @@ export default function MatchScouting({
                         type: "climb" as const,
                         timestamp: matchStartTime > 0 ? now - matchStartTime : 0,
                         level: "L1",
-                        success: climbSuccess,
                         phase: matchPhase,
                         subPhase: subPhase?.phase ?? null,
                     }
@@ -699,7 +766,7 @@ export default function MatchScouting({
                 ])
             }
         },
-        [matchStartTime, matchPhase, subPhase, climbSuccess, setActions],
+        [matchStartTime, matchPhase, subPhase, setActions],
     )
 
     // ---------------------------------------------------------------------------
@@ -729,12 +796,13 @@ export default function MatchScouting({
             })()
             if (lastScoreIdx === -1) return prev
             const action = prev[lastScoreIdx] as ScoreAction
-            if (action.score === shot) return prev
+            const newScore = featureFlags.shotMadeSlider ? scored : 0
+            if (action.shot === shot && action.score === newScore) return prev
             const updated = [...prev]
-            updated[lastScoreIdx] = {...action, score: shot}
+            updated[lastScoreIdx] = {...action, shot: shot, score: newScore}
             return updated
         })
-    }, [shot, shotEditHint, setActions])
+    }, [shot, scored, shotEditHint, setActions, featureFlags.shotMadeSlider])
 
     // View helpers
     const viewX = (v: number) => (flip ? 1 - v : v)
@@ -782,6 +850,7 @@ export default function MatchScouting({
                                     e.stopPropagation()
                                     if (shotPendingReset) {
                                         setShot(0)
+                                        setScored(0)
                                         setShotPendingReset(false)
                                         setShotEditHint(false)
                                     }
@@ -933,7 +1002,8 @@ export default function MatchScouting({
                                                 type: "score",
                                                 x: shootClickPos?.x ?? 0,
                                                 y: shootClickPos?.y ?? 0,
-                                                score: shot,
+                                                score: featureFlags.shotMadeSlider ? scored : 0,
+                                                shot: shot,
                                                 timestamp: matchStartTime > 0 ? now - matchStartTime : 0,
                                                 phase: matchPhase,
                                                 subPhase: subPhase?.phase ?? null,
@@ -942,6 +1012,7 @@ export default function MatchScouting({
                                         setShotEditHint(true)
                                     }
                                     setShotPendingReset(true)
+                                    setScored(0)
                                     handleZoneClick(key)
                                 }}
                                 className="absolute rounded-xl transition-all duration-200 flex flex-col items-center justify-center gap-1"
@@ -1138,9 +1209,22 @@ export default function MatchScouting({
 
         return (
             <div className="flex flex-col gap-3 items-center h-full">
-                <div className="text-white text-3xl font-bold font-mono">
-                    Shot: {shot}
-                </div>
+                {featureFlags.shotMadeSlider ? (
+                    <div className="flex gap-4 items-center">
+                        <div className="text-white text-2xl font-bold font-mono text-center">
+                            <span className="text-zinc-400 text-xs block">Total</span>
+                            {shot}
+                        </div>
+                        <div className="text-green-400 text-2xl font-bold font-mono text-center">
+                            <span className="text-zinc-400 text-xs block">Scored</span>
+                            {scored}
+                        </div>
+                    </div>
+                ) : (
+                    <div className="text-white text-3xl font-bold font-mono">
+                        Shot: {shot}
+                    </div>
+                )}
 
                 <div className="text-xs text-center px-2 h-4">
                     {shotEditHint ? (
@@ -1155,97 +1239,198 @@ export default function MatchScouting({
                 </div>
 
                 <div
-                    className={`relative flex flex-col items-center select-none flex-1 w-full max-w-[16rem] transition-all duration-300 ${!shootClickPos ? "opacity-30 pointer-events-none grayscale blur-[1px]" : ""
+                    className={`relative flex ${featureFlags.shotMadeSlider ? "flex-row gap-3" : "flex-col"} items-center select-none flex-1 w-full ${featureFlags.shotMadeSlider ? "max-w-[20rem]" : "max-w-[16rem]"} transition-all duration-300 ${!shootClickPos ? "opacity-30 pointer-events-none grayscale blur-[1px]" : ""
                     }`}
                 >
-                    <span className="text-green-400 text-xs font-bold mb-1">+ ADD</span>
+                    {/* Shot (total) slider */}
+                    <div className={`flex flex-col items-center ${featureFlags.shotMadeSlider ? "flex-1" : "w-full"} h-full`}>
+                        {featureFlags.shotMadeSlider && (
+                            <span className="text-zinc-400 text-xs font-bold mb-1">Total</span>
+                        )}
+                        <span className="text-green-400 text-xs font-bold mb-1">+ ADD</span>
 
-                    <div
-                        ref={sliderRef}
-                        className="relative w-full flex-1 bg-zinc-800 rounded-2xl border-2 border-zinc-600 overflow-hidden touch-none"
-                        onPointerDown={(e) => {
-                            e.preventDefault()
-                            ;(e.target as HTMLElement).setPointerCapture?.(e.pointerId)
-                            const rect = sliderRef.current!.getBoundingClientRect()
-                            const y = Math.min(1, Math.max(0, (e.clientY - rect.top) / rect.height))
-                            sliderYRef.current = y
-                            setSliderY(y)
+                        <div
+                            ref={sliderRef}
+                            className="relative w-full flex-1 bg-zinc-800 rounded-2xl border-2 border-zinc-600 overflow-hidden touch-none"
+                            onPointerDown={(e) => {
+                                e.preventDefault()
+                                ;(e.target as HTMLElement).setPointerCapture?.(e.pointerId)
+                                const rect = sliderRef.current!.getBoundingClientRect()
+                                const y = Math.min(1, Math.max(0, (e.clientY - rect.top) / rect.height))
+                                sliderYRef.current = y
+                                setSliderY(y)
 
-                            const displacement = y - 0.5
-                            if (Math.abs(displacement) > 0.05) {
-                                const direction = displacement < 0 ? 1 : -1
-                                setShot((prev) => {
-                                    const next = prev + direction
-                                    if (next < 0) return 0
-                                    return next
-                                })
-                            }
+                                const displacement = y - 0.5
+                                if (Math.abs(displacement) > 0.05) {
+                                    const direction = displacement < 0 ? 1 : -1
+                                    setShot((prev) => {
+                                        const next = prev + direction
+                                        if (next < 0) return 0
+                                        return next
+                                    })
+                                }
 
-                            sliderTimeoutRef.current = setTimeout(() => {
-                                setSliderActive(true)
-                            }, 150)
-                        }}
+                                sliderTimeoutRef.current = setTimeout(() => {
+                                    setSliderActive(true)
+                                }, 150)
+                            }}
 
-                        onPointerUp={() => {
-                            if (sliderTimeoutRef.current) clearTimeout(sliderTimeoutRef.current)
-                            setSliderActive(false)
-                            sliderYRef.current = 0.5
-                            setSliderY(0.5)
-                        }}
-                        onPointerMove={(e) => {
-                            if (!sliderActive) return
-                            const rect = sliderRef.current!.getBoundingClientRect()
-                            const y = Math.min(1, Math.max(0, (e.clientY - rect.top) / rect.height))
-                            sliderYRef.current = y
-                            setSliderY(y)
-                        }}
-                        onPointerLeave={() => {
-                            if (sliderActive) {
+                            onPointerUp={() => {
+                                if (sliderTimeoutRef.current) clearTimeout(sliderTimeoutRef.current)
                                 setSliderActive(false)
                                 sliderYRef.current = 0.5
                                 setSliderY(0.5)
-                            }
-                        }}
-                    >
-                        <div
-                            className="absolute left-0 right-0 border-t-2 border-dashed border-zinc-400/50"
-                            style={{top: "50%"}}
-                        />
-
-                        <div
-                            className={`absolute left-1 right-1 h-10 rounded-xl transition-colors duration-100 flex items-center justify-center ${sliderActive
-                                ? sliderY < 0.45
-                                    ? "bg-green-500 shadow-lg shadow-green-500/30"
-                                    : sliderY > 0.55
-                                        ? "bg-red-500 shadow-lg shadow-red-500/30"
-                                        : "bg-zinc-400"
-                                : "bg-zinc-500"
-                            }`}
-                            style={{
-                                top: `${sliderY * 100}%`,
-                                transform: "translateY(-50%)",
-                                pointerEvents: "none",
+                            }}
+                            onPointerMove={(e) => {
+                                if (!sliderActive) return
+                                const rect = sliderRef.current!.getBoundingClientRect()
+                                const y = Math.min(1, Math.max(0, (e.clientY - rect.top) / rect.height))
+                                sliderYRef.current = y
+                                setSliderY(y)
+                            }}
+                            onPointerLeave={() => {
+                                if (sliderActive) {
+                                    setSliderActive(false)
+                                    sliderYRef.current = 0.5
+                                    setSliderY(0.5)
+                                }
                             }}
                         >
-                        <span className="text-white text-xs font-bold">
-                            {(() => {
-                                if (!sliderActive) return "▲▼"
-                                const disp = Math.abs(sliderY - 0.5)
-                                if (disp < SLIDER_DEAD_ZONE) return "—"
-                                const mag = (disp - SLIDER_DEAD_ZONE) / (0.5 - SLIDER_DEAD_ZONE)
-                                const msPerPoint = msFromMagnitude(mag)
-                                const rate = 1000 / msPerPoint
-                                const rateText = rate.toFixed(1)
-                                if (sliderY > 0.5 && shot === 0) return "-0/s"
-                                return sliderY < 0.5
-                                    ? `+${rateText}/s`
-                                    : `−${rateText}/s`
-                            })()}
-                        </span>
+                            <div
+                                className="absolute left-0 right-0 border-t-2 border-dashed border-zinc-400/50"
+                                style={{top: "50%"}}
+                            />
+
+                            <div
+                                className={`absolute left-1 right-1 h-10 rounded-xl transition-colors duration-100 flex items-center justify-center ${sliderActive
+                                    ? sliderY < 0.45
+                                        ? "bg-green-500 shadow-lg shadow-green-500/30"
+                                        : sliderY > 0.55
+                                            ? "bg-red-500 shadow-lg shadow-red-500/30"
+                                            : "bg-zinc-400"
+                                    : "bg-zinc-500"
+                                }`}
+                                style={{
+                                    top: `${sliderY * 100}%`,
+                                    transform: "translateY(-50%)",
+                                    pointerEvents: "none",
+                                }}
+                            >
+                            <span className="text-white text-xs font-bold">
+                                {(() => {
+                                    if (!sliderActive) return "▲▼"
+                                    const disp = Math.abs(sliderY - 0.5)
+                                    if (disp < SLIDER_DEAD_ZONE) return "—"
+                                    const mag = (disp - SLIDER_DEAD_ZONE) / (0.5 - SLIDER_DEAD_ZONE)
+                                    const msPerPoint = msFromMagnitude(mag)
+                                    const rate = 1000 / msPerPoint
+                                    const rateText = rate.toFixed(1)
+                                    if (sliderY > 0.5 && shot === 0) return "-0/s"
+                                    return sliderY < 0.5
+                                        ? `+${rateText}/s`
+                                        : `−${rateText}/s`
+                                })()}
+                            </span>
+                            </div>
                         </div>
+
+                        <span className="text-red-400 text-xs font-bold mt-1">− SUB</span>
                     </div>
 
-                    <span className="text-red-400 text-xs font-bold mt-1">− SUB</span>
+                    {/* Scored slider — only shown when shotMadeSlider is enabled */}
+                    {featureFlags.shotMadeSlider && (
+                        <div className="flex flex-col items-center flex-1 h-full">
+                            <span className="text-green-400 text-xs font-bold mb-1">Scored</span>
+                            <span className="text-green-400 text-xs font-bold mb-1">+ ADD</span>
+
+                            <div
+                                ref={scoredSliderRef}
+                                className="relative w-full flex-1 bg-zinc-800 rounded-2xl border-2 border-green-700 overflow-hidden touch-none"
+                                onPointerDown={(e) => {
+                                    e.preventDefault()
+                                    ;(e.target as HTMLElement).setPointerCapture?.(e.pointerId)
+                                    const rect = scoredSliderRef.current!.getBoundingClientRect()
+                                    const y = Math.min(1, Math.max(0, (e.clientY - rect.top) / rect.height))
+                                    scoredSliderYRef.current = y
+                                    setScoredSliderY(y)
+
+                                    const displacement = y - 0.5
+                                    if (Math.abs(displacement) > 0.05) {
+                                        const direction = displacement < 0 ? 1 : -1
+                                        setScored((prev) => {
+                                            const next = prev + direction
+                                            if (next < 0) return 0
+                                            return next
+                                        })
+                                    }
+
+                                    sliderTimeoutRef.current = setTimeout(() => {
+                                        setScoredSliderActive(true)
+                                    }, 150)
+                                }}
+
+                                onPointerUp={() => {
+                                    if (sliderTimeoutRef.current) clearTimeout(sliderTimeoutRef.current)
+                                    setScoredSliderActive(false)
+                                    scoredSliderYRef.current = 0.5
+                                    setScoredSliderY(0.5)
+                                }}
+                                onPointerMove={(e) => {
+                                    if (!scoredSliderActive) return
+                                    const rect = scoredSliderRef.current!.getBoundingClientRect()
+                                    const y = Math.min(1, Math.max(0, (e.clientY - rect.top) / rect.height))
+                                    scoredSliderYRef.current = y
+                                    setScoredSliderY(y)
+                                }}
+                                onPointerLeave={() => {
+                                    if (scoredSliderActive) {
+                                        setScoredSliderActive(false)
+                                        scoredSliderYRef.current = 0.5
+                                        setScoredSliderY(0.5)
+                                    }
+                                }}
+                            >
+                                <div
+                                    className="absolute left-0 right-0 border-t-2 border-dashed border-green-400/50"
+                                    style={{top: "50%"}}
+                                />
+
+                                <div
+                                    className={`absolute left-1 right-1 h-10 rounded-xl transition-colors duration-100 flex items-center justify-center ${scoredSliderActive
+                                        ? scoredSliderY < 0.45
+                                            ? "bg-green-500 shadow-lg shadow-green-500/30"
+                                            : scoredSliderY > 0.55
+                                                ? "bg-red-500 shadow-lg shadow-red-500/30"
+                                                : "bg-zinc-400"
+                                        : "bg-green-600"
+                                    }`}
+                                    style={{
+                                        top: `${scoredSliderY * 100}%`,
+                                        transform: "translateY(-50%)",
+                                        pointerEvents: "none",
+                                    }}
+                                >
+                                <span className="text-white text-xs font-bold">
+                                    {(() => {
+                                        if (!scoredSliderActive) return "▲▼"
+                                        const disp = Math.abs(scoredSliderY - 0.5)
+                                        if (disp < SLIDER_DEAD_ZONE) return "—"
+                                        const mag = (disp - SLIDER_DEAD_ZONE) / (0.5 - SLIDER_DEAD_ZONE)
+                                        const msPerPoint = msFromMagnitude(mag)
+                                        const rate = 1000 / msPerPoint
+                                        const rateText = rate.toFixed(1)
+                                        if (scoredSliderY > 0.5 && scored === 0) return "-0/s"
+                                        return scoredSliderY < 0.5
+                                            ? `+${rateText}/s`
+                                            : `−${rateText}/s`
+                                    })()}
+                                </span>
+                                </div>
+                            </div>
+
+                            <span className="text-red-400 text-xs font-bold mt-1">− SUB</span>
+                        </div>
+                    )}
                 </div>
 
 

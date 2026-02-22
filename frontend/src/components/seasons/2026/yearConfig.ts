@@ -43,7 +43,6 @@ export type ClimbAction = {
     type: "climb"
     timestamp: number
     level: "L1" | "L2" | "L3"
-    success: boolean
     phase: MatchPhase
     subPhase: SubPhaseName | null
 }
