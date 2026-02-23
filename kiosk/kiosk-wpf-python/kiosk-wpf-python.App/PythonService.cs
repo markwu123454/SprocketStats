@@ -1,7 +1,8 @@
 ﻿using System.Diagnostics;
 using System.IO;
-using System.Text;
 using System.Text.Json;
+
+namespace kiosk_wpf_python.App;
 
 public sealed class PythonService : IDisposable
 {
@@ -78,6 +79,7 @@ public sealed class PythonService : IDisposable
         }
         catch
         {
+            // ignored
         }
     }
 }

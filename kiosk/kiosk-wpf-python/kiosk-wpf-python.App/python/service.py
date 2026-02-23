@@ -27,6 +27,7 @@ import asyncio
 # import string
 import os
 import random
+import re
 import ssl
 import string
 # import sys
@@ -45,7 +46,7 @@ import jedi
 # import statbotics
 
 # 3. Local/custom
-# import frc_score_tracker_lib
+import frc_score_tracker_lib
 from calculator import *
 from logger import *
 
@@ -652,10 +653,38 @@ async def initialize_event(event_key):
 def list_globals():
     log = Logger()
     log.raw(f"\n{Logger.CYAN}Global names:{Logger.RESET}")
-    for name in sorted(globals()):
-        if not name.startswith('_') and not isinstance(globals()[name], types.ModuleType):
-            log.raw(f"  {Logger.DIM}-{Logger.RESET} {name}")
-    log.raw("use inspect_object() to get more information about anything listed.")
+
+    types_list = []
+    functions_list = []
+    vars_list = []
+
+    for name, obj in sorted(globals().items()):
+        if name.startswith('_') or isinstance(obj, types.ModuleType):
+            continue
+
+        if isinstance(obj, type):  # catches BaseModel subclasses and any class
+            types_list.append(name)
+        elif callable(obj) and isinstance(obj, (types.FunctionType, types.BuiltinFunctionType)):
+            functions_list.append(name)
+        else:
+            vars_list.append(name)
+
+    if types_list:
+        log.raw(f"\n  {Logger.CYAN}Types:{Logger.RESET}")
+        for name in types_list:
+            log.raw(f"    {Logger.DIM}-{Logger.RESET} {name}")
+
+    if functions_list:
+        log.raw(f"\n  {Logger.CYAN}Functions:{Logger.RESET}")
+        for name in functions_list:
+            log.raw(f"    {Logger.DIM}-{Logger.RESET} {name}")
+
+    if vars_list:
+        log.raw(f"\n  {Logger.CYAN}Vars:{Logger.RESET}")
+        for name in vars_list:
+            log.raw(f"    {Logger.DIM}-{Logger.RESET} {name}")
+
+    log.raw("\nuse inspect_object() to get more information about anything listed.")
 
 
 def inspect_object(obj, name=None):
@@ -829,6 +858,14 @@ def _handle_complete(data, repl_namespace):
         }
     except Exception as e:
         return {"success": True, "completions": []}  # fail silently
+
+
+def f(obj: object, pattern: str) -> str:
+    text = str(obj)
+    if not pattern:
+        return text
+    replace = lambda m: f"\x1b[1;33m{m.group()}\x1b[0m"
+    return re.sub(re.escape(pattern), replace, text)
 
 # ============================================================================
 # JSON COMMAND INTERFACE

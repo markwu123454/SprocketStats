@@ -385,6 +385,10 @@ def run_calculation(setting, downloaded_data: DownloadedData, tba_key: str):
 
     setting = json.loads(setting) if isinstance(setting, str) else setting
 
+    # Normalise downloaded_data: accept both Pydantic model and plain dict
+    if isinstance(downloaded_data, BaseModel):
+        downloaded_data = downloaded_data.model_dump()
+
     if not setting.get("event_key"):
         log.error("Event key is required")
         return {"success": False, "error": "Event key required"}
@@ -406,7 +410,7 @@ def run_calculation(setting, downloaded_data: DownloadedData, tba_key: str):
     # -- Statbotics ----------------------------------------------------
     with log.section("Fetching Statbotics data"):
         try:
-            sb_data: list[StatboticsMatch] = [StatboticsMatch(**m) for m in _sb.get_matches(event=event_key)]
+            sb_data: list[dict] = [StatboticsMatch(**m).model_dump() for m in _sb.get_matches(event=event_key)]
             sb_count = len(sb_data) if isinstance(sb_data, (list, dict)) else 0
 
             if sb_count == 0:
@@ -419,7 +423,7 @@ def run_calculation(setting, downloaded_data: DownloadedData, tba_key: str):
             log.error(f"Statbotics error: {e}")
             if stop_on_warning:
                 return {"success": False, "error": f"Statbotics error: {e}"}
-            sb_data: list[StatboticsMatch] = []
+            sb_data: list[dict] = []
 
     # -- TBA -----------------------------------------------------------
     with log.section("Fetching TBA data"):
@@ -432,10 +436,10 @@ def run_calculation(setting, downloaded_data: DownloadedData, tba_key: str):
             log.error(f"TBA request failed (status {tba_response.status_code})")
             if stop_on_warning:
                 return {"success": False, "error": "TBA request failed"}
-            tba_data: list[Match] = []
+            tba_data: list[dict] = []
         else:
             try:
-                tba_data: list[Match] = [Match(**m) for m in tba_response.json()]
+                tba_data: list[dict] = [Match(**m).model_dump() for m in tba_response.json()]
                 if not tba_data:
                     log.warn("No TBA matches returned")
                     if stop_on_warning:
@@ -479,7 +483,7 @@ def run_calculation(setting, downloaded_data: DownloadedData, tba_key: str):
         log.substep(processed_match_entries)
 
     log.done()
-    return processed_match_entries
+    return calc_result
 
 
 def validate_downloaded_data(event_key, log, downloaded_data, stop_on_warning=False):
@@ -725,7 +729,13 @@ def initialize_structure(calc_result, tba_data, sb_data, downloaded_data, event_
 
 def process_match_entry(entry):
     data = entry["data"] if isinstance(entry, dict) and "data" in entry else entry
-    actions = data["actions"] if isinstance(data, dict) and "actions" in data else data
+    raw_actions = data["actions"] if isinstance(data, dict) and "actions" in data else data
+
+    # Normalise: ScoutingAction Pydantic models -> plain dicts
+    actions = [
+        a.model_dump() if isinstance(a, BaseModel) else a
+        for a in raw_actions
+    ]
 
     # subPhase -> fuel bucket mapping
     SUBPHASE_TO_BUCKET = {
