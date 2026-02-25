@@ -3,7 +3,6 @@ import {getSettingSync} from "@/db/settingsDb"
 import useFeatureFlags, {refreshFeatureFlags} from "@/hooks/useFeatureFlags.ts";
 import type {
     Actions,
-    ClimbAction,
     ScoreAction,
     MatchPhase,
     MatchScoutingData,
@@ -36,6 +35,7 @@ const TELEOP_SEQUENCE: SubPhaseConfig[] = [
 const AUTO_DURATION = 20000
 const BETWEEN_DURATION = 4000
 const TELEOP_DURATION = TELEOP_SEQUENCE.reduce((s, c) => s + c.duration, 0)
+const TOTAL_MATCH_DURATION = AUTO_DURATION + BETWEEN_DURATION + TELEOP_DURATION
 
 // ---------------------------------------------------------------------------
 // Zone definitions (normalized 0..1 coordinates)
@@ -196,6 +196,8 @@ function HeaderStrip({
                          phaseRemaining,
                          flashing,
                          timerExpired,
+                         matchData,
+                         matchElapsed,
                      }: {
     phase: MatchPhase
     subPhase: SubPhaseConfig | null
@@ -204,7 +206,22 @@ function HeaderStrip({
     phaseRemaining: number
     flashing: boolean
     timerExpired?: boolean
+    matchData: {
+        alliance: string
+        teamNumber: number | null
+        match_type: string
+        match: number | null
+    }
+    matchElapsed: number
 }) {
+    const isRed = matchData.alliance === "red"
+
+    const progressPercent = phase === "prestart"
+        ? 0
+        : phase === "post"
+            ? 100
+            : Math.min(100, (matchElapsed / TOTAL_MATCH_DURATION) * 100)
+
     const getPhaseColor = () => {
         if (phase === "prestart") return "bg-zinc-700"
         if (phase === "auto") return "bg-blue-700"
@@ -247,32 +264,102 @@ function HeaderStrip({
         return `${s}.${t}s`
     }
 
+    const matchTypeLabel = (() => {
+        const t = matchData.match_type
+        if (t === "qualifying") return "Q"
+        if (t === "playoff") return "P"
+        if (t === "final") return "F"
+        if (t === "practice") return "Pr"
+        return t?.charAt(0)?.toUpperCase() ?? "?"
+    })()
+
+    const matchLabel = matchData.match != null
+        ? `${matchTypeLabel}${matchData.match}`
+        : matchTypeLabel
+
     return (
         <div
-            className={`w-full p-3 transition-colors duration-300 ${getPhaseColor()}`}
+            className="w-full relative"
             style={{
-                transition: "filter 0.15s ease-out, background-color 0.3s",
+                transition: "filter 0.15s ease-out",
                 filter: flashing ? "brightness(1.6)" : "brightness(1)",
             }}
         >
-            <div className="flex justify-between items-center">
-                <span className="text-white font-bold text-lg">{getPhaseLabel()}</span>
-                {phase !== "prestart" && phase !== "post" && (
-                    <div className="flex gap-4 items-center">
-                        {!timerExpired && (
-                            <span className="text-white font-mono text-base">
-                                {fmt(subPhaseElapsed)} / {fmt(subPhaseTotal)}
+            {/* Identity row */}
+            <div
+                className={`flex items-center justify-between px-4 py-2 ${
+                    isRed ? "bg-red-800" : "bg-blue-800"
+                }`}
+            >
+                <div className="flex items-center gap-3">
+                    <span
+                        className="text-white font-black text-4xl tracking-tight font-mono leading-none"
+                    >
+                        {matchData.teamNumber ?? "???"}
+                    </span>
+                    <span
+                        className={`text-sm font-bold px-2 py-0.5 rounded ${
+                            isRed
+                                ? "bg-red-950/60 text-red-200"
+                                : "bg-blue-950/60 text-blue-200"
+                        }`}
+                    >
+                        {matchLabel}
+                    </span>
+                </div>
+                <span
+                    className={`text-lg font-extrabold uppercase tracking-wider ${
+                        isRed ? "text-red-200" : "text-blue-200"
+                    }`}
+                >
+                    {isRed ? "RED" : "BLUE"}
+                </span>
+            </div>
+
+            {/* Progress bar */}
+            <div className="h-1 w-full bg-zinc-900">
+                <div
+                    className={`h-full ${
+                        timerExpired
+                            ? "bg-red-400 animate-pulse"
+                            : isRed
+                                ? "bg-red-400"
+                                : "bg-blue-400"
+                    }`}
+                    style={{width: `${progressPercent}%`}}
+                />
+            </div>
+
+            {/* Phase / timer row */}
+            <div
+                className={`px-3 py-2 transition-colors duration-300 ${getPhaseColor()}`}
+            >
+                <div className="flex justify-between items-center">
+                    <span className="text-white font-bold text-lg">
+                        {getPhaseLabel()}
+                    </span>
+                    {phase !== "prestart" && phase !== "post" && (
+                        <div className="flex gap-4 items-center">
+                            {!timerExpired && (
+                                <span className="text-white font-mono text-base">
+                                    {fmt(subPhaseElapsed)} / {fmt(subPhaseTotal)}
+                                </span>
+                            )}
+                            <span
+                                className={`font-mono text-xl font-bold ${
+                                    timerExpired ? "text-red-300" : "text-white"
+                                }`}
+                            >
+                                {timerExpired ? "0.0s" : fmt(phaseRemaining)}
                             </span>
-                        )}
-                        <span className={`font-mono text-xl font-bold ${timerExpired ? "text-red-300" : "text-white"}`}>
-                            {timerExpired ? "0.0s" : fmt(phaseRemaining)}
-                        </span>
-                    </div>
-                )}
+                        </div>
+                    )}
+                </div>
             </div>
         </div>
     )
 }
+
 
 // ---------------------------------------------------------------------------
 // Main component
@@ -292,6 +379,8 @@ export default function MatchScouting({
     const debug = getSettingSync("debug") === true
     const fieldRef = useRef<HTMLDivElement>(null)
     const sliderTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+
+    const holdStartTimeRef = useRef<number>(0)
 
     const featureFlags = useFeatureFlags()
 
@@ -509,7 +598,16 @@ export default function MatchScouting({
         }
 
         const DEAD_ZONE = SLIDER_DEAD_ZONE
+        const elapsed = performance.now() - holdStartTimeRef.current
+        // Pre-load accumulator with held time, minus one tick's worth (already applied on pointerDown)
+        const y = sliderYRef.current
+        const initDisp = Math.abs(y - 0.5)
         let accumulator = 0
+        if (initDisp > DEAD_ZONE) {
+            const mag = (initDisp - DEAD_ZONE) / (0.5 - DEAD_ZONE)
+            const msPerPoint = msFromMagnitude(mag)
+            accumulator = Math.max(0, elapsed - msPerPoint)
+        }
         let lastTime = performance.now()
 
         const loop = (now: number) => {
@@ -533,10 +631,18 @@ export default function MatchScouting({
                 }
 
                 if (ticks !== 0) {
-                    setShot((prev) => {
-                        const next = prev + ticks
-                        if (next < 0) return 0
-                        return next
+                    setScored(prevScored => {
+                        let newScored = prevScored + ticks
+                        if (newScored < 0) newScored = 0
+
+                        setShot(prevShot => {
+                            let newShot = prevShot + ticks
+                            if (newShot < newScored) newShot = newScored
+                            if (newShot < 0) newShot = 0
+                            return newShot
+                        })
+
+                        return newScored
                     })
                 }
             } else {
@@ -569,7 +675,15 @@ export default function MatchScouting({
         }
 
         const DEAD_ZONE = SLIDER_DEAD_ZONE
+        const elapsed = performance.now() - holdStartTimeRef.current
+        const y = scoredSliderYRef.current
+        const initDisp = Math.abs(y - 0.5)
         let accumulator = 0
+        if (initDisp > DEAD_ZONE) {
+            const mag = (initDisp - DEAD_ZONE) / (0.5 - DEAD_ZONE)
+            const msPerPoint = msFromMagnitude(mag)
+            accumulator = Math.max(0, elapsed - msPerPoint)
+        }
         let lastTime = performance.now()
 
         const loop = (now: number) => {
@@ -593,10 +707,15 @@ export default function MatchScouting({
                 }
 
                 if (ticks !== 0) {
-                    setScored((prev) => {
-                        const next = prev + ticks
-                        if (next < 0) return 0
-                        return next
+                    setShot(prevShot => {
+                        let newShot = prevShot + ticks
+                        const misses = prevShot - scored
+                        if (ticks < 0 && misses <= 0) {
+                            return prevShot
+                        }
+                        if (newShot < 0) newShot = 0
+                        if (newShot < scored) newShot = scored
+                        return newShot
                     })
                 }
             } else {
@@ -903,7 +1022,7 @@ export default function MatchScouting({
                                 bgActive: "rgba(168, 85, 247, 0.25)",
                                 bgIdle: "rgba(39, 39, 42, 0.85)",
                                 icon: (
-                                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                                          strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                         <path d="M5 12h14"/>
                                         <path d="M12 5l7 7-7 7"/>
@@ -918,7 +1037,7 @@ export default function MatchScouting({
                                 bgActive: "rgba(56, 189, 248, 0.25)",
                                 bgIdle: "rgba(39, 39, 42, 0.85)",
                                 icon: (
-                                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                                          strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                         <path d="M12 2v20"/>
                                         <path d="M17 7l-5-5-5 5"/>
@@ -934,7 +1053,7 @@ export default function MatchScouting({
                                 bgActive: "rgba(248, 113, 113, 0.25)",
                                 bgIdle: "rgba(39, 39, 42, 0.85)",
                                 icon: (
-                                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                                          strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                         <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
                                     </svg>
@@ -948,7 +1067,7 @@ export default function MatchScouting({
                                 bgActive: "rgba(251, 146, 60, 0.25)",
                                 bgIdle: "rgba(39, 39, 42, 0.85)",
                                 icon: (
-                                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                                          strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                         <path d="M12 17V3"/>
                                         <path d="M7 8l5-5 5 5"/>
@@ -964,7 +1083,7 @@ export default function MatchScouting({
                                 bgActive: "rgba(250, 204, 21, 0.25)",
                                 bgIdle: "rgba(39, 39, 42, 0.85)",
                                 icon: (
-                                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                                          strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                         <path d="M7 17L17 7"/>
                                         <path d="M7 7h10v10"/>
@@ -979,7 +1098,7 @@ export default function MatchScouting({
                                 bgActive: "rgba(113, 113, 122, 0.25)",
                                 bgIdle: "rgba(39, 39, 42, 0.85)",
                                 icon: (
-                                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                                          strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                         <circle cx="12" cy="12" r="10"/>
                                         <line x1="12" y1="8" x2="12" y2="12"/>
@@ -1048,7 +1167,7 @@ export default function MatchScouting({
                                     {icon}
                                 </span>
                                 <span
-                                    className="text-xs font-semibold tracking-wide transition-colors duration-200"
+                                    className="text-2xl font-semibold tracking-wide transition-colors duration-200"
                                     style={{color: isActive ? borderColor : "rgba(212, 212, 216, 0.9)"}}
                                 >
                                     {label}
@@ -1243,12 +1362,12 @@ export default function MatchScouting({
                 <div className="text-xs text-center px-2 h-4">
                     {shotEditHint ? (
                         <span className="text-yellow-400">
-                Editable until next shooting box tap
-            </span>
+                    Editable until next shooting box tap
+                </span>
                     ) : (
                         <span className="text-zinc-600">
-                Tap shooting zone to score
-            </span>
+                    Tap shooting zone to score
+                </span>
                     )}
                 </div>
 
@@ -1257,7 +1376,7 @@ export default function MatchScouting({
                 >
                     {/* Made slider (left) — adds to both scored and shot */}
                     <div
-                        className={`flex flex-col items-center ${featureFlags.shotMadeSlider ? "flex-1" : "w-full"} h-full`}>
+                        className={`flex flex-col items-center ${featureFlags.shotMadeSlider ? "flex-1" : "w-full"} h-full min-h-75`}>
                         {featureFlags.shotMadeSlider && (
                             <span className="text-green-400 text-xs font-bold mb-1">Made</span>
                         )}
@@ -1278,19 +1397,21 @@ export default function MatchScouting({
                                 if (Math.abs(displacement) > 0.05) {
                                     const direction = displacement < 0 ? 1 : -1
                                     if (direction > 0) {
-                                        // Adding a made: increment both scored and shot
                                         setScored((prev) => prev + 1)
                                         setShot((prev) => prev + 1)
                                     } else {
-                                        // Subtracting a made: decrement both scored and shot (floor at 0)
-                                        setScored((prev) => Math.max(0, prev - 1))
-                                        setShot((prev) => Math.max(0, prev - 1))
+                                        setScored((prevScored) => {
+                                            if (prevScored <= 0) return 0
+                                            setShot((prevShot) => Math.max(0, prevShot - 1))
+                                            return prevScored - 1
+                                        })
                                     }
                                 }
 
+                                holdStartTimeRef.current = performance.now()
                                 sliderTimeoutRef.current = setTimeout(() => {
                                     setSliderActive(true)
-                                }, 150)
+                                }, 200)
                             }}
                             onPointerUp={() => {
                                 if (sliderTimeoutRef.current) clearTimeout(sliderTimeoutRef.current)
@@ -1333,21 +1454,21 @@ export default function MatchScouting({
                                     pointerEvents: "none",
                                 }}
                             >
-                    <span className="text-white text-xs font-bold">
-                        {(() => {
-                            if (!sliderActive) return "▲▼"
-                            const disp = Math.abs(sliderY - 0.5)
-                            if (disp < SLIDER_DEAD_ZONE) return "—"
-                            const mag = (disp - SLIDER_DEAD_ZONE) / (0.5 - SLIDER_DEAD_ZONE)
-                            const msPerPoint = msFromMagnitude(mag)
-                            const rate = 1000 / msPerPoint
-                            const rateText = rate.toFixed(1)
-                            if (sliderY > 0.5 && scored === 0) return "-0/s"
-                            return sliderY < 0.5
-                                ? `+${rateText}/s`
-                                : `−${rateText}/s`
-                        })()}
-                    </span>
+                        <span className="text-white text-xs font-bold">
+                            {(() => {
+                                if (!sliderActive) return "▲▼"
+                                const disp = Math.abs(sliderY - 0.5)
+                                if (disp < SLIDER_DEAD_ZONE) return "—"
+                                const mag = (disp - SLIDER_DEAD_ZONE) / (0.5 - SLIDER_DEAD_ZONE)
+                                const msPerPoint = msFromMagnitude(mag)
+                                const rate = 1000 / msPerPoint
+                                const rateText = rate.toFixed(1)
+                                if (sliderY > 0.5 && scored === 0) return "-0/s"
+                                return sliderY < 0.5
+                                    ? `+${rateText}/s`
+                                    : `−${rateText}/s`
+                            })()}
+                        </span>
                             </div>
                         </div>
 
@@ -1356,7 +1477,7 @@ export default function MatchScouting({
 
                     {/* Miss slider (right) — adds to shot only */}
                     {featureFlags.shotMadeSlider && (
-                        <div className="flex flex-col items-center flex-1 h-full">
+                        <div className="flex flex-col items-center flex-1 h-full min-h-75">
                             <span className="text-red-400 text-xs font-bold mb-1">Miss</span>
                             <span className="text-red-400 text-xs font-bold mb-1">+ ADD</span>
 
@@ -1375,17 +1496,18 @@ export default function MatchScouting({
                                     if (Math.abs(displacement) > 0.05) {
                                         const direction = displacement < 0 ? 1 : -1
                                         if (direction > 0) {
-                                            // Adding a miss: increment shot only
                                             setShot((prev) => prev + 1)
                                         } else {
-                                            // Subtracting a miss: decrement shot only (but not below scored)
-                                            setShot((prev) => Math.max(prev - 1, scored))
+                                            setShot((prevShot) => {
+                                                return prevShot > 0 && prevShot > scored ? prevShot - 1 : prevShot
+                                            })
                                         }
                                     }
 
+                                    holdStartTimeRef.current = performance.now()
                                     sliderTimeoutRef.current = setTimeout(() => {
                                         setScoredSliderActive(true)
-                                    }, 150)
+                                    }, 200)
                                 }}
                                 onPointerUp={() => {
                                     if (sliderTimeoutRef.current) clearTimeout(sliderTimeoutRef.current)
@@ -1428,22 +1550,22 @@ export default function MatchScouting({
                                         pointerEvents: "none",
                                     }}
                                 >
-                        <span className="text-white text-xs font-bold">
-                            {(() => {
-                                if (!scoredSliderActive) return "▲▼"
-                                const disp = Math.abs(scoredSliderY - 0.5)
-                                if (disp < SLIDER_DEAD_ZONE) return "—"
-                                const mag = (disp - SLIDER_DEAD_ZONE) / (0.5 - SLIDER_DEAD_ZONE)
-                                const msPerPoint = msFromMagnitude(mag)
-                                const rate = 1000 / msPerPoint
-                                const rateText = rate.toFixed(1)
-                                const misses = shot - scored
-                                if (scoredSliderY > 0.5 && misses === 0) return "-0/s"
-                                return scoredSliderY < 0.5
-                                    ? `+${rateText}/s`
-                                    : `−${rateText}/s`
-                            })()}
-                        </span>
+                            <span className="text-white text-xs font-bold">
+                                {(() => {
+                                    if (!scoredSliderActive) return "▲▼"
+                                    const disp = Math.abs(scoredSliderY - 0.5)
+                                    if (disp < SLIDER_DEAD_ZONE) return "—"
+                                    const mag = (disp - SLIDER_DEAD_ZONE) / (0.5 - SLIDER_DEAD_ZONE)
+                                    const msPerPoint = msFromMagnitude(mag)
+                                    const rate = 1000 / msPerPoint
+                                    const rateText = rate.toFixed(1)
+                                    const misses = shot - scored
+                                    if (scoredSliderY > 0.5 && misses === 0) return "-0/s"
+                                    return scoredSliderY < 0.5
+                                        ? `+${rateText}/s`
+                                        : `−${rateText}/s`
+                                })()}
+                            </span>
                                 </div>
                             </div>
 
@@ -1465,6 +1587,7 @@ export default function MatchScouting({
                     </button>
                 )}
             </div>
+
         )
     }
 
@@ -1482,6 +1605,13 @@ export default function MatchScouting({
                     phaseRemaining={phaseRemaining}
                     flashing={flashing}
                     timerExpired={timerExpired}
+                    matchData={{
+                        alliance: effectiveAlliance,
+                        teamNumber: data.teamNumber,
+                        match_type: data.match_type,
+                        match: data.match,
+                    }}
+                    matchElapsed={matchElapsed}
                 />
                 <div className="flex-1 flex gap-3 p-3 overflow-hidden">
                     <div className="flex-3 flex flex-col gap-3">{renderField()}{renderDebug()}</div>
@@ -1501,6 +1631,13 @@ export default function MatchScouting({
                 phaseRemaining={phaseRemaining}
                 flashing={flashing}
                 timerExpired={timerExpired}
+                matchData={{
+                    alliance: effectiveAlliance,
+                    teamNumber: data.teamNumber,
+                    match_type: data.match_type,
+                    match: data.match,
+                }}
+                matchElapsed={matchElapsed}
             />
             <div className="flex-1 flex flex-col p-2 gap-4 overflow-y-auto">
                 {renderField()}

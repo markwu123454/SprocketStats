@@ -24,6 +24,7 @@ export default function PrePhase({data, setData}: {
     // === Local State ===
     const [teamList, setTeamList] = useState<TeamInfo[] | null>(null)
     const [loadingTeams, setLoadingTeams] = useState(false)
+    const [teamsFetchFailed, setTeamsFetchFailed] = useState(false)
     const [claiming, setClaiming] = useState(false)
     const [manualTeam, setManualTeam] = useState<string>("")
     const [lastClaimedTeam, setLastClaimedTeam] = useState<number | null>(null)
@@ -127,23 +128,39 @@ export default function PrePhase({data, setData}: {
         if (!ready) return
         let alive = true
         setLoadingTeams(true)
+        setTeamsFetchFailed(false)
 
         void (async () => {
-            const res = await scoutingActionRef.current(match, null, match_type, alliance, "info")
-            if (!alive || !res?.match) return
+            try {
+                const res = await scoutingActionRef.current(match, null, match_type, alliance, "info")
+                if (!alive) return
 
-            setTeamList(
-                res.match.map(r => ({
-                    number: r.team,
-                    teamName: teamNames[r.team] ?? `Team ${r.team}`,
-                    scouterName: null,
-                    logo: `/teams/team_icons/${r.team}.png`,
-                    scouter: r.scouterEmail,
-                    assigned_scouter: r.assignedScouterEmail,
-                    assigned_name: r.assignedScouterName,
-                }))
-            )
-            setLoadingTeams(false)
+                if (!res?.match || res.match.length === 0) {
+                    setTeamList([])
+                    setTeamsFetchFailed(true)
+                    setLoadingTeams(false)
+                    return
+                }
+
+                setTeamList(
+                    res.match.map(r => ({
+                        number: r.team,
+                        teamName: teamNames[r.team] ?? `Team ${r.team}`,
+                        scouterName: null,
+                        logo: `/teams/team_icons/${r.team}.png`,
+                        scouter: r.scouterEmail,
+                        assigned_scouter: r.assignedScouterEmail,
+                        assigned_name: r.assignedScouterName,
+                    }))
+                )
+                setLoadingTeams(false)
+            } catch (e) {
+                console.error("Failed to fetch teams", e)
+                if (!alive) return
+                setTeamList([])
+                setTeamsFetchFailed(true)
+                setLoadingTeams(false)
+            }
         })()
 
         return () => {
@@ -460,6 +477,18 @@ export default function PrePhase({data, setData}: {
                                         <div className="h-3 bg-zinc-700 rounded w-1/3"/>
                                     </div>
                                 </div>
+                            ))
+                        ) : teamsFetchFailed ? (
+                            Array.from({length: 3}).map((_, i) => (
+                                <button
+                                    key={i}
+                                    disabled
+                                    className="w-full py-2 px-4 rounded bg-red-900/40 opacity-50 cursor-not-allowed"
+                                >
+                                    <span className="text-red-400 text-xl">
+                                        {teamList && teamList.length === 0 ? "No teams found" : "Fetch failed"}
+                                    </span>
+                                </button>
                             ))
                         ) : (
                             (teamList === null

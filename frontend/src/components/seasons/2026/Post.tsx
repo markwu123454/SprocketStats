@@ -1,4 +1,4 @@
-import React from "react"
+import React, {useEffect} from "react"
 import type {MatchScoutingData} from "@/types"
 import {AlertTriangle, Hand} from "lucide-react";
 import RatingSlider from "@/components/ui/ratingSlider"
@@ -36,11 +36,22 @@ function SectionHeader({children}: { children: React.ReactNode }) {
 // --- Reusable Sub-components (SliderField, ToggleChip, SectionHeader as defined in your snippet) ---
 // ... [Keep your existing SliderField, ToggleChip, and SectionHeader helpers here] ...
 
-export default function PostMatch({data, setData}: {
+export default function PostMatch({data, setData, setCanSubmit}: {
     data: MatchScoutingData
     setData: React.Dispatch<React.SetStateAction<MatchScoutingData>>
+    setCanSubmit: React.Dispatch<React.SetStateAction<boolean>>
 }) {
     const pm = data.postmatch;
+
+    useEffect(() => {
+        if (!setCanSubmit) return
+        const canSubmit =
+            pm.role !== null &&
+            pm.traversalLocation !== null &&
+            pm.teleopClimbPos !== null &&
+            pm.autoClimbPos !== null
+        setCanSubmit(canSubmit)
+    }, [pm.role, pm.traversalLocation, pm.teleopClimbPos, pm.autoClimbPos, setCanSubmit])
 
     const update = <K extends keyof MatchScoutingData["postmatch"]>(
         key: K,
@@ -145,10 +156,10 @@ export default function PostMatch({data, setData}: {
                                     <select
                                         className="w-full bg-neutral-800 border border-neutral-700 rounded-md p-2 text-sm"
                                         value={pm.autoClimbPos || ""}
-                                        onChange={e => update("autoClimbPos", e.target.value as any)}
+                                        onChange={e => update("autoClimbPos", (e.target.value || null) as any)}
                                     >
                                         <option value="">None</option>
-                                        {["Front Center", "Front Left", "Front Right", "Side Left", "Side Right"].map(opt =>
+                                        {["Front Center", "Front Left", "Front Right", "Side Left", "Side Right", "No Climb"].map(opt =>
                                             <option key={opt} value={opt}>{opt}</option>)}
                                     </select>
                                 </div>
@@ -157,10 +168,10 @@ export default function PostMatch({data, setData}: {
                                     <select
                                         className="w-full bg-neutral-800 border border-neutral-700 rounded-md p-2 text-sm"
                                         value={pm.teleopClimbPos || ""}
-                                        onChange={e => update("teleopClimbPos", e.target.value as any)}
+                                        onChange={e => update("teleopClimbPos", (e.target.value || null) as any)}
                                     >
                                         <option value="">None</option>
-                                        {["Front Center", "Front Left", "Front Right", "Side Left", "Side Right"].map(opt =>
+                                        {["Front Center", "Front Left", "Front Right", "Side Left", "Side Right", "No Climb"].map(opt =>
                                             <option key={opt} value={opt}>{opt}</option>)}
                                     </select>
                                 </div>

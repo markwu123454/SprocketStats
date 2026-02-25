@@ -349,6 +349,7 @@ export default function MatchScoutingPage() {
     }))
     const [submitStatus, setSubmitStatus] = useState<'idle' | 'loading' | 'success' | 'local' | 'error' | 'warning'>('idle')
     const [showConfirmDialog, setShowConfirmDialog] = useState(false)
+    const [postCanSubmit, setPostCanSubmit] = useState(false)
     const [abTestVariant, setAbTestVariant] = useState<"default" | "a" | "b">("default")
 
     // ─── Stable refs for use in intervals/event listeners ───
@@ -399,6 +400,7 @@ export default function MatchScoutingPage() {
         })
 
         setPhaseIndex(0)
+        setPostCanSubmit(false)
     }, [scouterEmail])
 
     // ─── Load A/B test variant ───
@@ -469,8 +471,13 @@ export default function MatchScoutingPage() {
             setShowConfirmDialog(true)
             return
         }
+        if (!postCanSubmit) {
+            // Even without confirmBeforeUpload, show the dialog with incomplete message
+            setShowConfirmDialog(true)
+            return
+        }
         void executeSubmit()
-    }, [baseDisabled, featureFlags.confirmBeforeUpload, executeSubmit])
+    }, [baseDisabled, featureFlags.confirmBeforeUpload, postCanSubmit, executeSubmit])
 
     const setPhase = useCallback(
         async (targetPhase: Phase) => {
@@ -522,30 +529,45 @@ export default function MatchScoutingPage() {
             <Dialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
                 <DialogContent className="bg-zinc-800 border-zinc-500">
                     <DialogHeader className="text-zinc-400">
-                        <DialogTitle>Confirm Submission</DialogTitle>
+                        <DialogTitle>{postCanSubmit ? 'Confirm Submission' : 'Data Incomplete'}</DialogTitle>
                     </DialogHeader>
 
                     <div className="text-sm text-zinc-400 space-y-2">
-                        <p>You are about to submit scouting data for:</p>
-                        <p className="font-semibold text-white">
-                            Team {scoutingData.teamNumber} — Match {scoutingData.match}
-                        </p>
-                        <p>This action cannot be undone.</p>
+                        {postCanSubmit ? (
+                            <>
+                                <p>You are about to submit scouting data for:</p>
+                                <p className="font-semibold text-white">
+                                    Team {scoutingData.teamNumber} — Match {scoutingData.match}
+                                </p>
+                                <p>This action cannot be undone.</p>
+                            </>
+                        ) : (
+                            <>
+                                <p className="font-semibold text-red-400 text-base">
+                                    Data incomplete — fill in everything first.
+                                </p>
+                                <p>
+                                    Please go back and make sure all required fields in the Post-Match section are filled in before submitting.
+                                </p>
+                            </>
+                        )}
                     </div>
 
                     <DialogFooter>
                         <Button variant="secondary" onClick={() => setShowConfirmDialog(false)}>
-                            Cancel
+                            {postCanSubmit ? 'Cancel' : 'Go Back'}
                         </Button>
-                        <Button
-                            className="bg-green-600 hover:bg-green-700"
-                            onClick={() => {
-                                setShowConfirmDialog(false);
-                                void executeSubmit();
-                            }}
-                        >
-                            Confirm & Submit
-                        </Button>
+                        {postCanSubmit && (
+                            <Button
+                                className="bg-green-600 hover:bg-green-700"
+                                onClick={() => {
+                                    setShowConfirmDialog(false);
+                                    void executeSubmit();
+                                }}
+                            >
+                                Confirm & Submit
+                            </Button>
+                        )}
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
@@ -662,7 +684,7 @@ export default function MatchScoutingPage() {
                             <BVariant key="combined" data={scoutingData} setData={setScoutingData}/>
                         )}
                         {phase === 'post' && (
-                            <PostMatch key="post" data={scoutingData} setData={setScoutingData}/>
+                            <PostMatch key="post" data={scoutingData} setData={setScoutingData} setCanSubmit={setPostCanSubmit}/>
                         )}
                     </div>
                 </div>

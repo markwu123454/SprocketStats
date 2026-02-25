@@ -108,10 +108,10 @@ export type MatchScoutingData = {
         skill: number // 0-1
         defenseSkill: number | null // 0-1
         speed: number // 0-1
-        role: "Shooter" | "Intake" | "Defense" | "Generalist" | "Useless"
-        traversalLocation: "Trench" | "Bump" | "No Preference" // slider?
-        teleopClimbPos: "Front Center" | "Front Left" | "Front Right" | "Side Left" | "Side Right" | null
-        autoClimbPos: "Front Center" | "Front Left" | "Front Right" | "Side Left" | "Side Right" | null
+        role: "Shooter" | "Intake" | "Defense" | "Generalist" | "Useless" | null
+        traversalLocation: "Trench" | "Bump" | "No Preference" | null
+        teleopClimbPos: "Front Center" | "Front Left" | "Front Right" | "Side Left" | "Side Right" | "No Climb" | null
+        autoClimbPos: "Front Center" | "Front Left" | "Front Right" | "Side Left" | "Side Right" | "No Climb" | null
         intakePos: {
             neutral: boolean
             depot: boolean
@@ -163,8 +163,8 @@ export const createDefaultScoutingData = (): Omit<MatchScoutingData, "scouter"> 
             skill: 0,
             defenseSkill: 0,
             speed: 0,
-            role: "Useless",
-            traversalLocation: "No Preference",
+            role: null,
+            traversalLocation: null,
             teleopClimbPos: null,
             autoClimbPos: null,
             intakePos: {
