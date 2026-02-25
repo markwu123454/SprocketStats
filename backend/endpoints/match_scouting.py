@@ -345,7 +345,7 @@ async def submit_data(
     if not existing:
         await db.add_match_scouting(
             match=match, m_type=m_type, team=team,
-            alliance=alliance, scouter=session.email,
+            alliance=enums.AllianceType(alliance), scouter=session.email,
             status=enums.StatusType.POST, data={}
         )
 

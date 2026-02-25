@@ -753,8 +753,22 @@ export default function MatchScouting({
                         subPhase: subPhase?.phase ?? null,
                     }
                 ])
+            } else if (zoneName === "shooting") {
+                setActions((prev) => [
+                    ...prev,
+                    {
+                        type: "score" as const,
+                        x: shootClickPos?.x ?? 0,
+                        y: shootClickPos?.y ?? 0,
+                        score: 0,
+                        shot: 0,
+                        timestamp: matchStartTime > 0 ? now - matchStartTime : 0,
+                        phase: matchPhase,
+                        subPhase: subPhase?.phase ?? null,
+                    },
+                ])
             } else {
-                const actionType = zoneName as "defense" | "traversal" | "idle" | "intake" | "shooting" | "passing" | "climb"
+                const actionType = zoneName as "defense" | "traversal" | "idle" | "intake" | "passing" | "climb"
                 setActions((prev) => [
                     ...prev,
                     {
@@ -1211,13 +1225,13 @@ export default function MatchScouting({
             <div className="flex flex-col gap-3 items-center h-full">
                 {featureFlags.shotMadeSlider ? (
                     <div className="flex gap-4 items-center">
-                        <div className="text-white text-2xl font-bold font-mono text-center">
-                            <span className="text-zinc-400 text-xs block">Total</span>
-                            {shot}
-                        </div>
                         <div className="text-green-400 text-2xl font-bold font-mono text-center">
-                            <span className="text-zinc-400 text-xs block">Scored</span>
+                            <span className="text-zinc-400 text-xs block">Made</span>
                             {scored}
+                        </div>
+                        <div className="text-red-400 text-2xl font-bold font-mono text-center">
+                            <span className="text-zinc-400 text-xs block">Miss</span>
+                            {shot - scored}
                         </div>
                     </div>
                 ) : (
@@ -1229,29 +1243,29 @@ export default function MatchScouting({
                 <div className="text-xs text-center px-2 h-4">
                     {shotEditHint ? (
                         <span className="text-yellow-400">
-                            Editable until next shooting box tap
-                        </span>
+                Editable until next shooting box tap
+            </span>
                     ) : (
                         <span className="text-zinc-600">
-                            Tap shooting zone to score
-                        </span>
+                Tap shooting zone to score
+            </span>
                     )}
                 </div>
 
                 <div
-                    className={`relative flex ${featureFlags.shotMadeSlider ? "flex-row gap-3" : "flex-col"} items-center select-none flex-1 w-full ${featureFlags.shotMadeSlider ? "max-w-[20rem]" : "max-w-[16rem]"} transition-all duration-300 ${!shootClickPos ? "opacity-30 pointer-events-none grayscale blur-[1px]" : ""
-                    }`}
+                    className={`relative flex ${featureFlags.shotMadeSlider ? "flex-row gap-3" : "flex-col"} items-center select-none flex-1 w-full ${featureFlags.shotMadeSlider ? "max-w-[20rem]" : "max-w-[16rem]"} transition-all duration-300 ${!shootClickPos ? "opacity-30 pointer-events-none grayscale blur-[1px]" : ""}`}
                 >
-                    {/* Shot (total) slider */}
-                    <div className={`flex flex-col items-center ${featureFlags.shotMadeSlider ? "flex-1" : "w-full"} h-full`}>
+                    {/* Made slider (left) — adds to both scored and shot */}
+                    <div
+                        className={`flex flex-col items-center ${featureFlags.shotMadeSlider ? "flex-1" : "w-full"} h-full`}>
                         {featureFlags.shotMadeSlider && (
-                            <span className="text-zinc-400 text-xs font-bold mb-1">Total</span>
+                            <span className="text-green-400 text-xs font-bold mb-1">Made</span>
                         )}
                         <span className="text-green-400 text-xs font-bold mb-1">+ ADD</span>
 
                         <div
                             ref={sliderRef}
-                            className="relative w-full flex-1 bg-zinc-800 rounded-2xl border-2 border-zinc-600 overflow-hidden touch-none"
+                            className="relative w-full flex-1 bg-zinc-800 rounded-2xl border-2 border-green-700 overflow-hidden touch-none"
                             onPointerDown={(e) => {
                                 e.preventDefault()
                                 ;(e.target as HTMLElement).setPointerCapture?.(e.pointerId)
@@ -1263,18 +1277,21 @@ export default function MatchScouting({
                                 const displacement = y - 0.5
                                 if (Math.abs(displacement) > 0.05) {
                                     const direction = displacement < 0 ? 1 : -1
-                                    setShot((prev) => {
-                                        const next = prev + direction
-                                        if (next < 0) return 0
-                                        return next
-                                    })
+                                    if (direction > 0) {
+                                        // Adding a made: increment both scored and shot
+                                        setScored((prev) => prev + 1)
+                                        setShot((prev) => prev + 1)
+                                    } else {
+                                        // Subtracting a made: decrement both scored and shot (floor at 0)
+                                        setScored((prev) => Math.max(0, prev - 1))
+                                        setShot((prev) => Math.max(0, prev - 1))
+                                    }
                                 }
 
                                 sliderTimeoutRef.current = setTimeout(() => {
                                     setSliderActive(true)
                                 }, 150)
                             }}
-
                             onPointerUp={() => {
                                 if (sliderTimeoutRef.current) clearTimeout(sliderTimeoutRef.current)
                                 setSliderActive(false)
@@ -1297,7 +1314,7 @@ export default function MatchScouting({
                             }}
                         >
                             <div
-                                className="absolute left-0 right-0 border-t-2 border-dashed border-zinc-400/50"
+                                className="absolute left-0 right-0 border-t-2 border-dashed border-green-400/50"
                                 style={{top: "50%"}}
                             />
 
@@ -1308,7 +1325,7 @@ export default function MatchScouting({
                                         : sliderY > 0.55
                                             ? "bg-red-500 shadow-lg shadow-red-500/30"
                                             : "bg-zinc-400"
-                                    : "bg-zinc-500"
+                                    : "bg-green-600"
                                 }`}
                                 style={{
                                     top: `${sliderY * 100}%`,
@@ -1316,36 +1333,36 @@ export default function MatchScouting({
                                     pointerEvents: "none",
                                 }}
                             >
-                            <span className="text-white text-xs font-bold">
-                                {(() => {
-                                    if (!sliderActive) return "▲▼"
-                                    const disp = Math.abs(sliderY - 0.5)
-                                    if (disp < SLIDER_DEAD_ZONE) return "—"
-                                    const mag = (disp - SLIDER_DEAD_ZONE) / (0.5 - SLIDER_DEAD_ZONE)
-                                    const msPerPoint = msFromMagnitude(mag)
-                                    const rate = 1000 / msPerPoint
-                                    const rateText = rate.toFixed(1)
-                                    if (sliderY > 0.5 && shot === 0) return "-0/s"
-                                    return sliderY < 0.5
-                                        ? `+${rateText}/s`
-                                        : `−${rateText}/s`
-                                })()}
-                            </span>
+                    <span className="text-white text-xs font-bold">
+                        {(() => {
+                            if (!sliderActive) return "▲▼"
+                            const disp = Math.abs(sliderY - 0.5)
+                            if (disp < SLIDER_DEAD_ZONE) return "—"
+                            const mag = (disp - SLIDER_DEAD_ZONE) / (0.5 - SLIDER_DEAD_ZONE)
+                            const msPerPoint = msFromMagnitude(mag)
+                            const rate = 1000 / msPerPoint
+                            const rateText = rate.toFixed(1)
+                            if (sliderY > 0.5 && scored === 0) return "-0/s"
+                            return sliderY < 0.5
+                                ? `+${rateText}/s`
+                                : `−${rateText}/s`
+                        })()}
+                    </span>
                             </div>
                         </div>
 
                         <span className="text-red-400 text-xs font-bold mt-1">− SUB</span>
                     </div>
 
-                    {/* Scored slider — only shown when shotMadeSlider is enabled */}
+                    {/* Miss slider (right) — adds to shot only */}
                     {featureFlags.shotMadeSlider && (
                         <div className="flex flex-col items-center flex-1 h-full">
-                            <span className="text-green-400 text-xs font-bold mb-1">Scored</span>
-                            <span className="text-green-400 text-xs font-bold mb-1">+ ADD</span>
+                            <span className="text-red-400 text-xs font-bold mb-1">Miss</span>
+                            <span className="text-red-400 text-xs font-bold mb-1">+ ADD</span>
 
                             <div
                                 ref={scoredSliderRef}
-                                className="relative w-full flex-1 bg-zinc-800 rounded-2xl border-2 border-green-700 overflow-hidden touch-none"
+                                className="relative w-full flex-1 bg-zinc-800 rounded-2xl border-2 border-red-700 overflow-hidden touch-none"
                                 onPointerDown={(e) => {
                                     e.preventDefault()
                                     ;(e.target as HTMLElement).setPointerCapture?.(e.pointerId)
@@ -1357,18 +1374,19 @@ export default function MatchScouting({
                                     const displacement = y - 0.5
                                     if (Math.abs(displacement) > 0.05) {
                                         const direction = displacement < 0 ? 1 : -1
-                                        setScored((prev) => {
-                                            const next = prev + direction
-                                            if (next < 0) return 0
-                                            return next
-                                        })
+                                        if (direction > 0) {
+                                            // Adding a miss: increment shot only
+                                            setShot((prev) => prev + 1)
+                                        } else {
+                                            // Subtracting a miss: decrement shot only (but not below scored)
+                                            setShot((prev) => Math.max(prev - 1, scored))
+                                        }
                                     }
 
                                     sliderTimeoutRef.current = setTimeout(() => {
                                         setScoredSliderActive(true)
                                     }, 150)
                                 }}
-
                                 onPointerUp={() => {
                                     if (sliderTimeoutRef.current) clearTimeout(sliderTimeoutRef.current)
                                     setScoredSliderActive(false)
@@ -1391,18 +1409,18 @@ export default function MatchScouting({
                                 }}
                             >
                                 <div
-                                    className="absolute left-0 right-0 border-t-2 border-dashed border-green-400/50"
+                                    className="absolute left-0 right-0 border-t-2 border-dashed border-red-400/50"
                                     style={{top: "50%"}}
                                 />
 
                                 <div
                                     className={`absolute left-1 right-1 h-10 rounded-xl transition-colors duration-100 flex items-center justify-center ${scoredSliderActive
                                         ? scoredSliderY < 0.45
-                                            ? "bg-green-500 shadow-lg shadow-green-500/30"
+                                            ? "bg-red-400 shadow-lg shadow-red-400/30"
                                             : scoredSliderY > 0.55
-                                                ? "bg-red-500 shadow-lg shadow-red-500/30"
+                                                ? "bg-green-500 shadow-lg shadow-green-500/30"
                                                 : "bg-zinc-400"
-                                        : "bg-green-600"
+                                        : "bg-red-600"
                                     }`}
                                     style={{
                                         top: `${scoredSliderY * 100}%`,
@@ -1410,30 +1428,29 @@ export default function MatchScouting({
                                         pointerEvents: "none",
                                     }}
                                 >
-                                <span className="text-white text-xs font-bold">
-                                    {(() => {
-                                        if (!scoredSliderActive) return "▲▼"
-                                        const disp = Math.abs(scoredSliderY - 0.5)
-                                        if (disp < SLIDER_DEAD_ZONE) return "—"
-                                        const mag = (disp - SLIDER_DEAD_ZONE) / (0.5 - SLIDER_DEAD_ZONE)
-                                        const msPerPoint = msFromMagnitude(mag)
-                                        const rate = 1000 / msPerPoint
-                                        const rateText = rate.toFixed(1)
-                                        if (scoredSliderY > 0.5 && scored === 0) return "-0/s"
-                                        return scoredSliderY < 0.5
-                                            ? `+${rateText}/s`
-                                            : `−${rateText}/s`
-                                    })()}
-                                </span>
+                        <span className="text-white text-xs font-bold">
+                            {(() => {
+                                if (!scoredSliderActive) return "▲▼"
+                                const disp = Math.abs(scoredSliderY - 0.5)
+                                if (disp < SLIDER_DEAD_ZONE) return "—"
+                                const mag = (disp - SLIDER_DEAD_ZONE) / (0.5 - SLIDER_DEAD_ZONE)
+                                const msPerPoint = msFromMagnitude(mag)
+                                const rate = 1000 / msPerPoint
+                                const rateText = rate.toFixed(1)
+                                const misses = shot - scored
+                                if (scoredSliderY > 0.5 && misses === 0) return "-0/s"
+                                return scoredSliderY < 0.5
+                                    ? `+${rateText}/s`
+                                    : `−${rateText}/s`
+                            })()}
+                        </span>
                                 </div>
                             </div>
 
-                            <span className="text-red-400 text-xs font-bold mt-1">− SUB</span>
+                            <span className="text-green-400 text-xs font-bold mt-1">− SUB</span>
                         </div>
                     )}
                 </div>
-
-
 
                 {/* "Go to Post Match" button — appears when timer has expired */}
                 {timerExpired && (
