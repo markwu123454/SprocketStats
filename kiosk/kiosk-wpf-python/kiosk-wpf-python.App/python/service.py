@@ -19,193 +19,28 @@ Key Components:
 
 # 1. Standard library
 import asyncio
-# import base64
-
-# import math
-# import random
-# import statistics
-# import string
-import os
 import random
-import re
-import ssl
 import string
-# import sys
-# import json
 import time
 import traceback
 import types
 
 # 2. Third-party/installed
-import asyncpg
-import certifi
-import dotenv
 import jedi
-# import numpy
-# import requests
-# import statbotics
 
 # 3. Local/custom
+# noinspection PyUnresolvedReferences
 import frc_score_tracker_lib
 from calculator import *
 from logger import *
+from context import ctx
 
 FRCScoreTracker = ScoreRegionConfig = None
-
-# ============================================================================
-# GLOBAL STATE & CONFIGURATION
-# ============================================================================
-
-# Single event loop for all async operations
-_loop = asyncio.new_event_loop()
-asyncio.set_event_loop(_loop)
-
-DATABASE_KEY = ""  # PostgreSQL connection string (DSN)
-TBA_API_KEY = ""
-FRC_API_KEY = ""
-
-# Expected database schema - maps table names to their required columns
-_DATABASE_SCHEMA = {
-    "match_scouting": {
-        "match", "match_type", "team", "alliance", "scouter",
-        "status", "data", "last_modified", "event_key"
-    },
-    "matches": {
-        "key", "event_key", "match_type", "match_number",
-        "set_number", "scheduled_time", "actual_time",
-        "red1", "red2", "red3", "blue1", "blue2", "blue3"
-    },
-    "matches_tba": {
-        "match_key", "event_key", "match_number",
-        "winning_alliance", "red_teams", "blue_teams",
-        "red_score", "blue_score",
-        "red_rp", "blue_rp",
-        "red_auto_points", "blue_auto_points",
-        "red_teleop_points", "blue_teleop_points",
-        "red_endgame_points", "blue_endgame_points",
-        "score_breakdown", "videos",
-        "red_coopertition_criteria", "blue_coopertition_criteria"
-    },
-    "pit_scouting": {
-        "event_key", "team", "scouter",
-        "status", "data", "last_modified"
-    },
-    "processed_data": {
-        "event_key", "time_added", "data"
-    }
-}
-
-# Data storage - populated by download_data(), consumed by calculations
-downloaded_data = {}
-
-# Calculation results - populated by run_calculation(), consumed by upload_data()
-calc_result = {"result": {}}
 
 REPL_GLOBALS = globals()
 
 # Configure stderr to be unbuffered for real-time logging
 sys.stderr.reconfigure(line_buffering=True)
-
-
-# ============================================================================
-# DATABASE CONNECTION
-# ============================================================================
-
-async def get_connection():
-    """
-    Create and configure a PostgreSQL database connection.
-
-    Returns:
-        asyncpg.Connection: Configured database connection with SSL and JSON codecs
-    """
-    if not DATABASE_KEY:
-        raise RuntimeError("DATABASE_KEY not set")
-
-    ssl_context = ssl.create_default_context(cafile=certifi.where())
-    conn = await asyncpg.connect(dsn=DATABASE_KEY, ssl=ssl_context)
-
-    await conn.set_type_codec(
-        "jsonb",
-        encoder=json.dumps,
-        decoder=json.loads,
-        schema="pg_catalog"
-    )
-    await conn.set_type_codec(
-        "json",
-        encoder=json.dumps,
-        decoder=json.loads,
-        schema="pg_catalog"
-    )
-
-    return conn
-
-
-async def verify_db():
-    """
-    Validate database connectivity and schema integrity.
-
-    Returns:
-        tuple: (ok: bool, errors: list[str])
-    """
-    global DATABASE_KEY, _DATABASE_SCHEMA
-
-    errors = []
-
-    if not DATABASE_KEY:
-        return False, ["DATABASE_KEY is not set"]
-
-    if not isinstance(_DATABASE_SCHEMA, dict) or not _DATABASE_SCHEMA:
-        return False, ["DATABASE_SCHEMA is not defined or empty"]
-
-    conn = None
-    try:
-        ssl_context = ssl.create_default_context(cafile=certifi.where())
-        conn = await asyncpg.connect(dsn=DATABASE_KEY, ssl=ssl_context)
-
-        rows = await conn.fetch("""
-                                SELECT table_name
-                                FROM information_schema.tables
-                                WHERE table_schema = 'public';
-                                """)
-        existing_tables = {r["table_name"] for r in rows}
-
-        for table in _DATABASE_SCHEMA:
-            if table not in existing_tables:
-                errors.append(f"Missing table: {table}")
-
-        for table, required_cols in _DATABASE_SCHEMA.items():
-            if table not in existing_tables:
-                continue
-
-            col_rows = await conn.fetch("""
-                                        SELECT column_name
-                                        FROM information_schema.columns
-                                        WHERE table_schema = 'public'
-                                          AND table_name = $1;
-                                        """, table)
-
-            existing_cols = {r["column_name"] for r in col_rows}
-            missing = set(required_cols) - existing_cols
-
-            if missing:
-                errors.append(
-                    f"{table}: missing columns: {', '.join(sorted(missing))}"
-                )
-
-        return len(errors) == 0, errors
-
-    except asyncpg.InvalidPasswordError:
-        return False, ["Authentication failed"]
-    except asyncpg.InvalidAuthorizationSpecificationError:
-        return False, ["Authorization failed"]
-    except asyncpg.PostgresError as e:
-        return False, [f"Postgres error: {e}"]
-    except Exception as e:
-        return False, [f"Unexpected error: {e}"]
-    finally:
-        if conn:
-            await conn.close()
-
 
 # ============================================================================
 # INITIALIZATION
@@ -254,8 +89,6 @@ def python_init():
     """Initialize the Python environment and validate database connectivity."""
     log = Logger()
 
-    global DATABASE_KEY, TBA_API_KEY, FRC_API_KEY, FRCScoreTracker, ScoreRegionConfig
-
     has_errored = False
     got_db_key = False
     errors = []
@@ -267,27 +100,14 @@ def python_init():
     log.step("Checking environment...")
 
     try:
-        env_path = dotenv.find_dotenv()
-        dotenv.load_dotenv(env_path, override=True)
-        DATABASE_KEY = os.getenv("DATABASE_KEY")
-        TBA_API_KEY = os.getenv("TBA_API_KEY")
-        FRC_API_KEY = os.getenv("FRC_API_KEY")
-
-        if not DATABASE_KEY:
-            errors.append("DATABASE_KEY is missing from .env file")
+        env_errors = ctx.load_env()
+        if env_errors:
+            errors.extend(env_errors)
             has_errored = True
-            log.error("DATABASE_KEY is missing")
+            for err in env_errors:
+                log.error(err)
         else:
             got_db_key = True
-        if not TBA_API_KEY:
-            errors.append("TBA_API_KEY is missing from .env file")
-            has_errored = True
-            log.error("TBA_API_KEY is missing")
-        if not FRC_API_KEY:
-            errors.append("FRC_API_KEY is missing from .env file")
-            has_errored = True
-            log.error("FRC_API_KEY is missing")
-        if not has_errored:
             log.success("Environment loaded")
     except Exception as e:
         errors.append(str(e))
@@ -310,7 +130,7 @@ def python_init():
 
     try:
         if got_db_key:
-            ok, db_errors = _loop.run_until_complete(verify_db())
+            ok, db_errors = ctx.run_async(ctx.verify_db())
             if not ok:
                 errors.extend(db_errors)
                 has_errored = True
@@ -362,13 +182,11 @@ async def download_data(event_key):
     """Download scouting data from the database."""
     log = Logger()
 
-    global downloaded_data
-
     log.header("DOWNLOAD DATA")
 
     try:
         log.step("Connecting to database...")
-        conn = await get_connection()
+        conn = await ctx.get_connection()
         log.success("Database connected")
 
         event_name = event_key or "all events"
@@ -434,9 +252,7 @@ async def download_data(event_key):
         # -- Match schedules -----------------------------------------------
         with log.section("Fetching match schedules"):
             schedule_query = """
-                             SELECT key, event_key, match_type, match_number, set_number,
-                                 scheduled_time, actual_time,
-                                 red1, red2, red3, blue1, blue2, blue3
+                             SELECT key, event_key, match_type, match_number, set_number, scheduled_time, actual_time, red1, red2, red3, blue1, blue2, blue3
                              FROM matches """
 
             if event_filter:
@@ -450,7 +266,7 @@ async def download_data(event_key):
             log.stat("Schedule entries", len(all_matches))
 
         # -- Store & return ------------------------------------------------
-        downloaded_data = {
+        ctx.downloaded_data = {
             "match_scouting": match,
             "pit_scouting": pit,
             "all_matches": all_matches,
@@ -473,13 +289,13 @@ async def upload_data(event_key):
 
     log.header("UPLOAD DATA")
 
-    if not calc_result or "result" not in calc_result:
+    if not ctx.calc_result or "result" not in ctx.calc_result:
         log.error("No calculator output found -- run calculation first")
         return {"success": False, "error": "No calculation results"}
 
     try:
         log.step("Connecting to database...")
-        conn = await get_connection()
+        conn = await ctx.get_connection()
         log.success("Database connected")
 
         if not event_key:
@@ -491,16 +307,17 @@ async def upload_data(event_key):
         await conn.execute(
             "INSERT INTO processed_data (event_key, data) VALUES ($1, $2)",
             event_key,
-            json.dumps(calc_result["result"]),
+            json.dumps(ctx.calc_result["result"]),
         )
 
-        result = calc_result["result"]
+        result = ctx.calc_result["result"]
         record_count = len(result) if isinstance(result, (list, dict)) else 1
         log.stat("Records uploaded", record_count)
 
         await conn.close()
 
-        log.done(f"{Logger.YELLOW}{record_count}{Logger.RESET} records uploaded to {Logger.CYAN}{event_key}{Logger.RESET}")
+        log.done(
+            f"{Logger.YELLOW}{record_count}{Logger.RESET} records uploaded to {Logger.CYAN}{event_key}{Logger.RESET}")
         return {"success": True, "records": record_count}
 
     except Exception as e:
@@ -512,21 +329,21 @@ async def upload_data(event_key):
 # USER FUNCTIONS
 # ============================================================================
 
-def generate_frc_passcode(team_name, team_number):
+def generate_frc_passcode(team_name, team_number, rng=None):
     """
     Generate a temporary passcode for FRC teams by sprinkling
     individual digits throughout shuffled words.
 
     Output length is forced into the 15–20 character range.
     """
+    if rng is None:
+        rng = random
 
     min_len = 12
     max_len = 17
 
-    # --- Prepare words ---
     words = team_name.split()
 
-    # Shorten very long words
     cleaned_words = []
     for w in words:
         if len(w) > 7:
@@ -534,90 +351,88 @@ def generate_frc_passcode(team_name, team_number):
         else:
             cleaned_words.append(w)
 
-    # Allow word repetition or deletion
     pool = cleaned_words.copy()
     while len(pool) < 3:
-        pool.append(random.choice(cleaned_words))
+        pool.append(rng.choice(cleaned_words))
 
-    random.shuffle(pool)
+    rng.shuffle(pool)
 
-    # Random capitalization
     def style_word(word):
         return ''.join(
-            c.upper() if random.random() > 0.5 else c.lower()
+            c.upper() if rng.random() > 0.5 else c.lower()
             for c in word
         )
 
     passcode_chars = list(''.join(style_word(w) for w in pool))
 
-    # --- Sprinkle digits ---
     digits = list(str(team_number))
-
-    # Optionally add extra digits (reuse allowed)
-    while random.random() > 0.6:
-        digits.append(random.choice(digits))
+    while rng.random() > 0.6:
+        digits.append(rng.choice(digits))
 
     for d in digits:
-        pos = random.randint(0, len(passcode_chars))
+        pos = rng.randint(0, len(passcode_chars))
         passcode_chars.insert(pos, d)
 
-    # --- Insert symbol anywhere ---
     symbols = ['!', '@', '#', '$', '*', '&']
-    symbol = random.choice(symbols)
-    pos = random.randint(0, len(passcode_chars))
+    symbol = rng.choice(symbols)
+    pos = rng.randint(0, len(passcode_chars))
     passcode_chars.insert(pos, symbol)
 
-    # --- Force length constraints ---
     while len(passcode_chars) < min_len:
         passcode_chars.insert(
-            random.randint(0, len(passcode_chars)),
-            random.choice(string.ascii_letters + string.digits)
+            rng.randint(0, len(passcode_chars)),
+            rng.choice(string.ascii_letters + string.digits)
         )
 
     while len(passcode_chars) > max_len:
-        del passcode_chars[random.randrange(len(passcode_chars))]
+        del passcode_chars[rng.randrange(len(passcode_chars))]
 
     return ''.join(passcode_chars)
 
-# run_async(initialize_event("2025capoh"))
+
 async def initialize_event(event_key):
     log = Logger()
 
     log.header(f"INITIALIZING EVENT: {event_key}")
 
-    log.step("Fetching data...")
-    matches = requests.get(
+    log.step("Fetching data from TBA...")
+    matches_resp = requests.get(
         f"https://www.thebluealliance.com/api/v3/event/{event_key}/matches/simple",
-        headers={"X-TBA-Auth-Key": TBA_API_KEY}
+        headers={"X-TBA-Auth-Key": ctx.TBA_API_KEY}
     )
-    teams = requests.get(
+    teams_resp = requests.get(
         f"https://www.thebluealliance.com/api/v3/event/{event_key}/teams",
-        headers={"X-TBA-Auth-Key": TBA_API_KEY}
+        headers={"X-TBA-Auth-Key": ctx.TBA_API_KEY}
     )
-    if matches.status_code != 200:
-        log.error(f"match fetch failed: {matches.status_code}")
-        return
-    if teams.status_code != 200:
-        log.error(f"team fetch failed: {teams.status_code}")
-        return
+    if matches_resp.status_code != 200:
+        log.error(f"match fetch failed: {matches_resp.status_code}")
+        return {"success": False, "error": f"match fetch failed: {matches_resp.status_code}"}
+    if teams_resp.status_code != 200:
+        log.error(f"team fetch failed: {teams_resp.status_code}")
+        return {"success": False, "error": f"team fetch failed: {teams_resp.status_code}"}
     log.success("Event data fetched successfully")
 
-    teams = teams.json()
-    matches = matches.json()
+    teams = teams_resp.json()
+    matches = matches_resp.json()
 
+    # Fixed seed for deterministic passwords
+    rng = random.Random(f"{event_key}-seed-3473")
+
+    # --- Build guest data ---
     data = {}
-
     for team in teams:
         team_number = parse_team_key(team["team_number"])
         if team_number != 3473:
             data[team_number] = {
-                "password": generate_frc_passcode(team["nickname"], team_number),
+                "password": generate_frc_passcode(team["nickname"], team_number, rng=rng),
                 "name": team["nickname"],
                 "permissions": {
                     "teams": [],
                     "matches": [],
                 }
             }
+
+    found_3473 = False
 
     for match in matches:
         alliances = match["alliances"]
@@ -628,6 +443,7 @@ async def initialize_event(event_key):
         if 3473 not in all_teams:
             continue
 
+        found_3473 = True
         alliance_of_3473 = red_teams if 3473 in red_teams else blue_teams
         partners = [t for t in alliance_of_3473 if t != 3473]
         match_key = match["key"]
@@ -641,9 +457,103 @@ async def initialize_event(event_key):
             if match_key not in data[partner]["permissions"]["matches"]:
                 data[partner]["permissions"]["matches"].append(parse_match_key(match_key))
 
-    log.done()
+    if not found_3473:
+        log.warn("Team 3473 was not found in any matches for this event")
 
+    # --- Database upload ---
+    log.step("Connecting to database...")
+    conn = await ctx.get_connection()
+    log.success("Database connected")
 
+    try:
+        async with conn.transaction():
+            # Insert guests
+            log.step("Uploading guests...")
+            guest_count = 0
+            for team_number, info in data.items():
+                await conn.execute(
+                    """
+                    INSERT INTO guests (password, name, permissions)
+                    VALUES ($1, $2, $3)
+                    ON CONFLICT (password) DO UPDATE
+                        SET name = EXCLUDED.name,
+                            permissions = EXCLUDED.permissions
+                    """,
+                    info["password"],
+                    info["name"],
+                    json.dumps(info["permissions"]),
+                )
+                guest_count += 1
+            log.stat("Guests upserted", guest_count)
+
+            # Insert matches
+            log.step("Uploading matches...")
+            match_count = 0
+            for match in matches:
+                alliances = match["alliances"]
+                red_teams = [parse_team_key(t) for t in alliances["red"]["team_keys"]]
+                blue_teams = [parse_team_key(t) for t in alliances["blue"]["team_keys"]]
+
+                match_key = match["key"]
+                comp_level = match.get("comp_level", "qm")
+                match_number = match.get("match_number", 0)
+                set_number = match.get("set_number", 1)
+
+                # For elimination rounds:
+                # sf set 1 → sf match 1, sf set 2 → sf match 2, sf set 3 → sf match 3
+                # f match 1 → f match 1, f match 2 → f match 2, f match 3 → f match 3
+                if comp_level in ("sf", "qf", "ef"):
+                    match_type = comp_level
+                    match_number = set_number
+                elif comp_level == "f":
+                    match_type = comp_level
+                else:
+                    match_type = comp_level
+
+                scheduled_time = None
+                if match.get("time"):
+                    from datetime import datetime, timezone
+                    scheduled_time = datetime.fromtimestamp(match["time"], tz=timezone.utc)
+
+                actual_time = None
+                if match.get("actual_time"):
+                    from datetime import datetime, timezone
+                    actual_time = datetime.fromtimestamp(match["actual_time"], tz=timezone.utc)
+
+                await conn.execute(
+                    """
+                    INSERT INTO matches (key, event_key, match_type, match_number, set_number,
+                                         scheduled_time, actual_time,
+                                         red1, red2, red3, blue1, blue2, blue3)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+                    ON CONFLICT (key) DO UPDATE
+                        SET scheduled_time = EXCLUDED.scheduled_time,
+                            actual_time = EXCLUDED.actual_time,
+                            red1 = EXCLUDED.red1, red2 = EXCLUDED.red2, red3 = EXCLUDED.red3,
+                            blue1 = EXCLUDED.blue1, blue2 = EXCLUDED.blue2, blue3 = EXCLUDED.blue3
+                    """,
+                    match_key,
+                    event_key,
+                    match_type,
+                    match_number,
+                    set_number,
+                    scheduled_time,
+                    actual_time,
+                    red_teams[0] if len(red_teams) > 0 else None,
+                    red_teams[1] if len(red_teams) > 1 else None,
+                    red_teams[2] if len(red_teams) > 2 else None,
+                    blue_teams[0] if len(blue_teams) > 0 else None,
+                    blue_teams[1] if len(blue_teams) > 1 else None,
+                    blue_teams[2] if len(blue_teams) > 2 else None,
+                )
+                match_count += 1
+            log.stat("Matches upserted", match_count)
+
+    finally:
+        await conn.close()
+
+    log.done(f"{Logger.YELLOW}{guest_count}{Logger.RESET} guests, {Logger.YELLOW}{match_count}{Logger.RESET} matches")
+    return {"success": True, "guests": guest_count, "matches": match_count}
 
 
 # ============================================================================
@@ -806,34 +716,6 @@ def inspect_object(obj, name=None):
     log.raw(f"{Logger.DIM}{Logger.BAR}{Logger.RESET}\n")
 
 
-def run_async(target, *args, **kwargs):
-    """
-    Run an async coroutine or async function synchronously.
-
-    Valid usage:
-        run_async(download_data, "2024miket")
-        run_async(download_data("2024miket"))
-        run_async("download_data", "2024miket")
-    """
-    # Case 1: coroutine object
-    if asyncio.iscoroutine(target):
-        return _loop.run_until_complete(target)
-
-    # Case 2: function name
-    if isinstance(target, str):
-        func = globals().get(target)
-        if func is None:
-            raise NameError(f"Async function '{target}' not found")
-    else:
-        func = target
-
-    # Case 3: async function
-    if asyncio.iscoroutinefunction(func):
-        return _loop.run_until_complete(func(*args, **kwargs))
-
-    raise TypeError("run_async() expects a coroutine or async function")
-
-
 def _handle_complete(data, repl_namespace):
     code = data.get("code", "")
     line = data.get("line", 1)
@@ -856,16 +738,8 @@ def _handle_complete(data, repl_namespace):
                 for c in completions[:20]  # cap it
             ]
         }
-    except Exception as e:
+    except:
         return {"success": True, "completions": []}  # fail silently
-
-
-def f(obj: object, pattern: str) -> str:
-    text = str(obj)
-    if not pattern:
-        return text
-    replace = lambda m: f"\x1b[1;33m{m.group()}\x1b[0m"
-    return re.sub(re.escape(pattern), replace, text)
 
 # ============================================================================
 # JSON COMMAND INTERFACE
@@ -882,19 +756,26 @@ def _err(msg):
 
 
 async def exec_or_eval(code: str):
-    """Execute or evaluate Python code in the REPL environment."""
     log = Logger()
-
     try:
         REPL_GLOBALS["print"] = log.raw
 
         try:
             result = eval(code, REPL_GLOBALS, REPL_GLOBALS)
-            # Await if the eval returned a coroutine
             if asyncio.iscoroutine(result):
                 result = await result
         except SyntaxError:
-            exec(code, REPL_GLOBALS, REPL_GLOBALS)
+            lines = code.splitlines()
+            wrapped = "async def __repl_fn__():\n" + \
+                      "\n".join(f"    {line}" for line in lines) + \
+                      "\n    import sys as __sys__; return locals()"
+            exec(wrapped, REPL_GLOBALS, REPL_GLOBALS)
+            fn_locals = await REPL_GLOBALS["__repl_fn__"]()
+            # Promote locals back into globals, skipping internal artifacts
+            REPL_GLOBALS.update({
+                k: v for k, v in fn_locals.items()
+                if k != "__sys__"
+            })
             result = None
 
         return _ok(log=str(result) if result is not None else None)
@@ -904,7 +785,6 @@ async def exec_or_eval(code: str):
 
 def handle(req: dict):
     """Handle incoming JSON commands."""
-    global calc_result
 
     match req.get("cmd"):
         case "ping":
@@ -914,7 +794,7 @@ def handle(req: dict):
             return python_init()
 
         case "exec":
-            return _loop.run_until_complete(exec_or_eval(req.get("code", "")))
+            return ctx.run_async(exec_or_eval(req.get("code", "")))
 
         case "complete":
             return _handle_complete(req, REPL_GLOBALS)
@@ -928,25 +808,25 @@ def handle(req: dict):
                 return _err(f"{coro_name} is not async")
 
             try:
-                result = _loop.run_until_complete(func(*args))
+                result = ctx.run_async(func(*args))
                 return _ok(result=result)
             except Exception:
                 return _err(traceback.format_exc())
 
         case "download_data":
-            result = _loop.run_until_complete(download_data(req.get("event_key")))
+            result = ctx.run_async(download_data(req.get("event_key")))
             return result
 
         case "upload_data":
-            result = _loop.run_until_complete(upload_data(req.get("event_key")))
+            result = ctx.run_async(upload_data(req.get("event_key")))
             return result
 
         case "run_calculation":
-            calc_result = run_calculation(req.get("setting", {}), downloaded_data, TBA_API_KEY)
+            ctx.calc_result = run_calculation(req.get("setting", {}))
             return {"success": True}
 
         case "verify_db":
-            ok, errors = _loop.run_until_complete(verify_db())
+            ok, errors = ctx.run_async(ctx.verify_db())
             return _ok(valid=ok, errors=errors)
 
         case "list_globals":
@@ -956,9 +836,9 @@ def handle(req: dict):
         case "get_data":
             match req.get("type"):
                 case "downloaded":
-                    return _ok(data=downloaded_data)
+                    return _ok(data=ctx.downloaded_data)
                 case "calc_result":
-                    return _ok(data=calc_result)
+                    return _ok(data=ctx.calc_result)
                 case other:
                     return _err(f"Unknown data type: {other}")
 

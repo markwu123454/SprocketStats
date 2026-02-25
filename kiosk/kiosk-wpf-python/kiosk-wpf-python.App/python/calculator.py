@@ -5,10 +5,11 @@ from datetime import datetime
 
 import requests
 import statbotics
-from typing import Any, Literal, Optional
-from pydantic import BaseModel, ValidationError
+from typing import Annotated, Any, Literal, Optional, Union
+from pydantic import BaseModel, Field, ValidationError
 
 from logger import *
+from context import ctx
 
 _sb = statbotics.Statbotics()
 
@@ -173,9 +174,6 @@ class ShootingAction(BaseModel):
     subPhase: Optional[SubPhaseName]
 
 
-from typing import Annotated, Union
-from pydantic import Field
-
 ScoutingAction = Annotated[
     Union[
         StartingAction,
@@ -195,14 +193,15 @@ ScoutingAction = Annotated[
 # --- Match scouting postmatch ---
 
 class ScoutingFaults(BaseModel):
-    disconnected: bool
-    nonfunctional: bool
-    unbalanced: bool
-    jammed: bool
-    disabled: bool
-    broken: bool
-    penalties: bool
+    jam: bool
     other: bool
+    brownout: bool
+    disabled: bool
+    failed_auto: bool
+    immobilized: bool
+    disconnected: bool
+    erratic_driving: bool
+    structural_failure: bool
 
 
 class ScoutingIntakePos(BaseModel):
@@ -210,6 +209,11 @@ class ScoutingIntakePos(BaseModel):
     depot: bool
     outpost: bool
     opponent: bool
+
+
+class StartPosition(BaseModel):
+    x: float
+    y: float
 
 
 class ScoutingPostmatch(BaseModel):
@@ -221,7 +225,7 @@ class ScoutingPostmatch(BaseModel):
     teleopClimbPos: Optional[ClimbPos]
     autoClimbPos: Optional[ClimbPos]
     intakePos: ScoutingIntakePos
-    faults: Any  # ScoutingFaults
+    faults: ScoutingFaults
     notes: str
 
 
@@ -233,7 +237,7 @@ class ScoutingEntryData(BaseModel):
     actions: list[ScoutingAction]
     postmatch: ScoutingPostmatch
     manualTeam: bool
-    startPosition: Optional[dict[str, float]] = None
+    startPosition: Optional[StartPosition] = None
 
 
 # --- Match scouting entry ---
@@ -254,7 +258,7 @@ class PitScoutingEntry(BaseModel):
     event_key: str
     team: str
     scouter: str
-    data: dict[str, Any]  # free-form pit scouting fields
+    data: dict[str, Any]  # free-form pit scouting fields (not finalized)
 
 
 # --- Match schedule entry ---
@@ -375,7 +379,7 @@ class Match(BaseModel):
     videos: list[MatchVideo]
 
 
-def run_calculation(setting, downloaded_data: DownloadedData, tba_key: str):
+def run_calculation(setting):
     """Execute scouting data calculations."""
     log = Logger()
 
@@ -385,9 +389,8 @@ def run_calculation(setting, downloaded_data: DownloadedData, tba_key: str):
 
     setting = json.loads(setting) if isinstance(setting, str) else setting
 
-    # Normalise downloaded_data: accept both Pydantic model and plain dict
-    if isinstance(downloaded_data, BaseModel):
-        downloaded_data = downloaded_data.model_dump()
+    # Normalize downloaded_data: accept both plain dict and Pydantic model
+    downloaded_data = DownloadedData(**ctx.downloaded_data)
 
     if not setting.get("event_key"):
         log.error("Event key is required")
@@ -400,46 +403,39 @@ def run_calculation(setting, downloaded_data: DownloadedData, tba_key: str):
     if stop_on_warning:
         log.substep(f"Stop on warning: {Logger.YELLOW}enabled{Logger.RESET}")
 
-    # -- Validate local data -------------------------------------------
-    with log.section("Validating downloaded data"):
-        if not validate_downloaded_data(event_key, log, downloaded_data, stop_on_warning):
-            log.error("Data validation failed")
-            return {"success": False, "error": "Data validation failed"}
-        log.success("Data validated")
-
     # -- Statbotics ----------------------------------------------------
     with log.section("Fetching Statbotics data"):
         try:
-            sb_data: list[dict] = [StatboticsMatch(**m).model_dump() for m in _sb.get_matches(event=event_key)]
-            sb_count = len(sb_data) if isinstance(sb_data, (list, dict)) else 0
+            sb_data: list[StatboticsMatch] = [StatboticsMatch(**m) for m in _sb.get_matches(event=event_key)]
 
-            if sb_count == 0:
+            if not sb_data:
                 log.warn("No Statbotics data returned")
                 if stop_on_warning:
                     return {"success": False, "error": "No Statbotics data"}
             else:
-                log.stat("Statbotics entries", sb_count)
+                log.stat("Statbotics entries", len(sb_data))
         except UserWarning as e:
             log.error(f"Statbotics error: {e}")
+            log.error(f"Statbotics data will not be included in this run.")
             if stop_on_warning:
                 return {"success": False, "error": f"Statbotics error: {e}"}
-            sb_data: list[dict] = []
+            sb_data: list[StatboticsMatch] = []
 
     # -- TBA -----------------------------------------------------------
     with log.section("Fetching TBA data"):
         tba_response = requests.get(
             f"https://www.thebluealliance.com/api/v3/event/{event_key}/matches",
-            headers={"X-TBA-Auth-Key": tba_key}
+            headers={"X-TBA-Auth-Key": ctx.TBA_API_KEY}
         )
 
         if tba_response.status_code != 200:
             log.error(f"TBA request failed (status {tba_response.status_code})")
             if stop_on_warning:
                 return {"success": False, "error": "TBA request failed"}
-            tba_data: list[dict] = []
+            tba_data: list[Match] = []
         else:
             try:
-                tba_data: list[dict] = [Match(**m).model_dump() for m in tba_response.json()]
+                tba_data: list[Match] = [Match(**m) for m in tba_response.json()]
                 if not tba_data:
                     log.warn("No TBA matches returned")
                     if stop_on_warning:
@@ -457,8 +453,8 @@ def run_calculation(setting, downloaded_data: DownloadedData, tba_key: str):
         calc_result.clear()
         calc_result["ranking"] = {}
         calc_result["alliance"] = {}
-        calc_result["sb"] = sb_data
-        calc_result["tba"] = tba_data
+        calc_result["sb"] = [m.model_dump() for m in sb_data]
+        calc_result["tba"] = [m.model_dump() for m in tba_data]
 
         if not initialize_structure(
                 calc_result=calc_result,
@@ -474,74 +470,21 @@ def run_calculation(setting, downloaded_data: DownloadedData, tba_key: str):
 
     with log.section("Processing match scouting entries:"):
         processed_match_entries = {}
-        for entry in downloaded_data["match_scouting"]:
+        for entry in downloaded_data.match_scouting:
+            if entry.event_key != event_key:
+                continue
             key = encode_match_entry(
-                entry["match_type"] + str(entry["match"]),
-                int(entry["team"])
+                entry.match_type + str(entry.match),
+                int(entry.team)
             )
-            processed_match_entries[key] = process_match_entry(entry["data"])
+            processed_match_entries[key] = process_match_entry(entry.data)
         log.substep(processed_match_entries)
 
     log.done()
     return calc_result
 
 
-def validate_downloaded_data(event_key, log, downloaded_data, stop_on_warning=False):
-    """
-    Validate that downloaded_data contains necessary information.
-
-    Args:
-        event_key: Event key to validate data for
-        log: Logger instance for output
-        downloaded_data: downloaded ddata
-        stop_on_warning: Whether to fail on warnings
-
-    Returns:
-        bool: True if validation passed=
-    """
-
-    if not downloaded_data:
-        log.error("No data downloaded -- run download_data() first")
-        return False
-
-    required_keys = ["match_scouting", "pit_scouting", "all_matches"]
-    missing_keys = [k for k in required_keys if k not in downloaded_data]
-
-    if missing_keys:
-        log.error(f"Missing data keys: {', '.join(missing_keys)}")
-        return False
-
-    match_scouting = [
-        m for m in downloaded_data["match_scouting"]
-        if m.get("event_key") == event_key
-    ]
-    pit_scouting = [
-        p for p in downloaded_data["pit_scouting"]
-        if p.get("event_key") == event_key
-    ]
-    all_matches = [
-        m for m in downloaded_data["all_matches"]
-        if m.get("event_key") == event_key
-    ]
-
-    log.stat("Match scouting entries", len(match_scouting))
-    log.stat("Pit scouting entries", len(pit_scouting))
-    log.stat("Match schedules", len(all_matches))
-
-    if len(match_scouting) == 0:
-        log.warn("No match scouting data for this event")
-        if stop_on_warning:
-            return False
-
-    if len(all_matches) == 0:
-        log.warn("No match schedules for this event")
-        if stop_on_warning:
-            return False
-
-    return True
-
-
-def parse_team_key(team_key):
+def parse_team_key(team_key: str | int) -> int:
     """Convert a TBA or Statbotics team key into an integer team number."""
     if isinstance(team_key, int):
         return team_key
@@ -553,7 +496,7 @@ def parse_team_key(team_key):
     raise ValueError(f"Unrecognized team key format: {team_key}")
 
 
-def parse_match_key(match_key):
+def parse_match_key(match_key: str) -> str:
     # Remove the event prefix (everything up to and including the first underscore)
     suffix = match_key.split("_", 1)[1]  # e.g. "qm35", "sf6m1", "f2"
 
@@ -582,7 +525,10 @@ def decode_match_entry(s: str) -> tuple[str, int]:
     return parts[0] + parts[1], int(parts[2])
 
 
-def determine_most_recent_match(match_scouting, calc_result):
+def determine_most_recent_match(
+    match_scouting: list[MatchScoutingEntry],
+    calc_result: dict,
+) -> Optional[str]:
     """
     Determine the most recent match based on submissions.
 
@@ -593,12 +539,10 @@ def determine_most_recent_match(match_scouting, calc_result):
     Returns:
         str: Most recent match key, or None
     """
-    submission_counts = {}
+    submission_counts: dict[str, int] = {}
 
     for entry in match_scouting:
-        match_type = entry.get("match_type", "")
-        match_num = entry.get("match", 0)
-        match_id = f"{match_type}{match_num}"
+        match_id = f"{entry.match_type}{entry.match}"
         submission_counts[match_id] = submission_counts.get(match_id, 0) + 1
 
     qualifying_matches = []
@@ -627,21 +571,29 @@ def determine_most_recent_match(match_scouting, calc_result):
         else:
             level = 0
         num = int(''.join(filter(str.isdigit, canon_key)))
-        return (level, num)
+        return level, num
 
     qualifying_matches.sort(key=match_sort_key, reverse=True)
     return qualifying_matches[0][0]
 
 
-def initialize_structure(calc_result, tba_data, sb_data, downloaded_data, event_key, log, stop_on_warning=False):
+def initialize_structure(
+    calc_result: dict,
+    tba_data: list[Match],
+    sb_data: list[StatboticsMatch],
+    downloaded_data: DownloadedData,
+    event_key: str,
+    log: Logger,
+    stop_on_warning: bool = False,
+) -> bool:
     """
     Initialize empty calculation structures for teams and matches.
 
     Args:
         calc_result: Dictionary to populate with structure
-        tba_data: TBA match data
-        sb_data: Statbotics data
-        downloaded_data: Downloaded scouting data
+        tba_data: TBA match data (Pydantic models)
+        sb_data: Statbotics data (Pydantic models)
+        downloaded_data: Downloaded scouting data (Pydantic model)
         event_key: Event key being processed
         log: Logger instance for output
         stop_on_warning: Whether to fail on warnings
@@ -649,13 +601,7 @@ def initialize_structure(calc_result, tba_data, sb_data, downloaded_data, event_
     Returns:
         bool: True if initialization succeeded
     """
-    sb_matches = {}
-    if isinstance(sb_data, dict):
-        sb_matches = sb_data
-    elif isinstance(sb_data, list):
-        for m in sb_data:
-            if "key" in m:
-                sb_matches[m["key"]] = m
+    sb_matches: dict[str, StatboticsMatch] = {m.key: m for m in sb_data}
 
     calc_result["team"] = {}
     calc_result["match"] = {}
@@ -664,33 +610,31 @@ def initialize_structure(calc_result, tba_data, sb_data, downloaded_data, event_
 
     log.step("Initializing teams and matches from TBA...")
 
-    tba_match_keys = {m["key"] for m in tba_data if "key" in m}
-    grouped = {"qm": [], "sf": [], "f": []}
+    tba_match_keys = {m.key for m in tba_data}
+    grouped: dict[str, list[Match]] = {"qm": [], "sf": [], "f": []}
 
     for match in tba_data:
-        level = match.get("comp_level")
-        if level in grouped:
-            grouped[level].append(match)
+        if match.comp_level in grouped:
+            grouped[match.comp_level].append(match)
 
-        alliances = match.get("alliances", {})
         for color in ("red", "blue"):
-            for raw_team_key in alliances.get(color, {}).get("team_keys", []):
+            alliance: MatchAlliance = getattr(match.alliances, color)
+            for raw_team_key in alliance.team_keys:
                 team_num = parse_team_key(raw_team_key)
                 calc_result["team"].setdefault(team_num, {})
 
     for level in ("qm", "sf", "f"):
         matches = sorted(
             grouped[level],
-            key=lambda m: (m.get("set_number", 0), m.get("match_number", 0))
+            key=lambda m: (m.set_number, m.match_number)
         )
 
         for idx, match in enumerate(matches, start=1):
             canon_key = f"{level}{idx}"
-            tba_key = match["key"]
 
             calc_result["match"][canon_key] = {}
-            calc_result["match_index"][canon_key] = tba_key
-            calc_result["match_reverse_index"][tba_key] = canon_key
+            calc_result["match_index"][canon_key] = match.key
+            calc_result["match_reverse_index"][match.key] = canon_key
 
     log.stat("Matches initialized", len(calc_result["match"]))
     log.stat("Teams initialized", len(calc_result["team"]))
@@ -711,10 +655,7 @@ def initialize_structure(calc_result, tba_data, sb_data, downloaded_data, event_
 
     log.step("Validating against downloaded data...")
 
-    match_scouting = [
-        m for m in downloaded_data.get("match_scouting", [])
-        if m.get("event_key") == event_key
-    ]
+    match_scouting = [m for m in downloaded_data.match_scouting if m.event_key == event_key]
 
     most_recent = determine_most_recent_match(match_scouting, calc_result)
     if most_recent:
@@ -727,18 +668,20 @@ def initialize_structure(calc_result, tba_data, sb_data, downloaded_data, event_
     return True
 
 
-def process_match_entry(entry):
-    data = entry["data"] if isinstance(entry, dict) and "data" in entry else entry
-    raw_actions = data["actions"] if isinstance(data, dict) and "actions" in data else data
+def process_match_entry(data: ScoutingEntryData) -> dict:
+    """
+    Process a single match scouting entry's data into aggregated stats.
 
-    # Normalise: ScoutingAction Pydantic models -> plain dicts
-    actions = [
-        a.model_dump() if isinstance(a, BaseModel) else a
-        for a in raw_actions
-    ]
+    Args:
+        data: The ScoutingEntryData model for this entry.
+
+    Returns:
+        dict: Processed fuel, climb, actions, and metadata.
+    """
+    actions = data.actions
 
     # subPhase -> fuel bucket mapping
-    SUBPHASE_TO_BUCKET = {
+    subphase_to_bucket = {
         "auto": "auto",
         "transition": "transition",
         "shift_1": "phase_1",
@@ -769,29 +712,25 @@ def process_match_entry(entry):
     fuel = result["fuel"]
 
     for action in actions:
-        atype = action.get("type")
-        subphase = action.get("subPhase")
-        phase = action.get("phase")
-        bucket = SUBPHASE_TO_BUCKET.get(subphase)
-
-        if atype == "shooting":
+        if isinstance(action, ShootingAction):
+            bucket = subphase_to_bucket.get(action.subPhase)
             fuel["total"]["shot"] += 1
             if bucket:
                 fuel[bucket]["shot"] += 1
 
-        elif atype == "score":
-            score_val = action.get("score", 0)
-            fuel["total"]["scored"] += score_val
+        elif isinstance(action, ScoreAction):
+            bucket = subphase_to_bucket.get(action.subPhase)
+            fuel["total"]["scored"] += action.score
             if bucket:
-                fuel[bucket]["scored"] += score_val
+                fuel[bucket]["scored"] += action.score
 
-        elif atype == "climb":
-            climb_phase = "auto" if phase == "auto" else "endgame"
+        elif isinstance(action, ClimbAction):
+            climb_phase = "auto" if action.phase == "auto" else "endgame"
             result["climb"][climb_phase]["attempt"] = True
-            if action.get("success"):
+            if action.success:
                 result["climb"][climb_phase]["success"] = True
             level_map = {"L1": 1, "L2": 2, "L3": 3}
-            result["climb"][climb_phase]["level"] = level_map.get(action.get("level"), 3)
+            result["climb"][climb_phase]["level"] = level_map.get(action.level, 3)
 
     # Calculate accuracy for all buckets
     for bucket in fuel:
@@ -803,7 +742,7 @@ def process_match_entry(entry):
     return result
 
 
-def one_var_stats(data):
+def one_var_stats(data: list[float]) -> dict:
     """
     Calculate descriptive statistics for a list of numbers.
     Returns Minitab-style summary statistics.
@@ -827,7 +766,6 @@ def one_var_stats(data):
             "iqr": None
         }
 
-    sorted_data = sorted(data)
     n = len(data)
 
     return {
@@ -843,7 +781,10 @@ def one_var_stats(data):
     }
 
 
-def prob_sum1_greater_sum2(normals1, normals2):
+def prob_sum1_greater_sum2(
+    normals1: list[tuple[float, float]],
+    normals2: list[tuple[float, float]],
+) -> float:
     """
     Probability that the sum of normals1 is greater than the sum of normals2.
 

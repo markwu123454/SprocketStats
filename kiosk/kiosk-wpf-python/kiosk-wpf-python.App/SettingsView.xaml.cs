@@ -111,17 +111,29 @@ public partial class SettingsView
         };
     }
 
+    private static FrameworkElement WrapWithLabel(Setting setting, FrameworkElement control)
+    {
+        var panel = new StackPanel { Margin = new Thickness(0, 0, 0, 16) };
+        panel.Children.Add(new TextBlock
+        {
+            Text = setting.Label,
+            Margin = new Thickness(0, 0, 0, 4)
+        });
+        control.Margin = new Thickness(0);
+        panel.Children.Add(control);
+        return panel;
+    }
+
     private FrameworkElement CreateText(Setting setting)
     {
         var tb = new TextBox
         {
             Height = 32,
-            Margin = new Thickness(0, 0, 0, 16),
             Text = setting.Default?.ToString() ?? ""
         };
 
         tb.TextChanged += OnSettingChanged;
-        return tb;
+        return WrapWithLabel(setting, tb);
     }
 
     private FrameworkElement CreateCheckbox(Setting setting)
@@ -142,8 +154,7 @@ public partial class SettingsView
     {
         var combo = new ComboBox
         {
-            Height = 32,
-            Margin = new Thickness(0, 0, 0, 16)
+            Height = 32
         };
 
         foreach (var option in setting.Options ?? [])
@@ -159,7 +170,7 @@ public partial class SettingsView
                 }
 
         combo.SelectionChanged += OnSettingChanged;
-        return combo;
+        return WrapWithLabel(setting, combo);
     }
 
     private FrameworkElement CreateNumber(Setting setting)
@@ -167,7 +178,6 @@ public partial class SettingsView
         var tb = new TextBox
         {
             Height = 32,
-            Margin = new Thickness(0, 0, 0, 16),
             Text = setting.Default?.ToString() ?? ""
         };
 
@@ -190,7 +200,7 @@ public partial class SettingsView
         };
 
         tb.TextChanged += OnSettingChanged;
-        return tb;
+        return WrapWithLabel(setting, tb);
     }
 
     // -----------------------------
@@ -216,7 +226,10 @@ public partial class SettingsView
         var values = new Dictionary<string, object?>();
 
         foreach (var (key, control) in _controls)
-            values[key] = control switch
+        {
+            var inner = control is StackPanel sp ? sp.Children[^1] : control;
+
+            values[key] = inner switch
             {
                 TextBox tb when double.TryParse(tb.Text, out var n) => n,
                 TextBox tb => tb.Text.Trim(),
@@ -224,6 +237,7 @@ public partial class SettingsView
                 ComboBox cb => (cb.SelectedItem as ComboBoxItem)?.Content?.ToString(),
                 _ => null
             };
+        }
 
         return values;
     }

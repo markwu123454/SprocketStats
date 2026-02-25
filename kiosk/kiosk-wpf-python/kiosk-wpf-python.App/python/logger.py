@@ -37,7 +37,8 @@ class Logger:
         sys.stderr.write(indent + text + end)
         sys.stderr.flush()
 
-    def raw(self, *args, sep=" ", end="\n"):
+    @staticmethod
+    def raw(*args, sep=" ", end="\n"):
         """Print-like interface without indentation."""
         text = sep.join(map(str, args))
         if text or end.strip():
