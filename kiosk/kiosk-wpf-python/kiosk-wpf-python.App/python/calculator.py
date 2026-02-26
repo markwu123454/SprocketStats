@@ -368,6 +368,64 @@ class Match(BaseModel):
     videos: list[MatchVideo]
 
 
+# ===========================================================================
+# All action types that carry a timestamp (used for time-in-state calc)
+# ===========================================================================
+
+_TIMED_ACTION_TYPES = (
+    ScoreAction, ClimbAction, PassAction, DefenseAction,
+    TraversalAction, IdleAction, IntakeAction, ShootingAction,
+)
+
+# Canonical state labels used in the time-percentage output
+_STATE_LABELS = [
+    "idle", "defense", "traversal", "intake",
+    "shooting", "score", "climb", "passing",
+]
+
+
+def compute_time_percentages(actions: list[ScoutingAction]) -> dict[str, float]:
+    """
+    Compute the percentage of match time the robot spent in each state.
+
+    The robot is considered to be "in" the state of an action from its
+    timestamp until the next timestamped action begins.  The last action's
+    state is held until the end of the action sequence (i.e. we cannot
+    attribute any duration to it since there is no following timestamp),
+    so its contribution is zero.
+
+    Returns a dict mapping each state label to a percentage (0-100).
+    All recognised states are always present in the output.
+    """
+    # Collect only timestamped actions in order
+    timed: list[tuple[int, str]] = []
+    for action in actions:
+        if isinstance(action, _TIMED_ACTION_TYPES):
+            timed.append((action.timestamp, action.type))
+
+    # Sort by timestamp (should already be sorted, but be safe)
+    timed.sort(key=lambda t: t[0])
+
+    durations: dict[str, int] = {s: 0 for s in _STATE_LABELS}
+
+    for i in range(len(timed) - 1):
+        ts_current, state = timed[i]
+        ts_next = timed[i + 1][0]
+        dt = ts_next - ts_current
+        if dt > 0 and state in durations:
+            durations[state] += dt
+
+    total_time = sum(durations.values())
+
+    if total_time <= 0:
+        return {s: 0.0 for s in _STATE_LABELS}
+
+    return {
+        state: round((dur / total_time) * 100, 2)
+        for state, dur in durations.items()
+    }
+
+
 def run_calculation(setting):
     """Execute scouting data calculations."""
     log = Logger()
@@ -477,6 +535,10 @@ def run_calculation(setting):
         # { team_str: { phase: [scored_fuel, ...] } }
         phase_fuel_lists: dict[str, dict[str, list[float]]] = {}
 
+        # Accumulate per-state time percentage lists for 1-var stats
+        # { team_str: { state: [pct, ...] } }
+        state_time_lists: dict[str, dict[str, list[float]]] = {}
+
         # { team_str: { canon_match_key: { phase: { "fuel": int } } } }
         team_fuel_output: dict[str, dict] = {}
 
@@ -510,19 +572,26 @@ def run_calculation(setting):
                 continue
 
             fuel_data = processed.get("fuel", {})
+            time_pcts = processed.get("time_percentages", {})
 
             team_fuel_output.setdefault(team_str, {})
-            # Per-match fuel breakdown by phase
+            # Per-match fuel breakdown by phase + time percentages
             team_fuel_output[team_str][canon_match_key] = {
                 phase: {"fuel": fuel_data.get(phase, {}).get("scored", 0)}
                 for phase in PHASES
             }
+            team_fuel_output[team_str][canon_match_key]["time_percentages"] = time_pcts
 
             # Accumulate phase fuel values for 1-var stats
             phase_fuel_lists.setdefault(team_str, {ph: [] for ph in PHASES})
             for phase in PHASES:
                 scored = fuel_data.get(phase, {}).get("scored", 0)
                 phase_fuel_lists[team_str][phase].append(float(scored))
+
+            # Accumulate time percentage values for 1-var stats
+            state_time_lists.setdefault(team_str, {s: [] for s in _STATE_LABELS})
+            for state in _STATE_LABELS:
+                state_time_lists[team_str][state].append(float(time_pcts.get(state, 0.0)))
 
         # Attach aggregated per-phase 1-var stats under the "phase" key for each team
         for team_str in team_fuel_output:
@@ -531,6 +600,12 @@ def run_calculation(setting):
                     "fuel": one_var_stats(phase_fuel_lists.get(team_str, {}).get(phase, []))
                 }
                 for phase in PHASES
+            }
+
+            # Attach aggregated time-percentage 1-var stats
+            team_fuel_output[team_str]["time_percentages"] = {
+                state: one_var_stats(state_time_lists.get(team_str, {}).get(state, []))
+                for state in _STATE_LABELS
             }
 
         calc_result["team_fuel"] = team_fuel_output
@@ -549,7 +624,10 @@ def run_calculation(setting):
             return level, num
 
         for team_str, team_data in sorted(team_fuel_output.items(), key=lambda x: int(x[0])):
-            match_keys = sorted([k for k in team_data if k != "phase"], key=_match_sort_key)
+            match_keys = sorted(
+                [k for k in team_data if k not in ("phase", "time_percentages")],
+                key=_match_sort_key,
+            )
             log.step(f"Team {Logger.CYAN}{team_str}{Logger.RESET}  ({len(match_keys)} matches)")
             for match_key in match_keys:
                 phase_parts = []
@@ -558,6 +636,16 @@ def run_calculation(setting):
                     color = Logger.GREEN if fuel_val > 0 else Logger.RESET
                     phase_parts.append(f"{phase}={color}{fuel_val}{Logger.RESET}")
                 log.substep(f"{match_key:>6}  |  " + "  ".join(phase_parts))
+
+                # Print time-in-state percentages for this match
+                tp = team_data[match_key].get("time_percentages", {})
+                if any(v > 0 for v in tp.values()):
+                    state_parts = []
+                    for state in _STATE_LABELS:
+                        pct = tp.get(state, 0.0)
+                        color = Logger.GREEN if pct >= 10 else Logger.RESET
+                        state_parts.append(f"{state}={color}{pct:.1f}%{Logger.RESET}")
+                    log.substep(f"{'':>6}  |  time: " + "  ".join(state_parts))
 
     log.done()
     return calc_result
@@ -755,6 +843,7 @@ def process_match_entry(data: ScoutingEntryData) -> dict:
         },
         "actions": {},
         "metadata": {},
+        "time_percentages": compute_time_percentages(actions),
     }
 
     fuel = result["fuel"]
