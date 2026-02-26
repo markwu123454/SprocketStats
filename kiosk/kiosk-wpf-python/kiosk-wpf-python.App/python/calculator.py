@@ -6,7 +6,7 @@ from datetime import datetime
 import requests
 import statbotics
 from typing import Annotated, Any, Literal, Optional, Union
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import BaseModel, Field, ValidationError, field_validator
 
 from logger import *
 from context import ctx
@@ -40,14 +40,12 @@ class StatboticsPred(BaseModel):
     red_win_prob: float
     red_score: float
     blue_score: float
-    # RP predictions (named generically since they vary by season)
     red_rp_1: float
     blue_rp_1: float
     red_rp_2: float
     blue_rp_2: float
     red_rp_3: Optional[float] = None
     blue_rp_3: Optional[float] = None
-    # Allow any extra season-specific prediction fields
     model_config = {"extra": "allow"}
 
 
@@ -65,14 +63,12 @@ class StatboticsResult(BaseModel):
     blue_endgame_points: int
     red_tiebreaker_points: int
     blue_tiebreaker_points: int
-    # RP results (named generically)
     red_rp_1: bool
     blue_rp_1: bool
     red_rp_2: bool
     blue_rp_2: bool
     red_rp_3: Optional[bool] = None
     blue_rp_3: Optional[bool] = None
-    # Allow any extra season-specific result fields
     model_config = {"extra": "allow"}
 
 
@@ -99,13 +95,19 @@ class StatboticsMatch(BaseModel):
 # Downloaded (local scouting) data types
 # ===========================================================================
 
-# --- Match scouting actions ---
-
 MatchPhase = Literal["prestart", "auto", "between", "teleop", "post"]
 SubPhaseName = Literal["auto", "transition", "shift_1", "shift_2", "shift_3", "shift_4", "endgame"]
 ClimbLevel = Literal["L1", "L2", "L3"]
 ClimbPos = Literal["Center", "Left", "Right", "Left Side", "Right Side"]
 
+_CLIMB_POS_MAP = {
+    "No Climb": None,
+    "Front Center": "Center",
+    "Front Left": "Left",
+    "Front Right": "Right",
+    "Side Left": "Left Side",
+    "Side Right": "Right Side",
+}
 
 class StartingAction(BaseModel):
     type: Literal["starting"]
@@ -190,8 +192,6 @@ ScoutingAction = Annotated[
 ]
 
 
-# --- Match scouting postmatch ---
-
 class ScoutingFaults(BaseModel):
     jam: bool
     other: bool
@@ -217,8 +217,8 @@ class StartPosition(BaseModel):
 
 
 class ScoutingPostmatch(BaseModel):
-    skill: float  # 0-1
-    defenseSkill: float  # 0-1
+    skill: float
+    defenseSkill: float
     speed: float
     role: Literal["Shooter", "Intake", "Defense", "Generalist", "Useless"]
     traversalLocation: Literal["Trench", "Bump", "No Preference"]
@@ -228,8 +228,13 @@ class ScoutingPostmatch(BaseModel):
     faults: ScoutingFaults
     notes: str
 
+    @field_validator("teleopClimbPos", "autoClimbPos", mode="before")
+    @classmethod
+    def normalize_climb_pos(cls, v):
+        if v in _CLIMB_POS_MAP:
+            return _CLIMB_POS_MAP[v]
+        return v
 
-# --- Match scouting entry data ---
 
 class ScoutingEntryData(BaseModel):
     key: str
@@ -239,8 +244,6 @@ class ScoutingEntryData(BaseModel):
     manualTeam: bool
     startPosition: Optional[StartPosition] = None
 
-
-# --- Match scouting entry ---
 
 class MatchScoutingEntry(BaseModel):
     event_key: str
@@ -252,16 +255,12 @@ class MatchScoutingEntry(BaseModel):
     data: ScoutingEntryData
 
 
-# --- Pit scouting entry ---
-
 class PitScoutingEntry(BaseModel):
     event_key: str
     team: str
     scouter: str
-    data: dict[str, Any]  # free-form pit scouting fields (not finalized)
+    data: dict[str, Any]
 
-
-# --- Match schedule entry ---
 
 class ScheduledMatch(BaseModel):
     key: str
@@ -279,15 +278,11 @@ class ScheduledMatch(BaseModel):
     blue3: int
 
 
-# --- Top-level downloaded data ---
-
 class DownloadedData(BaseModel):
     match_scouting: list[MatchScoutingEntry]
     pit_scouting: list[PitScoutingEntry]
     all_matches: list[ScheduledMatch]
 
-
-# --- Score Breakdown ---
 
 class HubScore(BaseModel):
     autoCount: int
@@ -340,8 +335,6 @@ class MatchScoreBreakdown2026(BaseModel):
     red: AllianceScoreBreakdown2026
 
 
-# --- Alliance ---
-
 class MatchAlliance(BaseModel):
     score: int
     team_keys: list[str]
@@ -354,14 +347,10 @@ class MatchAlliances(BaseModel):
     blue: MatchAlliance
 
 
-# --- Video ---
-
 class MatchVideo(BaseModel):
     type: Literal["youtube", "tba"]
     key: str
 
-
-# --- Full Match ---
 
 class Match(BaseModel):
     key: str
@@ -389,7 +378,6 @@ def run_calculation(setting):
 
     setting = json.loads(setting) if isinstance(setting, str) else setting
 
-    # Normalize downloaded_data: accept both plain dict and Pydantic model
     downloaded_data = DownloadedData(**ctx.downloaded_data)
 
     if not setting.get("event_key"):
@@ -468,6 +456,7 @@ def run_calculation(setting):
             log.error("Structure initialization failed")
             return {"success": False, "error": "Structure initialization failed"}
 
+    # -- Process match scouting entries --------------------------------
     with log.section("Processing match scouting entries:"):
         processed_match_entries = {}
         for entry in downloaded_data.match_scouting:
@@ -479,6 +468,96 @@ def run_calculation(setting):
             )
             processed_match_entries[key] = process_match_entry(entry.data)
         log.substep(processed_match_entries)
+
+    # -- Build per-team fuel output ------------------------------------
+    with log.section("Building per-team fuel summary"):
+        PHASES = ["auto", "transition", "phase_1", "phase_2", "endgame"]
+
+        # Accumulate per-phase scored fuel lists for 1-var stats
+        # { team_str: { phase: [scored_fuel, ...] } }
+        phase_fuel_lists: dict[str, dict[str, list[float]]] = {}
+
+        # { team_str: { canon_match_key: { phase: { "fuel": int } } } }
+        team_fuel_output: dict[str, dict] = {}
+
+        for encoded_key, processed in processed_match_entries.items():
+            match_code, team_num = decode_match_entry(encoded_key)
+            # match_code is like "qm1", "sf6", "f1", "f2", "f3"
+            # For qm/sf: matches parse_match_key(tba_key) directly.
+            # For finals: scouting uses match_number (f1=game1, f2=game2, f3=game3),
+            #   but parse_match_key collapses all finals TBA keys to "f1" (one series).
+            #   So we match on the TBA match object's match_number field instead.
+            team_str = str(team_num)
+
+            is_finals = match_code.startswith("f") and not match_code.startswith("sf")
+
+            canon_match_key = None
+            for canon, tba_key in calc_result["match_index"].items():
+                if is_finals:
+                    # For finals, match_code digit is the game number (match_number in TBA)
+                    game_num = int(''.join(c for c in match_code if c.isdigit()))
+                    tba_match_obj = next((m for m in tba_data if m.key == tba_key), None)
+                    if tba_match_obj and tba_match_obj.comp_level == "f" and tba_match_obj.match_number == game_num:
+                        canon_match_key = canon
+                        break
+                else:
+                    if parse_match_key(tba_key) == match_code:
+                        canon_match_key = canon
+                        break
+
+            if not canon_match_key:
+                log.warn(f"Could not resolve canon key for match code '{match_code}' (team {team_num})")
+                continue
+
+            fuel_data = processed.get("fuel", {})
+
+            team_fuel_output.setdefault(team_str, {})
+            # Per-match fuel breakdown by phase
+            team_fuel_output[team_str][canon_match_key] = {
+                phase: {"fuel": fuel_data.get(phase, {}).get("scored", 0)}
+                for phase in PHASES
+            }
+
+            # Accumulate phase fuel values for 1-var stats
+            phase_fuel_lists.setdefault(team_str, {ph: [] for ph in PHASES})
+            for phase in PHASES:
+                scored = fuel_data.get(phase, {}).get("scored", 0)
+                phase_fuel_lists[team_str][phase].append(float(scored))
+
+        # Attach aggregated per-phase 1-var stats under the "phase" key for each team
+        for team_str in team_fuel_output:
+            team_fuel_output[team_str]["phase"] = {
+                phase: {
+                    "fuel": one_var_stats(phase_fuel_lists.get(team_str, {}).get(phase, []))
+                }
+                for phase in PHASES
+            }
+
+        calc_result["team_fuel"] = team_fuel_output
+        log.stat("Teams with fuel data", len(team_fuel_output))
+
+    # -- Print per-team match fuel summary -----------------------------
+    with log.section("Per-team match fuel summary"):
+        def _match_sort_key(k):
+            if k.startswith("qm"):
+                level = 0
+            elif k.startswith("sf"):
+                level = 1
+            else:
+                level = 2
+            num = int(''.join(c for c in k if c.isdigit()) or "0")
+            return level, num
+
+        for team_str, team_data in sorted(team_fuel_output.items(), key=lambda x: int(x[0])):
+            match_keys = sorted([k for k in team_data if k != "phase"], key=_match_sort_key)
+            log.step(f"Team {Logger.CYAN}{team_str}{Logger.RESET}  ({len(match_keys)} matches)")
+            for match_key in match_keys:
+                phase_parts = []
+                for phase in PHASES:
+                    fuel_val = team_data[match_key][phase]["fuel"]
+                    color = Logger.GREEN if fuel_val > 0 else Logger.RESET
+                    phase_parts.append(f"{phase}={color}{fuel_val}{Logger.RESET}")
+                log.substep(f"{match_key:>6}  |  " + "  ".join(phase_parts))
 
     log.done()
     return calc_result
@@ -498,22 +577,18 @@ def parse_team_key(team_key: str | int) -> int:
 
 def parse_match_key(match_key: str) -> str:
     # Remove the event prefix (everything up to and including the first underscore)
-    suffix = match_key.split("_", 1)[1]  # e.g. "qm35", "sf6m1", "f2"
+    suffix = match_key.split("_", 1)[1]  # e.g. "qm35", "sf6m1", "f1m2"
 
-    # Qualification match: qm35 -> qm35 (no change needed)
-    # Semifinal: sf6m1 -> sf6
-    # Final: f2 -> f2
+    if suffix.startswith("sf") or suffix.startswith("f"):
+        # Strip the per-match index (m1, m2, etc.) from elim matches
+        # sf6m1 -> sf6,  f1m2 -> f1
+        return suffix.split("m")[0]
 
-    if suffix.startswith("sf"):
-        # Strip the match number (m1, m2, etc.) from semifinals
-        return suffix.split("m")[0]  # sf6m1 -> sf6
-
-    return suffix  # qm35, f2 as-is
+    return suffix  # qm35 as-is
 
 
 def encode_match_entry(code: str, number: int) -> str:
     """Convert ('qm1', 4414) -> 'qm|1|4414'"""
-    # Split letters and digits in the code part
     letters = ''.join(c for c in code if c.isalpha())
     digits = ''.join(c for c in code if c.isdigit())
     return f"{letters}|{digits}|{number}"
@@ -531,13 +606,6 @@ def determine_most_recent_match(
 ) -> Optional[str]:
     """
     Determine the most recent match based on submissions.
-
-    Args:
-        match_scouting: List of match scouting entries
-        calc_result: Calculation result dictionary
-
-    Returns:
-        str: Most recent match key, or None
     """
     submission_counts: dict[str, int] = {}
 
@@ -588,18 +656,6 @@ def initialize_structure(
 ) -> bool:
     """
     Initialize empty calculation structures for teams and matches.
-
-    Args:
-        calc_result: Dictionary to populate with structure
-        tba_data: TBA match data (Pydantic models)
-        sb_data: Statbotics data (Pydantic models)
-        downloaded_data: Downloaded scouting data (Pydantic model)
-        event_key: Event key being processed
-        log: Logger instance for output
-        stop_on_warning: Whether to fail on warnings
-
-    Returns:
-        bool: True if initialization succeeded
     """
     sb_matches: dict[str, StatboticsMatch] = {m.key: m for m in sb_data}
 
@@ -671,26 +727,18 @@ def initialize_structure(
 def process_match_entry(data: ScoutingEntryData) -> dict:
     """
     Process a single match scouting entry's data into aggregated stats.
-
-    Args:
-        data: The ScoutingEntryData model for this entry.
-
-    Returns:
-        dict: Processed fuel, climb, actions, and metadata.
     """
     actions = data.actions
 
-    # subPhase -> fuel bucket mapping
     subphase_to_bucket = {
         "auto": "auto",
         "transition": "transition",
         "shift_1": "phase_1",
-        "shift_2": "phase_1",  # or split into phase_1/phase_2 - see note
+        "shift_2": "phase_1",
         "shift_3": "phase_2",
         "shift_4": "phase_2",
         "endgame": "endgame",
     }
-    # Note: adjust shift_1/2/3/4 -> phase_1/phase_2 mapping as needed
 
     result = {
         "fuel": {
@@ -732,7 +780,6 @@ def process_match_entry(data: ScoutingEntryData) -> dict:
             level_map = {"L1": 1, "L2": 2, "L3": 3}
             result["climb"][climb_phase]["level"] = level_map.get(action.level, 3)
 
-    # Calculate accuracy for all buckets
     for bucket in fuel:
         shots = fuel[bucket]["shot"]
         fuel[bucket]["accuracy"] = (
@@ -745,13 +792,6 @@ def process_match_entry(data: ScoutingEntryData) -> dict:
 def one_var_stats(data: list[float]) -> dict:
     """
     Calculate descriptive statistics for a list of numbers.
-    Returns Minitab-style summary statistics.
-
-    Args:
-        data: List of numeric values
-
-    Returns:
-        dict: Statistical summary including mean, median, std dev, min, max, etc.
     """
     if not data:
         return {
@@ -768,6 +808,9 @@ def one_var_stats(data: list[float]) -> dict:
 
     n = len(data)
 
+    q1 = statistics.quantiles(data, n=4)[0] if n >= 4 else None
+    q3 = statistics.quantiles(data, n=4)[2] if n >= 4 else None
+
     return {
         "n": n,
         "mean": statistics.mean(data),
@@ -775,9 +818,9 @@ def one_var_stats(data: list[float]) -> dict:
         "std_dev": statistics.stdev(data) if n > 1 else 0,
         "min": min(data),
         "max": max(data),
-        "q1": statistics.quantiles(data, n=4)[0] if n >= 4 else None,
-        "q3": statistics.quantiles(data, n=4)[2] if n >= 4 else None,
-        # Could add: mode, range, variance, skewness, etc.
+        "q1": q1,
+        "q3": q3,
+        "iqr": (q3 - q1) if (q1 is not None and q3 is not None) else None,
     }
 
 
@@ -787,11 +830,7 @@ def prob_sum1_greater_sum2(
 ) -> float:
     """
     Probability that the sum of normals1 is greater than the sum of normals2.
-
-    normals1, normals2: lists of (mean, std_dev) tuples
-    Assumes all variables are independent.
     """
-
     if not normals1 or not normals2:
         raise ValueError("Input lists must not be empty")
 
@@ -816,6 +855,4 @@ def prob_sum1_greater_sum2(
         raise ValueError("Resulting variance must be positive")
 
     z = (mu1 - mu2) / math.sqrt(total_variance)
-
-    # Standard normal CDF via error function
     return 0.5 * (1.0 + math.erf(z / math.sqrt(2.0)))

@@ -33,6 +33,7 @@ public class Setting
 public partial class SettingsView
 {
     private readonly Dictionary<string, FrameworkElement> _controls = new();
+    private const string SettingsStorageKey = "settings";
 
     // Public property to access current settings
     public Dictionary<string, object?> CurrentSettings => CollectSettings();
@@ -68,6 +69,41 @@ public partial class SettingsView
                 var control = CreateControl(setting);
                 _controls[setting.Key] = control;
                 SettingsPanel.Children.Add(control);
+            }
+        }
+
+        // Restore previously saved values, overriding defaults
+        var saved = LocalStorage.Default.GetJson<Dictionary<string, JsonElement>>(SettingsStorageKey);
+        if (saved != null)
+            RestoreSettings(saved);
+    }
+
+    private void RestoreSettings(Dictionary<string, JsonElement> saved)
+    {
+        foreach (var (key, element) in saved)
+        {
+            if (!_controls.TryGetValue(key, out var control)) continue;
+            var inner = control is StackPanel sp ? sp.Children[^1] : control;
+
+            switch (inner)
+            {
+                case TextBox tb:
+                    tb.Text = element.ValueKind == JsonValueKind.Number
+                        ? element.GetDouble().ToString()
+                        : element.GetString() ?? "";
+                    break;
+                case CheckBox cb:
+                    cb.IsChecked = element.ValueKind == JsonValueKind.True;
+                    break;
+                case ComboBox combo:
+                    var val = element.GetString();
+                    for (var i = 0; i < combo.Items.Count; i++)
+                        if ((combo.Items[i] as ComboBoxItem)?.Content?.ToString() == val)
+                        {
+                            combo.SelectedIndex = i;
+                            break;
+                        }
+                    break;
             }
         }
     }
@@ -219,6 +255,9 @@ public partial class SettingsView
 
         // Raise event to notify MainWindow
         SettingsChanged?.Invoke(this, EventArgs.Empty);
+
+        // Persist to LocalStorage
+        LocalStorage.Default.SetJson(SettingsStorageKey, settings);
     }
 
     private Dictionary<string, object?> CollectSettings()

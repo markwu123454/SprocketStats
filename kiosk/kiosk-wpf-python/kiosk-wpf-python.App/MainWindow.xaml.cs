@@ -29,9 +29,17 @@ public partial class MainWindow
         { "`", "`" },
     };
 
+    private const string HistoryStorageKey = "command_history";
+    private const int MaxHistorySize = 200;
+
     public MainWindow()
     {
         InitializeComponent();
+
+        // Load persisted command history
+        var saved = LocalStorage.Default.GetJson<List<string>>(HistoryStorageKey);
+        if (saved != null)
+            _commandHistory.AddRange(saved);
         
         CommandInput.LostFocus += (_, _) => CompletionPopup.IsOpen = false;
         Deactivated += (_, _) => CompletionPopup.IsOpen = false;
@@ -178,7 +186,16 @@ public partial class MainWindow
                     return;
 
                 if (_commandHistory.Count == 0 || _commandHistory[^1] != code)
+                {
                     _commandHistory.Add(code);
+
+                    // Trim to max size
+                    while (_commandHistory.Count > MaxHistorySize)
+                        _commandHistory.RemoveAt(0);
+
+                    // Persist to LocalStorage
+                    LocalStorage.Default.SetJson(HistoryStorageKey, _commandHistory);
+                }
 
                 _historyIndex = -1;
 
