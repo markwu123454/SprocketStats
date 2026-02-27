@@ -359,6 +359,44 @@ async def submit_data(
     return {"status": "submitted"}
 
 
+@router.post("/scouting/{m_type}/{match}/{team}/admin-unclaim")
+async def admin_unclaim_team(
+        m_type: enums.MatchType,
+        match: int,
+        team: int,
+        session: enums.SessionInfo = Depends(db.require_permission("admin")),
+):
+    """
+    Admin-only: forcibly unclaim a team, regardless of who owns it.
+    """
+    rows = await db.get_match_scouting(match=match, m_type=m_type, team=team)
+    if not rows:
+        raise HTTPException(status_code=404, detail="Scouting entry not found")
+
+    entry = rows[0]
+    if entry["scouter"] is None:
+        return {"status": "noop", "message": "Team is not currently claimed."}
+
+    updated = await db.update_match_scouting(
+        match=match,
+        m_type=m_type,
+        team=team,
+        scouter=entry["scouter"],
+        scouter_new=None,
+        status=enums.StatusType.UNCLAIMED,
+        data=None,
+    )
+
+    if not updated:
+        raise HTTPException(status_code=500, detail="Database update failed")
+
+    return {
+        "status": "unclaimed",
+        "team": team,
+        "previous_scouter": entry["scouter"],
+    }
+
+
 @router.get("/scouter/schedule")
 async def get_scouter_match_schedule(
         session: enums.SessionInfo = Depends(db.require_permission("match_scouting")),

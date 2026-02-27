@@ -420,6 +420,33 @@ export function useAPI() {
     };
 
 
+    const adminUnclaimTeam = async (
+        match: number,
+        team: number,
+        match_type: MatchType
+    ): Promise<{ status: string; previous_scouter?: string } | null> => {
+        try {
+            const res = await fetch(
+                `${BASE_URL}/scouting/${match_type}/${match}/${team}/admin-unclaim`,
+                {
+                    method: "POST",
+                    headers: getAuthHeaders(),
+                }
+            );
+
+            if (!res.ok) {
+                console.warn("adminUnclaimTeam rejected:", res.status);
+                return null;
+            }
+
+            return await res.json();
+        } catch (err) {
+            console.error("adminUnclaimTeam failed:", err);
+            return null;
+        }
+    };
+
+
     // --- Endpoint: PATCH /scouting/{m_type}/{match}/{team}/state ---
     const updateState = async (
         match: number,
@@ -942,5 +969,6 @@ export function useAPI() {
         subscribePushNotif,
         savePushSettings,
         checkSession,
+        adminUnclaimTeam
     };
 }
