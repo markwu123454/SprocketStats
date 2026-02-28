@@ -168,13 +168,21 @@ export default function MorePage() {
                 <h1 className="text-2xl font-bold theme-h1-color">
                     More
                 </h1>
-                <button
-                    onClick={() => navigate("/")}
-                    className="transition theme-subtext-color hover:theme-text-color"
-                    title="Back to Home"
-                >
-                    <ArrowLeft className="w-5 h-5"/>
-                </button>
+                <div className="flex items-center gap-3">
+                    <Link
+                        to="/admin/scouting-schedule"
+                        className="px-3 py-1.5 text-sm rounded-md border transition theme-border theme-button-bg/50 theme-text hover:theme-button-hover"
+                    >
+                        Scouting Schedule
+                    </Link>
+                    <button
+                        onClick={() => navigate("/")}
+                        className="transition theme-subtext-color hover:theme-text-color"
+                        title="Back to Home"
+                    >
+                        <ArrowLeft className="w-5 h-5"/>
+                    </button>
+                </div>
             </div>
 
             {/* Links Section */}

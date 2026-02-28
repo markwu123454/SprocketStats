@@ -444,6 +444,128 @@ async def get_all_matches(
     }
 
 
+class ScoutingScheduleRow(BaseModel):
+    key: str
+    original_key: str | None = None
+    event_key: str
+    match_type: enums.MatchType
+    match_number: int
+    set_number: int = 1
+    scheduled_time: datetime | None = None
+    actual_time: datetime | None = None
+    red1: int | None = None
+    red2: int | None = None
+    red3: int | None = None
+    blue1: int | None = None
+    blue2: int | None = None
+    blue3: int | None = None
+    red1_scouter_name: str | None = None
+    red2_scouter_name: str | None = None
+    red3_scouter_name: str | None = None
+    blue1_scouter_name: str | None = None
+    blue2_scouter_name: str | None = None
+    blue3_scouter_name: str | None = None
+
+
+class BulkScoutingScheduleUpsert(BaseModel):
+    matches: List[ScoutingScheduleRow]
+
+
+@router.get("/matches/scouting-schedule")
+async def get_scouting_schedule(
+):
+    metadata = await db.get_metadata()
+    rows = await db.get_all_matches_unscoped()
+
+    return {
+        "current_event": metadata["current_event"] if metadata else None,
+        "matches": [
+            {
+                "key": r["key"],
+                "event_key": r["event_key"],
+                "match_type": r["match_type"],
+                "match_number": r["match_number"],
+                "set_number": r["set_number"],
+                "scheduled_time": r["scheduled_time"],
+                "actual_time": r["actual_time"],
+                "red1": r["red1"],
+                "red2": r["red2"],
+                "red3": r["red3"],
+                "blue1": r["blue1"],
+                "blue2": r["blue2"],
+                "blue3": r["blue3"],
+                "red1_scouter": r["red1_scouter"],
+                "red2_scouter": r["red2_scouter"],
+                "red3_scouter": r["red3_scouter"],
+                "blue1_scouter": r["blue1_scouter"],
+                "blue2_scouter": r["blue2_scouter"],
+                "blue3_scouter": r["blue3_scouter"],
+                "red1_scouter_name": r["red1_scouter_name"],
+                "red2_scouter_name": r["red2_scouter_name"],
+                "red3_scouter_name": r["red3_scouter_name"],
+                "blue1_scouter_name": r["blue1_scouter_name"],
+                "blue2_scouter_name": r["blue2_scouter_name"],
+                "blue3_scouter_name": r["blue3_scouter_name"],
+            }
+            for r in rows
+        ],
+    }
+
+
+@router.put("/matches/scouting-schedule")
+async def upsert_scouting_schedule(
+        payload: BulkScoutingScheduleUpsert = Body(...),
+        _: enums.SessionInfo = Depends(db.require_permission("admin")),
+):
+    if not payload.matches:
+        raise HTTPException(status_code=400, detail="No match rows provided")
+
+    keys: set[str] = set()
+    for row in payload.matches:
+        if not row.key.strip():
+            raise HTTPException(status_code=400, detail="Match key cannot be empty")
+        if row.key in keys:
+            raise HTTPException(status_code=400, detail=f"Duplicate key in payload: {row.key}")
+        keys.add(row.key)
+
+        if not row.event_key.strip():
+            raise HTTPException(status_code=400, detail=f"event_key cannot be empty for key {row.key}")
+        if row.match_number < 1:
+            raise HTTPException(status_code=400, detail=f"match_number must be >= 1 for key {row.key}")
+        if row.set_number < 1:
+            raise HTTPException(status_code=400, detail=f"set_number must be >= 1 for key {row.key}")
+
+    await db.upsert_matches_schedule_bulk(
+        [
+            db.ScoutingScheduleUpsert(
+                key=row.key,
+                original_key=row.original_key,
+                event_key=row.event_key,
+                match_type=row.match_type,
+                match_number=row.match_number,
+                set_number=row.set_number,
+                scheduled_time=row.scheduled_time,
+                actual_time=row.actual_time,
+                red1=row.red1,
+                red2=row.red2,
+                red3=row.red3,
+                blue1=row.blue1,
+                blue2=row.blue2,
+                blue3=row.blue3,
+                red1_scouter_name=row.red1_scouter_name,
+                red2_scouter_name=row.red2_scouter_name,
+                red3_scouter_name=row.red3_scouter_name,
+                blue1_scouter_name=row.blue1_scouter_name,
+                blue2_scouter_name=row.blue2_scouter_name,
+                blue3_scouter_name=row.blue3_scouter_name,
+            )
+            for row in payload.matches
+        ]
+    )
+
+    return {"status": "ok"}
+
+
 class MatchUpdate(BaseModel):
     key: str
     scheduled_time: datetime | None = None

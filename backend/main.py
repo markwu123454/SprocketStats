@@ -10,6 +10,7 @@ from starlette.middleware.cors import CORSMiddleware
 from starlette.staticfiles import StaticFiles
 
 import tba_db as tba
+import db
 from endpoints import (
     admin,
     attendance,
@@ -29,6 +30,7 @@ async def lifespan(app: FastAPI):
 
     # Initialize the databases
     #await db.init_db()
+    await db.migrate_matches_unique_constraint()
     await tba.get_db_pool()
 
     yield

@@ -230,9 +230,12 @@ async def init_db():
                                    blue1_scouter  TEXT,
                                    blue2_scouter  TEXT,
                                    blue3_scouter  TEXT,
-
-                                   -- Constraints
-                                   CONSTRAINT unique_match_per_event UNIQUE (event_key, match_type, match_number),
+                                   red1_scouter_name TEXT,
+                                   red2_scouter_name TEXT,
+                                   red3_scouter_name TEXT,
+                                   blue1_scouter_name TEXT,
+                                   blue2_scouter_name TEXT,
+                                   blue3_scouter_name TEXT,
 
                                    CONSTRAINT matches_red1_scouter_fkey FOREIGN KEY (red1_scouter) REFERENCES public.users (email),
                                    CONSTRAINT matches_red2_scouter_fkey FOREIGN KEY (red2_scouter) REFERENCES public.users (email),
@@ -242,6 +245,17 @@ async def init_db():
                                    CONSTRAINT matches_blue2_scouter_fkey FOREIGN KEY (blue2_scouter) REFERENCES public.users (email),
                                    CONSTRAINT matches_blue3_scouter_fkey FOREIGN KEY (blue3_scouter) REFERENCES public.users (email)
                                );
+                               """)
+
+            # Keep schema in sync for existing deployments.
+            await conn.execute("""
+                               ALTER TABLE matches
+                                   ADD COLUMN IF NOT EXISTS red1_scouter_name TEXT,
+                                   ADD COLUMN IF NOT EXISTS red2_scouter_name TEXT,
+                                   ADD COLUMN IF NOT EXISTS red3_scouter_name TEXT,
+                                   ADD COLUMN IF NOT EXISTS blue1_scouter_name TEXT,
+                                   ADD COLUMN IF NOT EXISTS blue2_scouter_name TEXT,
+                                   ADD COLUMN IF NOT EXISTS blue3_scouter_name TEXT
                                """)
 
             # ---------------------------------------------------
@@ -375,6 +389,50 @@ async def init_db():
     except Exception as e:
         logger.error("Failed to initialize schema: %s", e)
         raise HTTPException(status_code=500, detail=f"Failed to initialize schema: {e}")
+    finally:
+        await release_db_connection(pool, conn)
+
+
+async def migrate_matches_unique_constraint() -> None:
+    """
+    Drop legacy matches uniqueness constraint so repeated event/match
+    rows are allowed. The only required unique identifier is `key`.
+    """
+    pool, conn = await get_db_connection(DB_NAME)
+    try:
+        table_exists = await conn.fetchval(
+            "SELECT to_regclass('public.matches') IS NOT NULL"
+        )
+        if not table_exists:
+            return
+
+        async with conn.transaction():
+            await conn.execute("""
+                               UPDATE matches
+                               SET set_number = 1
+                               WHERE set_number IS NULL
+                               """)
+
+            await conn.execute("""
+                               ALTER TABLE matches
+                                   DROP CONSTRAINT IF EXISTS unique_match_per_event
+                               """)
+
+            # New: schedule-display names are stored directly on matches so
+            # one email can have different names per assignment slot.
+            await conn.execute("""
+                               ALTER TABLE matches
+                                   ADD COLUMN IF NOT EXISTS red1_scouter_name TEXT,
+                                   ADD COLUMN IF NOT EXISTS red2_scouter_name TEXT,
+                                   ADD COLUMN IF NOT EXISTS red3_scouter_name TEXT,
+                                   ADD COLUMN IF NOT EXISTS blue1_scouter_name TEXT,
+                                   ADD COLUMN IF NOT EXISTS blue2_scouter_name TEXT,
+                                   ADD COLUMN IF NOT EXISTS blue3_scouter_name TEXT
+                               """)
+    except PostgresError as e:
+        # Do not block app startup if migration fails in production;
+        # keep the API online and surface diagnostics in logs.
+        logger.exception("Failed to migrate matches unique constraint: %s", e)
     finally:
         await release_db_connection(pool, conn)
 
@@ -906,6 +964,92 @@ async def get_all_matches() -> list[Dict[str, Any]]:
         await release_db_connection(pool, conn)
 
 
+async def get_all_matches_unscoped() -> list[Dict[str, Any]]:
+    """
+    Fetch all matches across all events.
+
+    Intended for admin/read-only schedule table views where event-scoped
+    filtering can hide newly inserted rows that use a different event_key.
+    """
+    pool, conn = await get_db_connection(DB_NAME)
+    try:
+        rows = await conn.fetch("""
+                                SELECT key,
+                                       event_key,
+                                       match_type,
+                                       match_number,
+                                       set_number,
+                                       scheduled_time,
+                                       actual_time,
+                                       red1,
+                                       red2,
+                                       red3,
+                                       blue1,
+                                       blue2,
+                                       blue3,
+                                       red1_scouter,
+                                       red2_scouter,
+                                       red3_scouter,
+                                       blue1_scouter,
+                                       blue2_scouter,
+                                       blue3_scouter,
+                                       COALESCE(NULLIF(btrim(m.red1_scouter_name), ''), NULLIF(btrim(ru1.name), ''), NULLIF(btrim(m.red1_scouter), ''))  AS red1_scouter_name,
+                                       COALESCE(NULLIF(btrim(m.red2_scouter_name), ''), NULLIF(btrim(ru2.name), ''), NULLIF(btrim(m.red2_scouter), ''))  AS red2_scouter_name,
+                                       COALESCE(NULLIF(btrim(m.red3_scouter_name), ''), NULLIF(btrim(ru3.name), ''), NULLIF(btrim(m.red3_scouter), ''))  AS red3_scouter_name,
+                                       COALESCE(NULLIF(btrim(m.blue1_scouter_name), ''), NULLIF(btrim(bu1.name), ''), NULLIF(btrim(m.blue1_scouter), '')) AS blue1_scouter_name,
+                                       COALESCE(NULLIF(btrim(m.blue2_scouter_name), ''), NULLIF(btrim(bu2.name), ''), NULLIF(btrim(m.blue2_scouter), '')) AS blue2_scouter_name,
+                                       COALESCE(NULLIF(btrim(m.blue3_scouter_name), ''), NULLIF(btrim(bu3.name), ''), NULLIF(btrim(m.blue3_scouter), '')) AS blue3_scouter_name
+                                FROM matches m
+                                         LEFT JOIN users ru1 ON lower(btrim(m.red1_scouter)) = lower(btrim(ru1.email))
+                                         LEFT JOIN users ru2 ON lower(btrim(m.red2_scouter)) = lower(btrim(ru2.email))
+                                         LEFT JOIN users ru3 ON lower(btrim(m.red3_scouter)) = lower(btrim(ru3.email))
+                                         LEFT JOIN users bu1 ON lower(btrim(m.blue1_scouter)) = lower(btrim(bu1.email))
+                                         LEFT JOIN users bu2 ON lower(btrim(m.blue2_scouter)) = lower(btrim(bu2.email))
+                                         LEFT JOIN users bu3 ON lower(btrim(m.blue3_scouter)) = lower(btrim(bu3.email))
+                                ORDER BY event_key, match_type, match_number, set_number
+                                """)
+
+        return [
+            {
+                "key": r["key"],
+                "event_key": r["event_key"],
+                "match_type": r["match_type"],
+                "match_number": r["match_number"],
+                "set_number": r["set_number"],
+                "scheduled_time": r["scheduled_time"],
+                "actual_time": r["actual_time"],
+                "red1": r["red1"],
+                "red2": r["red2"],
+                "red3": r["red3"],
+                "blue1": r["blue1"],
+                "blue2": r["blue2"],
+                "blue3": r["blue3"],
+                "red1_scouter": r["red1_scouter"],
+                "red2_scouter": r["red2_scouter"],
+                "red3_scouter": r["red3_scouter"],
+                "blue1_scouter": r["blue1_scouter"],
+                "blue2_scouter": r["blue2_scouter"],
+                "blue3_scouter": r["blue3_scouter"],
+                "red1_scouter_name": r["red1_scouter_name"],
+                "red2_scouter_name": r["red2_scouter_name"],
+                "red3_scouter_name": r["red3_scouter_name"],
+                "blue1_scouter_name": r["blue1_scouter_name"],
+                "blue2_scouter_name": r["blue2_scouter_name"],
+                "blue3_scouter_name": r["blue3_scouter_name"],
+            }
+            for r in rows
+        ]
+
+    except PostgresError as e:
+        logger.error("Failed to fetch unscoped matches: %s", e)
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to fetch matches"
+        )
+    finally:
+        await release_db_connection(pool, conn)
+
+
 async def get_match_scout_users() -> list[Dict[str, str]]:
     """
     Fetch all users who are allowed to do match scouting.
@@ -963,6 +1107,29 @@ class MatchUpdate(BaseModel):
     blue1_scouter: str | None = None
     blue2_scouter: str | None = None
     blue3_scouter: str | None = None
+
+
+class ScoutingScheduleUpsert(BaseModel):
+    key: str
+    original_key: str | None = None
+    event_key: str
+    match_type: enums.MatchType
+    match_number: int
+    set_number: int = 1
+    scheduled_time: datetime | None = None
+    actual_time: datetime | None = None
+    red1: int | None = None
+    red2: int | None = None
+    red3: int | None = None
+    blue1: int | None = None
+    blue2: int | None = None
+    blue3: int | None = None
+    red1_scouter_name: str | None = None
+    red2_scouter_name: str | None = None
+    red3_scouter_name: str | None = None
+    blue1_scouter_name: str | None = None
+    blue2_scouter_name: str | None = None
+    blue3_scouter_name: str | None = None
 
 
 async def update_matches_bulk(
@@ -1027,6 +1194,150 @@ async def update_matches_bulk(
             ],
         )
 
+    finally:
+        await release_db_connection(pool, conn)
+
+
+async def upsert_matches_schedule_bulk(
+        updates: list[ScoutingScheduleUpsert]
+) -> None:
+    if not updates:
+        return
+
+    pool, conn = await get_db_connection(DB_NAME)
+    try:
+        async with conn.transaction():
+            for u in updates:
+                updated = False
+                red1_name = u.red1_scouter_name.strip() if u.red1_scouter_name and u.red1_scouter_name.strip() else None
+                red2_name = u.red2_scouter_name.strip() if u.red2_scouter_name and u.red2_scouter_name.strip() else None
+                red3_name = u.red3_scouter_name.strip() if u.red3_scouter_name and u.red3_scouter_name.strip() else None
+                blue1_name = u.blue1_scouter_name.strip() if u.blue1_scouter_name and u.blue1_scouter_name.strip() else None
+                blue2_name = u.blue2_scouter_name.strip() if u.blue2_scouter_name and u.blue2_scouter_name.strip() else None
+                blue3_name = u.blue3_scouter_name.strip() if u.blue3_scouter_name and u.blue3_scouter_name.strip() else None
+
+                if u.original_key:
+                    result = await conn.execute(
+                        """
+                        UPDATE matches
+                        SET key            = $2,
+                            event_key      = $3,
+                            match_type     = $4,
+                            match_number   = $5,
+                            set_number     = $6,
+                            scheduled_time = $7,
+                            actual_time    = $8,
+                            red1           = $9,
+                            red2           = $10,
+                            red3           = $11,
+                            blue1          = $12,
+                            blue2          = $13,
+                            blue3          = $14,
+                            red1_scouter_name = $15,
+                            red2_scouter_name = $16,
+                            red3_scouter_name = $17,
+                            blue1_scouter_name = $18,
+                            blue2_scouter_name = $19,
+                            blue3_scouter_name = $20
+                        WHERE key = $1
+                        """,
+                        u.original_key,
+                        u.key,
+                        u.event_key,
+                        u.match_type.value,
+                        u.match_number,
+                        u.set_number,
+                        u.scheduled_time,
+                        u.actual_time,
+                        u.red1,
+                        u.red2,
+                        u.red3,
+                        u.blue1,
+                        u.blue2,
+                        u.blue3,
+                        red1_name,
+                        red2_name,
+                        red3_name,
+                        blue1_name,
+                        blue2_name,
+                        blue3_name,
+                    )
+                    updated = result != "UPDATE 0"
+
+                if not updated:
+                    await conn.execute(
+                        """
+                        INSERT INTO matches (key,
+                                             event_key,
+                                             match_type,
+                                             match_number,
+                                             set_number,
+                                             scheduled_time,
+                                             actual_time,
+                                             red1,
+                                             red2,
+                                             red3,
+                                             blue1,
+                                             blue2,
+                                             blue3,
+                                             red1_scouter_name,
+                                             red2_scouter_name,
+                                             red3_scouter_name,
+                                             blue1_scouter_name,
+                                             blue2_scouter_name,
+                                             blue3_scouter_name)
+                        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
+                        ON CONFLICT (key) DO UPDATE
+                            SET event_key      = EXCLUDED.event_key,
+                                match_type     = EXCLUDED.match_type,
+                                match_number   = EXCLUDED.match_number,
+                                set_number     = EXCLUDED.set_number,
+                                scheduled_time = EXCLUDED.scheduled_time,
+                                actual_time    = EXCLUDED.actual_time,
+                                red1           = EXCLUDED.red1,
+                                red2           = EXCLUDED.red2,
+                                red3           = EXCLUDED.red3,
+                                blue1          = EXCLUDED.blue1,
+                                blue2          = EXCLUDED.blue2,
+                                blue3          = EXCLUDED.blue3,
+                                red1_scouter_name = EXCLUDED.red1_scouter_name,
+                                red2_scouter_name = EXCLUDED.red2_scouter_name,
+                                red3_scouter_name = EXCLUDED.red3_scouter_name,
+                                blue1_scouter_name = EXCLUDED.blue1_scouter_name,
+                                blue2_scouter_name = EXCLUDED.blue2_scouter_name,
+                                blue3_scouter_name = EXCLUDED.blue3_scouter_name
+                        """,
+                        u.key,
+                        u.event_key,
+                        u.match_type.value,
+                        u.match_number,
+                        u.set_number,
+                        u.scheduled_time,
+                        u.actual_time,
+                        u.red1,
+                        u.red2,
+                        u.red3,
+                        u.blue1,
+                        u.blue2,
+                        u.blue3,
+                        red1_name,
+                        red2_name,
+                        red3_name,
+                        blue1_name,
+                        blue2_name,
+                        blue3_name,
+                    )
+    except UniqueViolationError:
+        raise HTTPException(
+            status_code=409,
+            detail="Schedule upsert failed due to a unique-key conflict. Ensure each row key is unique.",
+        )
+    except PostgresError as e:
+        logger.error("Failed to upsert scouting schedule rows: %s", e)
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to upsert scouting schedule rows",
+        )
     finally:
         await release_db_connection(pool, conn)
 
@@ -1468,7 +1779,15 @@ async def verify_uuid(x_uuid: str, required: Optional[str] = None) -> Dict[str, 
 async def get_user_by_email(email: str) -> Optional[dict]:
     pool, conn = await get_db_connection(DB_NAME)
     try:
-        row = await conn.fetchrow("SELECT * FROM users WHERE email = $1", email)
+        row = await conn.fetchrow(
+            """
+            SELECT *
+            FROM users
+            WHERE lower(btrim(email)) = lower(btrim($1))
+            LIMIT 1
+            """,
+            email,
+        )
         return dict(row) if row else None
     finally:
         await release_db_connection(pool, conn)

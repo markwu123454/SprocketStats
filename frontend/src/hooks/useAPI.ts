@@ -610,6 +610,161 @@ export function useAPI() {
         );
     };
 
+    // --- Endpoint: GET /matches/scouting-schedule ---
+    const getScoutingSchedule = async (): Promise<{
+        status: "ok"
+        data: {
+            current_event: string | null
+            matches: {
+                key: string
+                event_key: string
+                match_type: "qm" | "sf" | "f"
+                match_number: number
+                set_number: number
+                scheduled_time: string | null
+                actual_time: string | null
+                red1: number | null
+                red2: number | null
+                red3: number | null
+                blue1: number | null
+                blue2: number | null
+                blue3: number | null
+                red1_scouter: string | null
+                red2_scouter: string | null
+                red3_scouter: string | null
+                blue1_scouter: string | null
+                blue2_scouter: string | null
+                blue3_scouter: string | null
+                red1_scouter_name: string | null
+                red2_scouter_name: string | null
+                red3_scouter_name: string | null
+                blue1_scouter_name: string | null
+                blue2_scouter_name: string | null
+                blue3_scouter_name: string | null
+            }[]
+        }
+    } | {
+        status: "error"
+        detail: string
+    }> => {
+        try {
+            const res = await fetch(`${BASE_URL}/matches/scouting-schedule`, {
+                method: "GET",
+                headers: getAuthHeaders(),
+            });
+
+            const text = await res.text();
+            if (!res.ok) {
+                let detail = `Request failed (${res.status})`;
+                try {
+                    const parsed = JSON.parse(text);
+                    if (typeof parsed?.detail === "string") {
+                        detail = parsed.detail;
+                    } else if (text) {
+                        detail = text;
+                    }
+                } catch {
+                    if (text) detail = text;
+                }
+                return {status: "error", detail};
+            }
+
+            if (!text) {
+                return {status: "error", detail: "Empty response while loading scouting schedule"};
+            }
+
+            const parsed = JSON.parse(text) as {
+                current_event: string | null
+                matches: {
+                    key: string
+                    event_key: string
+                    match_type: "qm" | "sf" | "f"
+                    match_number: number
+                    set_number: number
+                    scheduled_time: string | null
+                    actual_time: string | null
+                    red1: number | null
+                    red2: number | null
+                    red3: number | null
+                    blue1: number | null
+                    blue2: number | null
+                    blue3: number | null
+                    red1_scouter: string | null
+                    red2_scouter: string | null
+                    red3_scouter: string | null
+                    blue1_scouter: string | null
+                    blue2_scouter: string | null
+                    blue3_scouter: string | null
+                    red1_scouter_name: string | null
+                    red2_scouter_name: string | null
+                    red3_scouter_name: string | null
+                    blue1_scouter_name: string | null
+                    blue2_scouter_name: string | null
+                    blue3_scouter_name: string | null
+                }[]
+            };
+
+            return {status: "ok", data: parsed};
+        } catch (err) {
+            console.error("getScoutingSchedule failed:", err);
+            return {status: "error", detail: "Network error while loading scouting schedule"};
+        }
+    };
+
+    // --- Endpoint: PUT /matches/scouting-schedule ---
+    const upsertScoutingSchedule = async (
+        matches: {
+            key: string
+            original_key?: string | null
+            event_key: string
+            match_type: "qm" | "sf" | "f"
+            match_number: number
+            set_number: number
+            scheduled_time: string | null
+            actual_time: string | null
+            red1: number | null
+            red2: number | null
+            red3: number | null
+            blue1: number | null
+            blue2: number | null
+            blue3: number | null
+            red1_scouter_name: string | null
+            red2_scouter_name: string | null
+            red3_scouter_name: string | null
+            blue1_scouter_name: string | null
+            blue2_scouter_name: string | null
+            blue3_scouter_name: string | null
+        }[]
+    ): Promise<{ status: "ok" } | { status: "error"; detail: string }> => {
+        try {
+            const res = await fetch(`${BASE_URL}/matches/scouting-schedule`, {
+                method: "PUT",
+                headers: getAuthHeaders(),
+                body: JSON.stringify({matches}),
+            });
+
+            if (res.ok) return {status: "ok"};
+
+            const text = await res.text();
+            let detail = `Request failed (${res.status})`;
+            try {
+                const parsed = JSON.parse(text);
+                if (typeof parsed?.detail === "string") {
+                    detail = parsed.detail;
+                } else if (text) {
+                    detail = text;
+                }
+            } catch {
+                if (text) detail = text;
+            }
+
+            return {status: "error", detail};
+        } catch (err) {
+            console.error("upsertScoutingSchedule failed:", err);
+            return {status: "error", detail: "Network error while saving schedule changes"};
+        }
+    };
+
 
     // --- Endpoint: POST /pit/{team}/submit ---
     const submitPitData = async (
@@ -957,6 +1112,8 @@ export function useAPI() {
         getLatency,
         getAllMatches,
         updateMatchSchedule,
+        getScoutingSchedule,
+        upsertScoutingSchedule,
         getFeatureFlags,
         getAllGuest,
         scoutingAction,

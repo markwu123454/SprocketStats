@@ -17,6 +17,7 @@ const MatchDataPostPage = lazy(() => import("@/pages/data/MatchDataPostPage.tsx"
 const MatchMonitorPage = lazy(() => import("@/pages/MatchMonitorPage.tsx"))
 const MatchScoutingPage = lazy(() => import("@/pages/MatchScoutingPage.tsx"))
 const MatchAssignmentPage = lazy(() => import("@/pages/MatchAssignmentPage.tsx"))
+const ScoutingSchedulePage = lazy(() => import("@/pages/ScoutingSchedulePage.tsx"))
 const NotFoundPage = lazy(() => import("@/pages/NotFoundPage.tsx"))
 const PingPage = lazy(() => import("@/pages/PingPage.tsx"))
 const PitScoutingPage = lazy(() => import("@/pages/PitScoutingPage.tsx"))
@@ -71,6 +72,7 @@ export default function App() {
                             } />
 
                             <Route path="/admin" element={<Outlet />}>
+                                <Route path="scouting-schedule" element={<ScoutingSchedulePage />} />
                                 <Route element={<AuthWrapper permission="admin" device="desktop" />}>
                                     <Route index element={<AdminPage />} />
                                     <Route path="monitor/*" element={<MatchMonitorPage />} />
