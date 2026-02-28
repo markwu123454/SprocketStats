@@ -289,7 +289,27 @@ async def upload_data(event_key):
 
     log.header("UPLOAD DATA")
 
-    if not ctx.calc_result or "result" not in ctx.calc_result:
+    result = None
+    if ctx.calc_result:
+        # Accept both legacy {"result": ...} and direct calculation payloads.
+        if isinstance(ctx.calc_result, dict) and "result" in ctx.calc_result:
+            result = ctx.calc_result["result"]
+        else:
+            result = ctx.calc_result
+
+    # Reject empty/invalid payloads and failed calculation responses.
+    if isinstance(result, dict) and result.get("success") is False:
+        result = None
+    elif isinstance(result, dict):
+        if not result or ("team" not in result and "match" not in result):
+            result = None
+    elif isinstance(result, list):
+        if len(result) == 0:
+            result = None
+    else:
+        result = None
+
+    if result is None:
         log.error("No calculator output found -- run calculation first")
         return {"success": False, "error": "No calculation results"}
 
@@ -307,10 +327,9 @@ async def upload_data(event_key):
         await conn.execute(
             "INSERT INTO processed_data (event_key, data) VALUES ($1, $2)",
             event_key,
-            json.dumps(ctx.calc_result["result"]),
+            result,
         )
 
-        result = ctx.calc_result["result"]
         record_count = len(result) if isinstance(result, (list, dict)) else 1
         log.stat("Records uploaded", record_count)
 
@@ -823,6 +842,8 @@ def handle(req: dict):
 
         case "run_calculation":
             ctx.calc_result = run_calculation(req.get("setting", {}))
+            if isinstance(ctx.calc_result, dict) and ctx.calc_result.get("success") is False:
+                return ctx.calc_result
             return {"success": True}
 
         case "verify_db":

@@ -366,6 +366,52 @@ async def _calculate_async(data, progress, log, get_settings):
                                  },
                              ],
                          },
+                         # shots
+                         "shots": [
+                             {"x1": 0.3729, "y1": 0.8427, "x2": 0.8009, "y2": 0.2270, "fuelShot": 14, "fuelScored": 0},
+                             {"x1": 0.4103, "y1": 0.2420, "x2": 0.8691, "y2": 0.6937, "fuelShot": 2, "fuelScored": 0},
+                             {"x1": 0.2456, "y1": 0.7284, "x2": 0.3946, "y2": 0.4864, "fuelShot": 31, "fuelScored": 0},
+                             {"x1": 0.8782, "y1": 0.8404, "x2": 0.6993, "y2": 0.5014, "fuelShot": 14, "fuelScored": 11},
+                             {"x1": 0.8900, "y1": 0.3611, "x2": 0.6957, "y2": 0.4951, "fuelShot": 14, "fuelScored": 17},
+                             {"x1": 0.4773, "y1": 0.2728, "x2": 0.9082, "y2": 0.2751, "fuelShot": 21, "fuelScored": 2},
+                             {"x1": 0.7994, "y1": 0.6480, "x2": 0.6918, "y2": 0.4982, "fuelShot": 4, "fuelScored": 0},
+                             {"x1": 0.7745, "y1": 0.8908, "x2": 0.6914, "y2": 0.5006, "fuelShot": 13, "fuelScored": 12},
+                             {"x1": 0.4367, "y1": 0.2783, "x2": 0.6303, "y2": 0.9145, "fuelShot": 26, "fuelScored": 0},
+                         ],
+
+                         # fuel
+                         "fuel": {
+                             "qm1": {
+                                 "auto": {"fuel": 3},
+                                 "transition": {"fuel": 1},
+                                 "phase_1": {"fuel": 8},
+                                 "phase_2": {"fuel": 5},
+                                 "endgame": {"fuel": 0},
+                                 "time_percentages": {"traversal": 22.5, "intake": 18.3, "shooting": 30.1, "score": 25.0, "climb": 4.1},
+                             },
+                             "qm2": {
+                                 "auto": {"fuel": 5},
+                                 "transition": {"fuel": 0},
+                                 "phase_1": {"fuel": 10},
+                                 "phase_2": {"fuel": 7},
+                                 "endgame": {"fuel": 2},
+                                 "time_percentages": {"traversal": 19.0, "intake": 20.5, "shooting": 28.7, "score": 27.3, "climb": 4.5},
+                             },
+                             "phase": {
+                                 "auto": {"fuel": {"n": 2, "mean": 4.0, "median": 4.0, "std_dev": 1.41, "min": 3, "max": 5, "q1": None, "q3": None, "iqr": None}},
+                                 "transition": {"fuel": {"n": 2, "mean": 0.5, "median": 0.5, "std_dev": 0.71, "min": 0, "max": 1, "q1": None, "q3": None, "iqr": None}},
+                                 "phase_1": {"fuel": {"n": 2, "mean": 9.0, "median": 9.0, "std_dev": 1.41, "min": 8, "max": 10, "q1": None, "q3": None, "iqr": None}},
+                                 "phase_2": {"fuel": {"n": 2, "mean": 6.0, "median": 6.0, "std_dev": 1.41, "min": 5, "max": 7, "q1": None, "q3": None, "iqr": None}},
+                                 "endgame": {"fuel": {"n": 2, "mean": 1.0, "median": 1.0, "std_dev": 1.41, "min": 0, "max": 2, "q1": None, "q3": None, "iqr": None}},
+                             },
+                             "time_percentages": {
+                                 "traversal": {"n": 2, "mean": 20.75, "median": 20.75, "std_dev": 2.47, "min": 19.0, "max": 22.5, "q1": None, "q3": None, "iqr": None},
+                                 "intake": {"n": 2, "mean": 19.4, "median": 19.4, "std_dev": 1.56, "min": 18.3, "max": 20.5, "q1": None, "q3": None, "iqr": None},
+                                 "shooting": {"n": 2, "mean": 29.4, "median": 29.4, "std_dev": 0.99, "min": 28.7, "max": 30.1, "q1": None, "q3": None, "iqr": None},
+                                 "score": {"n": 2, "mean": 26.15, "median": 26.15, "std_dev": 1.63, "min": 25.0, "max": 27.3, "q1": None, "q3": None, "iqr": None},
+                                 "climb": {"n": 2, "mean": 4.3, "median": 4.3, "std_dev": 0.28, "min": 4.1, "max": 4.5, "q1": None, "q3": None, "iqr": None},
+                             },
+                         },
                          }
                 }
             }

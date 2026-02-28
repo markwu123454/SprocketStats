@@ -125,13 +125,6 @@ class ScoreAction(BaseModel):
     subPhase: Optional[SubPhaseName]
 
 
-class PassAction(BaseModel):
-    type: Literal["passing"]
-    timestamp: int
-    phase: MatchPhase
-    subPhase: Optional[SubPhaseName]
-
-
 class ClimbAction(BaseModel):
     type: Literal["climb"]
     timestamp: int
@@ -141,22 +134,8 @@ class ClimbAction(BaseModel):
     subPhase: Optional[SubPhaseName]
 
 
-class DefenseAction(BaseModel):
-    type: Literal["defense"]
-    timestamp: int
-    phase: MatchPhase
-    subPhase: Optional[SubPhaseName]
-
-
 class TraversalAction(BaseModel):
-    type: Literal["traversal"]
-    timestamp: int
-    phase: MatchPhase
-    subPhase: Optional[SubPhaseName]
-
-
-class IdleAction(BaseModel):
-    type: Literal["idle"]
+    type: Literal["traversal", "passing", "idle", "defense"]
     timestamp: int
     phase: MatchPhase
     subPhase: Optional[SubPhaseName]
@@ -181,10 +160,7 @@ ScoutingAction = Annotated[
         StartingAction,
         ScoreAction,
         ClimbAction,
-        PassAction,
-        DefenseAction,
         TraversalAction,
-        IdleAction,
         IntakeAction,
         ShootingAction,
     ],
@@ -373,14 +349,14 @@ class Match(BaseModel):
 # ===========================================================================
 
 _TIMED_ACTION_TYPES = (
-    ScoreAction, ClimbAction, PassAction, DefenseAction,
-    TraversalAction, IdleAction, IntakeAction, ShootingAction,
+    ScoreAction, ClimbAction,
+    TraversalAction, IntakeAction, ShootingAction,
 )
 
 # Canonical state labels used in the time-percentage output
 _STATE_LABELS = [
-    "idle", "defense", "traversal", "intake",
-    "shooting", "score", "climb", "passing",
+    "traversal", "intake",
+    "shooting", "score", "climb",
 ]
 
 
@@ -397,11 +373,15 @@ def compute_time_percentages(actions: list[ScoutingAction]) -> dict[str, float]:
     Returns a dict mapping each state label to a percentage (0-100).
     All recognised states are always present in the output.
     """
+    # Map legacy action types to traversal for backwards compatibility
+    _TYPE_MAP = {"passing": "traversal", "idle": "traversal", "defense": "traversal"}
+
     # Collect only timestamped actions in order
     timed: list[tuple[int, str]] = []
     for action in actions:
         if isinstance(action, _TIMED_ACTION_TYPES):
-            timed.append((action.timestamp, action.type))
+            mapped_type = _TYPE_MAP.get(action.type, action.type)
+            timed.append((action.timestamp, mapped_type))
 
     # Sort by timestamp (should already be sorted, but be safe)
     timed.sort(key=lambda t: t[0])
@@ -646,6 +626,47 @@ def run_calculation(setting):
                         color = Logger.GREEN if pct >= 10 else Logger.RESET
                         state_parts.append(f"{state}={color}{pct:.1f}%{Logger.RESET}")
                     log.substep(f"{'':>6}  |  time: " + "  ".join(state_parts))
+
+    # -- Extract shot coordinates per team --------------------------------
+    with log.section("Extracting shot coordinates per team"):
+        team_shots: dict[int, list[dict]] = {}
+
+        for entry in downloaded_data.match_scouting:
+            if entry.event_key != event_key:
+                continue
+            team_num = int(entry.team)
+            actions = entry.data.actions
+
+            # Track last known position and pair ShootingAction → ScoreAction
+            last_x, last_y = 0.5, 0.5  # default center
+            shooting_origin = None
+
+            for action in actions:
+                if isinstance(action, StartingAction):
+                    last_x, last_y = action.x, action.y
+                elif isinstance(action, ShootingAction):
+                    shooting_origin = (last_x, last_y)
+                elif isinstance(action, ScoreAction):
+                    origin = shooting_origin if shooting_origin else (last_x, last_y)
+                    team_shots.setdefault(team_num, []).append({
+                        "x1": origin[0],
+                        "y1": origin[1],
+                        "x2": action.x,
+                        "y2": action.y,
+                        "fuelShot": 1,
+                        "fuelScored": action.score,
+                    })
+                    last_x, last_y = action.x, action.y
+                    shooting_origin = None
+
+        # Attach shots and fuel to per-team output
+        for team_num in calc_result["team"]:
+            calc_result["team"][team_num]["shots"] = team_shots.get(team_num, [])
+            team_str = str(team_num)
+            if team_str in team_fuel_output:
+                calc_result["team"][team_num]["fuel"] = team_fuel_output[team_str]
+
+        log.stat("Teams with shot data", len(team_shots))
 
     log.done()
     return calc_result

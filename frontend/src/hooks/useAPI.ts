@@ -57,7 +57,8 @@ async function apiRequest<T>(
             for (const [k, v] of Object.entries(options.query)) {
                 if (v !== undefined && v !== null) qs.append(k, String(v));
             }
-            url += `?${qs.toString()}`;
+            const queryString = qs.toString();
+            if (queryString) url += `?${queryString}`;
         }
 
         const res = await fetch(url, {

@@ -1,81 +1,76 @@
 import {useState, useEffect, useRef, useMemo, useCallback} from 'react'
+
 import {useNavigate} from "react-router-dom"
+
 import type {MatchScoutingData, MatchType, ScoutingStatus} from '@/types'
+
 import {useAPI} from '@/hooks/useAPI.ts'
 import {useAuth} from '@/hooks/useAuth.ts'
 import {useClientEnvironment} from "@/hooks/useClientEnvironment.ts"
 import {saveScoutingData, db, type ScoutingDataWithKey} from "@/db/db.ts"
-import useFeatureFlags from "@/hooks/useFeatureFlags.ts"
+import useFeatureFlags from "@/hooks/useFeatureFlags.ts";
+
 import {Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter} from "@/components/ui/dialog"
 import {Button} from '@/components/ui/button'
 import LoadButton from '@/components/ui/loadButton'
+
 import PrePhase from "@/components/seasons/2026/Pre.tsx"
 import AutoPhase from "@/components/seasons/2026/Auto.tsx"
 import TeleopPhase from "@/components/seasons/2026/Teleop.tsx"
 import PostMatch from "@/components/seasons/2026/Post.tsx"
 import {createDefaultScoutingData} from "@/components/seasons/2026/yearConfig.ts"
+
 import {getSetting} from "@/db/settingsDb.ts"
+
 import AVariant from "@/components/seasons/2026/ABtest/A.tsx"
 import BVariant from "@/components/seasons/2026/ABtest/B.tsx"
 
-// ─── Types ───────────────────────────────────────────────────────────────────
-
 type Phase = 'pre' | 'auto' | 'teleop' | 'combined' | 'post'
-type AbTestVariant = 'default' | 'a' | 'b'
-type SubmitStatus = 'idle' | 'loading' | 'success' | 'local' | 'error' | 'warning'
 
-// ─── Constants ───────────────────────────────────────────────────────────────
-
-const PHASE_ORDERS: Record<AbTestVariant, Phase[]> = {
-    default: ['pre', 'auto', 'teleop', 'post'],
-    a: ['pre', 'auto', 'teleop', 'post'],
-    b: ['pre', 'combined', 'post'],
-}
-
-// ─── Utilities ───────────────────────────────────────────────────────────────
-
+// ─── Utility: deep-merge saved data with current defaults ───
 function normalizeScoutingData<T extends object>(raw: T, defaults: T): T {
-    if (typeof raw !== "object" || raw === null) return structuredClone(defaults)
-    if (typeof defaults !== "object" || defaults === null) return structuredClone(raw)
+    if (typeof raw !== "object" || raw === null) return structuredClone(defaults);
+    if (typeof defaults !== "object" || defaults === null) return structuredClone(raw);
 
-    const result: any = Array.isArray(defaults) ? [] : {}
+    const result: any = Array.isArray(defaults) ? [] : {};
 
     for (const key in defaults) {
         if (Object.hasOwn(raw, key)) {
             if (typeof defaults[key] === "object" && defaults[key] !== null && !Array.isArray(defaults[key])) {
-                result[key] = normalizeScoutingData((raw as any)[key], (defaults as any)[key])
+                result[key] = normalizeScoutingData((raw as any)[key], (defaults as any)[key]);
             } else {
-                result[key] = (raw as any)[key]
+                result[key] = (raw as any)[key];
             }
         } else {
-            result[key] = structuredClone((defaults as any)[key])
+            result[key] = structuredClone((defaults as any)[key]);
         }
     }
 
     for (const key in raw) {
         if (!Object.hasOwn(defaults, key)) {
-            result[key] = structuredClone((raw as any)[key])
+            result[key] = structuredClone((raw as any)[key]);
         }
     }
 
-    return result
+    return result;
 }
 
-async function exitFullscreenIfNeeded() {
+const exitFullscreenIfNeeded = async () => {
     try {
         if (document.fullscreenElement) {
-            await document.exitFullscreen()
-            return
+            await document.exitFullscreen();
+            return;
         }
-        const docAny = document as any
+        const docAny = document as any;
         if (docAny.webkitFullscreenElement) {
-            await docAny.webkitExitFullscreen()
+            await docAny.webkitExitFullscreen();
         }
     } catch {
         // ignore
     }
-}
+};
 
+// ─── Build the upload payload consistently ───
 function buildUploadPayload(entry: ScoutingDataWithKey | MatchScoutingData, fallbackEmail: string) {
     const {match, match_type, teamNumber, alliance, scouter, ...rest} = entry as any
     return {
@@ -90,13 +85,8 @@ function buildUploadPayload(entry: ScoutingDataWithKey | MatchScoutingData, fall
     }
 }
 
-// ─── Hooks ───────────────────────────────────────────────────────────────────
-
-function useResumeDialog(
-    scouterEmail: string,
-    abTestVariant: AbTestVariant,
-    phaseOrder: Phase[],
-) {
+// ─── Custom hook: resume dialog logic ───
+function useResumeDialog(scouterEmail: string, abTestVariant: string, PHASE_ORDER: Phase[]) {
     const {isOnline, serverOnline} = useClientEnvironment()
     const {scoutingAction} = useAPI()
 
@@ -106,83 +96,85 @@ function useResumeDialog(
     const [resumeWarning, setResumeWarning] = useState<Record<number, boolean>>({})
 
     useEffect(() => {
-        ;(async () => {
+        (async () => {
             const entries: ScoutingDataWithKey[] = await db.scouting.toArray()
-            const active = entries.filter(e =>
-                (['pre', 'auto', 'teleop', 'combined', 'post'] as string[]).includes(e.status)
-            )
-            if (active.length > 0) {
-                setResumeList(active)
-                setShowResumeDialog(true)
+            const activeEntries = entries.filter(e =>
+                ['pre', 'auto', 'teleop', 'combined', 'post'].includes(e.status)
+            );
+            if (activeEntries.length > 0) {
+                setResumeList(activeEntries);
+                setShowResumeDialog(true);
             }
         })()
     }, [])
 
-    // Map auto/teleop → combined for variant b
-    const resolvePhase = useCallback((status: string): Phase => {
-        if (abTestVariant === "b" && (status === "auto" || status === "teleop")) {
-            return "combined"
-        }
-        return status as Phase
-    }, [abTestVariant])
-
     const discardEntry = useCallback(async (entry: ScoutingDataWithKey) => {
         try {
-            if (isOnline && serverOnline) {
+            if (isOnline && serverOnline)
                 await scoutingAction(entry.match!, entry.teamNumber!, entry.match_type, entry.alliance, "unclaim")
-            }
         } catch (err) {
-            console.warn("Failed to unclaim during discard:", err)
+            console.warn("Failed to unclaim during discard:", err);
         }
-        await db.scouting.delete(entry.key)
+        await db.scouting.delete(entry.key);
         setResumeList(r => {
-            const next = r.filter(e => e.key !== entry.key)
-            if (next.length === 0) setShowResumeDialog(false)
-            return next
-        })
+            const next = r.filter(e => e.key !== entry.key);
+            if (next.length === 0) setShowResumeDialog(false);
+            return next;
+        });
     }, [isOnline, serverOnline, scoutingAction])
 
     const resumeEntry = useCallback(async (
         entry: ScoutingDataWithKey,
         onSuccess: (data: MatchScoutingData, phaseIndex: number) => void,
     ) => {
-        if (resumeLock[entry.key]) return
+        if (resumeLock[entry.key]) return;
 
-        setResumeLock(prev => ({...prev, [entry.key]: true}))
-        setResumeWarning(prev => ({...prev, [entry.key]: false}))
+        setResumeLock(prev => ({...prev, [entry.key]: true}));
+        setResumeWarning(prev => ({...prev, [entry.key]: false}));
 
         try {
             if (isOnline && serverOnline) {
-                const claimed = await scoutingAction(
-                    entry.match!, entry.teamNumber!, entry.match_type, entry.alliance, "claim"
-                )
-                if (!claimed) {
-                    setResumeWarning(prev => ({...prev, [entry.key]: true}))
-                    setResumeLock(prev => ({...prev, [entry.key]: false}))
-                    return
+                const success = await scoutingAction(entry.match!, entry.teamNumber!, entry.match_type, entry.alliance, "claim")
+                if (!success) {
+                    setResumeWarning(prev => ({...prev, [entry.key]: true}));
+                    setResumeLock(prev => ({...prev, [entry.key]: false}));
+                    return;
                 }
-                const targetPhase = resolvePhase(entry.status)
+
+                // For variant b, map auto/teleop to combined for server status
+                let phaseToUpdate = entry.status as Phase;
+                if (abTestVariant === "b" && (entry.status === "auto" || entry.status === "teleop")) {
+                    phaseToUpdate = "combined";
+                }
+
                 await scoutingAction(
                     entry.match!, entry.teamNumber!, entry.match_type!, entry.alliance!,
-                    `set_${targetPhase}` as any,
-                )
+                    `set_${phaseToUpdate}` as any,
+                );
             }
 
             const restored = normalizeScoutingData(entry, {
                 ...createDefaultScoutingData(),
                 scouter: scouterEmail,
-            })
+            });
 
-            const targetPhase = resolvePhase(entry.status)
-            onSuccess(restored as MatchScoutingData, phaseOrder.indexOf(targetPhase))
-            setShowResumeDialog(false)
+            // For variant b, map auto/teleop to combined for phase index lookup
+            let targetPhase = entry.status as Phase;
+            if (abTestVariant === "b" && (entry.status === "auto" || entry.status === "teleop")) {
+                targetPhase = "combined";
+            }
+
+            onSuccess(restored as MatchScoutingData, PHASE_ORDER.indexOf(targetPhase));
+            setShowResumeDialog(false);
         } catch (err) {
-            console.warn("Failed to resume team:", err)
-            setResumeLock(prev => ({...prev, [entry.key]: false}))
+            console.warn("Failed to resume team:", err);
+            setResumeLock(prev => ({...prev, [entry.key]: false}));
         }
-    }, [isOnline, serverOnline, scoutingAction, resolvePhase, scouterEmail, phaseOrder, resumeLock])
+    }, [isOnline, serverOnline, scoutingAction, abTestVariant, scouterEmail, PHASE_ORDER, resumeLock])
 
-    const startNew = useCallback(() => setShowResumeDialog(false), [])
+    const startNew = useCallback(() => {
+        setShowResumeDialog(false);
+    }, [])
 
     return {
         showResumeDialog, setShowResumeDialog,
@@ -191,45 +183,51 @@ function useResumeDialog(
     }
 }
 
+// ─── Custom hook: autosave with stable interval ───
 function useAutosave(
     phase: Phase,
     phaseIndex: number,
     scoutingDataRef: React.RefObject<MatchScoutingData>,
-    phaseOrder: Phase[],
+    PHASE_ORDER: Phase[],
 ) {
     useEffect(() => {
-        if (phase === "pre") return
+        if (phase === "pre") return;
 
         const interval = setInterval(() => {
-            const data = scoutingDataRef.current
-            if (!data?.match || !data.match_type || data.teamNumber == null) return
+            const data = scoutingDataRef.current;
+            if (!data) return;
 
-            const status = phaseOrder[phaseIndex] as ScoutingStatus
-            const snapshot = structuredClone(data)
+            const {match, match_type, teamNumber} = data;
+            if (!match || !match_type || teamNumber == null) return;
+
+            const status = PHASE_ORDER[phaseIndex] as ScoutingStatus;
+            const snapshot = structuredClone ? structuredClone(data) : JSON.parse(JSON.stringify(data));
+
             saveScoutingData(snapshot, status).catch(err => {
-                console.error("Autosave failed:", err)
-            })
-        }, 3000)
+                console.error("Autosave failed:", err);
+            });
+        }, 3000);
 
-        return () => clearInterval(interval)
-    }, [phase, phaseIndex, phaseOrder])
-    // scoutingDataRef is stable — intentionally excluded from deps
+        return () => clearInterval(interval);
+    }, [phase, phaseIndex, PHASE_ORDER]);
+    // scoutingDataRef is stable — no need in deps
 }
 
+// ─── Custom hook: unclaim on page hide/unload ───
 function useUnclaimOnExit(
     scoutingDataRef: React.RefObject<MatchScoutingData>,
-    submitStatusRef: React.RefObject<SubmitStatus>,
+    submitStatusRef: React.RefObject<string>,
     isOnline: boolean,
     serverOnline: boolean,
     unclaimTeamBeacon: (match: number, team: number, match_type: MatchType, email: string) => void,
     scouterEmail: string,
 ) {
-    const didUnclaimRef = useRef(false)
+    const didUnclaimRef = useRef(false);
     const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-    // Reset flag when the scouted entity changes
+    // Reset the flag when key data changes
     useEffect(() => {
-        didUnclaimRef.current = false
+        didUnclaimRef.current = false;
     }, [
         scoutingDataRef.current?.match,
         scoutingDataRef.current?.match_type,
@@ -238,36 +236,47 @@ function useUnclaimOnExit(
 
     useEffect(() => {
         const tryUnclaim = () => {
-            if (didUnclaimRef.current) return
-            const data = scoutingDataRef.current
-            if (!data?.match || !data.match_type || !data.teamNumber) return
-            if (submitStatusRef.current === "success" || submitStatusRef.current === "local") return
-            if (!isOnline || !serverOnline) return
+            if (didUnclaimRef.current) return;
 
-            didUnclaimRef.current = true
-            unclaimTeamBeacon(data.match, data.teamNumber, data.match_type, scouterEmail)
-        }
+            const data = scoutingDataRef.current;
+            if (!data) return;
+
+            const {match, match_type, teamNumber} = data;
+            if (!match || !match_type || !teamNumber) return;
+
+            const status = submitStatusRef.current;
+            if (status === "success" || status === "local") return;
+            if (!isOnline || !serverOnline) return;
+
+            didUnclaimRef.current = true;
+            unclaimTeamBeacon(match, teamNumber, match_type, scouterEmail);
+        };
 
         const onVisibilityChange = () => {
             if (document.visibilityState === "hidden") {
-                timeoutRef.current = setTimeout(tryUnclaim, 30_000)
+                timeoutRef.current = setTimeout(tryUnclaim, 30000);
             } else {
-                if (timeoutRef.current) clearTimeout(timeoutRef.current)
+                if (timeoutRef.current) clearTimeout(timeoutRef.current);
             }
-        }
+        };
+        const onPageHide = () => tryUnclaim();
+        const onBeforeUnload = () => tryUnclaim();
 
-        document.addEventListener("visibilitychange", onVisibilityChange)
-        window.addEventListener("pagehide", tryUnclaim)
-        window.addEventListener("beforeunload", tryUnclaim)
+        document.addEventListener("visibilitychange", onVisibilityChange);
+        window.addEventListener("pagehide", onPageHide);
+        window.addEventListener("beforeunload", onBeforeUnload);
 
         return () => {
-            document.removeEventListener("visibilitychange", onVisibilityChange)
-            window.removeEventListener("pagehide", tryUnclaim)
-            window.removeEventListener("beforeunload", tryUnclaim)
-        }
-    }, [isOnline, serverOnline, scouterEmail, unclaimTeamBeacon])
+            document.removeEventListener("visibilitychange", onVisibilityChange);
+            window.removeEventListener("pagehide", onPageHide);
+            window.removeEventListener("beforeunload", onBeforeUnload);
+        };
+    }, [isOnline, serverOnline, scouterEmail, unclaimTeamBeacon]);
 }
 
+// ─── Custom hook: single background upload loop ───
+// This is the ONLY place that uploads completed entries to the server.
+// It runs on mount, on a 30s interval, and can be triggered manually.
 function useBackgroundSync(
     isOnline: boolean,
     serverOnline: boolean,
@@ -277,15 +286,23 @@ function useBackgroundSync(
     const isSyncingRef = useRef(false)
 
     const sync = useCallback(async () => {
-        if (!isOnline || !serverOnline || isSyncingRef.current) return
+        if (!isOnline || !serverOnline) return
+        // Prevent concurrent sync runs
+        if (isSyncingRef.current) return
         isSyncingRef.current = true
 
         try {
-            const completed = await db.scouting.where('status').equals('completed').toArray()
+            const completed = await db.scouting
+                .where('status')
+                .equals('completed')
+                .toArray()
+
             for (const entry of completed) {
                 try {
                     const {match, teamNumber, payload} = buildUploadPayload(entry, scouterEmail)
-                    if (await submitData(match, teamNumber, payload)) {
+                    const success = await submitData(match, teamNumber, payload)
+
+                    if (success) {
                         await db.scouting.delete(entry.key)
                     }
                 } catch (err) {
@@ -297,17 +314,26 @@ function useBackgroundSync(
         }
     }, [isOnline, serverOnline, submitData, scouterEmail])
 
+    // Run on mount, interval, and whenever connectivity changes
     useEffect(() => {
         sync()
         const interval = setInterval(sync, 30_000)
         return () => clearInterval(interval)
     }, [sync])
 
-    return {triggerSync: sync}
+    // Manual trigger: bump counter to kick off sync
+    const triggerSync = useCallback(() => {
+        // Fire-and-forget — sync guards itself against concurrency
+        sync()
+    }, [sync])
+
+    return {triggerSync}
 }
 
-// ─── Main Component ───────────────────────────────────────────────────────────
 
+// ═══════════════════════════════════════════════════════════════
+// Main component
+// ═══════════════════════════════════════════════════════════════
 export default function MatchScoutingPage() {
     const navigate = useNavigate()
     const {isOnline, serverOnline} = useClientEnvironment()
@@ -321,12 +347,12 @@ export default function MatchScoutingPage() {
         ...createDefaultScoutingData(),
         scouter: scouterEmail!,
     }))
-    const [submitStatus, setSubmitStatus] = useState<SubmitStatus>('idle')
+    const [submitStatus, setSubmitStatus] = useState<'idle' | 'loading' | 'success' | 'local' | 'error' | 'warning'>('idle')
     const [showConfirmDialog, setShowConfirmDialog] = useState(false)
     const [postCanSubmit, setPostCanSubmit] = useState(false)
-    const [abTestVariant, setAbTestVariant] = useState<AbTestVariant | null>(null)
+    const [abTestVariant, setAbTestVariant] = useState<"default" | "a" | "b">("default")
 
-    // ─── Stable refs ───
+    // ─── Stable refs for use in intervals/event listeners ───
     const scoutingDataRef = useRef(scoutingData)
     scoutingDataRef.current = scoutingData
 
@@ -334,126 +360,168 @@ export default function MatchScoutingPage() {
     submitStatusRef.current = submitStatus
 
     // ─── Derived ───
-    const phaseOrder = useMemo(() =>
-        PHASE_ORDERS[abTestVariant ?? 'default'],
-        [abTestVariant]
-    )
-    const phase = phaseOrder[phaseIndex]
+    // Both "default" (stable) and "a" use auto/teleop/post phases for tracking.
+    // Only "b" uses the combined phase.
+    const PHASE_ORDER: Phase[] = useMemo(() => {
+        return abTestVariant === "b"
+            ? ['pre', 'combined', 'post']
+            : ['pre', 'auto', 'teleop', 'post']
+    }, [abTestVariant])
+
+    const phase = PHASE_ORDER[phaseIndex]
+
+    // In "default" variant, AVariant takes full control during auto and teleop phases
     const variantAFullControl = abTestVariant === "default" && (phase === "auto" || phase === "teleop")
+
     const baseDisabled =
         scoutingData.match_type === null ||
         scoutingData.match === 0 ||
         scoutingData.alliance === null ||
         scoutingData.teamNumber === null
 
-    // ─── Load A/B test variant ───
-    useEffect(() => {
-        getSetting("match_ab_test").then(variant => {
-            setAbTestVariant((variant as AbTestVariant) || "default")
-        })
-    }, [])
-
-    // ─── setPhase — permanently stable, all reads via refs ───
-    // phaseOrder, scoutingData, and scoutingAction are accessed through refs so
-    // this callback never changes identity and never triggers re-renders in child
-    // components (e.g. AVariant) that receive it as a prop. This also means the
-    // "setPhase is not a function" error from B.tsx cannot occur: the function
-    // exists from the very first render and never becomes undefined.
-    const scoutingDataStableRef = useRef(scoutingData)
-    scoutingDataStableRef.current = scoutingData
-
-    const phaseOrderRef = useRef(phaseOrder)
-    phaseOrderRef.current = phaseOrder
-
-    const scoutingActionRef = useRef(scoutingAction)
-    scoutingActionRef.current = scoutingAction
-
-    const setPhase = useCallback(async (targetPhase: Phase) => {
-        const targetIndex = phaseOrderRef.current.indexOf(targetPhase)
-        if (targetIndex === -1) return
-        setPhaseIndex(targetIndex)
-
-        const {match, teamNumber, match_type, alliance} = scoutingDataStableRef.current
-        await scoutingActionRef.current(match!, teamNumber!, match_type!, alliance!, `set_${targetPhase}` as any)
-    }, [])
-    // Empty deps intentional — all dynamic values are read from refs above
-
-    // ─── Navigation ───
-    const handleNext = useCallback(async () => {
-        if (baseDisabled) return
-        const nextPhase = phaseOrderRef.current[phaseIndex + 1]
-        if (nextPhase) await setPhase(nextPhase)
-    }, [baseDisabled, phaseIndex, setPhase])
-
-    const handleBack = useCallback(async () => {
-        if (phase === 'pre') {
-            await exitFullscreenIfNeeded()
-            navigate("/")
-            return
-        }
-        const prevPhase = phaseOrderRef.current[phaseIndex - 1]
-        if (prevPhase) await setPhase(prevPhase)
-    }, [phase, phaseIndex, setPhase, navigate])
-
-    // ─── Reset ───
+    // ─── Reset helper ───
     const resetToNew = useCallback(() => {
-        setScoutingData(prev => ({
-            ...createDefaultScoutingData(),
-            match_type: prev.match_type,
-            match: (prev.match ?? 0) + 1,
-            alliance: null,
-            scouter: scouterEmail!,
-        }))
+        setScoutingData(prev => {
+            const defaults = createDefaultScoutingData()
+
+            return {
+                ...defaults,
+
+                // carry forward
+                match_type: prev.match_type,
+                match: (prev.match ?? 0) + 1,
+
+                // explicitly reset
+                alliance: null,
+
+                // always re-stamp scouter
+                scouter: scouterEmail!,
+            }
+        })
+
         setPhaseIndex(0)
         setPostCanSubmit(false)
     }, [scouterEmail])
 
-    // ─── Submit ───
+    // ─── Load A/B test variant ───
+    useEffect(() => {
+        (async () => {
+            const variant = await getSetting("match_ab_test")
+            setAbTestVariant(variant || "default")
+        })()
+    }, [])
+
+    // ─── Resume dialog hook ───
+    const resume = useResumeDialog(scouterEmail!, abTestVariant, PHASE_ORDER)
+
+    // ─── Background sync hook (single upload loop) ───
+    const {triggerSync} = useBackgroundSync(isOnline, serverOnline, submitData, scouterEmail!)
+
+    // ─── Autosave hook (reads from ref, stable interval) ───
+    useAutosave(phase, phaseIndex, scoutingDataRef, PHASE_ORDER)
+
+    // ─── Unclaim on exit hook ───
+    useUnclaimOnExit(
+        scoutingDataRef,
+        submitStatusRef,
+        isOnline,
+        serverOnline,
+        unclaimTeamBeacon,
+        scouterEmail!,
+    )
+
+    // ─── Submit logic (offline-first) ───
+    //
+    // 1. Save the FULL current data snapshot to IndexedDB as "completed"
+    // 2. Show success immediately (data is safe locally)
+    // 3. Kick off background sync to upload if online
+    //
     const executeSubmit = useCallback(async () => {
         if (baseDisabled) return
+
         setSubmitStatus("loading")
+
         try {
-            await saveScoutingData(structuredClone(scoutingData), "completed")
+            // FIX #1: Save the full data snapshot, not just a status update.
+            // This ensures no data is lost between the last autosave and submit.
+            const snapshot = structuredClone(scoutingData)
+            await saveScoutingData(snapshot, "completed")
+
+            // Offline-first: always show success since data is persisted locally.
             setSubmitStatus("success")
+
+            // FIX #2: Trigger the single background sync loop.
+            // No duplicate upload logic — useBackgroundSync handles everything.
             triggerSync()
+
             setTimeout(() => {
                 setSubmitStatus("idle")
                 resetToNew()
             }, 1000)
+
         } catch (err) {
             console.error("Local save failed:", err)
             setSubmitStatus("error")
         }
-    }, [baseDisabled, scoutingData, resetToNew])
-    // triggerSync added below after hook call
+    }, [baseDisabled, scoutingData, resetToNew, triggerSync])
 
     const handleSubmit = useCallback(() => {
         if (baseDisabled) return
-        if (featureFlags.confirmBeforeUpload || !postCanSubmit) {
+        if (featureFlags.confirmBeforeUpload) {
+            setShowConfirmDialog(true)
+            return
+        }
+        if (!postCanSubmit) {
+            // Even without confirmBeforeUpload, show the dialog with incomplete message
             setShowConfirmDialog(true)
             return
         }
         void executeSubmit()
     }, [baseDisabled, featureFlags.confirmBeforeUpload, postCanSubmit, executeSubmit])
 
-    // ─── Hooks ───
-    const resume = useResumeDialog(scouterEmail!, abTestVariant ?? 'default', phaseOrder)
-    const {triggerSync} = useBackgroundSync(isOnline, serverOnline, submitData, scouterEmail!)
+    const setPhase = useCallback(
+        async (targetPhase: Phase) => {
+            const targetIndex = PHASE_ORDER.indexOf(targetPhase)
+            if (targetIndex === -1) return
 
-    useAutosave(phase, phaseIndex, scoutingDataRef, phaseOrder)
-    useUnclaimOnExit(scoutingDataRef, submitStatusRef, isOnline, serverOnline, unclaimTeamBeacon, scouterEmail!)
+            setPhaseIndex(targetIndex)
 
-    // ─── Render ───
+            await scoutingAction(
+                scoutingData.match!,
+                scoutingData.teamNumber!,
+                scoutingData.match_type!,
+                scoutingData.alliance!,
+                `set_${targetPhase}` as any,
+            )
+        },
+        [PHASE_ORDER, scoutingAction, scoutingData],
+    )
 
-    // Don't render phase content until variant is resolved — prevents setPhase
-    // from being called with a stale phaseOrder during the async load.
-    if (abTestVariant === null) return null
+    const handleNext = useCallback(async () => {
+        if (baseDisabled) return
 
-    const phaseLabel = (() => {
-        if (phase === 'combined') return 'Auto + Teleop'
-        if (phase === 'post') return 'Post-Match'
-        return phase
-    })()
+        const nextPhase = PHASE_ORDER[phaseIndex + 1]
+
+        if (!nextPhase) return
+
+        await setPhase(nextPhase)
+    }, [baseDisabled, PHASE_ORDER, phaseIndex, setPhase])
+
+    const handleBack = useCallback(async () => {
+        const currentPhase = PHASE_ORDER[phaseIndex]
+
+        if (currentPhase === 'pre') {
+            await exitFullscreenIfNeeded()
+            navigate("/")
+            return
+        }
+
+        const prevPhase = PHASE_ORDER[phaseIndex - 1]
+        if (!prevPhase) return
+
+        await setPhase(prevPhase)
+    }, [PHASE_ORDER, phaseIndex, setPhase, navigate])
+
 
     return (
         <>
@@ -463,6 +531,7 @@ export default function MatchScoutingPage() {
                     <DialogHeader className="text-zinc-400">
                         <DialogTitle>{postCanSubmit ? 'Confirm Submission' : 'Data Incomplete'}</DialogTitle>
                     </DialogHeader>
+
                     <div className="text-sm text-zinc-400 space-y-2">
                         {postCanSubmit ? (
                             <>
@@ -478,12 +547,12 @@ export default function MatchScoutingPage() {
                                     Data incomplete — fill in everything first.
                                 </p>
                                 <p>
-                                    Please go back and make sure all required fields in the Post-Match
-                                    section are filled in before submitting.
+                                    Please go back and make sure all required fields in the Post-Match section are filled in before submitting.
                                 </p>
                             </>
                         )}
                     </div>
+
                     <DialogFooter>
                         <Button variant="secondary" onClick={() => setShowConfirmDialog(false)}>
                             {postCanSubmit ? 'Cancel' : 'Go Back'}
@@ -492,8 +561,8 @@ export default function MatchScoutingPage() {
                             <Button
                                 className="bg-green-600 hover:bg-green-700"
                                 onClick={() => {
-                                    setShowConfirmDialog(false)
-                                    void executeSubmit()
+                                    setShowConfirmDialog(false);
+                                    void executeSubmit();
                                 }}
                             >
                                 Confirm & Submit
@@ -509,6 +578,7 @@ export default function MatchScoutingPage() {
                     <DialogHeader className="text-zinc-400">
                         <DialogTitle>Resume Previous Sessions</DialogTitle>
                     </DialogHeader>
+
                     <div className="max-h-64 overflow-y-auto text-sm text-zinc-400 space-y-2">
                         {resume.resumeList.map(entry => (
                             <div
@@ -516,7 +586,7 @@ export default function MatchScoutingPage() {
                                 className="flex justify-between items-center bg-zinc-700/50 px-3 py-2 rounded-md"
                             >
                                 <div>
-                                    Match <strong>{entry.match}</strong> –{' '}
+                                    Match <strong>{entry.match}</strong> –
                                     Team <strong>{entry.teamNumber}</strong> ({entry.status})
                                 </div>
                                 <div className="flex gap-2">
@@ -551,6 +621,7 @@ export default function MatchScoutingPage() {
                             </div>
                         ))}
                     </div>
+
                     <DialogFooter>
                         <Button
                             variant="secondary"
@@ -566,10 +637,12 @@ export default function MatchScoutingPage() {
             </Dialog>
 
             {/* Main Layout */}
-            <div className="w-screen min-h-0 h-screen flex flex-col overflow-hidden bg-zinc-900 text-white touch-none select-none overscroll-none">
-                {/* Top Bar */}
+            <div
+                className="w-screen min-h-0 h-screen flex flex-col overflow-hidden bg-zinc-900 text-white touch-none select-none overscroll-none ">
+                {/* Top Bar — hidden when variant A has full control */}
                 {!variantAFullControl && (
-                    <div className="h-12 flex justify-between items-center px-4 bg-zinc-800 text-ml font-semibold shrink-0">
+                    <div
+                        className="h-12 flex justify-between items-center px-4 bg-zinc-800 text-ml font-semibold shrink-0">
                         <div>{scouterName}</div>
                         <div>
                             {scoutingData.teamNumber !== null
@@ -579,12 +652,15 @@ export default function MatchScoutingPage() {
                         <div>
                             Match #{scoutingData.match || '–'} ({scoutingData.alliance?.toUpperCase() || '–'})
                         </div>
-                        <div className="capitalize">{phaseLabel}</div>
+                        <div className="capitalize">
+                            {phase === 'combined' ? 'Auto + Teleop' : phase === 'post' ? 'Post-Match' : phase}
+                        </div>
                     </div>
                 )}
 
-                {/* Phase Content */}
-                <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain touch-auto scrollbar-dark">
+                {/* Phases */}
+                <div
+                    className={`flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain touch-auto scrollbar-dark ${variantAFullControl ? '' : ''}`}>
                     <div className={variantAFullControl ? "h-full" : "text-4xl h-full"}>
                         {phase === 'pre' && (
                             <PrePhase key="pre" data={scoutingData} setData={setScoutingData}/>
@@ -605,28 +681,18 @@ export default function MatchScoutingPage() {
                             />
                         )}
                         {abTestVariant === "b" && phase === 'combined' && (
-    <BVariant
-        key="combined"
-        data={scoutingData}
-        setData={setScoutingData}
-        handleSubmit={handleSubmit}
-        setPhase={setPhase}
-    />
-)}
+                            <BVariant key="combined" data={scoutingData} setData={setScoutingData} handleSubmit={handleSubmit} setPhase={setPhase}/>
+                        )}
                         {phase === 'post' && (
-                            <PostMatch
-                                key="post"
-                                data={scoutingData}
-                                setData={setScoutingData}
-                                setCanSubmit={setPostCanSubmit}
-                            />
+                            <PostMatch key="post" data={scoutingData} setData={setScoutingData} setCanSubmit={setPostCanSubmit}/>
                         )}
                     </div>
                 </div>
 
-                {/* Bottom Bar */}
+                {/* Bottom Bar — hidden when variant A has full control */}
                 {!variantAFullControl && (
-                    <div className="h-16 relative flex justify-between items-center px-4 bg-zinc-800 text-xl font-semibold shrink-0">
+                    <div
+                        className="h-16 relative flex justify-between items-center px-4 bg-zinc-800 text-xl font-semibold shrink-0">
                         <Button
                             onClick={handleBack}
                             disabled={submitStatus === 'loading'}
@@ -634,17 +700,22 @@ export default function MatchScoutingPage() {
                         >
                             {phaseIndex < 1 ? 'home' : 'back'}
                         </Button>
-                        <div className="absolute left-1/2 transform -translate-x-1/2 text-base text-zinc-400 pointer-events-none select-none">
+
+                        <div
+                            className="absolute left-1/2 transform -translate-x-1/2 text-base text-zinc-400 pointer-events-none select-none">
                             {isOnline && serverOnline ? "Online" : "Offline"}
                         </div>
+
                         <LoadButton
                             status={submitStatus === "local" ? "success" : submitStatus}
                             onClick={phase === 'post' ? handleSubmit : handleNext}
                             disabled={baseDisabled}
                             className={baseDisabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}
                             message={
-                                submitStatus === "success" ? "Submitted!"
-                                    : submitStatus === "local" ? "Saved Locally"
+                                submitStatus === "success"
+                                    ? "Submitted!"
+                                    : submitStatus === "local"
+                                        ? "Saved Locally"
                                         : undefined
                             }
                         >

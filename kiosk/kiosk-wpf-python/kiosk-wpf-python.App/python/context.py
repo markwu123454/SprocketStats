@@ -16,7 +16,7 @@ class Context:
         self.TBA_API_KEY = ""
         self.FRC_API_KEY = ""
         self.downloaded_data = {}
-        self.calc_result = {"result": {}}
+        self.calc_result = {}
         self.repl_globals = {}  # populated after init
 
         self.DATABASE_SCHEMA = {

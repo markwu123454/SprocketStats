@@ -7,6 +7,15 @@ export interface RankingData {
     [key: string]: any
 }
 
+export interface TeamShotData {
+    x1: number
+    y1: number
+    x2: number
+    y2: number
+    fuelShot: number
+    fuelScored: number
+}
+
 export interface TeamData {
     basic: TeamBasic
     ranking: TeamRanking
@@ -15,6 +24,8 @@ export interface TeamData {
     rp: Record<string, TeamRPMatchData>
     timeline: TeamTimelineRow[]
     breakdown: TeamBreakdownNode
+    shots?: TeamShotData[]
+    fuel?: Record<string, any>
 }
 
 export interface TeamBasic {
