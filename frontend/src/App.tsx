@@ -29,6 +29,7 @@ const CountdownPage = lazy(() => import("@/pages/CountdownPage.tsx"))
 const AttendancePage = lazy(() => import("@/pages/AttendancePage.tsx"))
 const MeetingSchedulePage = lazy(() => import("@/pages/MeetingSchedulePage.tsx"))
 const PrivacyPolicyPage = lazy(() => import("@/pages/PrivacyPolicyPage.tsx"))
+const ScoutingSchedulePage = lazy(() => import("@/pages/ScoutingSchedulePage.tsx"))
 
 // Shared fallback — swap this out for a spinner if you want
 const PageFallback = () => (
@@ -55,6 +56,8 @@ export default function App() {
                             <Route path="/countdown" element={<CountdownPage />} />
 
                             <Route path="/attendance" element={<AttendancePage />} />
+
+                            <Route path="/scouting/schedule" element={<ScoutingSchedulePage />} />
 
                             <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
 
