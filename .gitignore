@@ -29,3 +29,4 @@ Thumbs.db
 # --- Lock files (optional) ---
 frontend/package-lock.json
 /analysis/.env
+kiosk/kiosk-wpf-python/kiosk-wpf-python.App/.env
