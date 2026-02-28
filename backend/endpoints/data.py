@@ -1,7 +1,7 @@
 import asyncio
 import json
 from typing import Optional
-from fastapi import Depends, APIRouter
+from fastapi import Depends, APIRouter, HTTPException
 
 import enums, db, tba_db as tba, statbot_db as statbot
 
@@ -67,6 +67,11 @@ async def get_data_processed_admin(
 ):
     # Load data
     result = await db.get_processed_data(event_key)
+    if result is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No processed data found for event '{event_key or 'current_event'}'",
+        )
 
     full_perms = {
         "ranking": True,
@@ -90,6 +95,11 @@ async def get_data_processed_guest(
 ):
     # Load data
     result = await db.get_processed_data(event_key)
+    if result is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No processed data found for event '{event_key or 'current_event'}'",
+        )
 
     perms = guest["perms"]
     filtered = filter_processed_data(result, perms)

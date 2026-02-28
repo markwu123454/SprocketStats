@@ -681,7 +681,7 @@ export default function MatchScoutingPage() {
                             />
                         )}
                         {abTestVariant === "b" && phase === 'combined' && (
-                            <BVariant key="combined" data={scoutingData} setData={setScoutingData}/>
+                            <BVariant key="combined" data={scoutingData} setData={setScoutingData} handleSubmit={handleSubmit} setPhase={setPhase}/>
                         )}
                         {phase === 'post' && (
                             <PostMatch key="post" data={scoutingData} setData={setScoutingData} setCanSubmit={setPostCanSubmit}/>

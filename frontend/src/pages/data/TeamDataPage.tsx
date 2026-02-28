@@ -7,6 +7,7 @@ import MetricsBlock from "@/components/seasons/2026/TeamDataBlocks/Metrics.tsx"
 import RPCriteriaBlock from "@/components/seasons/2026/TeamDataBlocks/RP.tsx"
 import MatchHistoryBlock from "@/components/seasons/2026/TeamDataBlocks/MatchHistory.tsx"
 import ScoringTrendsBlock from "@/components/seasons/2026/TeamDataBlocks/Scoring.tsx"
+import HeatmapBlock from "@/components/seasons/2026/TeamDataBlocks/Heatmap.tsx"
 
 export default function TeamDataPage() {
     const {team} = useParams<{ team: string }>()
@@ -117,6 +118,9 @@ export default function TeamDataPage() {
                         </Block>
                         <Block title="Scoring & Trends">
                             <ScoringTrendsBlock data={data} permissions={permissions} />
+                        </Block>
+                        <Block title="Shot Heatmap">
+                            <HeatmapBlock data={data} />
                         </Block>
                     </div>
                 </div>

@@ -1,909 +1,1690 @@
-import React, {useEffect, useRef, useState} from "react"
-import type {MatchScoutingData} from "@/types"
+import React, {useCallback, useEffect, useRef, useState} from "react"
 import {getSettingSync} from "@/db/settingsDb"
-import RatingSlider from "@/components/ui/ratingSlider.tsx"
+import useFeatureFlags, {refreshFeatureFlags} from "@/hooks/useFeatureFlags.ts";
+import type {
+    Actions,
+    ScoreAction,
+    MatchPhase,
+    MatchScoutingData,
+    SubPhaseName
+} from "../yearConfig"
+import type {Phase} from "@/types";
 
-// ---------------------------------------------------------------------------
-// Action Types - Discriminated Union
-// ---------------------------------------------------------------------------
-export type Actions = ActionStart | ActionIntake | ActionShoot | ActionClimb
+type Alliance = "red" | "blue"
 
-export type ActionStart = {
-    type: 'starting'
-    x: number
-    y: number
-}
-
-export type ActionIntake = {
-    type: 'intake'
-    x1: number
-    y1: number
-    x2: number
-    y2: number
-    amount: number
-}
-
-export type ActionShoot = {
-    type: 'shooting'
-    x1: number
-    y1: number
-    x2: number
-    y2: number
-    shot: number
-    scoring: boolean
-    scored: number
-}
-
-export type ActionClimb = {
-    type: 'climb'
-    x: number
-    y: number
-    attempted: boolean
-    success: boolean
-    time: number
+interface SubPhaseConfig {
+    phase: SubPhaseName
+    duration: number
 }
 
 // ---------------------------------------------------------------------------
-// PulseButton — unchanged helper
+// Sub-phase sequence for teleop
 // ---------------------------------------------------------------------------
-function PulseButton({
-                         onClick,
-                         label,
-                         activeColor,
-                         className = "",
+const TELEOP_SEQUENCE: SubPhaseConfig[] = [
+    {phase: "transition", duration: 10000},
+    {phase: "shift_1", duration: 25000},
+    {phase: "shift_2", duration: 25000},
+    {phase: "shift_3", duration: 25000},
+    {phase: "shift_4", duration: 25000},
+    {phase: "endgame", duration: 30000},
+]
+
+// ---------------------------------------------------------------------------
+// Phase duration constants
+// ---------------------------------------------------------------------------
+const AUTO_DURATION = 20000
+const BETWEEN_DURATION = 4000
+const TELEOP_DURATION = TELEOP_SEQUENCE.reduce((s, c) => s + c.duration, 0)
+const TOTAL_MATCH_DURATION = AUTO_DURATION + BETWEEN_DURATION + TELEOP_DURATION
+
+// ---------------------------------------------------------------------------
+// Zone definitions (normalized 0..1 coordinates)
+// ---------------------------------------------------------------------------
+type Rect = { x1: number; y1: number; x2: number; y2: number }
+
+const ZONES = {
+    neutral: {x1: 0.322, y1: 0.020, x2: 0.674, y2: 0.978},
+    transitionLeft: {x1: 0.247, y1: 0.020, x2: 0.323, y2: 0.978},
+    transitionRight: {x1: 0.673, y1: 0.020, x2: 0.756, y2: 0.978},
+    shootingFull: {x1: 0.013, y1: 0.020, x2: 0.246, y2: 0.978},
+} as const
+
+// ---------------------------------------------------------------------------
+// Field button zones — padded 2×2 grid of visually square buttons
+// ---------------------------------------------------------------------------
+const _FB_PAD = 0.015
+const _FB_GAP_Y = 0.012
+const _FB_GAP_X = 0.0075
+const _FB_REGION = {x1: 0.35, y1: 0.020, x2: 0.987, y2: 0.978}
+const _FB_INNER_W = (_FB_REGION.x2 - _FB_REGION.x1) - _FB_PAD * 2
+const _FB_INNER_H = (_FB_REGION.y2 - _FB_REGION.y1) - _FB_PAD * 2
+const _FB_BTN_W_from_x = (_FB_INNER_W - _FB_GAP_X * 2) / 3
+// const _FB_BTN_H_from_x = _FB_BTN_W_from_x * 2
+const _FB_BTN_H_from_y = (_FB_INNER_H - _FB_GAP_Y) / 2
+const _FB_BTN_W_from_y = _FB_BTN_H_from_y / 2
+const _FB_BTN_W = Math.min(_FB_BTN_W_from_x, _FB_BTN_W_from_y)
+const _FB_BTN_H = _FB_BTN_W * 2
+const _FB_GRID_W = _FB_BTN_W * 3 + _FB_GAP_X * 2
+const _FB_GRID_H = _FB_BTN_H * 2 + _FB_GAP_Y
+const _FB_OX = _FB_REGION.x1 + (_FB_REGION.x2 - _FB_REGION.x1 - _FB_GRID_W) / 2
+const _FB_OY = _FB_REGION.y1 + (_FB_REGION.y2 - _FB_REGION.y1 - _FB_GRID_H) / 2
+
+const FIELD_BUTTONS = {
+    traversal: {
+        x1: _FB_OX,
+        y1: _FB_OY,
+        x2: _FB_OX + _FB_BTN_W,
+        y2: _FB_OY + _FB_BTN_H
+    } as Rect,
+    intake: {
+        x1: _FB_OX + _FB_BTN_W + _FB_GAP_X,
+        y1: _FB_OY,
+        x2: _FB_OX + _FB_BTN_W * 2 + _FB_GAP_X,
+        y2: _FB_OY + _FB_BTN_H
+    } as Rect,
+    passing: {
+        x1: _FB_OX + _FB_BTN_W * 2 + _FB_GAP_X * 2,
+        y1: _FB_OY,
+        x2: _FB_OX + _FB_BTN_W * 3 + _FB_GAP_X * 2,
+        y2: _FB_OY + _FB_BTN_H
+    } as Rect,
+    climb: {
+        x1: _FB_OX,
+        y1: _FB_OY + _FB_BTN_H + _FB_GAP_Y,
+        x2: _FB_OX + _FB_BTN_W,
+        y2: _FB_OY + _FB_BTN_H * 2 + _FB_GAP_Y
+    } as Rect,
+    defense: {
+        x1: _FB_OX + _FB_BTN_W + _FB_GAP_X,
+        y1: _FB_OY + _FB_BTN_H + _FB_GAP_Y,
+        x2: _FB_OX + _FB_BTN_W * 2 + _FB_GAP_X,
+        y2: _FB_OY + _FB_BTN_H * 2 + _FB_GAP_Y
+    } as Rect,
+    idle: {
+        x1: _FB_OX + _FB_BTN_W * 2 + _FB_GAP_X * 2,
+        y1: _FB_OY + _FB_BTN_H + _FB_GAP_Y,
+        x2: _FB_OX + _FB_BTN_W * 3 + _FB_GAP_X * 2,
+        y2: _FB_OY + _FB_BTN_H * 2 + _FB_GAP_Y
+    } as Rect,
+} as const
+
+
+// ---------------------------------------------------------------------------
+// Helper: Calculate phase info from match elapsed time
+// ---------------------------------------------------------------------------
+function getPhaseInfo(matchElapsed: number): {
+    phase: MatchPhase
+    phaseElapsed: number
+    phaseRemaining: number
+    subPhase: SubPhaseConfig | null
+    subPhaseElapsed: number
+    subPhaseTotal: number
+} {
+    if (matchElapsed < AUTO_DURATION) {
+        return {
+            phase: "auto",
+            phaseElapsed: matchElapsed,
+            phaseRemaining: AUTO_DURATION - matchElapsed,
+            subPhase: {phase: "auto", duration: AUTO_DURATION},
+            subPhaseElapsed: matchElapsed,
+            subPhaseTotal: AUTO_DURATION,
+        }
+    }
+
+    const betweenStart = AUTO_DURATION
+    const betweenEnd = betweenStart + BETWEEN_DURATION
+    if (matchElapsed < betweenEnd) {
+        const elapsed = matchElapsed - betweenStart
+        return {
+            phase: "between",
+            phaseElapsed: elapsed,
+            phaseRemaining: BETWEEN_DURATION - elapsed,
+            subPhase: null,
+            subPhaseElapsed: elapsed,
+            subPhaseTotal: BETWEEN_DURATION,
+        }
+    }
+
+    const teleopStart = betweenEnd
+    const teleopEnd = teleopStart + TELEOP_DURATION
+    if (matchElapsed < teleopEnd) {
+        const teleopElapsed = matchElapsed - teleopStart
+        let cumulative = 0
+        for (const sp of TELEOP_SEQUENCE) {
+            if (teleopElapsed < cumulative + sp.duration) {
+                const subElapsed = teleopElapsed - cumulative
+                return {
+                    phase: "teleop",
+                    phaseElapsed: teleopElapsed,
+                    phaseRemaining: TELEOP_DURATION - teleopElapsed,
+                    subPhase: sp,
+                    subPhaseElapsed: subElapsed,
+                    subPhaseTotal: sp.duration,
+                }
+            }
+            cumulative += sp.duration
+        }
+        const lastSp = TELEOP_SEQUENCE[TELEOP_SEQUENCE.length - 1]
+        return {
+            phase: "teleop",
+            phaseElapsed: teleopElapsed,
+            phaseRemaining: 0,
+            subPhase: lastSp,
+            subPhaseElapsed: lastSp.duration,
+            subPhaseTotal: lastSp.duration,
+        }
+    }
+
+    return {
+        phase: "post",
+        phaseElapsed: 0,
+        phaseRemaining: 0,
+        subPhase: null,
+        subPhaseElapsed: 0,
+        subPhaseTotal: 0,
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Header Strip
+// ---------------------------------------------------------------------------
+function HeaderStrip({
+                         phase,
+                         subPhase,
+                         subPhaseElapsed,
+                         subPhaseTotal,
+                         phaseRemaining,
+                         flashing,
+                         timerExpired,
+                         matchData,
+                         matchElapsed,
                      }: {
-    onClick: () => void
-    label: string | React.ReactNode
-    activeColor: string
-    className?: string
+    phase: MatchPhase
+    subPhase: SubPhaseConfig | null
+    subPhaseElapsed: number
+    subPhaseTotal: number
+    phaseRemaining: number
+    flashing: boolean
+    timerExpired?: boolean
+    matchData: {
+        alliance: string
+        teamNumber: number | null
+        match_type: string
+        match: number | null
+    }
+    matchElapsed: number
 }) {
-    const [pulsing, setPulsing] = useState(false)
+    const isRed = matchData.alliance === "red"
 
-    const handleClick = () => {
-        onClick()
-        setPulsing(true)
-        setTimeout(() => setPulsing(false), 150)
+    const progressPercent = phase === "prestart"
+        ? 0
+        : phase === "post"
+            ? 100
+            : Math.min(100, (matchElapsed / TOTAL_MATCH_DURATION) * 100)
+
+    const getPhaseColor = () => {
+        if (phase === "prestart") return "bg-zinc-700"
+        if (phase === "auto") return "bg-blue-700"
+        if (phase === "between") return "bg-yellow-700 animate-pulse"
+        if (phase === "teleop") {
+            if (timerExpired) return "bg-red-900"
+            if (subPhase?.phase === "endgame") return "bg-red-700"
+            return "bg-green-700"
+        }
+        if (phase === "post") return "bg-zinc-700"
+        return "bg-zinc-800"
     }
 
+    const getPhaseLabel = () => {
+        if (phase === "prestart") return "PRE-MATCH"
+        if (phase === "auto") return "AUTONOMOUS"
+        if (phase === "between") return "TRANSITION"
+        if (phase === "teleop") {
+            if (timerExpired) return "MATCH OVER — FINISH INPUTS"
+            if (!subPhase) return "TELEOP"
+            const labels: Record<SubPhaseName, string> = {
+                auto: "AUTO",
+                transition: "TELEOP — TRANSITION",
+                shift_1: "TELEOP — SHIFT 1",
+                shift_2: "TELEOP — SHIFT 2",
+                shift_3: "TELEOP — SHIFT 3",
+                shift_4: "TELEOP — SHIFT 4",
+                endgame: "TELEOP — ENDGAME",
+            }
+            return labels[subPhase.phase] ?? "TELEOP"
+        }
+        if (phase === "post") return "POST-MATCH"
+        return ""
+    }
+
+    const fmt = (ms: number) => {
+        const clamped = Math.max(0, ms)
+        const s = Math.floor(clamped / 1000)
+        const t = Math.floor((clamped % 1000) / 100)
+        return `${s}.${t}s`
+    }
+
+    const matchTypeLabel = (() => {
+        const t = matchData.match_type
+        if (t === "qualifying") return "Q"
+        if (t === "playoff") return "P"
+        if (t === "final") return "F"
+        if (t === "practice") return "Pr"
+        return t?.charAt(0)?.toUpperCase() ?? "?"
+    })()
+
+    const matchLabel = matchData.match != null
+        ? `${matchTypeLabel}${matchData.match}`
+        : matchTypeLabel
+
     return (
-        <button
-            onClick={handleClick}
-            className={`py-2 rounded text-sm transition-colors duration-75 ${className} ${
-                pulsing ? activeColor : "bg-zinc-800"
-            }`}
+        <div
+            className="w-full relative"
+            style={{
+                transition: "filter 0.15s ease-out",
+                filter: flashing ? "brightness(1.6)" : "brightness(1)",
+            }}
         >
-            {label}
-        </button>
+            {/* Identity row */}
+            <div
+                className={`flex items-center justify-between px-4 py-2 ${
+                    isRed ? "bg-red-800" : "bg-blue-800"
+                }`}
+            >
+                <div className="flex items-center gap-3">
+                    <span
+                        className="text-white font-black text-4xl tracking-tight font-mono leading-none"
+                    >
+                        {matchData.teamNumber ?? "???"}
+                    </span>
+                    <span
+                        className={`text-sm font-bold px-2 py-0.5 rounded ${
+                            isRed
+                                ? "bg-red-950/60 text-red-200"
+                                : "bg-blue-950/60 text-blue-200"
+                        }`}
+                    >
+                        {matchLabel}
+                    </span>
+                </div>
+                <span
+                    className={`text-lg font-extrabold uppercase tracking-wider ${
+                        isRed ? "text-red-200" : "text-blue-200"
+                    }`}
+                >
+                    {isRed ? "RED" : "BLUE"}
+                </span>
+            </div>
+
+            {/* Progress bar */}
+            <div className="h-1 w-full bg-zinc-900">
+                <div
+                    className={`h-full ${
+                        timerExpired
+                            ? "bg-red-400 animate-pulse"
+                            : isRed
+                                ? "bg-red-400"
+                                : "bg-blue-400"
+                    }`}
+                    style={{width: `${progressPercent}%`}}
+                />
+            </div>
+
+            {/* Phase / timer row */}
+            <div
+                className={`px-3 py-2 transition-colors duration-300 ${getPhaseColor()}`}
+            >
+                <div className="flex justify-between items-center">
+                    <span className="text-white font-bold text-lg">
+                        {getPhaseLabel()}
+                    </span>
+                    {phase !== "prestart" && phase !== "post" && (
+                        <div className="flex gap-4 items-center">
+                            {!timerExpired && (
+                                <span className="text-white font-mono text-base">
+                                    {fmt(subPhaseElapsed)} / {fmt(subPhaseTotal)}
+                                </span>
+                            )}
+                            <span
+                                className={`font-mono text-xl font-bold ${
+                                    timerExpired ? "text-red-300" : "text-white"
+                                }`}
+                            >
+                                {timerExpired ? "0.0s" : fmt(phaseRemaining)}
+                            </span>
+                        </div>
+                    )}
+                </div>
+            </div>
+        </div>
     )
 }
 
-// ---------------------------------------------------------------------------
-// Tiny SVG mini-map card for the history strip
-// ---------------------------------------------------------------------------
-function ActionMiniMap({action, flip}: { action: Actions; flip: boolean }) {
-    const vx = (v: number) => (flip ? 1 - v : v)
-    const vy = (v: number) => (flip ? 1 - v : v)
-
-    const W = 48, H = 24
-
-    if (action.type === "starting") {
-        const x = vx(action.x) * W
-        const y = vy(action.y) * H
-        return (
-            <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-full"
-                 style={{background: "#1f2937", transform: flip ? "rotate(180deg)" : "none"}}>
-                <circle cx={x} cy={y} r="2" fill="#d4d4d8"/>
-            </svg>
-        )
-    }
-
-    if (action.type === "climb") {
-        const x = vx(action.x) * W
-        const y = vy(action.y) * H
-        return (
-            <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-full"
-                 style={{background: "#1f2937", transform: flip ? "rotate(180deg)" : "none"}}>
-                <circle cx={x} cy={y} r="2" fill="#a855f7"/>
-            </svg>
-        )
-    }
-
-    if (action.type === "intake") {
-        const x1 = vx(action.x1) * W
-        const y1 = vy(action.y1) * H
-        const x2 = vx(action.x2) * W
-        const y2 = vy(action.y2) * H
-        return (
-            <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-full"
-                 style={{background: "#1f2937", transform: flip ? "rotate(180deg)" : "none"}}>
-                <line x1={x1} y1={y1} x2={x2} y2={y2} stroke="#000" strokeWidth="1.5" strokeLinecap="round"/>
-                <circle cx={x1} cy={y1} r="2" fill="#d4d4d8"/>
-                <circle cx={x2} cy={y2} r="2" fill="#d4d4d8"/>
-            </svg>
-        )
-    }
-
-    // shooting
-    const x1 = vx(action.x1) * W
-    const y1 = vy(action.y1) * H
-    const x2 = vx(action.x2) * W
-    const y2 = vy(action.y2) * H
-    return (
-        <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-full"
-             style={{background: "#1f2937", transform: flip ? "rotate(180deg)" : "none"}}>
-            <line x1={x1} y1={y1} x2={x2} y2={y2} stroke="#a3e635" strokeWidth="1.5" strokeLinecap="round"/>
-            <circle cx={x1} cy={y1} r="2" fill="#d4d4d8"/>
-            <circle cx={x2} cy={y2} r="1.5" fill="#facc15"/>
-        </svg>
-    )
-}
 
 // ---------------------------------------------------------------------------
 // Main component
 // ---------------------------------------------------------------------------
-export default function AutoPhase({
-                                      data,
-                                      setData,
-                                  }: {
+export default function MatchScouting({
+                                          data,
+                                          setData,
+                                          handleSubmit,
+                                          setPhase,
+                                      }: {
     data: MatchScoutingData
     setData: React.Dispatch<React.SetStateAction<MatchScoutingData>>
+    handleSubmit: () => void
+    setPhase: (targetPhase: Phase) => Promise<void>
 }) {
     const deviceType = getSettingSync("match_scouting_device_type") ?? "mobile"
+    const debug = getSettingSync("debug") === true
     const fieldRef = useRef<HTMLDivElement>(null)
-    const stripRef = useRef<HTMLDivElement>(null)
+    const sliderTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+
+    const holdStartTimeRef = useRef<number>(0)
+
+    const featureFlags = useFeatureFlags()
+
+    const alliance = (data.alliance || "red") as Alliance
+
+    // Debug overrides
+    const [debugAlliance, setDebugAlliance] = useState<Alliance>(alliance)
+    const [debugOrientation, setDebugOrientation] = useState<string>(
+        getSettingSync("field_orientation") ?? "0"
+    )
+
+    const effectiveAlliance = debug ? debugAlliance : alliance
+    const effectiveOrientation = debug ? debugOrientation : (getSettingSync("field_orientation") ?? 0)
+
+    // *** CENTRALIZED TIMING ***
+    const [matchStartTime, setMatchStartTime] = useState(0)
+    const [, forceUpdate] = useState(0)
+
+    // Manual post-match transition: match timer expired but user hasn't clicked "Go to Post Match" yet
+    const [manualPost, setManualPost] = useState(false)
+
+    // Flash state
+    const [flashing, setFlashing] = useState(false)
+    const flashTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+    const lastPhaseRef = useRef<MatchPhase>("prestart")
+    const lastSubPhaseRef = useRef<SubPhaseName | null>(null)
+
+    const isRedAlliance = effectiveAlliance === "red"
+    const fieldFlip = effectiveOrientation === "180"
+    const uiFlip = fieldFlip !== isRedAlliance
+    const flip = fieldFlip
+
+    useEffect(() => {
+        void refreshFeatureFlags()
+    }, []);
 
     // ---------------------------------------------------------------------------
-    // Core state — actions is the single source of truth.
-    // activeIndex always points to the action currently loaded in the editor.
-    // Climb is always the last action in the array.
+    // Read actions and startPosition directly from data
     // ---------------------------------------------------------------------------
-    const [actions, setActions] = useState<Actions[]>([
-        {type: "starting", x: 0.5, y: 0.5},
-        {type: "climb", x: 0.5, y: 0.5, attempted: false, success: false, time: 0},
-    ])
-    const [activeIndex, setActiveIndex] = useState(0)
+    const startPosition = data.startPosition // canonical (field) coords
 
-    // Derived from the active action
-    const active = actions[activeIndex] ?? {type: "starting", x: 0.5, y: 0.5}
+    // Helpers to write directly into data
+    const setActions = useCallback((updater: Actions[] | ((prev: Actions[]) => Actions[])) => {
+        setData(d => {
+            const newActions = typeof updater === "function" ? updater(d.actions) : updater
+            if (d.actions === newActions) return d
+            return {...d, actions: newActions}
+        })
+    }, [setData])
 
-    // ---------------------------------------------------------------------------
-    // Temporary editing state for number inputs
-    // ---------------------------------------------------------------------------
-    const [amountStack, setAmountStack] = useState<number[]>([])
-    const [shotStack, setShotStack] = useState<number[]>([])
-    const [scoredStack, setScoredStack] = useState<number[]>([])
+    const setStartPosition = useCallback((pos: { x: number; y: number } | null) => {
+        setData(d => {
+            if (JSON.stringify(d.startPosition) === JSON.stringify(pos)) return d
+            return {...d, startPosition: pos}
+        })
+    }, [setData])
 
-    // ---------------------------------------------------------------------------
-    // Field drag - for Starting phase, only allow single click (no drag)
-    // ---------------------------------------------------------------------------
+    // Screen-space start position (derived from canonical for display)
+    const startPosScreen = startPosition
+        ? {
+            x: flip ? 1 - startPosition.x : startPosition.x,
+            y: flip ? 1 - startPosition.y : startPosition.y,
+        }
+        : null
+
+    // Local UI state (transient, not scouting data)
+    const [currentZone, setCurrentZone] = useState<string | null>(null)
+    const currentZoneRef = useRef<string | null>(null)
+
+    // Score slider
+    const [shot, setShot] = useState(0)
+    const [scored, setScored] = useState(0)
+    const sliderRef = useRef<HTMLDivElement>(null)
+    const scoredSliderRef = useRef<HTMLDivElement>(null)
+    const [sliderActive, setSliderActive] = useState(false)
+    const [scoredSliderActive, setScoredSliderActive] = useState(false)
+    const [sliderY, setSliderY] = useState(0.5)
+    const [scoredSliderY, setScoredSliderY] = useState(0.5)
+    const sliderYRef = useRef(0.5)
+    const scoredSliderYRef = useRef(0.5)
+    const shotRafRaf = useRef<number | null>(null)
+    const scoredRafRef = useRef<number | null>(null)
+
+    // Field interaction
     const [dragging, setDragging] = useState(false)
 
-    const flip = (getSettingSync("field_orientation") === "180") !== (data.alliance === "red")
+    // Shooting zone
+    const [shootClickPos, setShootClickPos] = useState<{ x: number; y: number } | null>(null)
+    const [draggingShootRobot, setDraggingShootRobot] = useState(false)
 
-    function getFieldPos(e: React.PointerEvent) {
+    const [shotPendingReset, setShotPendingReset] = useState(false)
+    const [shotEditHint, setShotEditHint] = useState(false)
+
+    const REEF_CENTER = {x: 0.285, y: 0.500}
+
+    const mirrorRect = (r: Rect): Rect => ({
+        x1: 1 - r.x2,
+        y1: r.y1,
+        x2: 1 - r.x1,
+        y2: r.y2,
+    })
+
+    // *** DERIVE ALL TIMING FROM matchStartTime ***
+    const now = Date.now()
+    const matchElapsed = matchStartTime > 0 ? now - matchStartTime : 0
+    const rawPhaseInfo = matchStartTime > 0 ? getPhaseInfo(matchElapsed) : {
+        phase: "prestart" as MatchPhase,
+        phaseElapsed: 0,
+        phaseRemaining: 0,
+        subPhase: null,
+        subPhaseElapsed: 0,
+        subPhaseTotal: 0,
+    }
+
+    // If the raw timer says "post" but the user hasn't manually transitioned yet,
+    // keep the effective phase as "teleop" (endgame) so the field stays interactive.
+    const timerExpired = rawPhaseInfo.phase === "post" && !manualPost
+    const phaseInfo = timerExpired
+        ? {
+            phase: "teleop" as MatchPhase,
+            phaseElapsed: TELEOP_DURATION,
+            phaseRemaining: 0,
+            subPhase: TELEOP_SEQUENCE[TELEOP_SEQUENCE.length - 1],
+            subPhaseElapsed: TELEOP_SEQUENCE[TELEOP_SEQUENCE.length - 1].duration,
+            subPhaseTotal: TELEOP_SEQUENCE[TELEOP_SEQUENCE.length - 1].duration,
+        }
+        : manualPost
+            ? {
+                phase: "post" as MatchPhase,
+                phaseElapsed: 0,
+                phaseRemaining: 0,
+                subPhase: null,
+                subPhaseElapsed: 0,
+                subPhaseTotal: 0,
+            }
+            : rawPhaseInfo
+
+    const matchPhase = phaseInfo.phase
+    const subPhase = phaseInfo.subPhase
+    const subPhaseElapsed = phaseInfo.subPhaseElapsed
+    const subPhaseTotal = phaseInfo.subPhaseTotal
+    const phaseRemaining = phaseInfo.phaseRemaining
+
+    // ---------------------------------------------------------------------------
+    // Flash trigger
+    // ---------------------------------------------------------------------------
+    const triggerFlash = useCallback(() => {
+        if (flashTimeoutRef.current) clearTimeout(flashTimeoutRef.current)
+        setFlashing(true)
+        flashTimeoutRef.current = setTimeout(() => setFlashing(false), 350)
+    }, [])
+
+    useEffect(() => {
+        return () => {
+            if (flashTimeoutRef.current) clearTimeout(flashTimeoutRef.current)
+        }
+    }, [])
+
+    // ---------------------------------------------------------------------------
+    // Detect phase/subphase transitions and trigger flash
+    // ---------------------------------------------------------------------------
+    useEffect(() => {
+        if (matchPhase !== lastPhaseRef.current) {
+            if (lastPhaseRef.current !== "prestart") {
+                triggerFlash()
+            }
+            if (lastPhaseRef.current === "auto" && matchPhase === "between") {
+                void setPhase("teleop")
+            }
+            lastPhaseRef.current = matchPhase
+        }
+
+        const currentSubPhaseName = subPhase?.phase ?? null
+        if (currentSubPhaseName !== lastSubPhaseRef.current) {
+            if (lastSubPhaseRef.current !== null) {
+                triggerFlash()
+            }
+            lastSubPhaseRef.current = currentSubPhaseName
+        }
+    }, [matchPhase, subPhase])
+
+    // ---------------------------------------------------------------------------
+    // Flash when timer expires (transition to overtime)
+    // ---------------------------------------------------------------------------
+    const prevTimerExpiredRef = useRef(false)
+    useEffect(() => {
+        if (timerExpired && !prevTimerExpiredRef.current) {
+            triggerFlash()
+        }
+        prevTimerExpiredRef.current = timerExpired
+    }, [timerExpired, triggerFlash])
+
+    // ---------------------------------------------------------------------------
+    // Slider speed curve
+    // ---------------------------------------------------------------------------
+    const SLIDER_MAX_MS = 300
+    const SLIDER_MIN_MS = 30
+    const SLIDER_DEAD_ZONE = 0.05
+
+    const msFromMagnitude = (magnitude: number): number => {
+        const m = Math.min(1, Math.max(0, magnitude))
+        return SLIDER_MIN_MS * Math.pow(SLIDER_MAX_MS / SLIDER_MIN_MS, 1 - m)
+    }
+
+    // ---------------------------------------------------------------------------
+    // Score slider — rAF accumulator loop
+    // ---------------------------------------------------------------------------
+    useEffect(() => {
+        if (!sliderActive) {
+            if (shotRafRaf.current) {
+                cancelAnimationFrame(shotRafRaf.current)
+                shotRafRaf.current = null
+            }
+            return
+        }
+
+        const DEAD_ZONE = SLIDER_DEAD_ZONE
+        const elapsed = performance.now() - holdStartTimeRef.current
+        // Pre-load accumulator with held time, minus one tick's worth (already applied on pointerDown)
+        const y = sliderYRef.current
+        const initDisp = Math.abs(y - 0.5)
+        let accumulator = 0
+        if (initDisp > DEAD_ZONE) {
+            const mag = (initDisp - DEAD_ZONE) / (0.5 - DEAD_ZONE)
+            const msPerPoint = msFromMagnitude(mag)
+            accumulator = Math.max(0, elapsed - msPerPoint)
+        }
+        let lastTime = performance.now()
+
+        const loop = (now: number) => {
+            const dt = now - lastTime
+            lastTime = now
+
+            const y = sliderYRef.current
+            const displacement = y - 0.5
+
+            if (Math.abs(displacement) > DEAD_ZONE) {
+                const direction = displacement < 0 ? 1 : -1
+                const magnitude = (Math.abs(displacement) - DEAD_ZONE) / (0.5 - DEAD_ZONE)
+                const msPerPoint = msFromMagnitude(magnitude)
+
+                accumulator += dt
+
+                let ticks = 0
+                while (accumulator >= msPerPoint) {
+                    accumulator -= msPerPoint
+                    ticks += direction
+                }
+
+                if (ticks !== 0) {
+                    setScored(prevScored => {
+                        let newScored = prevScored + ticks
+                        if (newScored < 0) newScored = 0
+
+                        setShot(prevShot => {
+                            let newShot = prevShot + ticks
+                            if (newShot < newScored) newShot = newScored
+                            if (newShot < 0) newShot = 0
+                            return newShot
+                        })
+
+                        return newScored
+                    })
+                }
+            } else {
+                accumulator = 0
+            }
+
+            shotRafRaf.current = requestAnimationFrame(loop)
+        }
+
+        shotRafRaf.current = requestAnimationFrame(loop)
+
+        return () => {
+            if (shotRafRaf.current) {
+                cancelAnimationFrame(shotRafRaf.current)
+                shotRafRaf.current = null
+            }
+        }
+    }, [sliderActive])
+
+    // ---------------------------------------------------------------------------
+    // Scored slider — rAF accumulator loop (only when shotMadeSlider is enabled)
+    // ---------------------------------------------------------------------------
+    useEffect(() => {
+        if (!scoredSliderActive) {
+            if (scoredRafRef.current) {
+                cancelAnimationFrame(scoredRafRef.current)
+                scoredRafRef.current = null
+            }
+            return
+        }
+
+        const DEAD_ZONE = SLIDER_DEAD_ZONE
+        const elapsed = performance.now() - holdStartTimeRef.current
+        const y = scoredSliderYRef.current
+        const initDisp = Math.abs(y - 0.5)
+        let accumulator = 0
+        if (initDisp > DEAD_ZONE) {
+            const mag = (initDisp - DEAD_ZONE) / (0.5 - DEAD_ZONE)
+            const msPerPoint = msFromMagnitude(mag)
+            accumulator = Math.max(0, elapsed - msPerPoint)
+        }
+        let lastTime = performance.now()
+
+        const loop = (now: number) => {
+            const dt = now - lastTime
+            lastTime = now
+
+            const y = scoredSliderYRef.current
+            const displacement = y - 0.5
+
+            if (Math.abs(displacement) > DEAD_ZONE) {
+                const direction = displacement < 0 ? 1 : -1
+                const magnitude = (Math.abs(displacement) - DEAD_ZONE) / (0.5 - DEAD_ZONE)
+                const msPerPoint = msFromMagnitude(magnitude)
+
+                accumulator += dt
+
+                let ticks = 0
+                while (accumulator >= msPerPoint) {
+                    accumulator -= msPerPoint
+                    ticks += direction
+                }
+
+                if (ticks !== 0) {
+                    setShot(prevShot => {
+                        let newShot = prevShot + ticks
+                        const misses = prevShot - scored
+                        if (ticks < 0 && misses <= 0) {
+                            return prevShot
+                        }
+                        if (newShot < 0) newShot = 0
+                        if (newShot < scored) newShot = scored
+                        return newShot
+                    })
+                }
+            } else {
+                accumulator = 0
+            }
+
+            scoredRafRef.current = requestAnimationFrame(loop)
+        }
+
+        scoredRafRef.current = requestAnimationFrame(loop)
+
+        return () => {
+            if (scoredRafRef.current) {
+                cancelAnimationFrame(scoredRafRef.current)
+                scoredRafRef.current = null
+            }
+        }
+    }, [scoredSliderActive])
+
+    // ---------------------------------------------------------------------------
+    // Smooth timer (60 fps) — keep running during timerExpired overtime too
+    // ---------------------------------------------------------------------------
+    useEffect(() => {
+        if (matchPhase === "prestart" || (matchPhase === "post" && !timerExpired)) return
+        const id = setInterval(() => forceUpdate((n) => n + 1), 1000 / 60)
+        return () => clearInterval(id)
+    }, [matchPhase, timerExpired])
+
+    // ---------------------------------------------------------------------------
+    // Field pointer handlers
+    // ---------------------------------------------------------------------------
+    function getFieldPosScreen(e: React.PointerEvent) {
         if (!fieldRef.current) return {x: 0, y: 0}
         const rect = fieldRef.current.getBoundingClientRect()
+        const x = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width))
+        const y = Math.min(1, Math.max(0, (e.clientY - rect.top) / rect.height))
+        return {x, y}
+    }
+
+    function getFieldPos(e: React.PointerEvent) {
+        const screenPos = getFieldPosScreen(e)
+        let x = screenPos.x
+        let y = screenPos.y
+        if (flip) {
+            x = 1 - x
+            y = 1 - y
+        }
+        return {x, y}
+    }
+
+    // Helper: compute auto line X in screen space
+    function getAutoLineX(): number {
+        if (effectiveOrientation === "0") {
+            return isRedAlliance ? 0.77 : 0.23
+        } else {
+            return isRedAlliance ? 0.225 : 0.77
+        }
+    }
+
+    // Helper: convert screen coords to canonical (field) coords
+    function screenToCanonical(screenX: number, screenY: number) {
         return {
-            x: Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width)),
-            y: Math.min(1, Math.max(0, (e.clientY - rect.top) / rect.height)),
+            x: flip ? 1 - screenX : screenX,
+            y: flip ? 1 - screenY : screenY,
         }
     }
 
     function handlePointerDown(e: React.PointerEvent) {
-        const p = getFieldPos(e)
-        const current = actions[activeIndex]
-
-        if (current.type === 'starting') {
-            setActions(prev => {
-                const copy = [...prev]
-                copy[activeIndex] = {type: 'starting', x: p.x, y: p.y}
-                return copy
-            })
-        } else if (current.type === 'climb') {
-            setActions(prev => {
-                const copy = [...prev]
-                copy[activeIndex] = {...copy[activeIndex] as ActionClimb, x: p.x, y: p.y}
-                return copy
-            })
-        } else if (current.type === 'intake') {
-            setActions(prev => {
-                const copy = [...prev]
-                copy[activeIndex] = {...copy[activeIndex] as ActionIntake, x1: p.x, y1: p.y, x2: p.x, y2: p.y}
-                return copy
-            })
+        if (matchPhase === "prestart") {
+            const screenPos = getFieldPosScreen(e)
+            const autoLineX = getAutoLineX()
+            const canonical = screenToCanonical(autoLineX, screenPos.y)
+            setStartPosition(canonical)
             setDragging(true)
-        } else if (current.type === 'shooting') {
-            setActions(prev => {
-                const copy = [...prev]
-                copy[activeIndex] = {...copy[activeIndex] as ActionShoot, x1: p.x, y1: p.y, x2: p.x, y2: p.y}
-                return copy
-            })
-            setDragging(true)
+            return
+        }
+        if (matchPhase === "auto" || matchPhase === "between" || matchPhase === "teleop") {
+            const screenPos = getFieldPosScreen(e)
+            const zone = uiFlip ? mirrorRect(ZONES.shootingFull) : ZONES.shootingFull
+            if (
+                screenPos.x >= zone.x1 &&
+                screenPos.x <= zone.x2 &&
+                screenPos.y >= zone.y1 &&
+                screenPos.y <= zone.y2
+            ) {
+                if (shotPendingReset) {
+                    setShot(0)
+                    setScored(0)
+                    setShotPendingReset(false)
+                    setShotEditHint(false)
+                }
+                const pos = getFieldPos(e)
+                setShootClickPos({x: pos.x, y: pos.y})
+                // Only create a new shooting action if not already in shooting zone;
+                // otherwise just update position (robot drag start).
+                if (currentZoneRef.current !== "shooting") {
+                    handleZoneClick("shooting")
+                }
+                setDraggingShootRobot(true)
+                ;(e.target as HTMLElement).setPointerCapture?.(e.pointerId)
+                return
+            }
         }
     }
 
     function handlePointerMove(e: React.PointerEvent) {
-        if (!dragging) return
-        const p = getFieldPos(e)
-        const current = actions[activeIndex]
-
-        if (current.type === 'intake' || current.type === 'shooting') {
-            setActions(prev => {
-                const copy = [...prev]
-                copy[activeIndex] = {...copy[activeIndex] as ActionIntake | ActionShoot, x2: p.x, y2: p.y}
-                return copy
+        if (dragging && matchPhase === "prestart") {
+            const screenPos = getFieldPosScreen(e)
+            const autoLineX = getAutoLineX()
+            const canonical = screenToCanonical(autoLineX, screenPos.y)
+            setStartPosition(canonical)
+            return
+        }
+        if (draggingShootRobot) {
+            const screenPos = getFieldPosScreen(e)
+            const zone = uiFlip ? mirrorRect(ZONES.shootingFull) : ZONES.shootingFull
+            const clampedX = Math.min(zone.x2, Math.max(zone.x1, screenPos.x))
+            const clampedY = Math.min(zone.y2, Math.max(zone.y1, screenPos.y))
+            setShootClickPos({
+                x: flip ? 1 - clampedX : clampedX,
+                y: flip ? 1 - clampedY : clampedY,
             })
         }
     }
 
-    function handlePointerUp(e: React.PointerEvent) {
-        if (!dragging) return
-        const p = getFieldPos(e)
-        const current = actions[activeIndex]
-
-        if (current.type === 'intake' || current.type === 'shooting') {
-            setActions(prev => {
-                const copy = [...prev]
-                copy[activeIndex] = {...copy[activeIndex] as ActionIntake | ActionShoot, x2: p.x, y2: p.y}
-                return copy
-            })
-        }
+    function handlePointerUp() {
         setDragging(false)
+        setDraggingShootRobot(false)
     }
 
     // ---------------------------------------------------------------------------
-    // "Save" = commit current + append a fresh action before climb, move active to it
+    // Zone click handler — writes directly to data.actions via setData
     // ---------------------------------------------------------------------------
-    function handleSave() {
-    // After saving Starting or Climb, default to Shooting
-    const currentType = actions[activeIndex].type
-    const nextType = (currentType === "starting" || currentType === "climb")
-        ? "shooting"
-        : currentType // Keep same type for intake/shooting
+    const handleZoneClick = useCallback(
+        (zoneName: string, opts?: { skipIfSameZone?: boolean }) => {
+            const wasInZone = currentZoneRef.current === zoneName
 
-    let fresh: Actions
-    if (nextType === "shooting") {
-        fresh = { type: "shooting", x1: 0.5, y1: 0.5, x2: 0.5, y2: 0.5, shot: 0, scoring: true, scored: 0 }
-    } else if (nextType === "intake") {
-        fresh = { type: "intake", x1: 0.5, y1: 0.5, x2: 0.5, y2: 0.5, amount: 0 }
-    } else {
-        fresh = { type: "shooting", x1: 0.5, y1: 0.5, x2: 0.5, y2: 0.5, shot: 0, scoring: true, scored: 0 }
+            setCurrentZone(zoneName)
+            currentZoneRef.current = zoneName
+
+            // If we're already in this zone and the caller says to skip, don't create a new action.
+            // This is used for shooting (dragging robot) and climb (changing level/success).
+            if (wasInZone && opts?.skipIfSameZone) return
+
+            const now = Date.now()
+
+            if (zoneName === "climb") {
+                setActions((prev) => [...prev,
+                    {
+                        type: "climb" as const,
+                        timestamp: matchStartTime > 0 ? now - matchStartTime : 0,
+                        level: "L1",
+                        phase: matchPhase,
+                        subPhase: subPhase?.phase ?? null,
+                    }
+                ])
+            } else if (zoneName === "shooting") {
+                setActions((prev) => [
+                    ...prev,
+                    {
+                        type: "score" as const,
+                        x: shootClickPos?.x ?? 0,
+                        y: shootClickPos?.y ?? 0,
+                        score: 0,
+                        shot: 0,
+                        timestamp: matchStartTime > 0 ? now - matchStartTime : 0,
+                        phase: matchPhase,
+                        subPhase: subPhase?.phase ?? null,
+                    },
+                ])
+            } else {
+                const actionType = zoneName as "defense" | "traversal" | "idle" | "intake" | "passing" | "climb"
+                setActions((prev) => [
+                    ...prev,
+                    {
+                        type: actionType,
+                        timestamp: matchStartTime > 0 ? now - matchStartTime : 0,
+                        phase: matchPhase,
+                        subPhase: subPhase?.phase ?? null,
+                    } as Actions,
+                ])
+            }
+        },
+        [matchStartTime, matchPhase, subPhase, setActions],
+    )
+
+    // ---------------------------------------------------------------------------
+    // Start match — writes starting action directly to data
+    // ---------------------------------------------------------------------------
+    const handleStartMatch = () => {
+        const now = Date.now()
+        setMatchStartTime(now)
+        lastPhaseRef.current = "auto"
+        lastSubPhaseRef.current = "auto"
+        if (startPosition) {
+            setActions([{type: "starting", x: startPosition.x, y: startPosition.y}])
+        }
     }
 
-    setActions(prev => {
-        // Insert before the last item (climb)
-        const newActions = [...prev]
-        newActions.splice(prev.length - 1, 0, fresh)
-        return newActions
-    })
-    setActiveIndex(actions.length - 1) // new index is length - 1 (before climb)
-}
     // ---------------------------------------------------------------------------
-    // "Delete" = remove active shot, land on previous (but never delete Starting or Climb)
+    // Keep the last ScoreAction in sync when shot is edited during hint period
     // ---------------------------------------------------------------------------
-    function handleDelete() {
-        // Can't delete Starting (index 0) or Climb (last index)
-        if (activeIndex === 0 || activeIndex === actions.length - 1) return
-
-        setActions(prev => {
-            const next = prev.filter((_, i) => i !== activeIndex)
-            setActiveIndex(Math.max(0, activeIndex - 1))
-            return next
+    useEffect(() => {
+        if (!shotEditHint) return
+        setActions((prev) => {
+            const lastScoreIdx = (() => {
+                for (let i = prev.length - 1; i >= 0; i--) {
+                    if (prev[i].type === "score") return i
+                }
+                return -1
+            })()
+            if (lastScoreIdx === -1) return prev
+            const action = prev[lastScoreIdx] as ScoreAction
+            const newScore = featureFlags.shotMadeSlider ? scored : 0
+            if (action.shot === shot && action.score === newScore) return prev
+            const updated = [...prev]
+            updated[lastScoreIdx] = {...action, shot: shot, score: newScore}
+            return updated
         })
-    }
+    }, [shot, scored, shotEditHint, setActions, featureFlags.shotMadeSlider])
 
-    // ---------------------------------------------------------------------------
-    // Scroll the strip so the active card is visible whenever activeIndex changes
-    // ---------------------------------------------------------------------------
-    useEffect(() => {
-        if (!stripRef.current) return
-        const cards = stripRef.current.querySelectorAll("[data-shot-card]")
-        if (cards[activeIndex]) {
-            cards[activeIndex].scrollIntoView({behavior: "smooth", block: "nearest", inline: "center"})
-        }
-    }, [activeIndex, actions.length])
-
-    // ---------------------------------------------------------------------------
-    // Sync stacks to actions (moved from renderControls)
-    // ---------------------------------------------------------------------------
-    useEffect(() => {
-        if (active.type === 'intake' && amountStack.length > 0) {
-            setActions(prev => {
-                const copy = [...prev]
-                const current = copy[activeIndex] as ActionIntake
-                copy[activeIndex] = {
-                    ...current,
-                    amount: current.amount + amountStack.reduce((sum, v) => sum + v, 0)
-                }
-                return copy
-            })
-            setAmountStack([])
-        }
-    }, [amountStack])
-
-    useEffect(() => {
-        if (active.type === 'shooting' && shotStack.length > 0) {
-            setActions(prev => {
-                const copy = [...prev]
-                const current = copy[activeIndex] as ActionShoot
-                copy[activeIndex] = {
-                    ...current,
-                    shot: current.shot + shotStack.reduce((sum, v) => sum + v, 0)
-                }
-                return copy
-            })
-            setShotStack([])
-        }
-    }, [shotStack])
-
-    useEffect(() => {
-        if (active.type === 'shooting' && scoredStack.length > 0) {
-            setActions(prev => {
-                const copy = [...prev]
-                const current = copy[activeIndex] as ActionShoot
-                copy[activeIndex] = {
-                    ...current,
-                    scored: current.scored + scoredStack.reduce((sum, v) => sum + v, 0)
-                }
-                return copy
-            })
-            setScoredStack([])
-        }
-    }, [scoredStack])
-
-    // ---------------------------------------------------------------------------
-    // Sync to parent data
-    // ---------------------------------------------------------------------------
-    useEffect(() => {
-        setData(d => ({
-            ...d,
-            auto: {
-                ...d.auto,
-                shootLocation: actions as Actions[],
-            },
-        }))
-    }, [actions, setData])
-
-    // ---------------------------------------------------------------------------
     // View helpers
-    // ---------------------------------------------------------------------------
     const viewX = (v: number) => (flip ? 1 - v : v)
     const viewY = (v: number) => (flip ? 1 - v : v)
 
-    // Calculate angle for intake/shooting actions
-    const getAngle = () => {
-        const current = active
-        if (current.type !== 'intake' && current.type !== 'shooting') return 0
-        return Math.atan2(viewY(current.y2) - viewY(current.y1), (viewX(current.x2) - viewX(current.x1)) * 2) * (180 / Math.PI)
-    }
-    const angle = getAngle()
+    const showZones = matchPhase === "auto" || matchPhase === "between" || matchPhase === "teleop"
 
     // ---------------------------------------------------------------------------
-    // Input-phase tabs
+    // Whether climb button should be shown (auto or endgame subphase)
     // ---------------------------------------------------------------------------
-    const inputState = (active.type.charAt(0).toUpperCase() + active.type.slice(1)) as "Starting" | "Shooting" | "Intake" | "Climb"
-
-    // Per-tab enabled rules: Starting must be first and can only appear once,
-    // Intake/Shooting are not available until after Starting.
-    // Climb is only available on the last action.
-    const isTabDisabled = (phase: "Starting" | "Intake" | "Shooting" | "Climb") => {
-        if (phase === "Starting") return activeIndex !== 0  // only allowed on the very first action
-        if (phase === "Climb") return activeIndex !== actions.length - 1  // only allowed on the last action
-        return activeIndex === 0 || activeIndex === actions.length - 1  // Intake/Shooting blocked on first and last
-    }
+    const showClimb =
+        matchPhase === "auto" ||
+        (matchPhase === "teleop" && subPhase?.phase === "endgame") ||
+        timerExpired
 
     // ---------------------------------------------------------------------------
-    // Render field component (shared between layouts)
+    // Render: Field
     // ---------------------------------------------------------------------------
-    const renderField = () => {
-        const current = active
-
-        return (
-            <div
-                ref={fieldRef}
-                onPointerDown={handlePointerDown}
-                onPointerMove={handlePointerMove}
-                onPointerUp={handlePointerUp}
-                onPointerLeave={() => setDragging(false)}
-                className="relative w-full aspect-2/1 overflow-hidden touch-none"
+    const renderField = () => (
+        <div
+            ref={fieldRef}
+            onPointerDown={handlePointerDown}
+            onPointerMove={handlePointerMove}
+            onPointerUp={handlePointerUp}
+            onPointerLeave={() => {
+                setDragging(false);
+                setDraggingShootRobot(false)
+            }}
+            className="relative w-full aspect-2/1 rounded-xl overflow-hidden touch-none"
+        >
+            <img
+                src="/seasons/2026/field-lovat.png"
+                className="absolute inset-0 w-full h-full object-contain pointer-events-none"
+                alt="field"
                 style={{transform: flip ? "rotate(180deg)" : "none"}}
-            >
-                <img
-                    src="/seasons/2026/field-lovat.png"
-                    className="absolute inset-0 w-full h-full object-contain pointer-events-none"
-                    alt="field"
-                />
+            />
 
-                {/* SVG overlay for lines */}
-                <svg className="absolute inset-0 w-full h-full pointer-events-none">
-                    {/* Intake: black line connecting the two robot positions */}
-                    {current.type === "intake" && (
-                        <line
-                            x1={`${viewX(current.x1) * 100}%`} y1={`${viewY(current.y1) * 100}%`}
-                            x2={`${viewX(current.x2) * 100}%`} y2={`${viewY(current.y2) * 100}%`}
-                            stroke="#000" strokeWidth="3" strokeLinecap="round"
-                        />
-                    )}
-                </svg>
-
-                {/* Starting: robot square at (x,y) ONLY - no arrow, just position */}
-                {current.type === "starting" && (
-                    <div
-                        className="absolute"
-                        style={{
-                            width: "3.75%",
-                            height: "7.5%",
-                            left: `${viewX(current.x) * 100}%`,
-                            top: `${viewY(current.y) * 100}%`,
-                            transform: `translate(-50%, -50%)`,
-                        }}
-                    >
-                        <div className="absolute inset-0 bg-zinc-600/50 border-2 rounded-xs border-zinc-800"/>
-                    </div>
-                )}
-
-                {/* Climb: robot square at (x,y) ONLY - same as Starting */}
-                {current.type === "climb" && (
-                    <div
-                        className="absolute"
-                        style={{
-                            width: "3.75%",
-                            height: "7.5%",
-                            left: `${viewX(current.x) * 100}%`,
-                            top: `${viewY(current.y) * 100}%`,
-                            transform: `translate(-50%, -50%)`,
-                        }}
-                    >
-                        <div className="absolute inset-0 bg-purple-600/50 border-2 rounded-xs border-purple-800"/>
-                    </div>
-                )}
-
-                {/* Intake: robot square at start */}
-                {current.type === "intake" && (
-                    <div
-                        className="absolute"
-                        style={{
-                            width: "3.75%",
-                            height: "7.5%",
-                            left: `${viewX(current.x1) * 100}%`,
-                            top: `${viewY(current.y1) * 100}%`,
-                            transform: `translate(-50%, -50%) rotate(${angle}deg)`,
-                        }}
-                    >
-                        <div className="absolute inset-0 bg-zinc-600/50 border-2 rounded-xs border-zinc-800"/>
-                    </div>
-                )}
-
-                {/* Intake: robot square at end */}
-                {current.type === "intake" && (
-                    <div
-                        className="absolute"
-                        style={{
-                            width: "3.75%",
-                            height: "7.5%",
-                            left: `${viewX(current.x2) * 100}%`,
-                            top: `${viewY(current.y2) * 100}%`,
-                            transform: `translate(-50%, -50%) rotate(${angle}deg)`,
-                        }}
-                    >
-                        <div className="absolute inset-0 bg-zinc-600/50 border-2 rounded-xs border-zinc-800"/>
-                    </div>
-                )}
-
-                {/* Shooting: robot square at start */}
-                {current.type === "shooting" && (
-                    <div
-                        className="absolute"
-                        style={{
-                            width: "3.75%",
-                            height: "7.5%",
-                            left: `${viewX(current.x1) * 100}%`,
-                            top: `${viewY(current.y1) * 100}%`,
-                            transform: `translate(-50%, -50%) rotate(${angle}deg)`,
-                        }}
-                    >
-                        <div className="absolute inset-0 bg-zinc-600/50 border-2 rounded-xs border-zinc-800"/>
-                    </div>
-                )}
-
-                {/* Shooting: ball trail from robot to shot location */}
-                {current.type === "shooting" && (() => {
-                    const dx = viewX(current.x2) - viewX(current.x1)
-                    const dy = viewY(current.y2) - viewY(current.y1)
-                    const dist = Math.sqrt((dx * 2) ** 2 + dy ** 2)
-                    const ballDiameter = 0.0167 * 1.5
-                    const count = Math.max(0, Math.floor(dist / ballDiameter))
-                    const balls: React.ReactNode[] = []
-                    for (let i = 0; i < count; i++) {
-                        const t = 1 - (i * ballDiameter) / dist
-                        if (t <= 0) break
-                        balls.push(
-                            <div
-                                key={i}
-                                className="absolute rounded-full bg-yellow-400 border border-black/30"
+            {showZones && (
+                <>
+                    {/* Shooting zone */}
+                    {(() => {
+                        const zone = uiFlip ? mirrorRect(ZONES.shootingFull) : ZONES.shootingFull
+                        const left = zone.x1
+                        const top = zone.y1
+                        const width = zone.x2 - zone.x1
+                        const height = zone.y2 - zone.y1
+                        const isActive = currentZone === "shooting"
+                        return (
+                            <button
+                                onPointerDown={(e) => {
+                                    // Stop this from bubbling to the parent handlePointerDown
+                                    // so we don't get double handling. We handle everything here.
+                                    e.stopPropagation()
+                                    if (shotPendingReset) {
+                                        setShot(0)
+                                        setScored(0)
+                                        setShotPendingReset(false)
+                                        setShotEditHint(false)
+                                    }
+                                    if (!fieldRef.current) return
+                                    const rect = fieldRef.current.getBoundingClientRect()
+                                    let nx = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width))
+                                    let ny = Math.min(1, Math.max(0, (e.clientY - rect.top) / rect.height))
+                                    if (flip) {
+                                        nx = 1 - nx;
+                                        ny = 1 - ny
+                                    }
+                                    setShootClickPos({x: nx, y: ny})
+                                    handleZoneClick("shooting")
+                                    setDraggingShootRobot(true)
+                                    ;(e.target as HTMLElement).setPointerCapture?.(e.pointerId)
+                                }}
+                                className={`absolute rounded transition-all duration-200 border-2 ${isActive ? "bg-green-500/15 border-green-500" : "bg-transparent border-zinc-500"}`}
                                 style={{
-                                    width: "0.833%",
-                                    height: "1.67%",
-                                    left: `${(viewX(current.x1) + dx * t) * 100}%`,
-                                    top: `${(viewY(current.y1) + dy * t) * 100}%`,
-                                    transform: "translate(-50%, -50%)",
+                                    left: `${left * 100}%`,
+                                    top: `${top * 100}%`,
+                                    width: `${width * 100}%`,
+                                    height: `${height * 100}%`,
                                 }}
                             />
                         )
-                    }
-                    return balls
-                })()}
-            </div>
-        )
-    }
+                    })()}
 
-    // ---------------------------------------------------------------------------
-    // Render controls component - different for each action type
-    // ---------------------------------------------------------------------------
-    const renderControls = () => {
-        const current = active
+                    {/* Field Buttons — Traversal + Intake always visible, Climb during auto/endgame */}
+                    {(() => {
+                        // Full grid dimensions
+                        const _fullW = _FB_BTN_W * 3 + _FB_GAP_X * 2
+                        const _fullH = _FB_BTN_H * 2 + _FB_GAP_Y
+                        const _halfW = _fullW / 2
+                        const _halfGap = _FB_GAP_X
 
-        // Helper to update action in array
-        const updateAction = (updater: (action: Actions) => Actions) => {
-            setActions(prev => {
-                const copy = [...prev]
-                copy[activeIndex] = updater(copy[activeIndex])
-                return copy
-            })
-        }
+                        // Climb occupies 1/4 of the full height in traversal's column
+                        const _climbH = (_fullH - _FB_GAP_Y) * 0.25
+                        const _traversalH_climb = _fullH - _climbH - _FB_GAP_Y
 
-        // Calculate current totals including stacks
-        const currentAmount = current.type === 'intake' ? current.amount + amountStack.reduce((a, b) => a + b, 0) : 0
-        const currentShot = current.type === 'shooting' ? current.shot + shotStack.reduce((a, b) => a + b, 0) : 0
-        const currentScored = current.type === 'shooting' ? current.scored + scoredStack.reduce((a, b) => a + b, 0) : 0
+                        type BtnConfig = {
+                            key: string
+                            rect: Rect
+                            label: string
+                            borderColor: string
+                            bgActive: string
+                            bgIdle: string
+                            icon: React.ReactNode
+                        }
 
-        return (
-            <>
-                {/* Phase tabs */}
-                <div className="flex items-center gap-2">
-                    {(["Starting", "Intake", "Shooting", "Climb"] as const).map(phase => {
-                        const disabled = isTabDisabled(phase)
+                        const buttons: BtnConfig[] = showClimb
+                            ? [
+                                {
+                                    key: "traversal",
+                                    rect: {
+                                        x1: _FB_OX,
+                                        y1: _FB_OY,
+                                        x2: _FB_OX + _halfW - _halfGap / 2,
+                                        y2: _FB_OY + _traversalH_climb,
+                                    } as Rect,
+                                    label: "Traversal",
+                                    borderColor: "#a855f7",
+                                    bgActive: "rgba(168, 85, 247, 0.25)",
+                                    bgIdle: "rgba(39, 39, 42, 0.85)",
+                                    icon: (
+                                        <svg width="28" height="28" viewBox="0 0 24 24" fill="none"
+                                             stroke="currentColor" strokeWidth="2" strokeLinecap="round"
+                                             strokeLinejoin="round">
+                                            <path d="M5 12h14"/>
+                                            <path d="M12 5l7 7-7 7"/>
+                                        </svg>
+                                    ),
+                                },
+                                {
+                                    key: "climb",
+                                    rect: {
+                                        x1: _FB_OX,
+                                        y1: _FB_OY + _traversalH_climb + _FB_GAP_Y,
+                                        x2: _FB_OX + _halfW - _halfGap / 2,
+                                        y2: _FB_OY + _fullH,
+                                    } as Rect,
+                                    label: "Climb",
+                                    borderColor: "#fb923c",
+                                    bgActive: "rgba(251, 146, 60, 0.25)",
+                                    bgIdle: "rgba(39, 39, 42, 0.85)",
+                                    icon: (
+                                        <svg width="28" height="28" viewBox="0 0 24 24" fill="none"
+                                             stroke="currentColor" strokeWidth="2" strokeLinecap="round"
+                                             strokeLinejoin="round">
+                                            <path d="M12 17V3"/>
+                                            <path d="M7 8l5-5 5 5"/>
+                                            <path d="M4 21h16"/>
+                                        </svg>
+                                    ),
+                                },
+                                {
+                                    key: "intake",
+                                    rect: {
+                                        x1: _FB_OX + _halfW + _halfGap / 2,
+                                        y1: _FB_OY,
+                                        x2: _FB_OX + _fullW,
+                                        y2: _FB_OY + _fullH,
+                                    } as Rect,
+                                    label: "Intake",
+                                    borderColor: "#38bdf8",
+                                    bgActive: "rgba(56, 189, 248, 0.25)",
+                                    bgIdle: "rgba(39, 39, 42, 0.85)",
+                                    icon: (
+                                        <svg width="28" height="28" viewBox="0 0 24 24" fill="none"
+                                             stroke="currentColor" strokeWidth="2" strokeLinecap="round"
+                                             strokeLinejoin="round">
+                                            <path d="M12 2v20"/>
+                                            <path d="M17 7l-5-5-5 5"/>
+                                            <rect x="8" y="10" width="8" height="8" rx="1"/>
+                                        </svg>
+                                    ),
+                                },
+                            ]
+                            : [
+                                {
+                                    key: "traversal",
+                                    rect: {
+                                        x1: _FB_OX,
+                                        y1: _FB_OY,
+                                        x2: _FB_OX + _halfW - _halfGap / 2,
+                                        y2: _FB_OY + _fullH,
+                                    } as Rect,
+                                    label: "Traversal",
+                                    borderColor: "#a855f7",
+                                    bgActive: "rgba(168, 85, 247, 0.25)",
+                                    bgIdle: "rgba(39, 39, 42, 0.85)",
+                                    icon: (
+                                        <svg width="28" height="28" viewBox="0 0 24 24" fill="none"
+                                             stroke="currentColor" strokeWidth="2" strokeLinecap="round"
+                                             strokeLinejoin="round">
+                                            <path d="M5 12h14"/>
+                                            <path d="M12 5l7 7-7 7"/>
+                                        </svg>
+                                    ),
+                                },
+                                {
+                                    key: "intake",
+                                    rect: {
+                                        x1: _FB_OX + _halfW + _halfGap / 2,
+                                        y1: _FB_OY,
+                                        x2: _FB_OX + _fullW,
+                                        y2: _FB_OY + _fullH,
+                                    } as Rect,
+                                    label: "Intake",
+                                    borderColor: "#38bdf8",
+                                    bgActive: "rgba(56, 189, 248, 0.25)",
+                                    bgIdle: "rgba(39, 39, 42, 0.85)",
+                                    icon: (
+                                        <svg width="28" height="28" viewBox="0 0 24 24" fill="none"
+                                             stroke="currentColor" strokeWidth="2" strokeLinecap="round"
+                                             strokeLinejoin="round">
+                                            <path d="M12 2v20"/>
+                                            <path d="M17 7l-5-5-5 5"/>
+                                            <rect x="8" y="10" width="8" height="8" rx="1"/>
+                                        </svg>
+                                    ),
+                                },
+                            ]
+
+                        return buttons
+                    })().map(({key, rect, label, borderColor, bgActive, bgIdle, icon}) => {
+                        const displayed: Rect = uiFlip ? mirrorRect(rect) : rect
+                        const left = displayed.x1
+                        const top = displayed.y1
+                        const width = displayed.x2 - displayed.x1
+                        const height = displayed.y2 - displayed.y1
+                        const isActive = currentZone === key
                         return (
                             <button
-                                key={phase}
-                                disabled={disabled}
+                                key={key}
                                 onClick={() => {
-                                    const newType = phase.toLowerCase() as 'starting' | 'intake' | 'shooting' | 'climb'
-                                    setActions(prev => {
-                                        const copy = [...prev]
-
-                                        if (newType === 'starting') {
-                                            copy[activeIndex] = {type: 'starting', x: 0.5, y: 0.5}
-                                        } else if (newType === 'intake') {
-                                            copy[activeIndex] = {
-                                                type: 'intake',
-                                                x1: 0.5, y1: 0.5,
-                                                x2: 0.5, y2: 0.5,
-                                                amount: 0
-                                            }
-                                        } else if (newType === 'shooting') {
-                                            copy[activeIndex] = {
-                                                type: 'shooting',
-                                                x1: 0.5, y1: 0.5,
-                                                x2: 0.5, y2: 0.5,
-                                                shot: 0, scoring: true, scored: 0
-                                            }
-                                        } else if (newType === 'climb') {
-                                            copy[activeIndex] = {
-                                                type: 'climb',
-                                                x: 0.5, y: 0.5,
-                                                attempted: false, success: false, time: 0
-                                            }
-                                        }
-                                        return copy
-                                    })
+                                    console.log(`[FieldButton] ${label} clicked | zone: ${key} | phase: ${matchPhase} | subPhase: ${subPhase?.phase ?? "none"} | time: ${matchElapsed}ms`)
+                                    if (shot !== 0 && !shotPendingReset) {
+                                        const now = Date.now()
+                                        setActions((prev) => [
+                                            ...prev,
+                                            {
+                                                type: "score",
+                                                x: shootClickPos?.x ?? 0,
+                                                y: shootClickPos?.y ?? 0,
+                                                score: featureFlags.shotMadeSlider ? scored : 0,
+                                                shot: shot,
+                                                timestamp: matchStartTime > 0 ? now - matchStartTime : 0,
+                                                phase: matchPhase,
+                                                subPhase: subPhase?.phase ?? null,
+                                            },
+                                        ])
+                                        setShotEditHint(true)
+                                    }
+                                    setShotPendingReset(true)
+                                    setScored(0)
+                                    handleZoneClick(key)
                                 }}
-                                className={`text-white text-sm py-2 rounded-xl transition flex-1 ${
-                                    inputState === phase ? "bg-zinc-600"
-                                        : disabled ? "bg-zinc-900 opacity-40"
-                                            : "bg-zinc-800"
-                                }`}
+                                className="absolute rounded-xl transition-all duration-200 flex flex-col items-center justify-center gap-1"
+                                style={{
+                                    left: `${left * 100}%`,
+                                    top: `${top * 100}%`,
+                                    width: `${width * 100}%`,
+                                    height: `${height * 100}%`,
+                                    background: isActive ? bgActive : bgIdle,
+                                    border: `2px solid ${isActive ? borderColor : "rgba(63, 63, 70, 0.7)"}`,
+                                    boxShadow: isActive ? `0 0 12px ${borderColor}44, inset 0 0 20px ${borderColor}15` : "none",
+                                    backdropFilter: "blur(4px)",
+                                }}
                             >
-                                {phase}
+                                <span
+                                    className="transition-colors duration-200"
+                                    style={{color: isActive ? borderColor : "rgba(161, 161, 170, 0.9)"}}
+                                >
+                                    {icon}
+                                </span>
+                                <span
+                                    className="text-2xl font-semibold tracking-wide transition-colors duration-200"
+                                    style={{color: isActive ? borderColor : "rgba(212, 212, 216, 0.9)"}}
+                                >
+                                    {label}
+                                </span>
                             </button>
                         )
                     })}
+                </>
+            )}
+
+            {/* Starting position indicator — uses screen-space derived from canonical */}
+            {matchPhase === "prestart" && startPosScreen && (
+                <div
+                    className="absolute"
+                    style={{
+                        width: "3.75%",
+                        height: "7.5%",
+                        left: `${startPosScreen.x * 100}%`,
+                        top: `${startPosScreen.y * 100}%`,
+                        transform: "translate(-50%, -50%)",
+                    }}
+                >
+                    <div className="absolute inset-[6%] rounded-xs bg-zinc-600/50"/>
+                    <div
+                        className={`absolute inset-[-12%] rounded-xs border-6 ${effectiveAlliance === "red"
+                            ? "border-red-700"
+                            : "border-blue-700"
+                        }`}
+                    />
                 </div>
+            )}
 
-                {/* Starting: No controls */}
-                {current.type === "starting" && (
-                    <div className="text-zinc-500 text-center py-8 text-sm">
-                        Set starting position on field
-                    </div>
-                )}
-
-                {/* Intake: Fuel Picked Up only */}
-                {current.type === "intake" && (
-                    <div>
-                        <div className="grid grid-cols-4 gap-2">
-                            {[1, 2, 5, 10].map(v => (
-                                <PulseButton
-                                    key={v}
-                                    label={`+${v}`}
-                                    activeColor="bg-green-700"
-                                    onClick={() => setAmountStack(s => [...s, v])}
-                                />
-                            ))}
-                            <div className="grid grid-cols-2 gap-2 col-span-4">
-                                <PulseButton
-                                    label="UNDO"
-                                    activeColor="bg-red-800"
-                                    onClick={() => {
-                                        if (amountStack.length > 0) {
-                                            setAmountStack(s => s.slice(0, -1))
-                                        } else if (current.amount > 0) {
-                                            updateAction(a => ({...a as ActionIntake, amount: 0}))
-                                        }
-                                    }}
-                                />
-                                <p className="text-center text-sm font-bold py-2 bg-zinc-800 rounded">
-                                    Picked Up: {currentAmount}
-                                </p>
-                            </div>
-                        </div>
-                    </div>
-                )}
-
-                {/* Shooting: Fuel Shot + Fuel Scored */}
-                {current.type === "shooting" && (
-                    <div className="flex flex-col gap-3">
-                        {/* Fuel Shot */}
-                        <div>
-                            <div className="grid grid-cols-4 gap-2">
-                                {[1, 2, 5, 10].map(v => (
-                                    <PulseButton
-                                        key={v}
-                                        label={`+${v}`}
-                                        activeColor="bg-green-700"
-                                        onClick={() => setShotStack(s => [...s, v])}
-                                    />
-                                ))}
-                                <div className="grid grid-cols-2 gap-2 col-span-4">
-                                    <PulseButton
-                                        label="UNDO"
-                                        activeColor="bg-red-800"
-                                        onClick={() => {
-                                            if (shotStack.length > 0) {
-                                                setShotStack(s => s.slice(0, -1))
-                                            } else if (current.shot > 0) {
-                                                updateAction(a => ({...a as ActionShoot, shot: 0}))
-                                            }
-                                        }}
-                                    />
-                                    <p className="text-center text-sm font-bold py-2 bg-zinc-800 rounded">
-                                        Total Shot: {currentShot}
-                                    </p>
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Scoring toggle */}
-                        <button
-                            onClick={() => {
-                                updateAction(a => ({...a as ActionShoot, scoring: !current.scoring}))
-                            }}
-                            className={`text-white text-sm py-2 rounded-xl transition-colors ${
-                                current.scoring ? "bg-green-800" : "bg-red-800"
-                            }`}
-                        >
-                            Scoring?
-                        </button>
-
-                        {/* Fuel Scored */}
-                        <div>
-                            <div className="grid grid-cols-4 gap-2">
-                                {[1, 2, 5, 10].map(v => (
-                                    <PulseButton
-                                        key={v}
-                                        label={`+${v}`}
-                                        activeColor="bg-green-700"
-                                        onClick={() => setScoredStack(s => [...s, v])}
-                                    />
-                                ))}
-                                <div className="grid grid-cols-2 gap-2 col-span-4">
-                                    <PulseButton
-                                        label="UNDO"
-                                        activeColor="bg-red-800"
-                                        onClick={() => {
-                                            if (scoredStack.length > 0) {
-                                                setScoredStack(s => s.slice(0, -1))
-                                            } else if (current.scored > 0) {
-                                                updateAction(a => ({...a as ActionShoot, scored: 0}))
-                                            }
-                                        }}
-                                    />
-                                    <p className="text-center text-sm font-bold py-2 bg-zinc-800 rounded">
-                                        Scored: {currentScored}
-                                    </p>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                )}
-
-                {/* Climb: Attempted toggle, Success toggle, Speed slider */}
-                {current.type === "climb" && (
-                    <div className="flex flex-col gap-3">
-                        <button
-                            onClick={() => {
-                                updateAction(a => ({...a as ActionClimb, attempted: !current.attempted}))
-                            }}
-                            className={`text-white text-sm py-2 rounded-xl transition-colors ${
-                                current.attempted ? "bg-green-800" : "bg-red-800"
-                            }`}
-                        >
-                            Attempted?
-                        </button>
-
-                        <button
-                            onClick={() => {
-                                updateAction(a => ({...a as ActionClimb, success: !current.success}))
-                            }}
-                            className={`text-white text-sm py-2 rounded-xl transition-colors ${
-                                current.success ? "bg-green-800" : "bg-red-800"
-                            }`}
-                        >
-                            Success?
-                        </button>
-
-                        <RatingSlider
-                            value={current.time}
-                            onChange={v => updateAction(a => ({...a as ActionClimb, time: v}))}
-                            title={`Climb Time: ${(current.time * 10).toFixed(1)}s`}
-                            leftLabel="0s"
-                            rightLabel="10s+"
-                            step={0.01}
-                            invertColor={true}
-                        />
-                    </div>
-                )}
-            </>
-        )
-    }
-
-    // ---------------------------------------------------------------------------
-    // Render history strip (shared between layouts)
-    // ---------------------------------------------------------------------------
-    const renderHistoryStrip = () => (
-        <div
-            ref={stripRef}
-            className="flex gap-2 overflow-x-auto pb-1"
-            style={{
-                scrollSnapType: "x mandatory",
-                WebkitOverflowScrolling: "touch",
-                scrollbarWidth: "none",
-                msOverflowStyle: "none",
-            }}
-        >
-            {actions.map((action, i) => {
-                const isActive = i === activeIndex
-                return (
-                    <button
-                        key={i}
-                        data-shot-card=""
-                        onClick={() => setActiveIndex(i)}
-                        className={`
-                            shrink-0 w-24 rounded-lg overflow-hidden border-2 transition-colors duration-150
-                            ${isActive ? "border-lime-400" : "border-zinc-700"}
-                        `}
-                        style={{scrollSnapAlign: "start"}}
-                    >
-                        {/* Mini-map */}
-                        <div className="w-full aspect-2/1">
-                            <ActionMiniMap action={action} flip={flip}/>
-                        </div>
-                        {/* Label row — content depends on action type */}
+            {/* Shooting zone: yellow dot trail */}
+            {showZones && shootClickPos && (() => {
+                const reefCenter = effectiveAlliance === "red"
+                    ? {x: 1 - REEF_CENTER.x, y: REEF_CENTER.y}
+                    : REEF_CENTER
+                const sx = viewX(shootClickPos.x)
+                const sy = viewY(shootClickPos.y)
+                const cx = viewX(reefCenter.x)
+                const cy = viewY(reefCenter.y)
+                const dx = cx - sx
+                const dy = cy - sy
+                const dist = Math.sqrt((dx * 2) ** 2 + dy ** 2)
+                const ballDiameter = 0.0167 * 1.5
+                const count = Math.max(0, Math.floor(dist / ballDiameter))
+                const balls: React.ReactNode[] = []
+                const nonShootingActive = currentZone !== null && currentZone !== "shooting"
+                for (let i = 0; i < count; i++) {
+                    const t = 1 - (i * ballDiameter) / dist
+                    if (t <= 0) break
+                    balls.push(
                         <div
-                            className={`flex justify-between px-1.5 py-0.5 text-xs font-bold ${
-                                isActive ? "bg-zinc-700" : "bg-zinc-800"
+                            key={i}
+                            className={`absolute rounded-full pointer-events-none ${nonShootingActive
+                                ? "bg-zinc-600"
+                                : "bg-yellow-400 border border-black/30"
                             }`}
+                            style={{
+                                width: "0.833%",
+                                height: "1.67%",
+                                left: `${(sx + dx * t) * 100}%`,
+                                top: `${(sy + dy * t) * 100}%`,
+                                transform: "translate(-50%, -50%)",
+                                transition: "background-color 0.2s, border-color 0.2s",
+                            }}
+                        />
+                    )
+                }
+
+                const angle = Math.atan2(dy, dx * 2) * (180 / Math.PI)
+
+                return (
+                    <>
+                        {balls}
+                        <div
+                            className="absolute"
+                            style={{
+                                width: "3.75%",
+                                height: "7.5%",
+                                left: `${sx * 100}%`,
+                                top: `${sy * 100}%`,
+                                transform: `translate(-50%, -50%) rotate(${angle}deg)`,
+                                cursor: "grab",
+                                touchAction: "none",
+                            }}
                         >
-                            {action.type === "starting" ? (
-                                <span className="text-zinc-400 w-full text-center">Start</span>
-                            ) : action.type === "climb" ? (
-                                <span className="text-purple-400 w-full text-center">
-                                    {action.attempted ? (action.success ? "✓" : "✗") : "—"}
-                                </span>
-                            ) : action.type === "intake" ? (
-                                <span className="text-yellow-300">🔥 {action.amount}</span>
-                            ) : (
-                                <>
-                                    <span className="text-yellow-300">🔥 {action.shot}</span>
-                                    <span className="text-green-300">✓ {action.scored}</span>
-                                </>
-                            )}
+                            <div
+                                className={`absolute inset-[6%] rounded-xs border-2 ${draggingShootRobot
+                                    ? "bg-zinc-500/60 border-zinc-600"
+                                    : "bg-zinc-600/50 border-zinc-800"
+                                }`}
+                            />
+                            <div
+                                className={`absolute inset-[-12%] rounded-xs border-6 ${effectiveAlliance === "red"
+                                    ? "border-red-700"
+                                    : "border-blue-700"
+                                }`}
+                            />
                         </div>
-                    </button>
+                    </>
                 )
-            })}
+            })()}
         </div>
     )
 
     // ---------------------------------------------------------------------------
-    // Main render - conditional layout based on device type
+    // Render: Debug controls
+    // ---------------------------------------------------------------------------
+    const renderDebug = () => {
+        if (!debug) return null
+        return (
+            <div className="flex gap-2 px-2">
+                <button
+                    onClick={() => setDebugAlliance((a) => (a === "blue" ? "red" : "blue"))}
+                    className={`flex-1 h-10 rounded-lg text-sm font-bold border-2 ${
+                        effectiveAlliance === "red"
+                            ? "bg-red-700/30 border-red-500 text-red-300"
+                            : "bg-blue-700/30 border-blue-500 text-blue-300"
+                    }`}
+                >
+                    Alliance: {effectiveAlliance.toUpperCase()}
+                </button>
+                <button
+                    onClick={() => setDebugOrientation((o) => (o === "0" ? "180" : "0"))}
+                    className="flex-1 h-10 rounded-lg text-sm font-bold border-2 bg-zinc-800/60 border-zinc-500 text-zinc-300"
+                >
+                    Orientation: {effectiveOrientation}°
+                </button>
+            </div>
+        )
+    }
+
+    const renderControls = () => {
+        if (matchPhase === "prestart") {
+            return (
+                <div className="flex flex-col gap-4">
+                    <div className="text-zinc-500 text-center py-4 text-sm">
+                        Set starting position on field
+                    </div>
+                    <button
+                        onClick={handleStartMatch}
+                        disabled={!startPosition}
+                        className={`h-20 rounded-xl text-2xl font-bold transition-colors ${startPosition
+                            ? "bg-green-700 hover:bg-green-600"
+                            : "bg-zinc-800 opacity-40 cursor-not-allowed"
+                        }`}
+                    >
+                        {startPosition ? "START MATCH ▶" : "Set starting position first"}
+                    </button>
+                </div>
+            )
+        }
+
+        if (matchPhase === "post") {
+            return (
+                <div className="flex flex-col gap-4">
+                    <div className="text-zinc-400 text-center py-8">
+                        Match complete! Review and submit data.
+                    </div>
+                    <button
+                        onClick={() => {
+                            handleSubmit?.()
+                        }}
+                        className="h-16 bg-green-700 rounded-xl text-xl font-bold"
+                    >
+                        FINISH & SUBMIT →
+                    </button>
+                </div>
+            )
+        }
+
+        return (
+            <div className="flex flex-col gap-3 items-center h-full">
+                {featureFlags.shotMadeSlider ? (
+                    <div className="flex gap-4 items-center">
+                        <div className="text-green-400 text-2xl font-bold font-mono text-center">
+                            <span className="text-zinc-400 text-xs block">Made</span>
+                            {scored}
+                        </div>
+                        <div className="text-red-400 text-2xl font-bold font-mono text-center">
+                            <span className="text-zinc-400 text-xs block">Miss</span>
+                            {shot - scored}
+                        </div>
+                    </div>
+                ) : (
+                    <div className="text-white text-3xl font-bold font-mono">
+                        Shot: {shot}
+                    </div>
+                )}
+
+                <div className="text-xs text-center px-2 h-4">
+                    {shotEditHint ? (
+                        <span className="text-yellow-400">
+                    Editable until next shooting box tap
+                </span>
+                    ) : (
+                        <span className="text-zinc-600">
+                    Tap shooting zone to score
+                </span>
+                    )}
+                </div>
+
+                <div
+                    className={`relative flex ${featureFlags.shotMadeSlider ? "flex-row gap-3" : "flex-col"} items-center select-none flex-1 w-full ${featureFlags.shotMadeSlider ? "max-w-[20rem]" : "max-w-[16rem]"} transition-all duration-300 ${!shootClickPos ? "opacity-30 pointer-events-none grayscale blur-[1px]" : ""}`}
+                >
+                    {/* Made slider (left) — adds to both scored and shot */}
+                    <div
+                        className={`flex flex-col items-center ${featureFlags.shotMadeSlider ? "flex-1" : "w-full"} h-full min-h-75`}>
+                        {featureFlags.shotMadeSlider && (
+                            <span className="text-green-400 text-xs font-bold mb-1">Made</span>
+                        )}
+                        <span className="text-green-400 text-xs font-bold mb-1">+ ADD</span>
+
+                        <div
+                            ref={sliderRef}
+                            className="relative w-full flex-1 bg-zinc-800 rounded-2xl border-2 border-green-700 overflow-hidden touch-none"
+                            onPointerDown={(e) => {
+                                e.preventDefault()
+                                ;(e.target as HTMLElement).setPointerCapture?.(e.pointerId)
+                                const rect = sliderRef.current!.getBoundingClientRect()
+                                const y = Math.min(1, Math.max(0, (e.clientY - rect.top) / rect.height))
+                                sliderYRef.current = y
+                                setSliderY(y)
+
+                                const displacement = y - 0.5
+                                if (Math.abs(displacement) > 0.05) {
+                                    const direction = displacement < 0 ? 1 : -1
+                                    if (direction > 0) {
+                                        setScored((prev) => prev + 1)
+                                        setShot((prev) => prev + 1)
+                                    } else {
+                                        setScored((prevScored) => {
+                                            if (prevScored <= 0) return 0
+                                            setShot((prevShot) => Math.max(0, prevShot - 1))
+                                            return prevScored - 1
+                                        })
+                                    }
+                                }
+
+                                holdStartTimeRef.current = performance.now()
+                                sliderTimeoutRef.current = setTimeout(() => {
+                                    setSliderActive(true)
+                                }, 200)
+                            }}
+                            onPointerUp={() => {
+                                if (sliderTimeoutRef.current) clearTimeout(sliderTimeoutRef.current)
+                                setSliderActive(false)
+                                sliderYRef.current = 0.5
+                                setSliderY(0.5)
+                            }}
+                            onPointerMove={(e) => {
+                                if (!sliderActive) return
+                                const rect = sliderRef.current!.getBoundingClientRect()
+                                const y = Math.min(1, Math.max(0, (e.clientY - rect.top) / rect.height))
+                                sliderYRef.current = y
+                                setSliderY(y)
+                            }}
+                            onPointerLeave={() => {
+                                if (sliderActive) {
+                                    setSliderActive(false)
+                                    sliderYRef.current = 0.5
+                                    setSliderY(0.5)
+                                }
+                            }}
+                        >
+                            <div
+                                className="absolute left-0 right-0 border-t-2 border-dashed border-green-400/50"
+                                style={{top: "50%"}}
+                            />
+
+                            <div
+                                className={`absolute left-1 right-1 h-10 rounded-xl transition-colors duration-100 flex items-center justify-center ${sliderActive
+                                    ? sliderY < 0.45
+                                        ? "bg-green-500 shadow-lg shadow-green-500/30"
+                                        : sliderY > 0.55
+                                            ? "bg-red-500 shadow-lg shadow-red-500/30"
+                                            : "bg-zinc-400"
+                                    : "bg-green-600"
+                                }`}
+                                style={{
+                                    top: `${sliderY * 100}%`,
+                                    transform: "translateY(-50%)",
+                                    pointerEvents: "none",
+                                }}
+                            >
+                        <span className="text-white text-xs font-bold">
+                            {(() => {
+                                if (!sliderActive) return "▲▼"
+                                const disp = Math.abs(sliderY - 0.5)
+                                if (disp < SLIDER_DEAD_ZONE) return "—"
+                                const mag = (disp - SLIDER_DEAD_ZONE) / (0.5 - SLIDER_DEAD_ZONE)
+                                const msPerPoint = msFromMagnitude(mag)
+                                const rate = 1000 / msPerPoint
+                                const rateText = rate.toFixed(1)
+                                if (sliderY > 0.5 && scored === 0) return "-0/s"
+                                return sliderY < 0.5
+                                    ? `+${rateText}/s`
+                                    : `−${rateText}/s`
+                            })()}
+                        </span>
+                            </div>
+                        </div>
+
+                        <span className="text-red-400 text-xs font-bold mt-1">− SUB</span>
+                    </div>
+
+                    {/* Miss slider (right) — adds to shot only */}
+                    {featureFlags.shotMadeSlider && (
+                        <div className="flex flex-col items-center flex-1 h-full min-h-75">
+                            <span className="text-red-400 text-xs font-bold mb-1">Miss</span>
+                            <span className="text-red-400 text-xs font-bold mb-1">+ ADD</span>
+
+                            <div
+                                ref={scoredSliderRef}
+                                className="relative w-full flex-1 bg-zinc-800 rounded-2xl border-2 border-red-700 overflow-hidden touch-none"
+                                onPointerDown={(e) => {
+                                    e.preventDefault()
+                                    ;(e.target as HTMLElement).setPointerCapture?.(e.pointerId)
+                                    const rect = scoredSliderRef.current!.getBoundingClientRect()
+                                    const y = Math.min(1, Math.max(0, (e.clientY - rect.top) / rect.height))
+                                    scoredSliderYRef.current = y
+                                    setScoredSliderY(y)
+
+                                    const displacement = y - 0.5
+                                    if (Math.abs(displacement) > 0.05) {
+                                        const direction = displacement < 0 ? 1 : -1
+                                        if (direction > 0) {
+                                            setShot((prev) => prev + 1)
+                                        } else {
+                                            setShot((prevShot) => {
+                                                return prevShot > 0 && prevShot > scored ? prevShot - 1 : prevShot
+                                            })
+                                        }
+                                    }
+
+                                    holdStartTimeRef.current = performance.now()
+                                    sliderTimeoutRef.current = setTimeout(() => {
+                                        setScoredSliderActive(true)
+                                    }, 200)
+                                }}
+                                onPointerUp={() => {
+                                    if (sliderTimeoutRef.current) clearTimeout(sliderTimeoutRef.current)
+                                    setScoredSliderActive(false)
+                                    scoredSliderYRef.current = 0.5
+                                    setScoredSliderY(0.5)
+                                }}
+                                onPointerMove={(e) => {
+                                    if (!scoredSliderActive) return
+                                    const rect = scoredSliderRef.current!.getBoundingClientRect()
+                                    const y = Math.min(1, Math.max(0, (e.clientY - rect.top) / rect.height))
+                                    scoredSliderYRef.current = y
+                                    setScoredSliderY(y)
+                                }}
+                                onPointerLeave={() => {
+                                    if (scoredSliderActive) {
+                                        setScoredSliderActive(false)
+                                        scoredSliderYRef.current = 0.5
+                                        setScoredSliderY(0.5)
+                                    }
+                                }}
+                            >
+                                <div
+                                    className="absolute left-0 right-0 border-t-2 border-dashed border-red-400/50"
+                                    style={{top: "50%"}}
+                                />
+
+                                <div
+                                    className={`absolute left-1 right-1 h-10 rounded-xl transition-colors duration-100 flex items-center justify-center ${scoredSliderActive
+                                        ? scoredSliderY < 0.45
+                                            ? "bg-red-400 shadow-lg shadow-red-400/30"
+                                            : scoredSliderY > 0.55
+                                                ? "bg-green-500 shadow-lg shadow-green-500/30"
+                                                : "bg-zinc-400"
+                                        : "bg-red-600"
+                                    }`}
+                                    style={{
+                                        top: `${scoredSliderY * 100}%`,
+                                        transform: "translateY(-50%)",
+                                        pointerEvents: "none",
+                                    }}
+                                >
+                            <span className="text-white text-xs font-bold">
+                                {(() => {
+                                    if (!scoredSliderActive) return "▲▼"
+                                    const disp = Math.abs(scoredSliderY - 0.5)
+                                    if (disp < SLIDER_DEAD_ZONE) return "—"
+                                    const mag = (disp - SLIDER_DEAD_ZONE) / (0.5 - SLIDER_DEAD_ZONE)
+                                    const msPerPoint = msFromMagnitude(mag)
+                                    const rate = 1000 / msPerPoint
+                                    const rateText = rate.toFixed(1)
+                                    const misses = shot - scored
+                                    if (scoredSliderY > 0.5 && misses === 0) return "-0/s"
+                                    return scoredSliderY < 0.5
+                                        ? `+${rateText}/s`
+                                        : `−${rateText}/s`
+                                })()}
+                            </span>
+                                </div>
+                            </div>
+
+                            <span className="text-green-400 text-xs font-bold mt-1">− SUB</span>
+                        </div>
+                    )}
+                </div>
+
+                {/* "Go to Post Match" button — appears when timer has expired */}
+                {timerExpired && (
+                    <button
+                        onClick={() => {
+                            setManualPost(true)
+                            void setPhase("post")
+                        }}
+                        className="w-full max-w-[16rem] h-14 rounded-xl text-lg font-bold bg-amber-600 hover:bg-amber-500 text-white transition-colors animate-pulse"
+                    >
+                        GO TO POST MATCH →
+                    </button>
+                )}
+            </div>
+
+        )
+    }
+
+    // ---------------------------------------------------------------------------
+    // Layout
     // ---------------------------------------------------------------------------
     if (deviceType === "tablet") {
         return (
-            <div className="w-screen flex flex-col gap-3 p-3 select-none text-sm">
-                {/* Top section: Field + Controls */}
-                <div className="flex gap-3">
-                    {/* Left side: Field */}
-                    <div className="flex-3 flex flex-col gap-3">
-                        {renderField()}
-                    </div>
-
-                    {/* Right side: Controls */}
-                    <div className="flex-1 flex flex-col gap-3">
-                        {renderControls()}
-
-                        {/* Delete / Save buttons at bottom of controls */}
-                        <div className="grid grid-cols-2 gap-2 mt-auto">
-                            <button
-                                onClick={handleDelete}
-                                disabled={activeIndex === 0 || activeIndex === actions.length - 1}
-                                className={`text-white text-sm py-2 rounded-xl transition-colors ${
-                                    activeIndex === 0 || activeIndex === actions.length - 1
-                                        ? "bg-zinc-900 opacity-40 cursor-not-allowed"
-                                        : "bg-red-800"
-                                }`}
-                            >
-                                Delete
-                            </button>
-                            <button
-                                onClick={handleSave}
-                                className="bg-green-800 text-white text-sm py-2 rounded-xl"
-                            >
-                                Save
-                            </button>
-                        </div>
-                    </div>
+            <div className="w-screen h-max flex flex-col select-none text-sm">
+                <HeaderStrip
+                    phase={matchPhase}
+                    subPhase={subPhase}
+                    subPhaseElapsed={subPhaseElapsed}
+                    subPhaseTotal={subPhaseTotal}
+                    phaseRemaining={phaseRemaining}
+                    flashing={flashing}
+                    timerExpired={timerExpired}
+                    matchData={{
+                        alliance: effectiveAlliance,
+                        teamNumber: data.teamNumber,
+                        match_type: data.match_type,
+                        match: data.match,
+                    }}
+                    matchElapsed={matchElapsed}
+                />
+                <div className="flex-1 flex gap-3 p-3 overflow-hidden">
+                    <div className="flex-3 flex flex-col gap-3">{renderField()}{renderDebug()}</div>
+                    <div className="flex-1 flex flex-col gap-3 overflow-y-auto">{renderControls()}</div>
                 </div>
-
-                {/* Bottom section: History strip (full width) */}
-                {renderHistoryStrip()}
             </div>
         )
     }
 
-    // Mobile layout (original)
     return (
-        <div className="w-screen h-max flex flex-col p-2 select-none gap-4 text-sm">
-            {/* Field */}
-            {renderField()}
-
-            {/* Controls */}
-            {renderControls()}
-
-            {/* Delete / Save buttons */}
-            <div className="grid grid-cols-2 gap-2">
-                <button
-                    onClick={handleDelete}
-                    disabled={activeIndex === 0 || activeIndex === actions.length - 1}
-                    className={`text-white text-sm py-2 rounded-xl transition-colors ${
-                        activeIndex === 0 || activeIndex === actions.length - 1
-                            ? "bg-zinc-900 opacity-40 cursor-not-allowed"
-                            : "bg-red-800"
-                    }`}
-                >
-                    Delete
-                </button>
-                <button
-                    onClick={handleSave}
-                    className="bg-green-800 text-white text-sm py-2 rounded-xl"
-                >
-                    Save
-                </button>
+        <div className="w-screen h-max flex flex-col select-none text-sm">
+            <HeaderStrip
+                phase={matchPhase}
+                subPhase={subPhase}
+                subPhaseElapsed={subPhaseElapsed}
+                subPhaseTotal={subPhaseTotal}
+                phaseRemaining={phaseRemaining}
+                flashing={flashing}
+                timerExpired={timerExpired}
+                matchData={{
+                    alliance: effectiveAlliance,
+                    teamNumber: data.teamNumber,
+                    match_type: data.match_type,
+                    match: data.match,
+                }}
+                matchElapsed={matchElapsed}
+            />
+            <div className="flex-1 flex flex-col p-2 gap-4 overflow-y-auto">
+                {renderField()}
+                {renderDebug()}
+                {renderControls()}
             </div>
-
-            {/* Horizontal history strip */}
-            {renderHistoryStrip()}
         </div>
     )
 }
-
-// TODO: change intake to only 1 number control

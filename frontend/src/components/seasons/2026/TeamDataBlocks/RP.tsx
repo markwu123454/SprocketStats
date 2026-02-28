@@ -1,29 +1,25 @@
 // src/pages/blocks/RPCriteriaBlock.tsx
-import {useEffect, useMemo, useState} from "react"
+import {useMemo} from "react"
 import {AgGridReact} from "ag-grid-react"
 import {SquareCheckBig, SquareX} from "lucide-react"
 
 export default function RPCriteriaBlock({data}: any) {
-    const rp = data.rp ?? {}
-    const [colDefs, setColDefs] = useState<any[]>([])
-    const [rowData, setRowData] = useState<any[]>([])
+    const rp = data?.rp
 
-    const rpData = useMemo(() =>
-        Object.entries(rp).map(([match, rpValue]) => ({
-            Match: match,
-            ...(typeof rpValue === 'object' && rpValue !== null ? rpValue : {}),
-        })),
-        [rp]
-    )
-
-    useEffect(() => {
-        if (!rpData || !Array.isArray(rpData) || rpData.length === 0) {
-            setColDefs([])
-            setRowData([])
-            return
+    const {rpData, rowData, colDefs} = useMemo(() => {
+        if (!rp || typeof rp !== "object") {
+            return {rpData: [], rowData: [], colDefs: []}
         }
 
-        // Recursively flatten nested objects
+        const parsedRpData = Object.entries(rp).map(([match, rpValue]) => ({
+            Match: match,
+            ...(typeof rpValue === "object" && rpValue !== null ? rpValue : {}),
+        }))
+
+        if (parsedRpData.length === 0) {
+            return {rpData: parsedRpData, rowData: [], colDefs: []}
+        }
+
         const flattenObject = (obj: any, prefix = ""): Record<string, any> =>
             Object.entries(obj).reduce((acc, [key, value]) => {
                 const newKey = prefix ? `${prefix} ${key}` : key
@@ -35,7 +31,7 @@ export default function RPCriteriaBlock({data}: any) {
                 return acc
             }, {} as Record<string, any>)
 
-        const flattened = rpData.map((row) => flattenObject(row))
+        const flattened = parsedRpData.map((row) => flattenObject(row))
         const allKeys = Array.from(new Set(flattened.flatMap((r) => Object.keys(r))))
 
         const columns = allKeys.map((key) => ({
@@ -61,9 +57,8 @@ export default function RPCriteriaBlock({data}: any) {
             },
         }))
 
-        setColDefs(columns)
-        setRowData(flattened)
-    }, [rpData])
+        return {rpData: parsedRpData, rowData: flattened, colDefs: columns}
+    }, [rp])
 
     if (!rpData || rpData.length === 0) {
         return (
