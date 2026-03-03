@@ -5,26 +5,25 @@ import {AgGridReact} from "ag-grid-react";
 import {type ColDef, themeQuartz} from "ag-grid-community";
 
 const scheduleRawData = [
-    "1-6", "Tzuyu Wu", "Ashlyn Lai", "Dylan Okada", "Ethan Chang", "Henry Yang", "Terrance Ng",
-    "7-12", "Jacob Lau", "Jadon Feng", "Selina Gu", "Adam Sun", "Luke Yu", "James Shu",
-    "13-18", "Christian Alvarado", "Liya Zhu", "Maren Lai", "Andrew Lin", "Cindy Lin", "Mark Wu",
-    "19-24", "Ashlyn Lai", "Tzuyu Wu", "Brista Lin", "Dylan Okada", "Ethan Chang", "Henry Yang",
-    "25-30", "Terrance Ng", "Jacob Lau", "Jadon Feng", "Selina Gu", "Adam Sun", "Luke Yu",
-    "31-36", "James Shu", "Christian Alvarado", "Liya Zhu", "Maren Lai", "Andrew Lin", "Cindy Lin",
-    "37-42", "Mark Wu", "Ashlyn Lai", "Tzuyu Wu", "Brista Lin", "Dylan Okada", "Ethan Chang",
-    "43-48", "Henry Yang", "Terrance Ng", "Jacob Lau", "Andrew Lin", "Selina Gu", "Adam Sun",
-    "49-55", "Luke Yu", "James Shu", "Christian Alvarado", "Liya Zhu", "Maren Lai", "Andrew Lin",
-    "56-62", "Cindy Lin", "Mark Wu", "Ashlyn Lai", "Tzuyu Wu", "Brista Lin", "Dylan Okada",
-    "63-69", "Ethan Chang", "Henry Yang", "Terrance Ng", "Jacob Lau", "Jadon Feng", "Selina Gu",
-    "70-76", "Adam Sun", "Luke Yu", "James Shu", "Christian Alvarado", "Liya Zhu", "Maren Lai",
-    "77-82", "Andrew Lin", "Cindy Lin", "Mark Wu", "Ashlyn Lai", "Tzuyu Wu", "Brista Lin",
+    "1-6, Tzuyu Wu, Ashlyn Lai, Dylan Okada, Ethan Chang, Henry Yang, Terrance Ng",
+    "7-12, Jacob Lau, Jadon Feng, Selina Gu, Adam Sun, Luke Yu, James Shu",
+    "13-18,	Christian Alvarado,	Liya Zhu,	Maren Lai,	Andrew Lin,	Cindy Lin,	Mark Wu",
+    "19-24,	Ashlyn Lai,	Tzuyu Wu,	Brista Lin,	Dylan Okada,	Ethan Chang,	Henry Yang",
+    "25-30,	Terrance Ng,	Jacob Lau,	Jadon Feng,	Selina Gu,	Adam Sun,	Luke Yu",
+    "31-36,	James Shu,	Christian Alvarado,	Liya Zhu,	Maren Lai,	Andrew Lin,	Cindy Lin",
+    "37-42,	Mark Wu,	Ashlyn Lai,	Tzuyu Wu,	Brista Lin,	Andrew Lin,	Ethan Chang",
+    "43-48,	Henry Yang,	Terrance Ng,	Jacob Lau,	Andrew Lin,	Selina Gu,	Adam Sun",
+    "49-55,	Luke Yu,	James Shu,	Christian Alvarado,	Liya Zhu,	Maren Lai,	Andrew Lin",
+    "56-62,	Cindy Lin,	Mark Wu,	Ashlyn Lai,	Tzuyu Wu,	Brista Lin,	Dylan Okada",
+    "63-69,	Ethan Chang,	Henry Yang,	Terrance Ng,	Jacob Lau,	Jadon Feng,	Selina Gu",
+    "70-76,	Adam Sun,	Luke Yu,	James Shu,	Christian Alvarado,	Liya Zhu,	Maren Lai",
+    "77-82,	Dylan Okada,	Cindy Lin,	Mark Wu,	Ashlyn Lai,	Tzuyu Wu,	Brista Lin",
 ];
 
 const rowData = scheduleRawData.map((row) => {
-    const [event, match, r1, r2, r3, b1, b2, b3] = row.split(",").map(v => v.trim());
+    const [match, r1, r2, r3, b1, b2, b3] = row.split(",").map(v => v.trim());
     return {
-        event,
-        match: Number(match),
+        match: match,
         red1: r1,
         red2: r2,
         red3: r3,
@@ -35,7 +34,6 @@ const rowData = scheduleRawData.map((row) => {
 });
 
 const columnDefs: ColDef[] = [
-    {headerName: "Event", field: "event", width: 130},
     {headerName: "Match Number", field: "match", width: 130},
     {headerName: "Red 1 Scouter", field: "red1", minWidth: 130, flex: 1},
     {headerName: "Red 2 Scouter", field: "red2", minWidth: 130, flex: 1},
