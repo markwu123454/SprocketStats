@@ -5,14 +5,19 @@ import {AgGridReact} from "ag-grid-react";
 import {type ColDef, themeQuartz} from "ag-grid-community";
 
 const scheduleRawData = [
-    "2026capoh,18,Tzuyu Wu,Brista Lin,Dylan Okada,Ethan Chang,Henry Yang,Terrance Ng",
-    "2026capoh,918,Jacob Lau,Jadon Feng,Selina Gu,Kristen / Carris,Adam Sun,Luke Yu",
-    "2026capoh,1927,James Shu,Christian Alvarado,Liya Zhu,Maren Lai,Lance Lin,Brian Chang",
-    "2026capoh,2836,David Ding,Tzuyu Wu,Brista Lin,Dylan Okada,Ethan Chang,Henry Yang",
-    "2026capoh,3745,Terrance Ng,Jacob Lau,Jadon Feng,Selina Gu,Kristen / Carris,Adam Sun",
-    "2026capoh,4654,Luke Yu,James Shu,Christian Alvarado,Liya Zhu,Maren Lai,Lance Lin",
-    "2026capoh,5563,Brian Chang,David Ding,Tzuyu Wu,Brista Lin,Dylan Okada,Ethan Chang",
-    "2026capoh,6272,Henry Yang,Terrance Ng,Jacob Lau,Jadon Feng,Selina Gu,Kristen / Carris",
+    "1-6", "Tzuyu Wu", "Ashlyn Lai", "Dylan Okada", "Ethan Chang", "Henry Yang", "Terrance Ng",
+    "7-12", "Jacob Lau", "Jadon Feng", "Selina Gu", "Adam Sun", "Luke Yu", "James Shu",
+    "13-18", "Christian Alvarado", "Liya Zhu", "Maren Lai", "Andrew Lin", "Cindy Lin", "Mark Wu",
+    "19-24", "Ashlyn Lai", "Tzuyu Wu", "Brista Lin", "Dylan Okada", "Ethan Chang", "Henry Yang",
+    "25-30", "Terrance Ng", "Jacob Lau", "Jadon Feng", "Selina Gu", "Adam Sun", "Luke Yu",
+    "31-36", "James Shu", "Christian Alvarado", "Liya Zhu", "Maren Lai", "Andrew Lin", "Cindy Lin",
+    "37-42", "Mark Wu", "Ashlyn Lai", "Tzuyu Wu", "Brista Lin", "Dylan Okada", "Ethan Chang",
+    "43-48", "Henry Yang", "Terrance Ng", "Jacob Lau", "Andrew Lin", "Selina Gu", "Adam Sun",
+    "49-55", "Luke Yu", "James Shu", "Christian Alvarado", "Liya Zhu", "Maren Lai", "Andrew Lin",
+    "56-62", "Cindy Lin", "Mark Wu", "Ashlyn Lai", "Tzuyu Wu", "Brista Lin", "Dylan Okada",
+    "63-69", "Ethan Chang", "Henry Yang", "Terrance Ng", "Jacob Lau", "Jadon Feng", "Selina Gu",
+    "70-76", "Adam Sun", "Luke Yu", "James Shu", "Christian Alvarado", "Liya Zhu", "Maren Lai",
+    "77-82", "Andrew Lin", "Cindy Lin", "Mark Wu", "Ashlyn Lai", "Tzuyu Wu", "Brista Lin",
 ];
 
 const rowData = scheduleRawData.map((row) => {

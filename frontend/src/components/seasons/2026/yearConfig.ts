@@ -306,13 +306,19 @@ export const pitQuestions = [
         options: ["Yes", "No", "Partial"],
     },
 
-    {section: "Misc"},
+    {section: "Do NOT read out loud (Misc)"},
 
     {
         key: "teamAttitude",
-        label: "Team Attitude",
+        label: "Team attitude",
         type: "multi",
         options: ["Enthusiastic", "Uninterested", "Nice", "Rude", "Condescending"],
+    },
+    {
+        key: "robotLooks",
+        label: "Robot looks",
+        type: "multi",
+        options: ["Beautiful", "Janky", "Falling apart", "Pretty", "Decent"],
     },
     {
         key: "robotName",

@@ -141,9 +141,9 @@ function useResumeDialog(scouterEmail: string, abTestVariant: string, PHASE_ORDE
                     return;
                 }
 
-                // For variant b, map auto/teleop to combined for server status
+                // For variant b (and default which now uses b), map auto/teleop to combined for server status
                 let phaseToUpdate = entry.status as Phase;
-                if (abTestVariant === "b" && (entry.status === "auto" || entry.status === "teleop")) {
+                if ((abTestVariant === "b" || abTestVariant === "default") && (entry.status === "auto" || entry.status === "teleop")) {
                     phaseToUpdate = "combined";
                 }
 
@@ -158,9 +158,9 @@ function useResumeDialog(scouterEmail: string, abTestVariant: string, PHASE_ORDE
                 scouter: scouterEmail,
             });
 
-            // For variant b, map auto/teleop to combined for phase index lookup
+            // For variant b (and default which now uses b), map auto/teleop to combined for phase index lookup
             let targetPhase = entry.status as Phase;
-            if (abTestVariant === "b" && (entry.status === "auto" || entry.status === "teleop")) {
+            if ((abTestVariant === "b" || abTestVariant === "default") && (entry.status === "auto" || entry.status === "teleop")) {
                 targetPhase = "combined";
             }
 
@@ -360,18 +360,18 @@ export default function MatchScoutingPage() {
     submitStatusRef.current = submitStatus
 
     // ─── Derived ───
-    // Both "default" (stable) and "a" use auto/teleop/post phases for tracking.
-    // Only "b" uses the combined phase.
+    // "default" (stable) and "b" use the combined phase with BVariant.
+    // Only "a" uses separate auto/teleop phases.
     const PHASE_ORDER: Phase[] = useMemo(() => {
-        return abTestVariant === "b"
-            ? ['pre', 'combined', 'post']
-            : ['pre', 'auto', 'teleop', 'post']
+        return abTestVariant === "a"
+            ? ['pre', 'auto', 'teleop', 'post']
+            : ['pre', 'combined', 'post']
     }, [abTestVariant])
 
     const phase = PHASE_ORDER[phaseIndex]
 
-    // In "default" variant, AVariant takes full control during auto and teleop phases
-    const variantAFullControl = abTestVariant === "default" && (phase === "auto" || phase === "teleop")
+    // In "a" variant, AVariant takes full control during auto and teleop phases
+    const variantAFullControl = abTestVariant === "a" && (phase === "auto" || phase === "teleop")
 
     const baseDisabled =
         scoutingData.match_type === null ||
@@ -639,6 +639,7 @@ export default function MatchScoutingPage() {
             {/* Main Layout */}
             <div
                 className="w-screen min-h-0 h-screen flex flex-col overflow-hidden bg-zinc-900 text-white touch-none select-none overscroll-none ">
+                {/* Top Bar */}
                 {/* Top Bar — hidden when variant A has full control */}
                 {!variantAFullControl && (
                     <div
@@ -665,13 +666,7 @@ export default function MatchScoutingPage() {
                         {phase === 'pre' && (
                             <PrePhase key="pre" data={scoutingData} setData={setScoutingData}/>
                         )}
-                        {abTestVariant === "a" && phase === 'auto' && (
-                            <AutoPhase key="auto" data={scoutingData} setData={setScoutingData}/>
-                        )}
-                        {abTestVariant === "a" && phase === 'teleop' && (
-                            <TeleopPhase key="teleop" data={scoutingData} setData={setScoutingData}/>
-                        )}
-                        {abTestVariant === "default" && (phase === 'auto' || phase === 'teleop') && (
+                        {abTestVariant === "a" && (phase === 'auto' || phase === 'teleop') && (
                             <AVariant
                                 key="combined"
                                 data={scoutingData}
@@ -680,7 +675,7 @@ export default function MatchScoutingPage() {
                                 setPhase={setPhase}
                             />
                         )}
-                        {abTestVariant === "b" && phase === 'combined' && (
+                        {(abTestVariant === "default" || abTestVariant === "b") && phase === 'combined' && (
                             <BVariant key="combined" data={scoutingData} setData={setScoutingData} handleSubmit={handleSubmit} setPhase={setPhase}/>
                         )}
                         {phase === 'post' && (

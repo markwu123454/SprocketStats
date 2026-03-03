@@ -106,7 +106,7 @@ export default function TeamDataPage() {
             {/* Main Content - 2 Column Grid with Vertical Scroll */}
             <main className="flex-1 overflow-y-auto">
                 <div className="mx-auto p-4">
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 auto-rows-[500px]">
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                         <Block title="Metrics Overview">
                             <MetricsBlock data={data} permissions={permissions} />
                         </Block>
@@ -119,7 +119,7 @@ export default function TeamDataPage() {
                         <Block title="Scoring & Trends">
                             <ScoringTrendsBlock data={data} permissions={permissions} />
                         </Block>
-                        <Block title="Shot Heatmap">
+                        <Block title="Shot Heatmap" className="">
                             <HeatmapBlock data={data} />
                         </Block>
                     </div>
@@ -129,9 +129,9 @@ export default function TeamDataPage() {
     )
 }
 
-function Block({title, children}: { title: string; children: React.ReactNode }) {
+function Block({title, children, className = "h-[500px]"}: { title: string; children: React.ReactNode; className?: string }) {
     return (
-        <section className="rounded-lg border bg-white shadow-sm flex flex-col h-full overflow-hidden">
+        <section className={`rounded-lg border bg-white shadow-sm flex flex-col overflow-hidden ${className}`}>
             <div className="border-b px-4 py-2 text-sm font-semibold text-gray-800 shrink-0">
                 {title}
             </div>
