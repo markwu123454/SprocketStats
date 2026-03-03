@@ -204,6 +204,13 @@ export default function MorePage() {
                     >
                         Attendance
                     </Link>
+
+                    <Link
+                        to="/scouting/schedule"
+                        className="block w-full px-4 py-2 rounded-md border transition theme-border theme-button-bg/50 theme-text hover:theme-button-hover text-center"
+                    >
+                        Scouting Schedule
+                    </Link>
                 </div>
             </div>
 
