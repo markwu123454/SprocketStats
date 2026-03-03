@@ -1,9 +1,9 @@
-import React, {useEffect, useMemo, useRef, useState} from "react";
+import {useEffect, useMemo, useRef, useState} from "react";
 import {
     AgGridReact, type AgGridReact as AgGridReactType
 } from "ag-grid-react";
 import {themeQuartz} from "ag-grid-community";
-import {usePermissions} from "@/components/wrappers/DataWrapper.tsx";
+import {usePermissions, useRankingData} from "@/components/wrappers/DataWrapper.tsx";
 import {Link} from "react-router-dom";
 import {ResponsiveScatterPlot, type ScatterPlotNodeProps} from "@nivo/scatterplot"
 import {ResponsiveRadar} from "@nivo/radar"
@@ -19,15 +19,6 @@ type CustomNodeProps<T extends BaseDatum> =
 type MetricMeta = {
     higherIsBetter: boolean
 }
-
-// placeholder – replace with DataWrapper later
-const metricMeta: Record<string, MetricMeta> = {
-    "epa.total": {higherIsBetter: true},
-    "epa.auto": {higherIsBetter: true},
-    "rank.overall": {higherIsBetter: false},
-    "rank.district": {higherIsBetter: false},
-}
-
 
 const CustomScatterNode = <T extends BaseDatum>({
                                                     node,
@@ -79,8 +70,8 @@ const CustomScatterNode = <T extends BaseDatum>({
             cx={x}
             cy={y}
             r={size / 2}
-            fill="#9ca3af"
-            opacity={isAnySelected ? 0.35 : 1}
+            fill="#3573de"
+            opacity={isAnySelected ? 0.7 : 1}
         />
     )
 }
@@ -90,7 +81,6 @@ const CustomScatterNode = <T extends BaseDatum>({
  * Recursively builds AG Grid column definitions from data shape
  */
 export default function RankingData() {
-    //const rankingData = useRankingData(); // assumed array of objects
     const permissions = usePermissions()
 
     const gridRef = useRef<AgGridReactType<any>>(null)
@@ -110,118 +100,73 @@ export default function RankingData() {
             .catch(() => setTeamNames({}));
     }, []);
 
-    const rankingData = useMemo(() => [
-        {
-            team: 1678,
-            epa: {total: 1, auto: 2},
-            rank: {overall: 3, district: 4}
-        },
-        {
-            team: 971,
-            epa: {total: 29.4, auto: 10.8},
-            rank: {overall: 6, district: 4}
-        },
-        {
-            team: 2056,
-            epa: {total: 18.9, auto: 6.3},
-            rank: {overall: 12, district: 8}
-        },
-        {
-            team: 399,
-            epa: {total: 34.1, auto: 14.7},
-            rank: {overall: 4, district: 2}
-        },
-        {
-            team: 148,
-            epa: {total: 27.2, auto: 9.5},
-            rank: {overall: 9, district: 6}
-        },
-        {
-            team: 1114,
-            epa: {total: 16.4, auto: 5.9},
-            rank: {overall: 18, district: 11}
-        },
-        {
-            team: 6800,
-            epa: {total: 21.7, auto: 7.1},
-            rank: {overall: 14, district: 9}
-        },
-        {
-            team: 7457,
-            epa: {total: 11.3, auto: 4.2},
-            rank: {overall: 27, district: 15}
-        },
-        {
-            team: 2910,
-            epa: {total: 31.8, auto: 12.6},
-            rank: {overall: 7, district: 5}
-        },
-        {
-            team: 5588,
-            epa: {total: 9.4, auto: 3.3},
-            rank: {overall: 33, district: 19}
-        },
-        {
-            team: 2137,
-            epa: {total: 23.6, auto: 8.9},
-            rank: {overall: 11, district: 7}
-        },
-        {
-            team: 1023,
-            epa: {total: 14.8, auto: 5.1},
-            rank: {overall: 21, district: 13}
-        },
-        {
-            team: 6328,
-            epa: {total: 19.2, auto: 6.7},
-            rank: {overall: 16, district: 10}
-        },
-        {
-            team: 870,
-            epa: {total: 26.5, auto: 9.8},
-            rank: {overall: 10, district: 6}
-        },
-        {
-            team: 4476,
-            epa: {total: 12.9, auto: 4.6},
-            rank: {overall: 25, district: 14}
-        },
-        {
-            team: 5727,
-            epa: {total: 8.1, auto: 2.9},
-            rank: {overall: 38, district: 22}
-        },
-        {
-            team: 3647,
-            epa: {total: 22.4, auto: 7.8},
-            rank: {overall: 13, district: 8}
-        },
-        {
-            team: 1986,
-            epa: {total: 17.6, auto: 6.2},
-            rank: {overall: 17, district: 11}
-        },
-        {
-            team: 5006,
-            epa: {total: 6.9, auto: 2.4},
-            rank: {overall: 44, district: 26}
-        },
-        {
-            team: 2468,
-            epa: {total: 28.9, auto: 11.4},
-            rank: {overall: 8, district: 5}
+    const rawRankingData = useRankingData()
+
+    /**
+     * Transform from DataWrapper shape:
+     *   { "epa.total": { "1678": 29.4, "971": 10.8 }, "epa.auto": { "1678": 12.1, ... }, ... }
+     * into row-per-team format:
+     *   [ { team: 1678, epa: { total: 29.4, auto: 12.1 }, ... }, ... ]
+     */
+    const rankingData = useMemo(() => {
+        if (!rawRankingData || typeof rawRankingData !== "object") return []
+
+        // Collect all team IDs across every aspect
+        const teamSet = new Set<string>()
+        for (const aspect of Object.values(rawRankingData)) {
+            if (aspect && typeof aspect === "object") {
+                for (const teamId of Object.keys(aspect)) {
+                    teamSet.add(teamId)
+                }
+            }
         }
-    ], [])
 
-    function useMetricMeta(metric: string | null) {
-        return useMemo(
-            () => (metric ? metricMeta[metric] ?? {higherIsBetter: true} : null),
-            [metric]
-        )
-    }
+        // Build one row per team
+        const rows: Record<string, any>[] = []
+        for (const teamId of teamSet) {
+            const row: Record<string, any> = {team: Number(teamId)}
 
-    const selectedMetricMeta = useMetricMeta(selectedMetric)
-    const xMetricMeta = useMetricMeta(xMetric)
+            for (const [aspect, teams] of Object.entries(rawRankingData)) {
+                const value = (teams as Record<string, number>)?.[teamId]
+                if (value === undefined) continue
+
+                // Nest dotted keys: "epa.total" → row.epa.total
+                const parts = aspect.split(".")
+                let cursor: any = row
+                for (let i = 0; i < parts.length - 1; i++) {
+                    if (!(parts[i] in cursor)) cursor[parts[i]] = {}
+                    cursor = cursor[parts[i]]
+                }
+                cursor[parts[parts.length - 1]] = value
+            }
+
+            rows.push(row)
+        }
+
+        return rows
+    }, [rawRankingData])
+
+    // Build metricMeta dynamically from the ranking data keys.
+    // Aspects containing "rank" are treated as lower-is-better; everything else higher-is-better.
+    const metricMeta: Record<string, MetricMeta> = useMemo(() => {
+        if (!rawRankingData || typeof rawRankingData !== "object") return {}
+        const meta: Record<string, MetricMeta> = {}
+        for (const aspect of Object.keys(rawRankingData)) {
+            meta[aspect] = {
+                higherIsBetter: !aspect.toLowerCase().includes("rank"),
+            }
+        }
+        return meta
+    }, [rawRankingData])
+
+    const selectedMetricMeta = useMemo(
+        () => (selectedMetric ? metricMeta[selectedMetric] ?? {higherIsBetter: true} : null),
+        [selectedMetric, metricMeta]
+    )
+    const xMetricMeta = useMemo(
+        () => (xMetric ? metricMeta[xMetric] ?? {higherIsBetter: true} : null),
+        [xMetric, metricMeta]
+    )
     const yMetricMeta = selectedMetricMeta
 
     const columnDefs = useMemo(() => {

@@ -494,6 +494,26 @@ def run_calculation(setting):
             log.error("Structure initialization failed")
             return {"success": False, "error": "Structure initialization failed"}
 
+    # -- Tally ranking points from TBA quals matches --------------------
+    with log.section("Tallying ranking points from TBA"):
+        rp_tally: dict[int, int] = {}
+
+        quals_matches = [m for m in tba_data if m.comp_level == "qm"]
+        played_quals = [m for m in quals_matches if m.score_breakdown is not None]
+
+        for match in played_quals:
+            for color in ("red", "blue"):
+                alliance: MatchAlliance = getattr(match.alliances, color)
+                breakdown: AllianceScoreBreakdown2026 = getattr(match.score_breakdown, color)
+
+                for raw_team_key in alliance.team_keys:
+                    team_num = parse_team_key(raw_team_key)
+                    rp_tally[team_num] = rp_tally.get(team_num, 0) + breakdown.rp
+
+        calc_result["ranking"]["rp"] = rp_tally
+        log.stat("Teams with RP data", len(rp_tally))
+        log.stat("Quals matches tallied", len(played_quals))
+
     # -- Process match scouting entries --------------------------------
     with log.section("Processing match scouting entries:"):
         processed_match_entries = {}

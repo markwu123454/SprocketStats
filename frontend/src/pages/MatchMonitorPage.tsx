@@ -303,8 +303,8 @@ function AllianceColumn({
                             </div>
                         )
                     })}
-                </div>
-            )}
+                    </div>
+                )}
         </div>
     )
 }
