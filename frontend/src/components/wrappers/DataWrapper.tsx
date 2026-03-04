@@ -119,38 +119,6 @@ function transformEventData(raw: any): DataSchema {
 
     const completedMatches = sb.filter((m: any) => m.status === 'Completed' && m.result)
 
-    // Accumulate per-team alliance-level stats from qual matches for ranking
-    const teamStats: Record<number, { autoSum: number; teleopSum: number; endgameSum: number; scoreSum: number; qualCount: number }> = {}
-    for (const t of allTeams) {
-        teamStats[t] = {autoSum: 0, teleopSum: 0, endgameSum: 0, scoreSum: 0, qualCount: 0}
-    }
-    for (const m of completedMatches) {
-        if (m.elim) continue
-        for (const color of ['red', 'blue']) {
-            const teams: number[] = m.alliances?.[color]?.team_keys ?? []
-            const r = m.result
-            for (const t of teams) {
-                if (!teamStats[t]) continue
-                teamStats[t].autoSum += (r[`${color}_auto_points`] ?? 0)
-                teamStats[t].teleopSum += (r[`${color}_teleop_points`] ?? 0)
-                teamStats[t].endgameSum += (r[`${color}_endgame_points`] ?? 0)
-                teamStats[t].scoreSum += (r[`${color}_score`] ?? 0)
-                teamStats[t].qualCount++
-            }
-        }
-    }
-
-    // Compute sorted lists for ranking
-    const teamList = Array.from(allTeams)
-    const avg = (t: number, field: 'autoSum' | 'teleopSum' | 'endgameSum' | 'scoreSum') =>
-        teamStats[t].qualCount ? teamStats[t][field] / teamStats[t].qualCount : 0
-    const rpVal = (t: number): number => rankingRaw.rp?.[String(t)] ?? 0
-
-    const sortedByAuto = [...teamList].sort((a, b) => avg(b, 'autoSum') - avg(a, 'autoSum'))
-    const sortedByTeleop = [...teamList].sort((a, b) => avg(b, 'teleopSum') - avg(a, 'teleopSum'))
-    const sortedByEndgame = [...teamList].sort((a, b) => avg(b, 'endgameSum') - avg(a, 'endgameSum'))
-    const sortedByRp = [...teamList].sort((a, b) => rpVal(b) - rpVal(a))
-
     const teamData: Record<number, TeamData> = {}
     for (const teamNum of allTeams) {
         const teamMatches = completedMatches
@@ -183,17 +151,27 @@ function transformEventData(raw: any): DataSchema {
             }
         })
 
-        // Qual-only matches for metrics
+        // Qual-only matches for fallback metrics
         const qualMatches = matches.filter(m => String(m.match).startsWith('qm'))
         const n = qualMatches.length || 1
 
-        const metrics: Record<string, number | string> = {
+        // Use backend-computed metrics if available, otherwise compute fallback
+        const backendMetrics = teamRaw[String(teamNum)]?.metrics ?? {}
+        const hasBackendMetrics = Object.keys(backendMetrics).length > 0
+
+        const fallbackMetrics: Record<string, number | string> = {
             'Avg Score': +(qualMatches.reduce((s, m) => s + (m.score as number), 0) / n).toFixed(1),
             'Avg Auto': +(qualMatches.reduce((s, m) => s + (m.auto as number), 0) / n).toFixed(1),
             'Avg Teleop': +(qualMatches.reduce((s, m) => s + (m.teleop as number), 0) / n).toFixed(1),
             'Avg Endgame': +(qualMatches.reduce((s, m) => s + (m.endgame as number), 0) / n).toFixed(1),
             'Win Rate': `${(qualMatches.filter(m => m.result === 'W').length / n * 100).toFixed(0)}%`,
             'Qual Matches': qualMatches.length,
+        }
+
+        // Merge: fallback first, then backend overwrites/extends
+        const metrics: Record<string, number | string> = {
+            ...fallbackMetrics,
+            ...backendMetrics,
         }
 
         // Per-match RP data
@@ -222,23 +200,29 @@ function transformEventData(raw: any): DataSchema {
             id: 'total',
             label: 'Total Score',
             children: [
-                {id: 'auto', label: 'Auto', value: +(metrics['Avg Auto'] ?? 0)},
-                {id: 'teleop', label: 'Teleop', value: +(metrics['Avg Teleop'] ?? 0)},
-                {id: 'endgame', label: 'Endgame', value: +(metrics['Avg Endgame'] ?? 0)},
+                {id: 'auto', label: 'Auto', value: +(fallbackMetrics['Avg Auto'] ?? 0)},
+                {id: 'teleop', label: 'Teleop', value: +(fallbackMetrics['Avg Teleop'] ?? 0)},
+                {id: 'endgame', label: 'Endgame', value: +(fallbackMetrics['Avg Endgame'] ?? 0)},
             ],
         }
 
-        // Team ranking
-        const rpTotalVal = rpVal(teamNum)
-        const qualCount = teamStats[teamNum].qualCount || 1
+        // Use backend ranking if available, fall back to computing from sb data
+        const backendAutoRank = rankingRaw.auto?.[teamNum]
+        const backendTeleopRank = rankingRaw.teleop?.[teamNum]
+        const backendEndgameRank = rankingRaw.endgame?.[teamNum]
+        const backendRpRank = rankingRaw.rp_rank?.[teamNum]
+        const backendRpPred = rankingRaw.rp_pred?.[teamNum]
+        const backendRpAvg = rankingRaw.rp_avg?.[teamNum]
+        const backendRpAvgPred = rankingRaw.rp_avg_pred?.[teamNum]
+
         const ranking: TeamRanking = {
-            auto: sortedByAuto.indexOf(teamNum) + 1,
-            teleop: sortedByTeleop.indexOf(teamNum) + 1,
-            endgame: sortedByEndgame.indexOf(teamNum) + 1,
-            rp: sortedByRp.indexOf(teamNum) + 1,
-            rp_pred: 0,
-            rp_avg: +(rpTotalVal / qualCount).toFixed(2),
-            rp_avg_pred: 0,
+            auto: backendAutoRank ?? 0,
+            teleop: backendTeleopRank ?? 0,
+            endgame: backendEndgameRank ?? 0,
+            rp: backendRpRank ?? 0,
+            rp_pred: backendRpPred ?? 0,
+            rp_avg: backendRpAvg ?? 0,
+            rp_avg_pred: backendRpAvgPred ?? 0,
         }
 
         teamData[teamNum] = {

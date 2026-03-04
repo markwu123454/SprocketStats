@@ -573,7 +573,7 @@ def run_calculation(setting):
                 int(entry.team)
             )
             processed_match_entries[key] = process_match_entry(entry.data)
-        log.substep(processed_match_entries)
+        log.stat("Processed entries", len(processed_match_entries))
 
     # -- Build per-team fuel output ------------------------------------
     with log.section("Building per-team fuel summary"):
@@ -704,41 +704,107 @@ def run_calculation(setting):
 
         log.stat("Teams with ranking data", len(team_auton_pts))
 
-    # -- Print per-team match fuel summary -----------------------------
-    with log.section("Per-team match fuel summary"):
-        def _match_sort_key(k):
-            if k.startswith("qm"):
-                level = 0
-            elif k.startswith("sf"):
-                level = 1
-            else:
-                level = 2
-            num = int(''.join(c for c in k if c.isdigit()) or "0")
-            return level, num
+    # -- Build per-team qualitative metrics --------------------------------
+    with log.section("Building per-team qualitative metrics"):
+        for team_num in calc_result["team"]:
+            team_entries = [
+                e for e in downloaded_data.match_scouting
+                if e.event_key == event_key and int(e.team) == team_num
+            ]
+            n = len(team_entries)
+            if n == 0:
+                calc_result["team"][team_num]["metrics"] = {}
+                continue
 
-        for team_str, team_data in sorted(team_fuel_output.items(), key=lambda x: int(x[0])):
-            match_keys = sorted(
-                [k for k in team_data if k not in ("phase", "time_percentages")],
-                key=_match_sort_key,
+            # --- Climb stats ---
+            auto_climb_attempts = sum(1 for e in team_entries if e.data.postmatch.autoClimbPos is not None)
+            teleop_climb_attempts = sum(1 for e in team_entries if e.data.postmatch.teleopClimbPos is not None)
+
+            climb_actions_all = [
+                a for e in team_entries for a in e.data.actions if isinstance(a, ClimbAction)
+            ]
+            endgame_climbs = [a for a in climb_actions_all if a.phase != "auto"]
+            auto_climbs = [a for a in climb_actions_all if a.phase == "auto"]
+
+            endgame_climb_successes = sum(1 for a in endgame_climbs if a.success)
+            auto_climb_successes = sum(1 for a in auto_climbs if a.success)
+
+            # Most common endgame climb level among successes
+            endgame_levels = [a.level for a in endgame_climbs if a.success]
+            most_common_climb_level = max(set(endgame_levels), key=endgame_levels.count) if endgame_levels else "None"
+
+            # --- Faults ---
+            fault_fields = [
+                "jam", "other", "brownout", "disabled", "failed_auto",
+                "immobilized", "disconnected", "erratic_driving", "structural_failure",
+            ]
+            fault_counts = {f: 0 for f in fault_fields}
+            total_fault_flags = 0
+            for e in team_entries:
+                faults = e.data.postmatch.faults
+                for f in fault_fields:
+                    if getattr(faults, f):
+                        fault_counts[f] += 1
+                        total_fault_flags += 1
+
+            top_faults = sorted(
+                [(f, c) for f, c in fault_counts.items() if c > 0],
+                key=lambda x: x[1], reverse=True,
             )
-            log.step(f"Team {Logger.CYAN}{team_str}{Logger.RESET}  ({len(match_keys)} matches)")
-            for match_key in match_keys:
-                phase_parts = []
-                for phase in PHASES:
-                    fuel_val = team_data[match_key][phase]["fuel"]
-                    color = Logger.GREEN if fuel_val > 0 else Logger.RESET
-                    phase_parts.append(f"{phase}={color}{fuel_val}{Logger.RESET}")
-                log.substep(f"{match_key:>6}  |  " + "  ".join(phase_parts))
+            top_fault_str = ", ".join(f"{f} ({c})" for f, c in top_faults[:3]) if top_faults else "None"
 
-                # Print time-in-state percentages for this match
-                tp = team_data[match_key].get("time_percentages", {})
-                if any(v > 0 for v in tp.values()):
-                    state_parts = []
-                    for state in _STATE_LABELS:
-                        pct = tp.get(state, 0.0)
-                        color = Logger.GREEN if pct >= 10 else Logger.RESET
-                        state_parts.append(f"{state}={color}{pct:.1f}%{Logger.RESET}")
-                    log.substep(f"{'':>6}  |  time: " + "  ".join(state_parts))
+            # --- Intake positions ---
+            intake_counts = {"neutral": 0, "depot": 0, "outpost": 0, "opponent": 0}
+            for e in team_entries:
+                ip = e.data.postmatch.intakePos
+                for pos in intake_counts:
+                    if getattr(ip, pos):
+                        intake_counts[pos] += 1
+
+            primary_intake = max(intake_counts, key=intake_counts.get) if any(intake_counts.values()) else "None"
+
+            # --- Role distribution ---
+            role_counts: dict[str, int] = {}
+            for e in team_entries:
+                r = e.data.postmatch.role
+                role_counts[r] = role_counts.get(r, 0) + 1
+            primary_role = max(role_counts, key=role_counts.get) if role_counts else "Unknown"
+
+            # --- Skill averages ---
+            avg_skill = round(statistics.mean([e.data.postmatch.skill for e in team_entries]), 2)
+            avg_defense_skill = round(statistics.mean([e.data.postmatch.defenseSkill for e in team_entries]), 2)
+            avg_speed = round(statistics.mean([e.data.postmatch.speed for e in team_entries]), 2)
+
+            # --- Traversal preference ---
+            trav_counts: dict[str, int] = {}
+            for e in team_entries:
+                t = e.data.postmatch.traversalLocation
+                trav_counts[t] = trav_counts.get(t, 0) + 1
+            primary_traversal = max(trav_counts, key=trav_counts.get) if trav_counts else "Unknown"
+
+            # --- Assemble metrics dict ---
+            calc_result["team"][team_num]["metrics"] = {
+                "Matches Scouted": n,
+                "Primary Role": primary_role,
+                "Avg Skill": avg_skill,
+                "Avg Defense Skill": avg_defense_skill,
+                "Avg Speed": avg_speed,
+                "Traversal Pref": primary_traversal,
+                "Primary Intake": primary_intake,
+                "Intake Neutral": f"{intake_counts['neutral']}/{n}",
+                "Intake Depot": f"{intake_counts['depot']}/{n}",
+                "Intake Outpost": f"{intake_counts['outpost']}/{n}",
+                "Intake Opponent": f"{intake_counts['opponent']}/{n}",
+                "Endgame Climb Rate": f"{endgame_climb_successes}/{len(endgame_climbs)}" if endgame_climbs else "No attempts",
+                "Auto Climb Rate": f"{auto_climb_successes}/{len(auto_climbs)}" if auto_climbs else "No attempts",
+                "Common Climb Level": most_common_climb_level,
+                "Teleop Climb Pos": f"{teleop_climb_attempts}/{n}",
+                "Auto Climb Pos": f"{auto_climb_attempts}/{n}",
+                "Fault Rate": round(total_fault_flags / n, 2),
+                "Top Faults": top_fault_str,
+            }
+
+        log.stat("Teams with metrics", sum(1 for t in calc_result["team"] if calc_result["team"][t].get("metrics")))
 
     # -- Extract shot coordinates per team --------------------------------
     with log.section("Extracting shot coordinates per team"):
@@ -810,6 +876,307 @@ def run_calculation(setting):
                 f"teleop={Logger.GREEN}{teleop:.1f}{Logger.RESET}  "
                 f"climb={Logger.GREEN}{climb:.1f}{Logger.RESET}"
             )
+
+    # -- Build comprehensive rankings --------------------------------------
+    with log.section("Building team rankings"):
+        TOWER_POINTS = {"L1": 10, "L2": 20, "L3": 30}
+        AUTO_TOWER_POINTS = {"L1": 15}
+        # Shift durations in seconds for BPS calculations
+        # Auto=20s, Transition=10s, Shift1-4=25s each, Endgame=30s
+        ACTIVE_WINDOW_SECONDS = 25.0 * 2  # two 25s shifts when hub is active
+        TOTAL_TELEOP_SECONDS = 140.0  # 2:20
+
+        # Gather per-team lists for all ranking dimensions
+        # We'll accumulate across all scouted matches then compute stats
+
+        # Data accumulators keyed by team_num (int)
+        team_total_fuel: dict[int, list[float]] = {}
+        team_auto_fuel: dict[int, list[float]] = {}
+        team_teleop_fuel: dict[int, list[float]] = {}      # phase_1 + phase_2 + transition + endgame
+        team_active_fuel: dict[int, list[float]] = {}       # fuel during active hub windows only
+        team_endgame_fuel: dict[int, list[float]] = {}
+        team_transition_fuel: dict[int, list[float]] = {}
+        team_accuracy: dict[int, list[float]] = {}
+        team_climb_points: dict[int, list[float]] = {}      # tower points per match
+        team_auto_climb_success: dict[int, list[float]] = {}  # 1/0 per match
+        team_endgame_climb_success: dict[int, list[float]] = {}  # 1/0 per match
+        team_endgame_climb_level: dict[int, list[int]] = {}  # level achieved when successful
+        team_total_points_est: dict[int, list[float]] = {}   # estimated total contribution
+
+        for encoded_key, processed in processed_match_entries.items():
+            match_code, team_num = decode_match_entry(encoded_key)
+
+            fuel = processed.get("fuel", {})
+            climb = processed.get("climb", {})
+
+            total_scored = float(fuel.get("total", {}).get("scored", 0))
+            auto_scored = float(fuel.get("auto", {}).get("scored", 0))
+            transition_scored = float(fuel.get("transition", {}).get("scored", 0))
+            phase_1_scored = float(fuel.get("phase_1", {}).get("scored", 0))
+            phase_2_scored = float(fuel.get("phase_2", {}).get("scored", 0))
+            endgame_scored = float(fuel.get("endgame", {}).get("scored", 0))
+            teleop_scored = transition_scored + phase_1_scored + phase_2_scored + endgame_scored
+
+            # Per-shift scored for active window calculation
+            s1 = float(fuel.get("shift_1", {}).get("scored", 0))
+            s2 = float(fuel.get("shift_2", {}).get("scored", 0))
+            s3 = float(fuel.get("shift_3", {}).get("scored", 0))
+            s4 = float(fuel.get("shift_4", {}).get("scored", 0))
+            # Active fuel = max of (s1+s3) or (s2+s4) since one pair is always your active window
+            # We take the max because we don't know which shifts were active for this team's alliance,
+            # but the higher pair is almost certainly the active one
+            active_fuel = float(max(s1 + s3, s2 + s4))
+
+            total_shots = float(fuel.get("total", {}).get("shot", 0))
+            match_accuracy = (total_scored / total_shots) if total_shots > 0 else 0.0
+
+            # Climb points
+            auto_climb_pts = 0.0
+            auto_climb_ok = 0.0
+            if climb.get("auto", {}).get("attempt"):
+                if climb["auto"].get("success"):
+                    auto_climb_pts = 15.0  # auto L1 is always 15
+                    auto_climb_ok = 1.0
+
+            endgame_climb_pts = 0.0
+            endgame_climb_ok = 0.0
+            endgame_level = 0
+            if climb.get("endgame", {}).get("attempt"):
+                if climb["endgame"].get("success"):
+                    endgame_climb_ok = 1.0
+                    lvl = climb["endgame"].get("level", 1)
+                    endgame_level = lvl
+                    endgame_climb_pts = float(TOWER_POINTS.get(f"L{lvl}", 10))
+
+            total_climb_pts = auto_climb_pts + endgame_climb_pts
+
+            # Estimated total point contribution (fuel + tower)
+            est_points = total_scored + total_climb_pts
+
+            # Accumulate
+            team_total_fuel.setdefault(team_num, []).append(total_scored)
+            team_auto_fuel.setdefault(team_num, []).append(auto_scored)
+            team_teleop_fuel.setdefault(team_num, []).append(teleop_scored)
+            team_active_fuel.setdefault(team_num, []).append(active_fuel)
+            team_endgame_fuel.setdefault(team_num, []).append(endgame_scored)
+            team_transition_fuel.setdefault(team_num, []).append(transition_scored)
+            team_accuracy.setdefault(team_num, []).append(match_accuracy)
+            team_climb_points.setdefault(team_num, []).append(total_climb_pts)
+            team_auto_climb_success.setdefault(team_num, []).append(auto_climb_ok)
+            team_endgame_climb_success.setdefault(team_num, []).append(endgame_climb_ok)
+            if endgame_level > 0:
+                team_endgame_climb_level.setdefault(team_num, []).append(endgame_level)
+            team_total_points_est.setdefault(team_num, []).append(est_points)
+
+        # --- Compute per-team ranking values ---
+        ranking = calc_result["ranking"]
+
+        # Helper: safe mean
+        def _mean(lst):
+            return round(statistics.mean(lst), 2) if lst else None
+
+        def _median(lst):
+            return round(statistics.median(lst), 2) if lst else None
+
+        def _stdev(lst):
+            return round(statistics.stdev(lst), 2) if lst and len(lst) > 1 else 0.0
+
+        def _rate(lst):
+            """Fraction of 1.0 values in a 0/1 list, as percentage."""
+            return round((sum(lst) / len(lst)) * 100, 1) if lst else None
+
+        # Per-team stat dicts (team_num -> value)
+        ranking["total_fuel_avg"] = {}
+        ranking["total_fuel_median"] = {}
+        ranking["total_fuel_stdev"] = {}
+        ranking["auto_fuel_avg"] = {}
+        ranking["teleop_fuel_avg"] = {}
+        ranking["active_fuel_avg"] = {}
+        ranking["endgame_fuel_avg"] = {}
+        ranking["transition_fuel_avg"] = {}
+        ranking["accuracy_avg"] = {}
+        ranking["climb_points_avg"] = {}
+        ranking["auto_climb_rate"] = {}
+        ranking["endgame_climb_rate"] = {}
+        ranking["best_climb_level"] = {}
+        ranking["total_points_avg"] = {}
+        ranking["total_points_stdev"] = {}
+        ranking["bps"] = {}  # balls per second during active windows
+
+        # RP-derived rankings from TBA
+        ranking["rp_avg"] = {}
+        ranking["energized_rate"] = {}
+        ranking["supercharged_rate"] = {}
+        ranking["traversal_rate"] = {}
+
+        # Qualitative from scouting postmatch
+        ranking["skill_avg"] = {}
+        ranking["defense_skill_avg"] = {}
+        ranking["speed_avg"] = {}
+        ranking["fault_rate"] = {}
+
+        # Populate from scouting accumulators
+        all_scouted_teams = set(team_total_fuel.keys())
+        for tn in all_scouted_teams:
+            ranking["total_fuel_avg"][tn] = _mean(team_total_fuel.get(tn, []))
+            ranking["total_fuel_median"][tn] = _median(team_total_fuel.get(tn, []))
+            ranking["total_fuel_stdev"][tn] = _stdev(team_total_fuel.get(tn, []))
+            ranking["auto_fuel_avg"][tn] = _mean(team_auto_fuel.get(tn, []))
+            ranking["teleop_fuel_avg"][tn] = _mean(team_teleop_fuel.get(tn, []))
+            ranking["active_fuel_avg"][tn] = _mean(team_active_fuel.get(tn, []))
+            ranking["endgame_fuel_avg"][tn] = _mean(team_endgame_fuel.get(tn, []))
+            ranking["transition_fuel_avg"][tn] = _mean(team_transition_fuel.get(tn, []))
+            ranking["accuracy_avg"][tn] = _mean(team_accuracy.get(tn, []))
+            ranking["climb_points_avg"][tn] = _mean(team_climb_points.get(tn, []))
+            ranking["auto_climb_rate"][tn] = _rate(team_auto_climb_success.get(tn, []))
+            ranking["endgame_climb_rate"][tn] = _rate(team_endgame_climb_success.get(tn, []))
+            ranking["total_points_avg"][tn] = _mean(team_total_points_est.get(tn, []))
+            ranking["total_points_stdev"][tn] = _stdev(team_total_points_est.get(tn, []))
+
+            # Best climb level: most common successful endgame level
+            levels = team_endgame_climb_level.get(tn, [])
+            if levels:
+                ranking["best_climb_level"][tn] = max(set(levels), key=levels.count)
+            else:
+                ranking["best_climb_level"][tn] = 0
+
+            # BPS: average fuel scored in active windows / active window duration
+            active_avg = _mean(team_active_fuel.get(tn, []))
+            if active_avg is not None and ACTIVE_WINDOW_SECONDS > 0:
+                ranking["bps"][tn] = round(active_avg / ACTIVE_WINDOW_SECONDS, 3)
+            else:
+                ranking["bps"][tn] = None
+
+        # --- RP-based rankings from TBA data ---
+        # Track per-team: matches played, RP earned, and per-RP-type achievement
+        team_matches_played: dict[int, int] = {}
+        team_energized: dict[int, int] = {}
+        team_supercharged: dict[int, int] = {}
+        team_traversal: dict[int, int] = {}
+
+        for match in played_quals:
+            for color in ("red", "blue"):
+                alliance: MatchAlliance = getattr(match.alliances, color)
+                breakdown: AllianceScoreBreakdown2026 = getattr(match.score_breakdown, color)
+
+                for raw_team_key in alliance.team_keys:
+                    tn = parse_team_key(raw_team_key)
+                    team_matches_played[tn] = team_matches_played.get(tn, 0) + 1
+                    if breakdown.energizedAchieved:
+                        team_energized[tn] = team_energized.get(tn, 0) + 1
+                    if breakdown.superchargedAchieved:
+                        team_supercharged[tn] = team_supercharged.get(tn, 0) + 1
+                    if breakdown.traversalAchieved:
+                        team_traversal[tn] = team_traversal.get(tn, 0) + 1
+
+        for tn in team_matches_played:
+            mp = team_matches_played[tn]
+            rp_total = rp_tally.get(tn, 0)
+            ranking["rp_avg"][tn] = round(rp_total / mp, 2) if mp > 0 else None
+            ranking["energized_rate"][tn] = round((team_energized.get(tn, 0) / mp) * 100, 1) if mp > 0 else None
+            ranking["supercharged_rate"][tn] = round((team_supercharged.get(tn, 0) / mp) * 100, 1) if mp > 0 else None
+            ranking["traversal_rate"][tn] = round((team_traversal.get(tn, 0) / mp) * 100, 1) if mp > 0 else None
+
+        # --- Qualitative rankings from scouting postmatch ---
+        for team_num in calc_result["team"]:
+            team_entries = [
+                e for e in downloaded_data.match_scouting
+                if e.event_key == event_key and int(e.team) == team_num
+            ]
+            if not team_entries:
+                continue
+
+            n = len(team_entries)
+            ranking["skill_avg"][team_num] = round(statistics.mean([e.data.postmatch.skill for e in team_entries]), 2)
+            ranking["defense_skill_avg"][team_num] = round(statistics.mean([e.data.postmatch.defenseSkill for e in team_entries]), 2)
+            ranking["speed_avg"][team_num] = round(statistics.mean([e.data.postmatch.speed for e in team_entries]), 2)
+
+            fault_fields = [
+                "jam", "other", "brownout", "disabled", "failed_auto",
+                "immobilized", "disconnected", "erratic_driving", "structural_failure",
+            ]
+            total_faults = sum(
+                sum(1 for f in fault_fields if getattr(e.data.postmatch.faults, f))
+                for e in team_entries
+            )
+            ranking["fault_rate"][team_num] = round(total_faults / n, 2)
+
+        # --- Compute ordinal ranks (1 = best) for key metrics ---
+        # Higher is better for these metrics
+        _HIGHER_IS_BETTER = [
+            "total_fuel_avg", "auto_fuel_avg", "teleop_fuel_avg", "active_fuel_avg",
+            "climb_points_avg", "auto_climb_rate", "endgame_climb_rate",
+            "total_points_avg", "bps", "accuracy_avg", "skill_avg", "speed_avg",
+            "defense_skill_avg",
+        ]
+        # Lower is better
+        _LOWER_IS_BETTER = ["total_fuel_stdev", "total_points_stdev", "fault_rate"]
+
+        ranking["ranks"] = {}
+        for metric in _HIGHER_IS_BETTER:
+            data = ranking.get(metric, {})
+            valid = [(tn, v) for tn, v in data.items() if v is not None]
+            valid.sort(key=lambda x: x[1], reverse=True)
+            ranking["ranks"].setdefault(metric, {})
+            for rank_idx, (tn, _) in enumerate(valid, start=1):
+                ranking["ranks"][metric][tn] = rank_idx
+
+        for metric in _LOWER_IS_BETTER:
+            data = ranking.get(metric, {})
+            valid = [(tn, v) for tn, v in data.items() if v is not None]
+            valid.sort(key=lambda x: x[1], reverse=False)
+            ranking["ranks"].setdefault(metric, {})
+            for rank_idx, (tn, _) in enumerate(valid, start=1):
+                ranking["ranks"][metric][tn] = rank_idx
+
+        # --- Composite positional ranks for header display ---
+        # auto rank = rank by auto_fuel_avg
+        # teleop rank = rank by teleop_fuel_avg
+        # endgame rank = rank by climb_points_avg
+        ranking["auto"] = ranking["ranks"].get("auto_fuel_avg", {})
+        ranking["teleop"] = ranking["ranks"].get("teleop_fuel_avg", {})
+        ranking["endgame"] = ranking["ranks"].get("climb_points_avg", {})
+
+        # RP rank = rank by total RP (already have rp_tally, sort descending)
+        rp_sorted = sorted(rp_tally.items(), key=lambda x: x[1], reverse=True)
+        ranking["rp_rank"] = {}
+        for rank_idx, (tn, _) in enumerate(rp_sorted, start=1):
+            ranking["rp_rank"][tn] = rank_idx
+
+        # Predicted RP rank from Statbotics
+        # Sum predicted RP across all qual matches for each team
+        sb_rp_pred: dict[int, float] = {}
+        sb_quals = [m for m in sb_data if m.comp_level == "qm" and m.pred is not None]
+        for m in sb_quals:
+            for color in ("red", "blue"):
+                alliance_data: StatboticsAllianceData = getattr(m.alliances, color)
+                pred: StatboticsPred = m.pred
+                # rp from win probability: pred.red_win_prob or (1 - red_win_prob)
+                win_prob = pred.red_win_prob if color == "red" else (1 - pred.red_win_prob)
+                # Expected RP from win/tie: ~3 * win_prob (ignoring tie for simplicity)
+                expected_win_rp = 3.0 * win_prob
+                rp1 = pred.red_rp_1 if color == "red" else pred.blue_rp_1
+                rp2 = pred.red_rp_2 if color == "red" else pred.blue_rp_2
+                rp3 = (pred.red_rp_3 if color == "red" else pred.blue_rp_3) or 0.0
+                expected_bonus_rp = rp1 + rp2 + rp3
+                expected_total = expected_win_rp + expected_bonus_rp
+
+                for team_key in alliance_data.team_keys:
+                    tn = parse_team_key(team_key)
+                    sb_rp_pred[tn] = sb_rp_pred.get(tn, 0.0) + expected_total
+
+        ranking["rp_pred"] = {}
+        rp_pred_sorted = sorted(sb_rp_pred.items(), key=lambda x: x[1], reverse=True)
+        for rank_idx, (tn, val) in enumerate(rp_pred_sorted, start=1):
+            ranking["rp_pred"][tn] = rank_idx
+
+        ranking["rp_avg_pred"] = {
+            tn: round(val / max(team_matches_played.get(tn, 1), 1), 2)
+            for tn, val in sb_rp_pred.items()
+        }
+
+        log.stat("Teams ranked", len(all_scouted_teams | set(team_matches_played.keys())))
+        log.stat("Ranking dimensions", len([k for k in ranking if k not in ("ranks",)]))
 
     log.done()
     return calc_result
@@ -992,6 +1359,14 @@ def process_match_entry(data: ScoutingEntryData) -> dict:
         "endgame": "endgame",
     }
 
+    # Also track individual shifts for active/inactive window analysis
+    subphase_to_shift = {
+        "shift_1": "shift_1",
+        "shift_2": "shift_2",
+        "shift_3": "shift_3",
+        "shift_4": "shift_4",
+    }
+
     result = {
         "fuel": {
             "total": {"shot": 0, "scored": 0, "accuracy": 0},
@@ -1000,6 +1375,10 @@ def process_match_entry(data: ScoutingEntryData) -> dict:
             "phase_1": {"shot": 0, "scored": 0, "accuracy": 0},
             "phase_2": {"shot": 0, "scored": 0, "accuracy": 0},
             "endgame": {"shot": 0, "scored": 0, "accuracy": 0},
+            "shift_1": {"shot": 0, "scored": 0, "accuracy": 0},
+            "shift_2": {"shot": 0, "scored": 0, "accuracy": 0},
+            "shift_3": {"shot": 0, "scored": 0, "accuracy": 0},
+            "shift_4": {"shot": 0, "scored": 0, "accuracy": 0},
         },
         "climb": {
             "auto": {"duration": 0, "attempt": False, "success": False},
@@ -1015,15 +1394,21 @@ def process_match_entry(data: ScoutingEntryData) -> dict:
     for action in actions:
         if isinstance(action, ShootingAction):
             bucket = subphase_to_bucket.get(action.subPhase)
+            shift = subphase_to_shift.get(action.subPhase)
             fuel["total"]["shot"] += 1
             if bucket:
                 fuel[bucket]["shot"] += 1
+            if shift:
+                fuel[shift]["shot"] += 1
 
         elif isinstance(action, ScoreAction):
             bucket = subphase_to_bucket.get(action.subPhase)
+            shift = subphase_to_shift.get(action.subPhase)
             fuel["total"]["scored"] += action.score
             if bucket:
                 fuel[bucket]["scored"] += action.score
+            if shift:
+                fuel[shift]["scored"] += action.score
 
         elif isinstance(action, ClimbAction):
             climb_phase = "auto" if action.phase == "auto" else "endgame"
