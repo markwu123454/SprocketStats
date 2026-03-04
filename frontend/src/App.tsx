@@ -24,7 +24,7 @@ const RankingDataPage = lazy(() => import("@/pages/data/RankingDataPage.tsx"))
 const MorePage = lazy(() => import("@/pages/MorePage.tsx"))
 const TeamDataPage = lazy(() => import("@/pages/data/TeamDataPage.tsx"))
 const AdminSharePage = lazy(() => import("@/pages/AdminSharePage.tsx"))
-const MatchDataPredPage = lazy(() => import("@/pages/data/MatchDataPredPage.tsx"))
+const MatchDataRouter = lazy(() => import("@/pages/data/MatchDataRouter.tsx"))
 const CountdownPage = lazy(() => import("@/pages/CountdownPage.tsx"))
 const AttendancePage = lazy(() => import("@/pages/AttendancePage.tsx"))
 const MeetingSchedulePage = lazy(() => import("@/pages/MeetingSchedulePage.tsx"))
@@ -88,7 +88,7 @@ export default function App() {
                                     <Route path="test" element={<MatchDataPostPage />} />
                                     <Route path="ranking" element={<RankingDataPage />} />
                                     <Route path="team/:team" element={<TeamDataPage />} />
-                                    <Route path="match/:matchKey" element={<MatchDataPredPage />} />
+                                    <Route path="match/:matchKey" element={<MatchDataRouter />} />
                                     <Route path="alliance-sim" element={<AllianceSimDataPage />} />
                                 </Route>
                                 <Route path="guest" element={<GuestPage />} />

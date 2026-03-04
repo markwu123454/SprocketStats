@@ -477,7 +477,11 @@ def run_calculation(setting):
     # -- Initialize result structure -----------------------------------
     with log.section("Initializing calculation results"):
         calc_result.clear()
-        calc_result["ranking"] = {}
+        calc_result["ranking"] = {
+            "auton avg pts": {},
+            "teleop avg pts": {},
+            "climb avg(auton+teleop) pts": {},
+        }
         calc_result["alliance"] = {}
         calc_result["sb"] = [m.model_dump() for m in sb_data]
         calc_result["tba"] = [m.model_dump() for m in tba_data]
@@ -513,6 +517,50 @@ def run_calculation(setting):
         calc_result["ranking"]["rp"] = rp_tally
         log.stat("Teams with RP data", len(rp_tally))
         log.stat("Quals matches tallied", len(played_quals))
+
+    # -- Extract official tower levels from TBA ------------------------
+    with log.section("Extracting official tower levels from TBA"):
+        # { team_num: { canon_match_key: { "autonclimb": str, "teleopclimb": str } } }
+        team_official_climbs: dict[int, dict[str, dict[str, str]]] = {}
+
+        for match in tba_data:
+            if not match.score_breakdown:
+                continue
+
+            canon_match_key = calc_result["match_reverse_index"].get(match.key)
+            if not canon_match_key:
+                continue
+
+            for color in ("red", "blue"):
+                breakdown: AllianceScoreBreakdown2026 = getattr(match.score_breakdown, color)
+                alliance: MatchAlliance = getattr(match.alliances, color)
+
+                # TBA score breakdowns for 2026
+                # Robot1, Robot2, Robot3 correspond to the order in alliance.team_keys
+                teams = [parse_team_key(k) for k in alliance.team_keys]
+
+                auto_climbs = [
+                    breakdown.autoTowerRobot1,
+                    breakdown.autoTowerRobot2,
+                    breakdown.autoTowerRobot3
+                ]
+                tele_climbs = [
+                    breakdown.endGameTowerRobot1,
+                    breakdown.endGameTowerRobot2,
+                    breakdown.endGameTowerRobot3
+                ]
+
+                for i, team_num in enumerate(teams):
+                    if i >= len(auto_climbs):
+                        break
+
+                    team_official_climbs.setdefault(team_num, {})
+                    team_official_climbs[team_num][canon_match_key] = {
+                        "autonclimb": auto_climbs[i],
+                        "teleopclimb": tele_climbs[i]
+                    }
+
+        log.stat("Teams with official climb data", len(team_official_climbs))
 
     # -- Process match scouting entries --------------------------------
     with log.section("Processing match scouting entries:"):
@@ -611,6 +659,51 @@ def run_calculation(setting):
         calc_result["team_fuel"] = team_fuel_output
         log.stat("Teams with fuel data", len(team_fuel_output))
 
+    # -- Compute per-team ranking averages -----------------------------
+    with log.section("Computing per-team ranking averages"):
+        team_auton_pts: dict[str, list[float]] = {}
+        team_teleop_pts: dict[str, list[float]] = {}
+        team_climb_pts: dict[str, list[float]] = {}
+
+        for encoded_key, processed in processed_match_entries.items():
+            _, team_num = decode_match_entry(encoded_key)
+            team_str = str(team_num)
+
+            fuel = processed.get("fuel", {})
+            climb = processed.get("climb", {})
+
+            auton_pts = float(fuel.get("auto", {}).get("scored", 0))
+
+            teleop_pts = float(
+                fuel.get("transition", {}).get("scored", 0)
+                + fuel.get("phase_1", {}).get("scored", 0)
+                + fuel.get("phase_2", {}).get("scored", 0)
+                + fuel.get("endgame", {}).get("scored", 0)
+            )
+
+            climb_pts = 0.0
+            if climb.get("auto", {}).get("success"):
+                climb_pts += 10
+            if climb.get("endgame", {}).get("success"):
+                level = climb["endgame"].get("level", 3)
+                climb_pts += {1: 10, 2: 20, 3: 30}.get(level, 0)
+
+            team_auton_pts.setdefault(team_str, []).append(auton_pts)
+            team_teleop_pts.setdefault(team_str, []).append(teleop_pts)
+            team_climb_pts.setdefault(team_str, []).append(climb_pts)
+
+        for team_str in team_auton_pts:
+            vals = team_auton_pts[team_str]
+            calc_result["ranking"]["auton avg pts"][team_str] = sum(vals) / len(vals)
+        for team_str in team_teleop_pts:
+            vals = team_teleop_pts[team_str]
+            calc_result["ranking"]["teleop avg pts"][team_str] = sum(vals) / len(vals)
+        for team_str in team_climb_pts:
+            vals = team_climb_pts[team_str]
+            calc_result["ranking"]["climb avg(auton+teleop) pts"][team_str] = sum(vals) / len(vals)
+
+        log.stat("Teams with ranking data", len(team_auton_pts))
+
     # -- Print per-team match fuel summary -----------------------------
     with log.section("Per-team match fuel summary"):
         def _match_sort_key(k):
@@ -679,14 +772,44 @@ def run_calculation(setting):
                     last_x, last_y = action.x, action.y
                     shooting_origin = None
 
-        # Attach shots and fuel to per-team output
+        # Attach shots, fuel, and official climbs to per-team output
         for team_num in calc_result["team"]:
             calc_result["team"][team_num]["shots"] = team_shots.get(team_num, [])
             team_str = str(team_num)
+
+            # Ensure 'fuel' (match-by-match data) is populated
             if team_str in team_fuel_output:
                 calc_result["team"][team_num]["fuel"] = team_fuel_output[team_str]
+            else:
+                calc_result["team"][team_num]["fuel"] = {}
+
+            # Add official climb data to match records
+            if team_num in team_official_climbs:
+                for match_key, climbs in team_official_climbs[team_num].items():
+                    # Skip aggregated summary keys
+                    if match_key in ("phase", "time_percentages"):
+                        continue
+                    # Initialize match dictionary if scouting data was missing
+                    calc_result["team"][team_num]["fuel"].setdefault(match_key, {})
+                    # Add tower level climb status
+                    calc_result["team"][team_num]["fuel"][match_key].update(climbs)
 
         log.stat("Teams with shot data", len(team_shots))
+
+    # -- Print ranking summary -----------------------------------------
+    with log.section("Per-team ranking averages"):
+        ranking = calc_result["ranking"]
+        all_teams = sorted(ranking["auton avg pts"].keys(), key=lambda t: int(t))
+        for team_str in all_teams:
+            auton = ranking["auton avg pts"].get(team_str, 0)
+            teleop = ranking["teleop avg pts"].get(team_str, 0)
+            climb = ranking["climb avg(auton+teleop) pts"].get(team_str, 0)
+            log.substep(
+                f"Team {Logger.CYAN}{team_str}{Logger.RESET}  |  "
+                f"auton={Logger.GREEN}{auton:.1f}{Logger.RESET}  "
+                f"teleop={Logger.GREEN}{teleop:.1f}{Logger.RESET}  "
+                f"climb={Logger.GREEN}{climb:.1f}{Logger.RESET}"
+            )
 
     log.done()
     return calc_result

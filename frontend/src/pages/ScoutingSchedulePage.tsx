@@ -5,19 +5,19 @@ import {AgGridReact} from "ag-grid-react";
 import {type ColDef, themeQuartz} from "ag-grid-community";
 
 const scheduleRawData = [
-    "1-6, Tzuyu Wu, Ashlyn Lai, Dylan Okada, Ethan Chang, Henry Yang, Terrance Ng",
-    "7-12, Jacob Lau, Jadon Feng, Selina Gu, Adam Sun, Luke Yu, James Shu",
-    "13-18,	Christian Alvarado,	Liya Zhu,	Maren Lai,	Andrew Lin,	Cindy Lin,	Mark Wu",
-    "19-24,	Ashlyn Lai,	Tzuyu Wu,	Brista Lin,	Dylan Okada,	Ethan Chang,	Henry Yang",
-    "25-30,	Terrance Ng,	Jacob Lau,	Jadon Feng,	Selina Gu,	Adam Sun,	Luke Yu",
-    "31-36,	James Shu,	Christian Alvarado,	Liya Zhu,	Maren Lai,	Andrew Lin,	Cindy Lin",
-    "37-42,	Mark Wu,	Ashlyn Lai,	Tzuyu Wu,	Brista Lin,	Andrew Lin,	Ethan Chang",
-    "43-48,	Henry Yang,	Terrance Ng,	Jacob Lau,	Andrew Lin,	Selina Gu,	Adam Sun",
-    "49-55,	Luke Yu,	James Shu,	Christian Alvarado,	Liya Zhu,	Maren Lai,	Andrew Lin",
-    "56-62,	Cindy Lin,	Mark Wu,	Ashlyn Lai,	Tzuyu Wu,	Brista Lin,	Dylan Okada",
-    "63-69,	Ethan Chang,	Henry Yang,	Terrance Ng,	Jacob Lau,	Jadon Feng,	Selina Gu",
-    "70-76,	Adam Sun,	Luke Yu,	James Shu,	Christian Alvarado,	Liya Zhu,	Maren Lai",
-    "77-82,	Dylan Okada,	Cindy Lin,	Mark Wu,	Ashlyn Lai,	Tzuyu Wu,	Brista Lin",
+"1-6, Tzuyu Wu, Ashlyn Lai, Dylan Okada, Ethan Chang, Henry Yang, Terrance Ng",
+"7-12, Jacob Lau, Cindy Lin, Selina Gu, Adam Sun, Luke Yu, James Shu",
+"13-18, Christian Alvarado,    Liya Zhu,  Maren Lai, Lance Lin,    Cindy Lin, Mark Wu",
+"19-24, Ashlyn Lai,    David Ding, Andrew Lin,   Brian, Tzuyu Wu,  Brista Lin",
+"25-30, Dylan Okada,   Ethan Chang,   Henry Yang,    Terrance Ng,   Jacob Lau, Jadon Feng",
+"31-36, Selina Gu, Adam Sun,  Luke Yu,   James Shu, Christian Alvarado,    Liya Zhu",
+"37-42, Maren Lai, Lance Lin,    Cindy Lin, Mark Wu,   Ashlyn Lai,    David Ding",
+"43-48, Andrew Lin,    Brian, Tzuyu Wu,  Brista Lin,    Dylan Okada,   Ethan Chang",
+"49-55, Henry Yang,    Terrance Ng,   Jacob Lau, Andrew Lin,    Selina Gu, Adam Sun",
+"56-62, Luke Yu,   James Shu, Christian Alvarado,    Liya Zhu,  Maren Lai, Lance Lin",
+"63-69, Cindy Lin, Mark Wu,   Ashlyn Lai,    David Ding,    Andrew Lin,    Brian",
+"70-76, Tzuyu Wu,  Brista Lin,    Dylan Okada,   Ethan Chang,   Henry Yang,    Terrance Ng",
+"77-82, Jacob Lau, Jadon Feng,    Selina Gu, Adam Sun,  Luke Yu,   James Shu"
 ];
 
 const rowData = scheduleRawData.map((row) => {

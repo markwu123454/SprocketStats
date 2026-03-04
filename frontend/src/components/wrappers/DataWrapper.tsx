@@ -92,6 +92,177 @@ export interface DataSchema {
     match: Record<string, MatchData>
     Alliance: AllianceData
     issues?: string[]
+    match_completed?: Record<string, boolean>
+    // New fields
+    sb?: any[]
+    tba?: any[]
+    match_reverse_index?: Record<string, string>
+}
+
+// ---------------------------------------------------------------------------
+// Transform raw event data (sb/tba format) into DataSchema with TeamData
+// ---------------------------------------------------------------------------
+function transformEventData(raw: any): DataSchema {
+    const sb: any[] = raw.sb ?? []
+    const tba: any[] = raw.tba ?? []
+    const teamRaw: Record<string, any> = raw.team ?? {}
+    const rankingRaw: Record<string, any> = raw.ranking ?? {}
+    const teamFuelRaw: Record<string, any> = raw.team_fuel ?? {}
+    const matchReverseIndex: Record<string, string> = raw.match_reverse_index ?? {}
+
+    // Collect all team numbers from matches
+    const allTeams = new Set<number>()
+    for (const m of sb) {
+        for (const t of (m.alliances?.red?.team_keys ?? [])) allTeams.add(t)
+        for (const t of (m.alliances?.blue?.team_keys ?? [])) allTeams.add(t)
+    }
+
+    const completedMatches = sb.filter((m: any) => m.status === 'Completed' && m.result)
+
+    // Accumulate per-team alliance-level stats from qual matches for ranking
+    const teamStats: Record<number, { autoSum: number; teleopSum: number; endgameSum: number; scoreSum: number; qualCount: number }> = {}
+    for (const t of allTeams) {
+        teamStats[t] = {autoSum: 0, teleopSum: 0, endgameSum: 0, scoreSum: 0, qualCount: 0}
+    }
+    for (const m of completedMatches) {
+        if (m.elim) continue
+        for (const color of ['red', 'blue']) {
+            const teams: number[] = m.alliances?.[color]?.team_keys ?? []
+            const r = m.result
+            for (const t of teams) {
+                if (!teamStats[t]) continue
+                teamStats[t].autoSum += (r[`${color}_auto_points`] ?? 0)
+                teamStats[t].teleopSum += (r[`${color}_teleop_points`] ?? 0)
+                teamStats[t].endgameSum += (r[`${color}_endgame_points`] ?? 0)
+                teamStats[t].scoreSum += (r[`${color}_score`] ?? 0)
+                teamStats[t].qualCount++
+            }
+        }
+    }
+
+    // Compute sorted lists for ranking
+    const teamList = Array.from(allTeams)
+    const avg = (t: number, field: 'autoSum' | 'teleopSum' | 'endgameSum' | 'scoreSum') =>
+        teamStats[t].qualCount ? teamStats[t][field] / teamStats[t].qualCount : 0
+    const rpVal = (t: number): number => rankingRaw.rp?.[String(t)] ?? 0
+
+    const sortedByAuto = [...teamList].sort((a, b) => avg(b, 'autoSum') - avg(a, 'autoSum'))
+    const sortedByTeleop = [...teamList].sort((a, b) => avg(b, 'teleopSum') - avg(a, 'teleopSum'))
+    const sortedByEndgame = [...teamList].sort((a, b) => avg(b, 'endgameSum') - avg(a, 'endgameSum'))
+    const sortedByRp = [...teamList].sort((a, b) => rpVal(b) - rpVal(a))
+
+    const teamData: Record<number, TeamData> = {}
+    for (const teamNum of allTeams) {
+        const teamMatches = completedMatches
+            .filter((m: any) =>
+                m.alliances?.red?.team_keys?.includes(teamNum) ||
+                m.alliances?.blue?.team_keys?.includes(teamNum)
+            )
+            .sort((a: any, b: any) => (a.time ?? 0) - (b.time ?? 0))
+
+        const shortKey = (m: any): string => matchReverseIndex[m.key] ?? m.match_name ?? m.key
+
+        // Build matches array
+        const matches: TeamMatchRow[] = teamMatches.map((m: any) => {
+            const isRed = m.alliances?.red?.team_keys?.includes(teamNum)
+            const own = isRed ? 'red' : 'blue'
+            const opp = isRed ? 'blue' : 'red'
+            const r = m.result
+            const ownScore = r[`${own}_score`] ?? 0
+            const oppScore = r[`${opp}_score`] ?? 0
+            return {
+                match: shortKey(m),
+                own_alliance: m.alliances[own].team_keys,
+                opp_alliance: m.alliances[opp].team_keys,
+                result: r.winner === own ? 'W' : (ownScore === oppScore ? 'T' : 'L'),
+                score: ownScore,
+                opp_score: oppScore,
+                auto: r[`${own}_auto_points`] ?? 0,
+                teleop: r[`${own}_teleop_points`] ?? 0,
+                endgame: r[`${own}_endgame_points`] ?? 0,
+            }
+        })
+
+        // Qual-only matches for metrics
+        const qualMatches = matches.filter(m => String(m.match).startsWith('qm'))
+        const n = qualMatches.length || 1
+
+        const metrics: Record<string, number | string> = {
+            'Avg Score': +(qualMatches.reduce((s, m) => s + (m.score as number), 0) / n).toFixed(1),
+            'Avg Auto': +(qualMatches.reduce((s, m) => s + (m.auto as number), 0) / n).toFixed(1),
+            'Avg Teleop': +(qualMatches.reduce((s, m) => s + (m.teleop as number), 0) / n).toFixed(1),
+            'Avg Endgame': +(qualMatches.reduce((s, m) => s + (m.endgame as number), 0) / n).toFixed(1),
+            'Win Rate': `${(qualMatches.filter(m => m.result === 'W').length / n * 100).toFixed(0)}%`,
+            'Qual Matches': qualMatches.length,
+        }
+
+        // Per-match RP data
+        const rp: Record<string, TeamRPMatchData> = {}
+        for (const m of teamMatches) {
+            const isRed = m.alliances?.red?.team_keys?.includes(teamNum)
+            const own = isRed ? 'red' : 'blue'
+            const r = m.result
+            rp[shortKey(m)] = {
+                energized: r[`${own}_energized_rp`] ?? r[`${own}_rp_1`] ?? false,
+                supercharged: r[`${own}_supercharged_rp`] ?? r[`${own}_rp_2`] ?? false,
+                win: r.winner === own,
+            }
+        }
+
+        // Scoring timeline
+        const timeline: TeamTimelineRow[] = matches.map(m => ({
+            match: m.match as string,
+            auto: m.auto as number,
+            teleop: m.teleop as number,
+            endgame: m.endgame as number,
+        }))
+
+        // Score breakdown tree
+        const breakdown: TeamBreakdownNode = {
+            id: 'total',
+            label: 'Total Score',
+            children: [
+                {id: 'auto', label: 'Auto', value: +(metrics['Avg Auto'] ?? 0)},
+                {id: 'teleop', label: 'Teleop', value: +(metrics['Avg Teleop'] ?? 0)},
+                {id: 'endgame', label: 'Endgame', value: +(metrics['Avg Endgame'] ?? 0)},
+            ],
+        }
+
+        // Team ranking
+        const rpTotalVal = rpVal(teamNum)
+        const qualCount = teamStats[teamNum].qualCount || 1
+        const ranking: TeamRanking = {
+            auto: sortedByAuto.indexOf(teamNum) + 1,
+            teleop: sortedByTeleop.indexOf(teamNum) + 1,
+            endgame: sortedByEndgame.indexOf(teamNum) + 1,
+            rp: sortedByRp.indexOf(teamNum) + 1,
+            rp_pred: 0,
+            rp_avg: +(rpTotalVal / qualCount).toFixed(2),
+            rp_avg_pred: 0,
+        }
+
+        teamData[teamNum] = {
+            basic: {tags: []},
+            ranking,
+            metrics,
+            matches,
+            rp,
+            timeline,
+            breakdown,
+            shots: teamRaw[String(teamNum)]?.shots ?? [],
+            fuel: teamFuelRaw[String(teamNum)] ?? teamRaw[String(teamNum)]?.fuel,
+        }
+    }
+
+    return {
+        ranking: rankingRaw,
+        team: teamData,
+        match: raw.match ?? {},
+        Alliance: raw.alliance ?? {},
+        sb,
+        tba,
+        match_reverse_index: matchReverseIndex
+    }
 }
 
 export interface DataContextType {
@@ -196,6 +367,11 @@ export default function DataWrapper() {
                     permissions: null,
                 }))
                 return
+            }
+
+            // Transform raw event data (sb/tba format) if needed
+            if ('sb' in (processed as any)) {
+                processed = transformEventData(processed)
             }
 
             // Normal success
@@ -348,4 +524,23 @@ export function usePermissions(): GuestPermissions | null {
 
 export function useLoading(): boolean {
     return useDataContext().loading
+}
+
+export function useMatchCompleted(shortKey: string): boolean | null {
+    const { processedData } = useDataContext()
+
+    // Check match_completed dict from calculator output
+    if (processedData?.match_completed) {
+        return processedData.match_completed[shortKey] ?? false
+    }
+
+    // Fallback: check sb entries
+    const sb = processedData?.sb
+    const reverseIndex = processedData?.match_reverse_index
+    if (!sb || !reverseIndex) return null
+    const entry = sb.find(
+        (m: any) => (reverseIndex[m.key] ?? m.match_name ?? m.key) === shortKey
+    )
+    if (!entry) return false
+    return entry.status === 'Completed'
 }

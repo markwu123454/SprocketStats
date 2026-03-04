@@ -254,6 +254,27 @@ async def _calculate_async(data, progress, log, get_settings):
             )
 
         # =========================
+        # Step 5: Match completion status
+        # =========================
+        current_step = "5"
+        scouted_matches = set()
+        for entry in match_data:
+            mt = entry.get("match_type", "")
+            mn = entry.get("match", "")
+            if mt and mn != "":
+                scouted_matches.add(f"{mt}{mn}")
+
+        match_completed = {}
+        for m in all_matches:
+            mt = m.get("match_type", "")
+            mn = m.get("match_number", "")
+            if mt and mn != "":
+                canon_key = f"{mt}{mn}"
+                match_completed[canon_key] = canon_key in scouted_matches
+
+        log(f"{ANSI_GREEN}    ✔ Match completion status computed ({sum(match_completed.values())}/{len(match_completed)} completed){ANSI_RESET}")
+
+        # =========================
         # Step 6: Output translation
         # =========================
         result = {
@@ -261,6 +282,7 @@ async def _calculate_async(data, progress, log, get_settings):
             "team": {},
             "ranking": {},
             "alliance": {},
+            "match_completed": match_completed,
         }
 
         if run6:
@@ -268,6 +290,7 @@ async def _calculate_async(data, progress, log, get_settings):
             log("  → Translating all processed data into output structures")
 
             result = {
+                "match_completed": match_completed,
                 "team": {
                     3473:
                     # basic

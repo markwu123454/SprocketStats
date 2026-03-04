@@ -111,7 +111,7 @@ export default function TeamDataPage() {
                             <MetricsBlock data={data} permissions={permissions} />
                         </Block>
                         <Block title="RP Criteria">
-                            <RPCriteriaBlock data={data} permissions={permissions} />
+                            <RPCriteriaBlock data={data} permissions={permissions} teamNum={teamNum} />
                         </Block>
                         <Block title="Match History">
                             <MatchHistoryBlock data={data} permissions={permissions} />

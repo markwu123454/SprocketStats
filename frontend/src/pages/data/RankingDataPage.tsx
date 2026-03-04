@@ -171,7 +171,15 @@ export default function RankingData() {
 
     const columnDefs = useMemo(() => {
         if (!rankingData || rankingData.length === 0) return []
-        return buildColumnDefsFromObject(rankingData[0])
+        // Build template from union of all row keys so every column appears
+        // even if the first row is missing some fields
+        const template: Record<string, any> = {}
+        for (const row of rankingData) {
+            for (const [k, v] of Object.entries(row)) {
+                if (!(k in template)) template[k] = v
+            }
+        }
+        return buildColumnDefsFromObject(template)
     }, [rankingData, selectedTeam, selectedMetric])
 
     const defaultColDef = useMemo(() => ({
@@ -360,6 +368,8 @@ export default function RankingData() {
                 sortable: true,
                 filter: true,
                 resizable: true,
+                valueFormatter: (params: any) =>
+                    params.value === undefined || params.value === null ? "N/A" : params.value,
                 cellClassRules: {
                     "bg-blue-100 ring-1 ring-blue-400": (params: any) =>
                         params.data?.team === selectedTeam &&
