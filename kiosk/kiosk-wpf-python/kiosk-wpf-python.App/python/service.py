@@ -410,7 +410,7 @@ def generate_frc_passcode(team_name, team_number, rng=None):
     return ''.join(passcode_chars)
 
 
-async def initialize_event(event_key):
+async def initialize_event(event_key, init_passwords=True, init_matches=True):
     log = Logger()
 
     log.header(f"INITIALIZING EVENT: {event_key}")
@@ -435,50 +435,56 @@ async def initialize_event(event_key):
     teams = teams_resp.json()
     matches = matches_resp.json()
 
-    # Fixed seed for deterministic passwords
-    rng = random.Random(f"{event_key}-seed-3473")
+    guest_count = 0
+    match_count = 0
 
     # --- Build guest data ---
-    data = {}
-    for team in teams:
-        team_number = parse_team_key(team["team_number"])
-        if team_number != 3473:
-            data[team_number] = {
-                "password": generate_frc_passcode(team["nickname"], team_number, rng=rng),
-                "name": team["nickname"],
-                "permissions": {
-                    "teams": [],
-                    "matches": [],
+    if init_passwords:
+        # Fixed seed for deterministic passwords
+        rng = random.Random(f"{event_key}-seed-3473")
+
+        data = {}
+        for team in teams:
+            team_number = parse_team_key(team["team_number"])
+            if team_number != 3473:
+                data[team_number] = {
+                    "password": generate_frc_passcode(team["nickname"], team_number, rng=rng),
+                    "name": team["nickname"],
+                    "permissions": {
+                        "team": [],
+                        "match": [],
+                        "ranking": False,
+                        "alliance": False,
+                    }
                 }
-            }
 
-    found_3473 = False
+        found_3473 = False
 
-    for match in matches:
-        alliances = match["alliances"]
-        red_teams = [parse_team_key(t) for t in alliances["red"]["team_keys"]]
-        blue_teams = [parse_team_key(t) for t in alliances["blue"]["team_keys"]]
-        all_teams = red_teams + blue_teams
+        for match in matches:
+            alliances = match["alliances"]
+            red_teams = [parse_team_key(t) for t in alliances["red"]["team_keys"]]
+            blue_teams = [parse_team_key(t) for t in alliances["blue"]["team_keys"]]
+            all_teams = red_teams + blue_teams
 
-        if 3473 not in all_teams:
-            continue
-
-        found_3473 = True
-        alliance_of_3473 = red_teams if 3473 in red_teams else blue_teams
-        partners = [t for t in alliance_of_3473 if t != 3473]
-        match_key = match["key"]
-
-        for partner in partners:
-            if partner not in data:
+            if 3473 not in all_teams:
                 continue
-            for team_number in all_teams:
-                if team_number not in data[partner]["permissions"]["teams"]:
-                    data[partner]["permissions"]["teams"].append(team_number)
-            if match_key not in data[partner]["permissions"]["matches"]:
-                data[partner]["permissions"]["matches"].append(parse_match_key(match_key))
 
-    if not found_3473:
-        log.warn("Team 3473 was not found in any matches for this event")
+            found_3473 = True
+            alliance_of_3473 = red_teams if 3473 in red_teams else blue_teams
+            partners = [t for t in alliance_of_3473 if t != 3473]
+            match_key = match["key"]
+
+            for partner in partners:
+                if partner not in data:
+                    continue
+                for team_number in all_teams:
+                    if team_number not in data[partner]["permissions"]["team"]:
+                        data[partner]["permissions"]["team"].append(team_number)
+                if match_key not in data[partner]["permissions"]["match"]:
+                    data[partner]["permissions"]["match"].append(parse_match_key(match_key))
+
+        if not found_3473:
+            log.warn("Team 3473 was not found in any matches for this event")
 
     # --- Database upload ---
     log.step("Connecting to database...")
@@ -488,86 +494,87 @@ async def initialize_event(event_key):
     try:
         async with conn.transaction():
             # Insert guests
-            log.step("Uploading guests...")
-            guest_count = 0
-            for team_number, info in data.items():
-                await conn.execute(
-                    """
-                    INSERT INTO guests (password, name, permissions)
-                    VALUES ($1, $2, $3)
-                    ON CONFLICT (password) DO UPDATE
-                        SET name = EXCLUDED.name,
-                            permissions = EXCLUDED.permissions
-                    """,
-                    info["password"],
-                    info["name"],
-                    json.dumps(info["permissions"]),
-                )
-                guest_count += 1
-            log.stat("Guests upserted", guest_count)
+            if init_passwords:
+                log.step("Uploading guests...")
+                for team_number, info in data.items():
+                    await conn.execute(
+                        """
+                        INSERT INTO guests (password, name, permissions)
+                        VALUES ($1, $2, $3)
+                        ON CONFLICT (password) DO UPDATE
+                            SET name = EXCLUDED.name,
+                                permissions = EXCLUDED.permissions
+                        """,
+                        info["password"],
+                        info["name"],
+                        info["permissions"],
+                    )
+                    guest_count += 1
+                log.stat("Guests upserted", guest_count)
+            else:
+                log.step("Skipping guest/password initialization (disabled)")
 
             # Insert matches
-            log.step("Uploading matches...")
-            match_count = 0
-            for match in matches:
-                alliances = match["alliances"]
-                red_teams = [parse_team_key(t) for t in alliances["red"]["team_keys"]]
-                blue_teams = [parse_team_key(t) for t in alliances["blue"]["team_keys"]]
+            if init_matches:
+                log.step("Uploading matches...")
+                for match in matches:
+                    alliances = match["alliances"]
+                    red_teams = [parse_team_key(t) for t in alliances["red"]["team_keys"]]
+                    blue_teams = [parse_team_key(t) for t in alliances["blue"]["team_keys"]]
 
-                match_key = match["key"]
-                comp_level = match.get("comp_level", "qm")
-                match_number = match.get("match_number", 0)
-                set_number = match.get("set_number", 1)
+                    match_key = match["key"]
+                    comp_level = match.get("comp_level", "qm")
+                    match_number = match.get("match_number", 0)
+                    set_number = match.get("set_number", 1)
 
-                # For elimination rounds:
-                # sf set 1 → sf match 1, sf set 2 → sf match 2, sf set 3 → sf match 3
-                # f match 1 → f match 1, f match 2 → f match 2, f match 3 → f match 3
-                if comp_level in ("sf", "qf", "ef"):
-                    match_type = comp_level
-                    match_number = set_number
-                elif comp_level == "f":
-                    match_type = comp_level
-                else:
-                    match_type = comp_level
+                    if comp_level in ("sf", "qf", "ef"):
+                        match_type = comp_level
+                        match_number = set_number
+                    elif comp_level == "f":
+                        match_type = comp_level
+                    else:
+                        match_type = comp_level
 
-                scheduled_time = None
-                if match.get("time"):
-                    from datetime import datetime, timezone
-                    scheduled_time = datetime.fromtimestamp(match["time"], tz=timezone.utc)
+                    scheduled_time = None
+                    if match.get("time"):
+                        from datetime import datetime, timezone
+                        scheduled_time = datetime.fromtimestamp(match["time"], tz=timezone.utc)
 
-                actual_time = None
-                if match.get("actual_time"):
-                    from datetime import datetime, timezone
-                    actual_time = datetime.fromtimestamp(match["actual_time"], tz=timezone.utc)
+                    actual_time = None
+                    if match.get("actual_time"):
+                        from datetime import datetime, timezone
+                        actual_time = datetime.fromtimestamp(match["actual_time"], tz=timezone.utc)
 
-                await conn.execute(
-                    """
-                    INSERT INTO matches (key, event_key, match_type, match_number, set_number,
-                                         scheduled_time, actual_time,
-                                         red1, red2, red3, blue1, blue2, blue3)
-                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
-                    ON CONFLICT (key) DO UPDATE
-                        SET scheduled_time = EXCLUDED.scheduled_time,
-                            actual_time = EXCLUDED.actual_time,
-                            red1 = EXCLUDED.red1, red2 = EXCLUDED.red2, red3 = EXCLUDED.red3,
-                            blue1 = EXCLUDED.blue1, blue2 = EXCLUDED.blue2, blue3 = EXCLUDED.blue3
-                    """,
-                    match_key,
-                    event_key,
-                    match_type,
-                    match_number,
-                    set_number,
-                    scheduled_time,
-                    actual_time,
-                    red_teams[0] if len(red_teams) > 0 else None,
-                    red_teams[1] if len(red_teams) > 1 else None,
-                    red_teams[2] if len(red_teams) > 2 else None,
-                    blue_teams[0] if len(blue_teams) > 0 else None,
-                    blue_teams[1] if len(blue_teams) > 1 else None,
-                    blue_teams[2] if len(blue_teams) > 2 else None,
-                )
-                match_count += 1
-            log.stat("Matches upserted", match_count)
+                    await conn.execute(
+                        """
+                        INSERT INTO matches (key, event_key, match_type, match_number, set_number,
+                                             scheduled_time, actual_time,
+                                             red1, red2, red3, blue1, blue2, blue3)
+                        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+                        ON CONFLICT (key) DO UPDATE
+                            SET scheduled_time = EXCLUDED.scheduled_time,
+                                actual_time = EXCLUDED.actual_time,
+                                red1 = EXCLUDED.red1, red2 = EXCLUDED.red2, red3 = EXCLUDED.red3,
+                                blue1 = EXCLUDED.blue1, blue2 = EXCLUDED.blue2, blue3 = EXCLUDED.blue3
+                        """,
+                        match_key,
+                        event_key,
+                        match_type,
+                        match_number,
+                        set_number,
+                        scheduled_time,
+                        actual_time,
+                        red_teams[0] if len(red_teams) > 0 else None,
+                        red_teams[1] if len(red_teams) > 1 else None,
+                        red_teams[2] if len(red_teams) > 2 else None,
+                        blue_teams[0] if len(blue_teams) > 0 else None,
+                        blue_teams[1] if len(blue_teams) > 1 else None,
+                        blue_teams[2] if len(blue_teams) > 2 else None,
+                    )
+                    match_count += 1
+                log.stat("Matches upserted", match_count)
+            else:
+                log.step("Skipping match initialization (disabled)")
 
     finally:
         await conn.close()
