@@ -1186,7 +1186,6 @@ export default function MatchScouting({
                                         setShotEditHint(true)
                                     }
                                     setShotPendingReset(true)
-                                    setScored(0)
                                     handleZoneClick(key)
                                 }}
                                 className="absolute rounded-xl transition-all duration-200 flex flex-col items-center justify-center gap-1"
