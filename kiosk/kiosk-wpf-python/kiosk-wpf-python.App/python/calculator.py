@@ -978,49 +978,32 @@ def run_calculation(setting):
             )
             ranking["fault_rate"][team_num] = round(total_faults / n, 2)
 
-        # --- Compute ordinal ranks (1 = best) for key metrics ---
-        # Higher is better for these metrics
-        _HIGHER_IS_BETTER = [
-            "total_fuel_avg", "auto_fuel_avg", "teleop_fuel_avg", "active_fuel_avg",
+        # --- Backfill all teams with 0 for missing ranking metrics ---
+        all_teams = set(calc_result["team"].keys())
+        _ALL_RANKING_KEYS = [
+            "total_fuel_avg", "total_fuel_median", "total_fuel_stdev",
+            "auto_fuel_avg", "teleop_fuel_avg", "active_fuel_avg",
+            "endgame_fuel_avg", "transition_fuel_avg", "accuracy_avg",
             "climb_points_avg", "auto_climb_rate", "endgame_climb_rate",
-            "total_points_avg", "bps", "accuracy_avg", "skill_avg", "speed_avg",
-            "defense_skill_avg",
+            "best_climb_level", "total_points_avg", "total_points_stdev",
+            "bps", "rp_avg", "energized_rate", "supercharged_rate",
+            "traversal_rate", "skill_avg", "defense_skill_avg",
+            "speed_avg", "fault_rate",
         ]
-        # Lower is better
-        _LOWER_IS_BETTER = ["total_fuel_stdev", "total_points_stdev", "fault_rate"]
+        for metric_key in _ALL_RANKING_KEYS:
+            for tn in all_teams:
+                if tn not in ranking.get(metric_key, {}):
+                    ranking.setdefault(metric_key, {})[tn] = 0
 
-        ranking["ranks"] = {}
-        for metric in _HIGHER_IS_BETTER:
-            data = ranking.get(metric, {})
-            valid = [(tn, v) for tn, v in data.items() if v is not None]
-            valid.sort(key=lambda x: x[1], reverse=True)
-            ranking["ranks"].setdefault(metric, {})
-            for rank_idx, (tn, _) in enumerate(valid, start=1):
-                ranking["ranks"][metric][tn] = rank_idx
+        # --- Composite metrics for header display (store averages, not ranks) ---
+        ranking["auto"] = dict(ranking.get("auto_fuel_avg", {}))
+        ranking["teleop"] = dict(ranking.get("teleop_fuel_avg", {}))
+        ranking["endgame"] = dict(ranking.get("climb_points_avg", {}))
 
-        for metric in _LOWER_IS_BETTER:
-            data = ranking.get(metric, {})
-            valid = [(tn, v) for tn, v in data.items() if v is not None]
-            valid.sort(key=lambda x: x[1], reverse=False)
-            ranking["ranks"].setdefault(metric, {})
-            for rank_idx, (tn, _) in enumerate(valid, start=1):
-                ranking["ranks"][metric][tn] = rank_idx
+        # RP total per team from TBA
+        ranking["rp_rank"] = dict(rp_tally)
 
-        # --- Composite positional ranks for header display ---
-        # auto rank = rank by auto_fuel_avg
-        # teleop rank = rank by teleop_fuel_avg
-        # endgame rank = rank by climb_points_avg
-        ranking["auto"] = ranking["ranks"].get("auto_fuel_avg", {})
-        ranking["teleop"] = ranking["ranks"].get("teleop_fuel_avg", {})
-        ranking["endgame"] = ranking["ranks"].get("climb_points_avg", {})
-
-        # RP rank = rank by total RP (already have rp_tally, sort descending)
-        rp_sorted = sorted(rp_tally.items(), key=lambda x: x[1], reverse=True)
-        ranking["rp_rank"] = {}
-        for rank_idx, (tn, _) in enumerate(rp_sorted, start=1):
-            ranking["rp_rank"][tn] = rank_idx
-
-        # Predicted RP rank from Statbotics
+        # Predicted RP from Statbotics
         # Sum predicted RP across all qual matches for each team
         sb_rp_pred: dict[int, float] = {}
         sb_quals = [m for m in sb_data if m.comp_level == "qm" and m.pred is not None]
@@ -1042,10 +1025,8 @@ def run_calculation(setting):
                     tn = parse_team_key(team_key)
                     sb_rp_pred[tn] = sb_rp_pred.get(tn, 0.0) + expected_total
 
-        ranking["rp_pred"] = {}
-        rp_pred_sorted = sorted(sb_rp_pred.items(), key=lambda x: x[1], reverse=True)
-        for rank_idx, (tn, val) in enumerate(rp_pred_sorted, start=1):
-            ranking["rp_pred"][tn] = rank_idx
+        # Store predicted total RP values (not ranks)
+        ranking["rp_pred"] = {tn: round(val, 2) for tn, val in sb_rp_pred.items()}
 
         ranking["rp_avg_pred"] = {
             tn: round(val / max(team_matches_played.get(tn, 1), 1), 2)
@@ -1053,7 +1034,7 @@ def run_calculation(setting):
         }
 
         log.stat("Teams ranked", len(all_scouted_teams | set(team_matches_played.keys())))
-        log.stat("Ranking dimensions", len([k for k in ranking if k not in ("ranks",)]))
+        log.stat("Ranking dimensions", len(ranking))
 
     # -- Build per-match prediction data -----------------------------------
     with log.section("Building match predictions"):

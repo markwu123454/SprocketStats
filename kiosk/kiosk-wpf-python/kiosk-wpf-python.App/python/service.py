@@ -34,6 +34,7 @@ import frc_score_tracker_lib
 from calculator import *
 from logger import *
 from context import ctx
+from export import *
 
 FRCScoreTracker = ScoreRegionConfig = None
 

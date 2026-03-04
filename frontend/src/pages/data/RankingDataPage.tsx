@@ -185,7 +185,8 @@ export default function RankingData() {
     const defaultColDef = useMemo(() => ({
         sortable: true,
         filter: true,
-        resizable: true
+        resizable: true,
+        width: 90,
     }), []);
 
 
