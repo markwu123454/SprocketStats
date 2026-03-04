@@ -32,7 +32,7 @@ const TELEOP_SEQUENCE: SubPhaseConfig[] = [
 // ---------------------------------------------------------------------------
 // Phase duration constants
 // ---------------------------------------------------------------------------
-const AUTO_DURATION = 20000
+const AUTO_DURATION = 21500
 const BETWEEN_DURATION = 4000
 const TELEOP_DURATION = TELEOP_SEQUENCE.reduce((s, c) => s + c.duration, 0)
 const TOTAL_MATCH_DURATION = AUTO_DURATION + BETWEEN_DURATION + TELEOP_DURATION
