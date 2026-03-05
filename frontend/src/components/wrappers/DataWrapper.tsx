@@ -3,7 +3,6 @@ import {Outlet, useLocation} from "react-router-dom"
 import {useAPI} from "@/hooks/useAPI.ts"
 import {MessageSquare, X} from "lucide-react";
 
-
 export interface RankingData {
     [key: string]: any
 }
@@ -98,156 +97,6 @@ export interface DataSchema {
     sb?: any[]
     tba?: any[]
     match_reverse_index?: Record<string, string>
-}
-
-// ---------------------------------------------------------------------------
-// Transform raw event data (sb/tba format) into DataSchema with TeamData
-// ---------------------------------------------------------------------------
-function transformEventData(raw: any): DataSchema {
-    const sb: any[] = raw.sb ?? []
-    const tba: any[] = raw.tba ?? []
-    const teamRaw: Record<string, any> = raw.team ?? {}
-    const rankingRaw: Record<string, any> = raw.ranking ?? {}
-    const teamFuelRaw: Record<string, any> = raw.team_fuel ?? {}
-    const matchReverseIndex: Record<string, string> = raw.match_reverse_index ?? {}
-
-    // Collect all team numbers from matches
-    const allTeams = new Set<number>()
-    for (const m of sb) {
-        for (const t of (m.alliances?.red?.team_keys ?? [])) allTeams.add(t)
-        for (const t of (m.alliances?.blue?.team_keys ?? [])) allTeams.add(t)
-    }
-
-    const completedMatches = sb.filter((m: any) => m.status === 'Completed' && m.result)
-
-    const teamData: Record<number, TeamData> = {}
-    for (const teamNum of allTeams) {
-        const teamMatches = completedMatches
-            .filter((m: any) =>
-                m.alliances?.red?.team_keys?.includes(teamNum) ||
-                m.alliances?.blue?.team_keys?.includes(teamNum)
-            )
-            .sort((a: any, b: any) => (a.time ?? 0) - (b.time ?? 0))
-
-        const shortKey = (m: any): string => matchReverseIndex[m.key] ?? m.match_name ?? m.key
-
-        // Build matches array
-        const matches: TeamMatchRow[] = teamMatches.map((m: any) => {
-            const isRed = m.alliances?.red?.team_keys?.includes(teamNum)
-            const own = isRed ? 'red' : 'blue'
-            const opp = isRed ? 'blue' : 'red'
-            const r = m.result
-            const ownScore = r[`${own}_score`] ?? 0
-            const oppScore = r[`${opp}_score`] ?? 0
-            return {
-                match: shortKey(m),
-                own_alliance: m.alliances[own].team_keys,
-                opp_alliance: m.alliances[opp].team_keys,
-                result: r.winner === own ? 'W' : (ownScore === oppScore ? 'T' : 'L'),
-                score: ownScore,
-                opp_score: oppScore,
-                auto: r[`${own}_auto_points`] ?? 0,
-                teleop: r[`${own}_teleop_points`] ?? 0,
-                endgame: r[`${own}_endgame_points`] ?? 0,
-            }
-        })
-
-        // Qual-only matches for fallback metrics
-        const qualMatches = matches.filter(m => String(m.match).startsWith('qm'))
-        const n = qualMatches.length || 1
-
-        // Use backend-computed metrics if available, otherwise compute fallback
-        const backendMetrics = teamRaw[String(teamNum)]?.metrics ?? {}
-        const hasBackendMetrics = Object.keys(backendMetrics).length > 0
-
-        const fallbackMetrics: Record<string, number | string> = {
-            'Avg Score': +(qualMatches.reduce((s, m) => s + (m.score as number), 0) / n).toFixed(1),
-            'Avg Auto': +(qualMatches.reduce((s, m) => s + (m.auto as number), 0) / n).toFixed(1),
-            'Avg Teleop': +(qualMatches.reduce((s, m) => s + (m.teleop as number), 0) / n).toFixed(1),
-            'Avg Endgame': +(qualMatches.reduce((s, m) => s + (m.endgame as number), 0) / n).toFixed(1),
-            'Win Rate': `${(qualMatches.filter(m => m.result === 'W').length / n * 100).toFixed(0)}%`,
-            'Qual Matches': qualMatches.length,
-        }
-
-        // Merge: fallback first, then backend overwrites/extends
-        const metrics: Record<string, number | string> = {
-            ...fallbackMetrics,
-            ...backendMetrics,
-        }
-
-        // Per-match RP data
-        const rp: Record<string, TeamRPMatchData> = {}
-        for (const m of teamMatches) {
-            const isRed = m.alliances?.red?.team_keys?.includes(teamNum)
-            const own = isRed ? 'red' : 'blue'
-            const r = m.result
-            rp[shortKey(m)] = {
-                energized: r[`${own}_energized_rp`] ?? r[`${own}_rp_1`] ?? false,
-                supercharged: r[`${own}_supercharged_rp`] ?? r[`${own}_rp_2`] ?? false,
-                win: r.winner === own,
-            }
-        }
-
-        // Scoring timeline
-        const timeline: TeamTimelineRow[] = matches.map(m => ({
-            match: m.match as string,
-            auto: m.auto as number,
-            teleop: m.teleop as number,
-            endgame: m.endgame as number,
-        }))
-
-        // Score breakdown tree
-        const breakdown: TeamBreakdownNode = {
-            id: 'total',
-            label: 'Total Score',
-            children: [
-                {id: 'auto', label: 'Auto', value: +(fallbackMetrics['Avg Auto'] ?? 0)},
-                {id: 'teleop', label: 'Teleop', value: +(fallbackMetrics['Avg Teleop'] ?? 0)},
-                {id: 'endgame', label: 'Endgame', value: +(fallbackMetrics['Avg Endgame'] ?? 0)},
-            ],
-        }
-
-        // Use backend ranking if available, fall back to computing from sb data
-        const backendAutoRank = rankingRaw.auto?.[teamNum]
-        const backendTeleopRank = rankingRaw.teleop?.[teamNum]
-        const backendEndgameRank = rankingRaw.endgame?.[teamNum]
-        const backendRpRank = rankingRaw.rp_rank?.[teamNum]
-        const backendRpPred = rankingRaw.rp_pred?.[teamNum]
-        const backendRpAvg = rankingRaw.rp_avg?.[teamNum]
-        const backendRpAvgPred = rankingRaw.rp_avg_pred?.[teamNum]
-
-        const ranking: TeamRanking = {
-            auto: backendAutoRank ?? 0,
-            teleop: backendTeleopRank ?? 0,
-            endgame: backendEndgameRank ?? 0,
-            rp: backendRpRank ?? 0,
-            rp_pred: backendRpPred ?? 0,
-            rp_avg: backendRpAvg ?? 0,
-            rp_avg_pred: backendRpAvgPred ?? 0,
-        }
-
-        teamData[teamNum] = {
-            basic: {tags: []},
-            ranking,
-            metrics,
-            matches,
-            rp,
-            timeline,
-            breakdown,
-            shots: teamRaw[String(teamNum)]?.shots ?? [],
-            fuel: teamFuelRaw[String(teamNum)] ?? teamRaw[String(teamNum)]?.fuel,
-        }
-    }
-
-    return {
-        ranking: rankingRaw,
-        team: teamData,
-        match: raw.match ?? {},
-        Alliance: raw.alliance ?? {},
-        sb,
-        tba,
-        match_reverse_index: matchReverseIndex
-    }
 }
 
 export interface DataContextType {
@@ -352,11 +201,11 @@ function FeedbackToast({teamNumber, onSubmit}: {
     )
 }
 
-export default function DataWrapper() {
+function DataWrapper() {
     const {getProcessedData, postDataFeedback} = useAPI()
     const location = useLocation();
 
-    const [showFeedback, setShowFeedback] = useState(true)
+    const [showFeedback, setShowFeedback] = useState(false)
     const feedbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
     const navCountRef = useRef(0)
     const timeReachedRef = useRef(false)
@@ -379,7 +228,7 @@ export default function DataWrapper() {
     useEffect(() => {
         if (!state.authSuccess) return
         navCountRef.current += 1
-        if (navCountRef.current >= 15) {
+        if (navCountRef.current >= 3) {
             navReachedRef.current = true
             if (timeReachedRef.current) setShowFeedback(true)
         }
@@ -469,11 +318,6 @@ export default function DataWrapper() {
                     permissions: null,
                 }))
                 return
-            }
-
-            // Transform raw event data (sb/tba format) if needed
-            if ('sb' in (processed as any)) {
-                processed = transformEventData(processed)
             }
 
             // Normal success
@@ -609,6 +453,8 @@ export default function DataWrapper() {
         </DataContext.Provider>
     );
 }
+
+export default DataWrapper
 
 // ---------------------------------------------------------------------------
 // Hooks

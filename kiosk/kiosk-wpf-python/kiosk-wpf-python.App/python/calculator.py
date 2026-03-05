@@ -406,6 +406,203 @@ def compute_time_percentages(actions: list[ScoutingAction]) -> dict[str, float]:
     }
 
 
+def transform_event_data(raw: dict) -> dict:
+    """
+    Transform the raw calc_result into the final DataSchema shape.
+
+    This replaces the frontend TypeScript ``transformEventData`` function so
+    the backend emits the finished structure directly.
+
+    Output shape (DataSchema)::
+
+        {
+            "ranking": { ... },          # passthrough
+            "team": {                     # Record<team_num, TeamData>
+                <team_num>: {
+                    "basic":     { "tags": [] },
+                    "ranking":   { auto, teleop, endgame, rp, rp_pred, rp_avg, rp_avg_pred },
+                    "metrics":   { fallback averages merged with backend-computed metrics },
+                    "matches":   [ { match, own_alliance, opp_alliance, result, score, ... } ],
+                    "rp":        { <match_key>: { energized, supercharged, win } },
+                    "timeline":  [ { match, auto, teleop, endgame } ],
+                    "breakdown": { id, label, children: [ {auto}, {teleop}, {endgame} ] },
+                    "shots":     [ ... ],
+                    "fuel":      { ... },
+                },
+                ...
+            },
+            "match":               { ... },   # passthrough
+            "Alliance":            { ... },   # from raw["alliance"]
+            "sb":                  [ ... ],   # passthrough
+            "tba":                 [ ... ],   # passthrough
+            "match_reverse_index": { ... },   # passthrough
+        }
+    """
+
+    sb: list[dict] = raw.get("sb", [])
+    tba: list[dict] = raw.get("tba", [])
+    team_raw: dict[str, dict] = raw.get("team", {})
+    ranking_raw: dict[str, dict] = raw.get("ranking", {})
+    team_fuel_raw: dict[str, dict] = raw.get("team_fuel", {})
+    match_reverse_index: dict[str, str] = raw.get("match_reverse_index", {})
+
+    # --- Collect all team numbers from Statbotics matches ---
+    all_teams: set[int] = set()
+    for m in sb:
+        alliances = m.get("alliances") or {}
+        for color in ("red", "blue"):
+            team_keys = (alliances.get(color) or {}).get("team_keys", [])
+            for t in team_keys:
+                all_teams.add(t)
+
+    # --- Completed matches (have a result) ---
+    completed_matches = [
+        m for m in sb
+        if m.get("status") == "Completed" and m.get("result")
+    ]
+
+    def _short_key(m: dict) -> str:
+        return match_reverse_index.get(m.get("key", ""), "") or m.get("match_name", "") or m.get("key", "")
+
+    # --- Build per-team data ---
+    team_data: dict[int, dict] = {}
+    for team_num in all_teams:
+        # Filter & sort matches for this team
+        team_matches = []
+        for m in completed_matches:
+            alliances = m.get("alliances") or {}
+            red_keys = (alliances.get("red") or {}).get("team_keys", [])
+            blue_keys = (alliances.get("blue") or {}).get("team_keys", [])
+            if team_num in red_keys or team_num in blue_keys:
+                team_matches.append(m)
+        team_matches.sort(key=lambda m: m.get("time") or 0)
+
+        # --- matches array (TeamMatchRow[]) ---
+        matches: list[dict] = []
+        for m in team_matches:
+            alliances = m.get("alliances") or {}
+            red_keys = (alliances.get("red") or {}).get("team_keys", [])
+            blue_keys = (alliances.get("blue") or {}).get("team_keys", [])
+            is_red = team_num in red_keys
+            own = "red" if is_red else "blue"
+            opp = "blue" if is_red else "red"
+            r = m.get("result", {})
+
+            own_score = r.get(f"{own}_score", 0)
+            opp_score = r.get(f"{opp}_score", 0)
+
+            if r.get("winner") == own:
+                result_str = "W"
+            elif own_score == opp_score:
+                result_str = "T"
+            else:
+                result_str = "L"
+
+            matches.append({
+                "match": _short_key(m),
+                "own_alliance": (alliances.get(own) or {}).get("team_keys", []),
+                "opp_alliance": (alliances.get(opp) or {}).get("team_keys", []),
+                "result": result_str,
+                "score": own_score,
+                "opp_score": opp_score,
+                "auto": r.get(f"{own}_auto_points", 0),
+                "teleop": r.get(f"{own}_teleop_points", 0),
+                "endgame": r.get(f"{own}_endgame_points", 0),
+            })
+
+        # --- Qual-only matches for fallback metrics ---
+        qual_matches = [m for m in matches if str(m["match"]).startswith("qm")]
+        n = len(qual_matches) or 1
+
+        fallback_metrics: dict[str, object] = {
+            "Avg Score": round(sum(m["score"] for m in qual_matches) / n, 1),
+            "Avg Auto": round(sum(m["auto"] for m in qual_matches) / n, 1),
+            "Avg Teleop": round(sum(m["teleop"] for m in qual_matches) / n, 1),
+            "Avg Endgame": round(sum(m["endgame"] for m in qual_matches) / n, 1),
+            "Win Rate": f"{round(sum(1 for m in qual_matches if m['result'] == 'W') / n * 100)}%",
+            "Qual Matches": len(qual_matches),
+        }
+
+        # Merge: fallback first, backend overwrites/extends
+        # team_raw keys may be int (from run_calculation) or str (from JSON)
+        team_entry = team_raw.get(team_num) or team_raw.get(str(team_num)) or {}
+        backend_metrics = team_entry.get("metrics", {})
+        metrics = {**fallback_metrics, **backend_metrics}
+
+        # --- Per-match RP data ---
+        rp: dict[str, dict] = {}
+        for m in team_matches:
+            alliances = m.get("alliances") or {}
+            red_keys = (alliances.get("red") or {}).get("team_keys", [])
+            is_red = team_num in red_keys
+            own = "red" if is_red else "blue"
+            r = m.get("result", {})
+            rp[_short_key(m)] = {
+                "energized": r.get(f"{own}_energized_rp", r.get(f"{own}_rp_1", False)),
+                "supercharged": r.get(f"{own}_supercharged_rp", r.get(f"{own}_rp_2", False)),
+                "win": r.get("winner") == own,
+            }
+
+        # --- Scoring timeline ---
+        timeline = [
+            {
+                "match": m["match"],
+                "auto": m["auto"],
+                "teleop": m["teleop"],
+                "endgame": m["endgame"],
+            }
+            for m in matches
+        ]
+
+        # --- Score breakdown tree ---
+        breakdown = {
+            "id": "total",
+            "label": "Total Score",
+            "children": [
+                {"id": "auto", "label": "Auto", "value": float(fallback_metrics.get("Avg Auto", 0))},
+                {"id": "teleop", "label": "Teleop", "value": float(fallback_metrics.get("Avg Teleop", 0))},
+                {"id": "endgame", "label": "Endgame", "value": float(fallback_metrics.get("Avg Endgame", 0))},
+            ],
+        }
+
+        # --- Ranking (use backend values, fall back to 0) ---
+        def _rank_val(section: str) -> object:
+            d = ranking_raw.get(section) or {}
+            return d.get(team_num, d.get(str(team_num), 0))
+
+        ranking_entry = {
+            "auto": _rank_val("auto"),
+            "teleop": _rank_val("teleop"),
+            "endgame": _rank_val("endgame"),
+            "rp": _rank_val("rp_rank"),
+            "rp_pred": _rank_val("rp_pred"),
+            "rp_avg": _rank_val("rp_avg"),
+            "rp_avg_pred": _rank_val("rp_avg_pred"),
+        }
+
+        team_data[team_num] = {
+            "basic": {"tags": []},
+            "ranking": ranking_entry,
+            "metrics": metrics,
+            "matches": matches,
+            "rp": rp,
+            "timeline": timeline,
+            "breakdown": breakdown,
+            "shots": team_entry.get("shots", []),
+            "fuel": team_fuel_raw.get(str(team_num)) or team_fuel_raw.get(team_num) or team_entry.get("fuel"),
+        }
+
+    return {
+        "ranking": ranking_raw,
+        "team": team_data,
+        "match": raw.get("match", {}),
+        "Alliance": raw.get("alliance", {}),
+        "sb": sb,
+        "tba": tba,
+        "match_reverse_index": match_reverse_index,
+    }
+
+
 def run_calculation(setting):
     """Execute scouting data calculations."""
     log = Logger()
@@ -1466,6 +1663,11 @@ def run_calculation(setting):
             post_count += 1
 
         log.stat("Matches with results", post_count)
+
+    # -- Transform into final DataSchema shape (replaces frontend transform) --
+    with log.section("Transforming into DataSchema"):
+        calc_result = transform_event_data(calc_result)
+        log.stat("Teams in final output", len(calc_result.get("team", {})))
 
     log.done()
     return calc_result
