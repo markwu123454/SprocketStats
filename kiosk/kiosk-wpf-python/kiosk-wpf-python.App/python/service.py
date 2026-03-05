@@ -359,8 +359,8 @@ def generate_frc_passcode(team_name, team_number, rng=None):
     if rng is None:
         rng = random
 
-    min_len = 12
-    max_len = 17
+    min_len = 10
+    max_len = 15
 
     words = team_name.split()
 

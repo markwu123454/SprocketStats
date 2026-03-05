@@ -428,7 +428,7 @@ export function useAPI() {
     ): Promise<{ status: string; previous_scouter?: string } | null> => {
         return apiRequest<{ status: string; previous_scouter?: string }>(
             `/scouting/${match_type}/${match}/${team}/admin-unclaim`,
-            { method: "POST" }
+            {method: "POST"}
         );
     };
 
@@ -916,6 +916,17 @@ export function useAPI() {
         });
     }
 
+    const postDataFeedback = async (
+        feedback: string,
+        team_number: number,
+        name?: string,
+    ): Promise<{ ok: boolean; total: number } | null> => {
+        return await apiRequest("/data/feedback", {
+            method: "POST",
+            body: {feedback, team_number, name},
+        })
+    }
+
     return {
         login,
         logout,
@@ -955,6 +966,7 @@ export function useAPI() {
         subscribePushNotif,
         savePushSettings,
         checkSession,
-        adminUnclaimTeam
+        adminUnclaimTeam,
+        postDataFeedback,
     };
 }

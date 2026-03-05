@@ -2,6 +2,7 @@ import asyncio
 import json
 from typing import Optional
 from fastapi import Depends, APIRouter, HTTPException
+from pydantic import BaseModel
 
 import enums, db, tba_db as tba, statbot_db as statbot
 
@@ -256,3 +257,28 @@ async def get_candy_data():
     # ---------------------------------------------------------
     await db.set_misc(cache_key, json.dumps(final_output))
     return final_output
+
+
+class FeedbackBody(BaseModel):
+    feedback: str
+    team_number: int
+    name: Optional[str] = None
+
+@router.post("/data/feedback")
+async def post_candy_feedback(body: FeedbackBody):
+    key = "candy_feedback"
+
+    existing_raw = await db.get_misc(key)
+    try:
+        entries = json.loads(existing_raw) if existing_raw else []
+    except Exception:
+        entries = []
+
+    entries.append({
+        "feedback": body.feedback,
+        "team_number": body.team_number,
+        "name": body.name,
+    })
+
+    await db.set_misc(key, json.dumps(entries))
+    return {"ok": True, "total": len(entries)}

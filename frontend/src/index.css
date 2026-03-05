@@ -392,3 +392,27 @@
 .animate-shake {
   animation: shake 0.75s ease-in-out;
 }
+
+
+/* On the root page wrapper or body when this page mounts */
+.scouting-page {
+  -webkit-touch-callout: none;    /* disable long-press callout on iOS */
+  -webkit-user-select: none;
+  user-select: none;
+  overscroll-behavior: none;       /* kill pull-to-refresh AND swipe-nav */
+  -webkit-overflow-scrolling: auto; /* disable iOS momentum scroll bouncing */
+}
+
+/* For the scrollable phases container specifically */
+.scouting-page .phase-scroll {
+  touch-action: pan-y;             /* allow vertical scroll/drag only, block horizontal swipe */
+  overscroll-behavior: contain;    /* prevent scroll chaining to parent/browser */
+}
+
+/* Re-enable interaction on text inputs in post phase */
+.scouting-page input[type="text"],
+.scouting-page textarea {
+  -webkit-user-select: text;
+  user-select: text;
+  touch-action: auto;
+}

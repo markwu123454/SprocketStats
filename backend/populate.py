@@ -4,7 +4,6 @@ import db
 import tba_db as tba
 import statbot_db as statbot
 import importlib
-translator = importlib.import_module("seasons.2025.translator")
 
 
 

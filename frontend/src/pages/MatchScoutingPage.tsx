@@ -526,6 +526,30 @@ export default function MatchScoutingPage() {
     }, [PHASE_ORDER, phaseIndex, setPhase, navigate])
 
 
+    useEffect(() => {
+        // Disable right-click context menu
+        const noContext = (e: Event) => e.preventDefault();
+        document.addEventListener('contextmenu', noContext);
+
+        // Block back/forward swipe gestures that CSS can't catch
+        const blockHorizontalSwipe = (e: TouchEvent) => {
+            if (e.touches.length === 1) {
+                const touch = e.touches[0];
+                // Block touches starting near screen edges (where swipe-nav triggers)
+                if (touch.clientX < 20 || touch.clientX > window.innerWidth - 20) {
+                    e.preventDefault();
+                }
+            }
+        };
+        document.addEventListener('touchstart', blockHorizontalSwipe, {passive: false});
+
+        return () => {
+            document.removeEventListener('contextmenu', noContext);
+            document.removeEventListener('touchstart', blockHorizontalSwipe);
+        };
+    }, []);
+
+
     return (
         <>
             {/* Confirm Submit Dialog */}
@@ -550,7 +574,8 @@ export default function MatchScoutingPage() {
                                     Data incomplete — fill in everything first.
                                 </p>
                                 <p>
-                                    Please go back and make sure all required fields in the Post-Match section are filled in before submitting.
+                                    Please go back and make sure all required fields in the Post-Match section are
+                                    filled in before submitting.
                                 </p>
                             </>
                         )}
@@ -640,8 +665,7 @@ export default function MatchScoutingPage() {
             </Dialog>
 
             {/* Main Layout */}
-            <div
-                className="w-screen min-h-0 h-screen flex flex-col overflow-hidden bg-zinc-900 text-white touch-none select-none overscroll-none ">
+           <div className="w-screen min-h-0 h-screen flex flex-col overflow-hidden bg-zinc-900 text-white select-none overscroll-none scouting-page">
                 {/* Top Bar */}
                 {/* Top Bar — hidden when variant A has full control */}
                 {!variantAFullControl && (
@@ -679,17 +703,20 @@ export default function MatchScoutingPage() {
                             />
                         )}
                         {abTestVariant === "b" && phase === 'combined' && (
-                            <BVariant key="combined" data={scoutingData} setData={setScoutingData} handleSubmit={handleSubmit} setPhase={setPhase}/>
+                            <BVariant key="combined" data={scoutingData} setData={setScoutingData}
+                                      handleSubmit={handleSubmit} setPhase={setPhase}/>
                         )}
                         {phase === 'post' && (
-                            <PostMatch key="post" data={scoutingData} setData={setScoutingData} setCanSubmit={setPostCanSubmit}/>
+                            <PostMatch key="post" data={scoutingData} setData={setScoutingData}
+                                       setCanSubmit={setPostCanSubmit}/>
                         )}
                     </div>
                 </div>
 
                 {/* Debug: Jump to Phase */}
                 {debugMode && (
-                    <div className="flex items-center gap-1 px-4 py-1 bg-zinc-950 border-t border-yellow-500/40 shrink-0">
+                    <div
+                        className="flex items-center gap-1 px-4 py-1 bg-zinc-950 border-t border-yellow-500/40 shrink-0">
                         <span className="text-xs text-yellow-500 mr-1">Jump:</span>
                         {PHASE_ORDER.map((p, i) => (
                             <button

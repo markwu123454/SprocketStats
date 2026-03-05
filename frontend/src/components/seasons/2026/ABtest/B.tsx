@@ -393,7 +393,8 @@ export default function MatchScouting({
     )
 
     const effectiveAlliance = debug ? debugAlliance : alliance
-    const effectiveOrientation = debug ? debugOrientation : (getSettingSync("field_orientation") ?? 0)
+    const rawOrientation = debug ? debugOrientation : (getSettingSync("field_orientation") ?? 0)
+    const effectiveOrientation = String(rawOrientation) === "180" ? "0" : "180"
 
     // *** CENTRALIZED TIMING ***
     const [matchStartTime, setMatchStartTime] = useState(0)
@@ -1380,7 +1381,7 @@ export default function MatchScouting({
                         onClick={() => setDebugOrientation((o) => (o === "0" ? "180" : "0"))}
                         className="flex-1 h-10 rounded-lg text-sm font-bold border-2 bg-zinc-800/60 border-zinc-500 text-zinc-300"
                     >
-                        Orientation: {effectiveOrientation}°
+                        Orientation: {rawOrientation}°
                     </button>
                 </div>
             </div>

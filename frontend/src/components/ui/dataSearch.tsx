@@ -158,6 +158,41 @@ export default function DataSearch({
         navigate(item.route);
     }
 
+    /* ---------------- Keyboard Handling ---------------- */
+
+    function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+        if (!open || results.length === 0) {
+            // If dropdown isn't open but there are results from the query, still allow Enter
+            if (e.key === "Enter" && results.length > 0) {
+                select(results[0].item);
+                e.preventDefault();
+            }
+            return;
+        }
+
+        switch (e.key) {
+            case "ArrowDown":
+                e.preventDefault();
+                setActiveIndex(prev => Math.min(prev + 1, results.length - 1));
+                break;
+            case "ArrowUp":
+                e.preventDefault();
+                setActiveIndex(prev => Math.max(prev - 1, 0));
+                break;
+            case "Enter":
+                e.preventDefault();
+                if (results[activeIndex]) {
+                    select(results[activeIndex].item);
+                }
+                break;
+            case "Escape":
+                e.preventDefault();
+                setOpen(false);
+                inputRef.current?.blur();
+                break;
+        }
+    }
+
     /* ---------------- Render ---------------- */
 
     return (
@@ -175,6 +210,7 @@ export default function DataSearch({
                         setOpen(true);
                     }
                 }}
+                onKeyDown={handleKeyDown}
                 placeholder="Search teams, matches…"
                 className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm outline-none transition placeholder:text-muted-foreground focus:border-primary focus:ring-2 focus:ring-primary/30"
             />

@@ -47,11 +47,9 @@ export default function PostMatch({data, setData, setCanSubmit}: {
         if (!setCanSubmit) return
         const canSubmit =
             pm.role !== null &&
-            pm.traversalLocation !== null &&
-            pm.teleopClimbPos !== null &&
-            pm.autoClimbPos !== null
+            pm.traversalLocation !== null
         setCanSubmit(canSubmit)
-    }, [pm.role, pm.traversalLocation, pm.teleopClimbPos, pm.autoClimbPos, setCanSubmit])
+    }, [pm.role, pm.traversalLocation, setCanSubmit])
 
     const update = <K extends keyof MatchScoutingData["postmatch"]>(
         key: K,
