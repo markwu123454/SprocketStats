@@ -1,5 +1,5 @@
-import {useEffect, useState} from "react"
-import {Loader2, AlertTriangle, UserX} from "lucide-react"
+import {useEffect, useState, useCallback} from "react"
+import {Loader2, AlertTriangle, UserX, X} from "lucide-react"
 import {useAPI} from "@/hooks/useAPI"
 import {HeaderFooterLayoutWrapper} from "@/components/wrappers/HeaderFooterLayoutWrapper"
 
@@ -28,6 +28,12 @@ type KickConfirm = {
     scouterName: string | null
 }
 
+type Toast = {
+    id: number
+    message: string
+    type: "error" | "success"
+}
+
 export default function AdminMonitoringPage() {
     const {getActiveMatches, adminUnclaimTeam} = useAPI()
     const [matches, setMatches] = useState<ActiveMatches>({})
@@ -35,6 +41,13 @@ export default function AdminMonitoringPage() {
     const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
     const [kickConfirm, setKickConfirm] = useState<KickConfirm | null>(null)
     const [kicking, setKicking] = useState(false)
+    const [toasts, setToasts] = useState<Toast[]>([])
+
+    const addToast = useCallback((message: string, type: "error" | "success") => {
+        const id = Date.now()
+        setToasts(prev => [...prev, {id, message, type}])
+        setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 4000)
+    }, [])
 
     const loadData = async () => {
         try {
@@ -56,12 +69,23 @@ export default function AdminMonitoringPage() {
         if (!kickConfirm) return
         setKicking(true)
         try {
-            await adminUnclaimTeam(
+            const res = await adminUnclaimTeam(
                 kickConfirm.matchNum,
                 kickConfirm.team,
                 kickConfirm.matchType
             )
+            if (!res) {
+                addToast("Kick failed — server rejected the request.", "error")
+                return
+            }
+            if (res.status === "noop") {
+                addToast("Team is not currently claimed.", "error")
+                return
+            }
             await loadData()
+            addToast(`Kicked scouter from #${kickConfirm.team}`, "success")
+        } catch {
+            addToast("Kick failed — unexpected error.", "error")
         } finally {
             setKicking(false)
             setKickConfirm(null)
@@ -98,6 +122,30 @@ export default function AdminMonitoringPage() {
 
             body={
                 <>
+                    {/* Toast Notifications */}
+                    <div className="fixed bottom-4 right-4 z-50 flex flex-col gap-2">
+                        {toasts.map(toast => (
+                            <div
+                                key={toast.id}
+                                className={`
+                                    flex items-center gap-2 px-4 py-3 rounded-lg shadow-lg text-sm
+                                    animate-in slide-in-from-right fade-in duration-200
+                                    ${toast.type === "error"
+                                        ? "bg-red-500/90 text-white"
+                                        : "bg-green-500/90 text-white"}
+                                `}
+                            >
+                                <span>{toast.message}</span>
+                                <button
+                                    onClick={() => setToasts(prev => prev.filter(t => t.id !== toast.id))}
+                                    className="p-0.5 rounded hover:bg-white/20"
+                                >
+                                    <X className="h-3.5 w-3.5"/>
+                                </button>
+                            </div>
+                        ))}
+                    </div>
+
                     {/* Kick Confirmation Modal */}
                     {kickConfirm && (
                         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
@@ -117,14 +165,14 @@ export default function AdminMonitoringPage() {
                                     <button
                                         onClick={() => setKickConfirm(null)}
                                         disabled={kicking}
-                                        className="px-4 py-2 rounded-md text-sm theme-border border hover:opacity-80"
+                                        className="px-5 py-3 rounded-md text-sm theme-border border hover:opacity-80"
                                     >
                                         Cancel
                                     </button>
                                     <button
                                         onClick={handleKick}
                                         disabled={kicking}
-                                        className="px-4 py-2 rounded-md text-sm bg-red-500 text-white hover:bg-red-600 disabled:opacity-50 flex items-center gap-2"
+                                        className="px-5 py-3 rounded-md text-sm bg-red-500 text-white hover:bg-red-600 disabled:opacity-50 flex items-center gap-2"
                                     >
                                         {kicking && <Loader2 className="animate-spin h-4 w-4"/>}
                                         Kick
@@ -271,9 +319,9 @@ function AllianceColumn({
                                 </span>
 
                                 <div className="text-right text-xs">
-                                    <div>
-                                        Assigned: {data.assigned_name ?? "—"}
-                                    </div>
+                                    {/*<div>*/}
+                                    {/*    Assigned: {data.assigned_name ?? "—"}*/}
+                                    {/*</div>*/}
                                     <div
                                         className={
                                             mismatch
@@ -294,9 +342,9 @@ function AllianceColumn({
                                         <button
                                             onClick={() => onKick(Number(team), data.name)}
                                             title="Kick scouter"
-                                            className="p-1 rounded hover:bg-red-500/20 text-red-400 hover:text-red-300 transition-colors"
+                                            className="p-2.5 -m-1.5 rounded hover:bg-red-500/20 text-red-400 hover:text-red-300 transition-colors"
                                         >
-                                            <UserX className="h-3.5 w-3.5"/>
+                                            <UserX className="h-4 w-4"/>
                                         </button>
                                     )}
                                 </div>
