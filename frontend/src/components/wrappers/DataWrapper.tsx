@@ -97,6 +97,7 @@ export interface DataSchema {
     sb?: any[]
     tba?: any[]
     match_reverse_index?: Record<string, string>
+    next_match?: string
 }
 
 export interface DataContextType {
@@ -123,8 +124,7 @@ let CACHE: {
 
 // Add this component before the DataWrapper export:
 
-function FeedbackToast({teamNumber, onSubmit}: {
-    teamNumber: number;
+function FeedbackToast({onSubmit}: {
     onSubmit: (feedback: string, name?: string) => void
 }) {
     const [expanded, setExpanded] = useState(false)
@@ -249,8 +249,8 @@ function DataWrapper() {
 
 
     const handleFeedback = useCallback(async (feedback: string, name?: string) => {
-        await postDataFeedback(feedback, Number(state.permissions?.team?.[0]), name)
-    }, [state.permissions])
+        await postDataFeedback(feedback, state.guestName ?? "", name)
+    }, [state.guestName])
 
     async function loadAll(tokenOverride?: string) {
         setState(s => ({...s, loading: true}))
@@ -446,7 +446,6 @@ function DataWrapper() {
             )}
             {showFeedback && state.permissions?.team?.length && (
                 <FeedbackToast
-                    teamNumber={Number(state.permissions.team[0])}
                     onSubmit={handleFeedback}
                 />
             )}
@@ -502,21 +501,6 @@ export function useLoading(): boolean {
     return useDataContext().loading
 }
 
-export function useMatchCompleted(shortKey: string): boolean | null {
-    const {processedData} = useDataContext()
-
-    // Check match_completed dict from calculator output
-    if (processedData?.match_completed) {
-        return processedData.match_completed[shortKey] ?? false
-    }
-
-    // Fallback: check sb entries
-    const sb = processedData?.sb
-    const reverseIndex = processedData?.match_reverse_index
-    if (!sb || !reverseIndex) return null
-    const entry = sb.find(
-        (m: any) => (reverseIndex[m.key] ?? m.match_name ?? m.key) === shortKey
-    )
-    if (!entry) return false
-    return entry.status === 'Completed'
+export function useNextMatchID(): string | null {
+    return useDataContext().processedData?.next_match ?? null
 }

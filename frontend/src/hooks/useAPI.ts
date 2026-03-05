@@ -918,12 +918,12 @@ export function useAPI() {
 
     const postDataFeedback = async (
         feedback: string,
-        team_number: number,
+        team_name: string,
         name?: string,
     ): Promise<{ ok: boolean; total: number } | null> => {
         return await apiRequest("/data/feedback", {
             method: "POST",
-            body: {feedback, team_number, name},
+            body: {feedback, team_name, name},
         })
     }
 

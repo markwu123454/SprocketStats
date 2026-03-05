@@ -1,6 +1,6 @@
 import {Link, useParams} from "react-router-dom"
 import {useMatchData, usePermissions} from "@/components/wrappers/DataWrapper"
-import {useEffect, useState} from "react"
+import React, {useEffect, useState} from "react"
 import DataSearch from "@/components/ui/dataSearch.tsx"
 
 export default function MatchDataPredPage() {
@@ -27,7 +27,8 @@ export default function MatchDataPredPage() {
         document.title = `${matchKey?.toUpperCase() ?? "Match"} | Prediction`
     }, [matchKey])
 
-    if (!match) {
+    const predData = match?.pred
+    if (!predData) {
         return (
             <div className="flex h-screen w-screen items-center justify-center text-gray-500">
                 {matchKey ? "Loading match data…" : "No match specified"}
@@ -35,15 +36,16 @@ export default function MatchDataPredPage() {
         )
     }
 
-    const pred = match.predictions ?? {}
-    const red = match.alliances?.red ?? {}
-    const blue = match.alliances?.blue ?? {}
-    const sbPred = match.sb_pred
+    const pred = predData.predictions ?? {}
+    const red = predData.alliances?.red ?? {}
+    const blue = predData.alliances?.blue ?? {}
+    const sbPred = predData.sb_pred
 
     return (
         <div className="flex flex-col h-screen bg-white text-zinc-900">
             {/* HEADER */}
-            <div className="flex items-center justify-between border-b border-zinc-200 px-6 py-3 h-16 bg-zinc-50 shrink-0">
+            <div
+                className="flex items-center justify-between border-b border-zinc-200 px-6 py-3 h-16 bg-zinc-50 shrink-0">
                 <div className="flex items-center gap-4">
                     <h1 className="text-lg font-semibold">
                         {matchKey?.toUpperCase() ?? "MATCH"}
@@ -51,13 +53,13 @@ export default function MatchDataPredPage() {
                     <span className="text-sm text-zinc-500">
                         {match.comp_level?.toUpperCase()} {match.set_number > 1 ? `Set ${match.set_number}` : ""} Match {match.match_number}
                     </span>
-                    <DataSearch teamNames={teamNames} permissions={permissions} />
+                    <DataSearch teamNames={teamNames} permissions={permissions}/>
                 </div>
 
                 {/* Win probability headline */}
                 <div className="flex items-center gap-3 text-sm">
                     <span className="font-bold text-red-600">{pred.red_win_prob ?? 50}%</span>
-                    <WinProbBar redProb={pred.red_win_prob ?? 50} />
+                    <WinProbBar redProb={pred.red_win_prob ?? 50}/>
                     <span className="font-bold text-blue-600">{pred.blue_win_prob ?? 50}%</span>
                 </div>
             </div>
@@ -77,9 +79,11 @@ export default function MatchDataPredPage() {
                     {/* Score prediction */}
                     <Section label="Score Prediction">
                         <div className="flex items-center justify-between px-6 py-4">
-                            <ScorePredBlock color="red" score={pred.red_score_pred} fuel={pred.red_fuel_pred} climb={pred.red_climb_pred} />
+                            <ScorePredBlock color="red" score={pred.red_score_pred} fuel={pred.red_fuel_pred}
+                                            climb={pred.red_climb_pred}/>
                             <div className="text-xs text-zinc-400 font-medium">VS</div>
-                            <ScorePredBlock color="blue" score={pred.blue_score_pred} fuel={pred.blue_fuel_pred} climb={pred.blue_climb_pred} />
+                            <ScorePredBlock color="blue" score={pred.blue_score_pred} fuel={pred.blue_fuel_pred}
+                                            climb={pred.blue_climb_pred}/>
                         </div>
                         {sbPred && (
                             <div className="px-6 pb-3 text-xs text-zinc-400 border-t border-zinc-100 pt-2">
@@ -114,26 +118,32 @@ export default function MatchDataPredPage() {
                     {/* RP probabilities */}
                     <Section label="Ranking Point Probabilities">
                         <div className="px-6 py-3 space-y-3">
-                            <RPRow label="Energized (≥100 fuel)" redProb={pred.red_energized_prob} blueProb={pred.blue_energized_prob} />
-                            <RPRow label="Supercharged (≥360 fuel)" redProb={pred.red_supercharged_prob} blueProb={pred.blue_supercharged_prob} />
-                            <RPRow label="Traversal (≥50 tower pts)" redProb={pred.red_traversal_prob} blueProb={pred.blue_traversal_prob} />
+                            <RPRow label="Energized (≥100 fuel)" redProb={pred.red_energized_prob}
+                                   blueProb={pred.blue_energized_prob}/>
+                            <RPRow label="Supercharged (≥360 fuel)" redProb={pred.red_supercharged_prob}
+                                   blueProb={pred.blue_supercharged_prob}/>
+                            <RPRow label="Traversal (≥50 tower pts)" redProb={pred.red_traversal_prob}
+                                   blueProb={pred.blue_traversal_prob}/>
                         </div>
                     </Section>
 
-                    {/* Head to head comparison */}
+                    {/* Head-to-head comparison */}
                     <Section label="Alliance Comparison">
                         <div className="px-6 py-3 space-y-2">
-                            <ComparisonBar label="Total Fuel" redVal={pred.red_fuel_pred} blueVal={pred.blue_fuel_pred} />
-                            <ComparisonBar label="Tower Points" redVal={pred.red_climb_pred} blueVal={pred.blue_climb_pred} />
-                            <ComparisonBar label="Total Score" redVal={pred.red_score_pred} blueVal={pred.blue_score_pred} />
+                            <ComparisonBar label="Total Fuel" redVal={pred.red_fuel_pred}
+                                           blueVal={pred.blue_fuel_pred}/>
+                            <ComparisonBar label="Tower Points" redVal={pred.red_climb_pred}
+                                           blueVal={pred.blue_climb_pred}/>
+                            <ComparisonBar label="Total Score" redVal={pred.red_score_pred}
+                                           blueVal={pred.blue_score_pred}/>
                         </div>
                     </Section>
 
                     {/* Climb recommendations */}
                     <Section label="Climb Recommendations">
                         <div className="grid grid-cols-2 gap-4 px-6 py-3">
-                            <ClimbRecPanel color="red" recs={red.climb_recommendations ?? []} teamNames={teamNames} />
-                            <ClimbRecPanel color="blue" recs={blue.climb_recommendations ?? []} teamNames={teamNames} />
+                            <ClimbRecPanel color="red" recs={red.climb_recommendations ?? []} teamNames={teamNames}/>
+                            <ClimbRecPanel color="blue" recs={blue.climb_recommendations ?? []} teamNames={teamNames}/>
                         </div>
                     </Section>
                 </div>
@@ -155,8 +165,8 @@ export default function MatchDataPredPage() {
 function WinProbBar({redProb}: { redProb: number }) {
     return (
         <div className="w-32 h-3 bg-zinc-200 rounded-full overflow-hidden flex">
-            <div className="bg-red-500 h-full transition-all" style={{width: `${redProb}%`}} />
-            <div className="bg-blue-500 h-full flex-1" />
+            <div className="bg-red-500 h-full transition-all" style={{width: `${redProb}%`}}/>
+            <div className="bg-blue-500 h-full flex-1"/>
         </div>
     )
 }
@@ -172,7 +182,12 @@ function Section({label, children}: { label: string; children: React.ReactNode }
     )
 }
 
-function ScorePredBlock({color, score, fuel, climb}: { color: "red" | "blue"; score: number; fuel: number; climb: number }) {
+function ScorePredBlock({color, score, fuel, climb}: {
+    color: "red" | "blue";
+    score: number;
+    fuel: number;
+    climb: number
+}) {
     const textColor = color === "red" ? "text-red-700" : "text-blue-700"
     const align = color === "red" ? "text-left" : "text-right"
     return (
@@ -219,9 +234,9 @@ function RPRow({label, redProb, blueProb}: { label: string; redProb?: number; bl
     const b = blueProb ?? 0
     return (
         <div className="flex items-center justify-between text-sm">
-            <ProbBadge value={r} color="red" />
+            <ProbBadge value={r} color="red"/>
             <span className="text-xs text-zinc-500 text-center flex-1">{label}</span>
-            <ProbBadge value={b} color="blue" />
+            <ProbBadge value={b} color="blue"/>
         </div>
     )
 }
@@ -233,13 +248,17 @@ function ProbBadge({value, color}: { value: number; color: "red" | "blue" }) {
             ? "bg-yellow-50 text-yellow-700"
             : "bg-zinc-100 text-zinc-400"
     return (
-        <span className={`px-2 py-0.5 rounded text-xs font-semibold ${bg} min-w-[48px] text-center`}>
+        <span className={`px-2 py-0.5 rounded text-xs font-semibold ${bg} min-w-12 text-center`}>
             {value}%
         </span>
     )
 }
 
-function ClimbRecPanel({color, recs, teamNames}: { color: "red" | "blue"; recs: any[]; teamNames: Record<number, string> }) {
+function ClimbRecPanel({color, recs, teamNames}: {
+    color: "red" | "blue";
+    recs: any[];
+    teamNames: Record<number, string>
+}) {
     const headerColor = color === "red" ? "text-red-700" : "text-blue-700"
     const levelLabels: Record<number, string> = {0: "—", 1: "L1", 2: "L2", 3: "L3"}
 
@@ -250,7 +269,8 @@ function ClimbRecPanel({color, recs, teamNames}: { color: "red" | "blue"; recs: 
             </div>
             <div className="space-y-2">
                 {recs.map((rec: any) => (
-                    <div key={rec.team} className="flex items-center justify-between text-xs bg-white rounded px-2 py-1.5 border border-zinc-100">
+                    <div key={rec.team}
+                         className="flex items-center justify-between text-xs bg-white rounded px-2 py-1.5 border border-zinc-100">
                         <div>
                             <span className="font-semibold">{rec.team}</span>
                             <span className="text-zinc-400 ml-1">{teamNames[rec.team] ?? ""}</span>
@@ -340,20 +360,21 @@ function TeamRow({color, detail, teamName, canLink}: {
             ) : header}
 
             <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-[11px] text-zinc-600">
-                <Stat label="Fuel Avg" value={detail.fuel_mean} />
-                <Stat label="Active BPS" value={detail.bps} suffix="/s" />
-                <Stat label="Auto Fuel" value={detail.auto_fuel_mean} />
-                <Stat label="Accuracy" value={detail.accuracy != null ? `${(detail.accuracy * 100).toFixed(0)}%` : null} />
+                <Stat label="Fuel Avg" value={detail.fuel_mean}/>
+                <Stat label="Active BPS" value={detail.bps} suffix="/s"/>
+                <Stat label="Auto Fuel" value={detail.auto_fuel_mean}/>
+                <Stat label="Accuracy"
+                      value={detail.accuracy != null ? `${(detail.accuracy * 100).toFixed(0)}%` : null}/>
                 <Stat label="Climb" value={
                     detail.best_climb_level > 0
                         ? `${levelLabels[detail.best_climb_level]} (${detail.endgame_climb_rate}%)`
                         : "None"
-                } />
-                <Stat label="Auto Climb" value={detail.auto_climb_rate > 0 ? `${detail.auto_climb_rate}%` : "None"} />
-                <Stat label="Role" value={detail.role} />
-                <Stat label="Speed" value={detail.speed} />
-                <Stat label="Traversal" value={detail.traversal} />
-                <Stat label="Faults" value={detail.fault_rate} />
+                }/>
+                <Stat label="Auto Climb" value={detail.auto_climb_rate > 0 ? `${detail.auto_climb_rate}%` : "None"}/>
+                <Stat label="Role" value={detail.role}/>
+                <Stat label="Speed" value={detail.speed}/>
+                <Stat label="Traversal" value={detail.traversal}/>
+                <Stat label="Faults" value={detail.fault_rate}/>
             </div>
         </li>
     )

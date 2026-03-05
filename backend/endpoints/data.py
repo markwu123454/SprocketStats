@@ -261,7 +261,7 @@ async def get_candy_data():
 
 class FeedbackBody(BaseModel):
     feedback: str
-    team_number: int
+    team_name: str
     name: Optional[str] = None
 
 @router.post("/data/feedback")
@@ -276,7 +276,7 @@ async def post_candy_feedback(body: FeedbackBody):
 
     entries.append({
         "feedback": body.feedback,
-        "team_number": body.team_number,
+        "team_name": body.team_name,
         "name": body.name,
     })
 

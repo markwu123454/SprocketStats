@@ -88,7 +88,7 @@ export default function App() {
                                     <Route path="test" element={<MatchDataPostPage />} />
                                     <Route path="ranking" element={<RankingDataPage />} />
                                     <Route path="team/:team" element={<TeamDataPage />} />
-                                    <Route path="match/:matchKey" element={<MatchDataRouter />} />
+                                    <Route path="match/:matchKey/:mode?" element={<MatchDataRouter />} />
                                     <Route path="alliance-sim" element={<AllianceSimDataPage />} />
                                 </Route>
                                 <Route path="guest" element={<GuestPage />} />
