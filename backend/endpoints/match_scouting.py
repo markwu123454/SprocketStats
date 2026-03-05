@@ -373,8 +373,8 @@ async def admin_unclaim_team(
     if not rows:
         raise HTTPException(status_code=404, detail="Scouting entry not found")
 
-    entry = rows[0]
-    if entry["scouter"] is None:
+    entry = next((r for r in rows if r["scouter"] is not None), None)
+    if entry is None:
         return {"status": "noop", "message": "Team is not currently claimed."}
 
     updated = await db.update_match_scouting(

@@ -1017,7 +1017,7 @@ export default function MatchScouting({
                             {
                                 key: "traversal",
                                 rect: FIELD_BUTTONS.traversal,
-                                label: "Traversal",
+                                label: "Other",
                                 borderColor: "#a855f7",
                                 bgActive: "rgba(168, 85, 247, 0.25)",
                                 bgIdle: "rgba(39, 39, 42, 0.85)",

@@ -12,7 +12,7 @@ export type Settings = {
 export const DEFAULT_SETTINGS: Required<Pick<Settings, "theme" | "field_orientation">> &
     Omit<Settings, "theme" | "field_orientation"> = {
     theme: "2026",
-    field_orientation: "0",
+    field_orientation: "180",
     match_scouting_device_type: "mobile",
     match_ab_test: "default",
     debug: "false"

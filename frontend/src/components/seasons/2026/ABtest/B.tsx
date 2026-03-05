@@ -1051,7 +1051,7 @@ export default function MatchScouting({
                                         x2: _FB_OX + _halfW - _halfGap / 2,
                                         y2: _FB_OY + _traversalH_climb,
                                     } as Rect,
-                                    label: "Traversal",
+                                    label: "Other",
                                     borderColor: "#a855f7",
                                     bgActive: "rgba(168, 85, 247, 0.25)",
                                     bgIdle: "rgba(39, 39, 42, 0.85)",
@@ -1118,7 +1118,7 @@ export default function MatchScouting({
                                         x2: _FB_OX + _halfW - _halfGap / 2,
                                         y2: _FB_OY + _fullH,
                                     } as Rect,
-                                    label: "Traversal",
+                                    label: "Other",
                                     borderColor: "#a855f7",
                                     bgActive: "rgba(168, 85, 247, 0.25)",
                                     bgIdle: "rgba(39, 39, 42, 0.85)",
@@ -1319,24 +1319,70 @@ export default function MatchScouting({
     // ---------------------------------------------------------------------------
     const renderDebug = () => {
         if (!debug) return null
+
+        const jumpToPhase = (target: "prestart" | "auto" | "teleop" | "post") => {
+            setManualPost(false)
+            if (target === "prestart") {
+                setMatchStartTime(0)
+                lastPhaseRef.current = "prestart"
+                lastSubPhaseRef.current = null
+            } else if (target === "auto") {
+                setMatchStartTime(Date.now() - 1000)
+                lastPhaseRef.current = "auto"
+                lastSubPhaseRef.current = "auto"
+            } else if (target === "teleop") {
+                setMatchStartTime(Date.now() - (AUTO_DURATION + BETWEEN_DURATION + 1000))
+                lastPhaseRef.current = "teleop"
+                lastSubPhaseRef.current = "transition"
+            } else {
+                // post = timer expired
+                setMatchStartTime(Date.now() - (TOTAL_MATCH_DURATION + 1000))
+                lastPhaseRef.current = "teleop"
+            }
+        }
+
+        const jumpTargets = [
+            {label: "Prestart", target: "prestart" as const, active: matchPhase === "prestart"},
+            {label: "Auto", target: "auto" as const, active: matchPhase === "auto" || matchPhase === "between"},
+            {label: "Teleop", target: "teleop" as const, active: matchPhase === "teleop" && !timerExpired},
+            {label: "Post", target: "post" as const, active: timerExpired || matchPhase === "post"},
+        ]
+
         return (
-            <div className="flex gap-2 px-2">
-                <button
-                    onClick={() => setDebugAlliance((a) => (a === "blue" ? "red" : "blue"))}
-                    className={`flex-1 h-10 rounded-lg text-sm font-bold border-2 ${
-                        effectiveAlliance === "red"
-                            ? "bg-red-700/30 border-red-500 text-red-300"
-                            : "bg-blue-700/30 border-blue-500 text-blue-300"
-                    }`}
-                >
-                    Alliance: {effectiveAlliance.toUpperCase()}
-                </button>
-                <button
-                    onClick={() => setDebugOrientation((o) => (o === "0" ? "180" : "0"))}
-                    className="flex-1 h-10 rounded-lg text-sm font-bold border-2 bg-zinc-800/60 border-zinc-500 text-zinc-300"
-                >
-                    Orientation: {effectiveOrientation}°
-                </button>
+            <div className="flex flex-col gap-2 px-2">
+                <div className="flex gap-1">
+                    {jumpTargets.map(({label, target, active}) => (
+                        <button
+                            key={target}
+                            onClick={() => jumpToPhase(target)}
+                            className={`flex-1 h-8 rounded text-xs font-bold border ${
+                                active
+                                    ? "bg-yellow-500 border-yellow-400 text-black"
+                                    : "bg-zinc-800 border-zinc-600 text-yellow-400"
+                            }`}
+                        >
+                            {label}
+                        </button>
+                    ))}
+                </div>
+                <div className="flex gap-2">
+                    <button
+                        onClick={() => setDebugAlliance((a) => (a === "blue" ? "red" : "blue"))}
+                        className={`flex-1 h-10 rounded-lg text-sm font-bold border-2 ${
+                            effectiveAlliance === "red"
+                                ? "bg-red-700/30 border-red-500 text-red-300"
+                                : "bg-blue-700/30 border-blue-500 text-blue-300"
+                        }`}
+                    >
+                        Alliance: {effectiveAlliance.toUpperCase()}
+                    </button>
+                    <button
+                        onClick={() => setDebugOrientation((o) => (o === "0" ? "180" : "0"))}
+                        className="flex-1 h-10 rounded-lg text-sm font-bold border-2 bg-zinc-800/60 border-zinc-500 text-zinc-300"
+                    >
+                        Orientation: {effectiveOrientation}°
+                    </button>
+                </div>
             </div>
         )
     }

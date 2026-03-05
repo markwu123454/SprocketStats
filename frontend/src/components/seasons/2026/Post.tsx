@@ -118,7 +118,7 @@ export default function PostMatch({data, setData, setCanSubmit}: {
                         />
 
                         <div className="flex flex-wrap gap-2 pt-2">
-                            {["Shooter", "Intake", "Defense", "Generalist", "Useless"].map((role) => (
+                            {["Shooter", "Support", "Defense", "Generalist", "Useless"].map((role) => (
                                 <ToggleChip
                                     key={role}
                                     label={role}

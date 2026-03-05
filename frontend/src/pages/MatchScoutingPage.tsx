@@ -351,6 +351,7 @@ export default function MatchScoutingPage() {
     const [showConfirmDialog, setShowConfirmDialog] = useState(false)
     const [postCanSubmit, setPostCanSubmit] = useState(false)
     const [abTestVariant, setAbTestVariant] = useState<"default" | "a" | "b">("default")
+    const [debugMode, setDebugMode] = useState(false)
 
     // ─── Stable refs for use in intervals/event listeners ───
     const scoutingDataRef = useRef(scoutingData)
@@ -403,11 +404,13 @@ export default function MatchScoutingPage() {
         setPostCanSubmit(false)
     }, [scouterEmail])
 
-    // ─── Load A/B test variant ───
+    // ─── Load A/B test variant and debug mode ───
     useEffect(() => {
         (async () => {
             const variant = await getSetting("match_ab_test")
             setAbTestVariant(variant || "default")
+            const debug = await getSetting("debug")
+            setDebugMode(debug === true || (debug as any) === "true")
         })()
     }, [])
 
@@ -683,6 +686,22 @@ export default function MatchScoutingPage() {
                         )}
                     </div>
                 </div>
+
+                {/* Debug: Jump to Phase */}
+                {debugMode && (
+                    <div className="flex items-center gap-1 px-4 py-1 bg-zinc-950 border-t border-yellow-500/40 shrink-0">
+                        <span className="text-xs text-yellow-500 mr-1">Jump:</span>
+                        {PHASE_ORDER.map((p, i) => (
+                            <button
+                                key={p}
+                                onClick={() => setPhaseIndex(i)}
+                                className={`text-xs px-2 py-0.5 rounded ${phaseIndex === i ? 'bg-yellow-500 text-black font-bold' : 'bg-zinc-700 text-yellow-400'}`}
+                            >
+                                {p}
+                            </button>
+                        ))}
+                    </div>
+                )}
 
                 {/* Bottom Bar — hidden when variant A has full control */}
                 {!variantAFullControl && (
