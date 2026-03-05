@@ -41,6 +41,10 @@ export default function PrePhase({data, setData}: {
     const scouterEmail = getScouterEmail()!
     const inputRef = useRef<HTMLInputElement>(null)
 
+    // Grace period: ignore polling claim-check for a few seconds after local operations
+    const lastOperationTimeRef = useRef<number>(0)
+    const POLL_GRACE_MS = 5000
+
     const ready = isOnline && serverOnline && match_type !== null && match !== null && match > 0 && alliance !== null
 
     // Derive icon src from manualTeam input (no effect needed)
@@ -93,6 +97,7 @@ export default function PrePhase({data, setData}: {
     // === Helper: unclaim current team ===
     const unclaimIfNeeded = useCallback(async () => {
         if (!ready || !isOnline || !serverOnline || !match || teamNumber === null) return
+        lastOperationTimeRef.current = Date.now()
         try {
             applyScoutingResultRef.current(
                 await scoutingActionRef.current(match, teamNumber, match_type, alliance, "unclaim")
@@ -173,6 +178,11 @@ export default function PrePhase({data, setData}: {
     // scoutingAction and applyScoutingResult are accessed via stable refs.
     const teamListReady = (teamList?.length ?? 0) > 0
 
+    // We need a ref for teamNumber so the polling closure can read the latest
+    // value without adding it to the dependency array (which would restart the interval).
+    const teamNumberRef = useRef(teamNumber)
+    teamNumberRef.current = teamNumber
+
     useEffect(() => {
         if (!ready || !teamListReady || claiming) return
 
@@ -184,7 +194,24 @@ export default function PrePhase({data, setData}: {
             ticking = true
             try {
                 const res = await scoutingActionRef.current(match, null, match_type, alliance, "info")
-                if (alive) applyScoutingResultRef.current(res)
+                if (!alive) return
+                applyScoutingResultRef.current(res)
+
+                // Check if our claimed team was removed server-side.
+                // Skip this check during the grace period after a local operation
+                // to avoid racing with the server's eventual consistency.
+                const currentTeam = teamNumberRef.current
+                if (
+                    currentTeam !== null &&
+                    res?.match &&
+                    Date.now() - lastOperationTimeRef.current > POLL_GRACE_MS
+                ) {
+                    const ourRow = res.match.find(r => r.team === currentTeam)
+                    if (ourRow && ourRow.scouterEmail !== scouterEmail) {
+                        // Server says someone else (or nobody) has this team — clear our claim
+                        setData(d => d.teamNumber === currentTeam ? {...d, teamNumber: null} : d)
+                    }
+                }
             } finally {
                 ticking = false
             }
@@ -196,7 +223,7 @@ export default function PrePhase({data, setData}: {
             alive = false;
             clearInterval(id)
         }
-    }, [ready, teamListReady, match, match_type, alliance])
+    }, [ready, teamListReady, match, match_type, alliance, scouterEmail, setData])
 
     // === Stable ref for getScouterSchedule ===
     const getScouterScheduleRef = useRef(getScouterSchedule)
@@ -243,6 +270,7 @@ export default function PrePhase({data, setData}: {
         if (claiming || !ready || !match) return
 
         setClaiming(true)
+        lastOperationTimeRef.current = Date.now()
         const attemptId = ++claimAttemptRef.current
         const previousTeam = teamNumber
 
@@ -298,6 +326,7 @@ export default function PrePhase({data, setData}: {
 
         // Use the values directly — don't rely on state being updated
         if (isOnline && serverOnline) {
+            lastOperationTimeRef.current = Date.now()
             try {
                 const res = await scoutingActionRef.current(
                     nextMatch,
@@ -321,6 +350,7 @@ export default function PrePhase({data, setData}: {
         if (!manualEntry) {
             // Entering manual mode — unclaim current
             if (isOnline && serverOnline && match && teamNumber !== null && ready) {
+                lastOperationTimeRef.current = Date.now()
                 setLastClaimedTeam(teamNumber)
                 applyScoutingResultRef.current(
                     await scoutingActionRef.current(match, teamNumber, match_type, alliance, "unclaim")
@@ -331,6 +361,7 @@ export default function PrePhase({data, setData}: {
         } else {
             // Leaving manual mode — restore last claim
             if (isOnline && serverOnline && match && lastClaimedTeam !== null && ready) {
+                lastOperationTimeRef.current = Date.now()
                 applyScoutingResultRef.current(
                     await scoutingActionRef.current(match, lastClaimedTeam, match_type, alliance, "claim")
                 )
