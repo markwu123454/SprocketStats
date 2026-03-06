@@ -1434,10 +1434,16 @@ export default function MatchScouting({
                                 }
                             }}
                         >
+                            <div className="absolute left-[30%] right-[30%] h-[4px] bg-zinc-500/50 rounded-full" style={{top: "12.5%"}} />
+                            <div className="absolute left-[30%] right-[30%] h-[4px] bg-zinc-500/50 rounded-full" style={{top: "25%"}} />
+                            <div className="absolute left-[30%] right-[30%] h-[4px] bg-zinc-500/50 rounded-full" style={{top: "37.5%"}} />
                             <div
                                 className="absolute left-0 right-0 border-t-2 border-dashed border-green-400/50"
                                 style={{top: "50%"}}
                             />
+                            <div className="absolute left-[30%] right-[30%] h-[4px] bg-zinc-500/50 rounded-full" style={{top: "62.5%"}} />
+                            <div className="absolute left-[30%] right-[30%] h-[4px] bg-zinc-500/50 rounded-full" style={{top: "75%"}} />
+                            <div className="absolute left-[30%] right-[30%] h-[4px] bg-zinc-500/50 rounded-full" style={{top: "87.5%"}} />
 
                             <div
                                 className={`absolute left-1 right-1 h-10 rounded-xl transition-colors duration-100 flex items-center justify-center ${sliderActive
@@ -1530,10 +1536,16 @@ export default function MatchScouting({
                                     }
                                 }}
                             >
+                                <div className="absolute left-[30%] right-[30%] h-[4px] bg-zinc-500/50 rounded-full" style={{top: "12.5%"}} />
+                                <div className="absolute left-[30%] right-[30%] h-[4px] bg-zinc-500/50 rounded-full" style={{top: "25%"}} />
+                                <div className="absolute left-[30%] right-[30%] h-[4px] bg-zinc-500/50 rounded-full" style={{top: "37.5%"}} />
                                 <div
                                     className="absolute left-0 right-0 border-t-2 border-dashed border-red-400/50"
                                     style={{top: "50%"}}
                                 />
+                                <div className="absolute left-[30%] right-[30%] h-[4px] bg-zinc-500/50 rounded-full" style={{top: "62.5%"}} />
+                                <div className="absolute left-[30%] right-[30%] h-[4px] bg-zinc-500/50 rounded-full" style={{top: "75%"}} />
+                                <div className="absolute left-[30%] right-[30%] h-[4px] bg-zinc-500/50 rounded-full" style={{top: "87.5%"}} />
 
                                 <div
                                     className={`absolute left-1 right-1 h-10 rounded-xl transition-colors duration-100 flex items-center justify-center ${scoredSliderActive

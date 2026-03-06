@@ -17,7 +17,7 @@ _sb = statbotics.Statbotics()
 
 TowerLevel = Literal["Level1", "Level2", "Level3", "None"]
 CompLevel = Literal["qm", "ef", "qf", "sf", "f"]
-WinningAlliance = Literal["red", "blue", ""]
+WinningAlliance = Literal["red", "blue", "tie", ""]
 
 
 # ===========================================================================
@@ -36,7 +36,7 @@ class StatboticsAlliances(BaseModel):
 
 
 class StatboticsPred(BaseModel):
-    winner: Optional[Literal["red", "blue"]]
+    winner: Optional[WinningAlliance]
     red_win_prob: float
     red_score: float
     blue_score: float
@@ -50,19 +50,19 @@ class StatboticsPred(BaseModel):
 
 
 class StatboticsResult(BaseModel):
-    winner: Optional[Literal["red", "blue"]]
+    winner: Optional[WinningAlliance]
     red_score: int
     blue_score: int
-    red_no_foul: int
-    blue_no_foul: int
-    red_auto_points: int
-    blue_auto_points: int
-    red_teleop_points: int
-    blue_teleop_points: int
-    red_endgame_points: int
-    blue_endgame_points: int
-    red_tiebreaker_points: int
-    blue_tiebreaker_points: int
+    red_no_foul: Optional[int] = None
+    blue_no_foul: Optional[int] = None
+    red_auto_points: Optional[int] = None
+    blue_auto_points: Optional[int] = None
+    red_teleop_points: Optional[int] = None
+    blue_teleop_points: Optional[int] = None
+    red_endgame_points: Optional[int] = None
+    blue_endgame_points: Optional[int] = None
+    red_tiebreaker_points: Optional[int] = None
+    blue_tiebreaker_points: Optional[int] = None
     red_rp_1: bool
     blue_rp_1: bool
     red_rp_2: bool
@@ -129,7 +129,7 @@ class ClimbAction(BaseModel):
     type: Literal["climb"]
     timestamp: int
     level: ClimbLevel
-    success: bool
+    success: bool = True
     phase: MatchPhase
     subPhase: Optional[SubPhaseName]
 
@@ -196,7 +196,7 @@ class ScoutingPostmatch(BaseModel):
     skill: float
     defenseSkill: float
     speed: float
-    role: Literal["Shooter", "Intake", "Defense", "Generalist", "Useless"]
+    role: Optional[Literal["Shooter", "Support", "Defense", "Generalist", "Useless"]]
     traversalLocation: Literal["Trench", "Bump", "No Preference"]
     teleopClimbPos: Optional[ClimbPos]
     autoClimbPos: Optional[ClimbPos]
@@ -950,7 +950,8 @@ def phase1_accumulate_team_stats(
                     auto_climb_attempts += 1
                 if pm.teleopClimbPos is not None:
                     teleop_climb_attempts += 1
-                role_counts[pm.role] = role_counts.get(pm.role, 0) + 1
+                if pm.role:
+                    role_counts[pm.role] = role_counts.get(pm.role, 0) + 1
                 trav_counts[pm.traversalLocation] = trav_counts.get(pm.traversalLocation, 0) + 1
                 skill_vals.append(pm.skill)
                 speed_vals.append(pm.speed)
