@@ -37,6 +37,8 @@
     "dexie": "^4.0.11",
     "eruda": "^3.4.3",
     "fuse.js": "^7.1.0",
+    "html-to-image": "^1.11.13",
+    "jspdf": "^4.2.0",
     "lucide-react": "^0.525.0",
     "luxon": "^3.7.2",
     "qr-code-styling": "^1.9.2",
