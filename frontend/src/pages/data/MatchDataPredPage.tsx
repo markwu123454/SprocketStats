@@ -54,6 +54,12 @@ export default function MatchDataPredPage() {
                         {match.comp_level?.toUpperCase()} {match.set_number > 1 ? `Set ${match.set_number}` : ""} Match {match.match_number}
                     </span>
                     <DataSearch teamNames={teamNames} permissions={permissions}/>
+                    <Link
+                        to={`/data/match/${matchKey}/post`}
+                        className="px-3 py-1.5 text-xs font-medium rounded-md border border-zinc-300 bg-white text-zinc-700 hover:bg-zinc-100 transition-colors"
+                    >
+                        See Results →
+                    </Link>
                 </div>
 
                 {/* Win probability headline */}

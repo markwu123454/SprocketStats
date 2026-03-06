@@ -60,6 +60,12 @@ export default function MatchDataPostPage() {
                         {match.comp_level?.toUpperCase()} Match {match.match_number} · {matchTime}
                     </span>
                     <DataSearch teamNames={teamNames} permissions={permissions}/>
+                    <Link
+                        to={`/data/match/${matchKey}/pred`}
+                        className="px-3 py-1.5 text-xs font-medium rounded-md border border-zinc-300 bg-white text-zinc-700 hover:bg-zinc-100 transition-colors"
+                    >
+                        ← See Prediction
+                    </Link>
                 </div>
 
                 {/* Score header */}
