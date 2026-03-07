@@ -1,6 +1,7 @@
 import React, {useEffect, useMemo, useState, useRef} from "react"
 import {useNavigate, useLocation} from "react-router-dom"
 import {ChevronDown} from "lucide-react"
+import {motion} from "framer-motion"
 
 import {useAuthSuccess, useGuestName, usePermissions, useLoading} from "@/components/wrappers/DataWrapper"
 import {KeyRound, Eye, EyeOff} from "lucide-react"
@@ -11,6 +12,25 @@ interface PageLink {
     title: string
     href: string
     type: "match" | "team" | "ranking" | "alliance"
+}
+
+const sectionReveal = {
+    initial: {opacity: 0, y: 40},
+    whileInView: {opacity: 1, y: 0},
+    viewport: {once: true, amount: 0.1} as const,
+    transition: {duration: 0.7, ease: "easeOut"},
+}
+
+const staggerContainer = {
+    initial: {},
+    whileInView: {transition: {staggerChildren: 0.12}},
+    viewport: {once: true, amount: 0.1} as const,
+}
+
+const staggerItem = {
+    initial: {opacity: 0, y: 24},
+    whileInView: {opacity: 1, y: 0},
+    transition: {duration: 0.5, ease: "easeOut"},
 }
 
 export default function GuestDataPage() {
@@ -36,6 +56,7 @@ export default function GuestDataPage() {
 
     const location = useLocation()
     const autoLoginTriggered = useRef(false)
+    const overviewRef = useRef<HTMLElement>(null)
 
     useEffect(() => {
         if (autoLoginTriggered.current) return
@@ -80,9 +101,14 @@ export default function GuestDataPage() {
             })
     }, [])
 
+    function stripNonAscii(s: string): string {
+        return s.normalize("NFKD").replace(/[^\x20-\x7E]/g, "")
+    }
+
     function saveToken(token: string) {
+        const cleaned = stripNonAscii(token)
         const expiry = Date.now() + 60 * 60 * 1000
-        localStorage.setItem("guest_pw_token", token)
+        localStorage.setItem("guest_pw_token", cleaned)
         localStorage.setItem("guest_pw_expiry", expiry.toString())
     }
 
@@ -214,7 +240,7 @@ export default function GuestDataPage() {
                                 <input
                                     type={showPassword ? "text" : "password"}
                                     value={password}
-                                    onChange={(e) => setPassword(e.target.value)}
+                                    onChange={(e) => setPassword(stripNonAscii(e.target.value))}
                                     className="w-full px-4 py-2 rounded-lg bg-purple-950
                                    border border-purple-700 text-purple-100
                                    focus:outline-none focus:border-purple-400 pr-12"
@@ -253,9 +279,12 @@ export default function GuestDataPage() {
                         </form>
                     </header>
                     {/* Chevron */}
-                    <div className="pb-6 animate-bounce flex justify-center mt-auto">
+                    <button
+                        onClick={() => overviewRef.current?.scrollIntoView({behavior: "smooth"})}
+                        className="pb-6 animate-bounce flex justify-center mt-auto cursor-pointer"
+                    >
                         <ChevronDown className="w-6 h-6 sm:w-8 sm:h-8 text-purple-400 opacity-70"/>
-                    </div>
+                    </button>
                 </div>
             ) : (
                 /* ===============================
@@ -451,69 +480,95 @@ export default function GuestDataPage() {
                     </main>
 
                     {/* Chevron */}
-                    <div className="pb-6 animate-bounce flex justify-center mt-auto">
+                    <button
+                        onClick={() => overviewRef.current?.scrollIntoView({behavior: "smooth"})}
+                        className="pb-6 animate-bounce flex justify-center mt-auto cursor-pointer"
+                    >
                         <ChevronDown className="w-6 h-6 sm:w-8 sm:h-8 text-purple-400 opacity-70"/>
-                    </div>
+                    </button>
                 </div>
             )}
 
             {/* SECTION 3 – Overview */}
-            <section className="py-12 sm:py-20 text-center bg-purple-950/60 border-t border-purple-800 px-4">
-                <h2 className="text-2xl sm:text-3xl font-bold mb-6 ">A Full-Stack Scouting Platform</h2>
+            <motion.section
+                ref={overviewRef}
+                {...sectionReveal}
+                className="py-12 sm:py-20 text-center bg-purple-950/60 border-t border-purple-800 px-4"
+            >
+                <h2 className="text-2xl sm:text-3xl font-bold mb-6">A Full-Stack Scouting Platform</h2>
                 <p className="max-w-3xl mx-auto text-purple-300 mb-12 text-sm sm:text-base">
                     Engineered by Team Sprocket for precision, reliability, and speed. Every data point is
                     synchronized
                     from live match input, validated, and processed in minutes for strategic analysis.
                 </p>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-6 max-w-4xl mx-auto text-purple-200">
-                    <div><p className="text-3xl sm:text-4xl font-bold">15K+</p><p
-                        className="text-xs sm:text-sm">Data Points Logged</p></div>
-                    <div><p className="text-3xl sm:text-4xl font-bold">99.9%</p><p
-                        className="text-xs sm:text-sm">Website uptime</p></div>
-                    <div><p className="text-3xl sm:text-4xl font-bold">98.2%</p><p
-                        className="text-xs sm:text-sm">Data accuracy</p></div>
-                    <div><p className="text-3xl sm:text-4xl font-bold">100+</p><p
-                        className="text-xs sm:text-sm">Matches Analyzed</p></div>
-                </div>
-            </section>
+                <motion.div
+                    {...staggerContainer}
+                    className="grid grid-cols-2 md:grid-cols-4 gap-6 max-w-4xl mx-auto text-purple-200"
+                >
+                    {[
+                        {value: "15K+", label: "Data Points Logged"},
+                        {value: "99.9%", label: "Website uptime"},
+                        {value: "98.2%", label: "Data accuracy"},
+                        {value: "100+", label: "Matches Analyzed"},
+                    ].map((stat) => (
+                        <motion.div key={stat.label} {...staggerItem}>
+                            <p className="text-3xl sm:text-4xl font-bold">{stat.value}</p>
+                            <p className="text-xs sm:text-sm">{stat.label}</p>
+                        </motion.div>
+                    ))}
+                </motion.div>
+            </motion.section>
 
             {/* SECTION 4 – Technical */}
-            <section className="py-16 sm:py-24 text-center bg-purple-900/30 border-t border-purple-800 px-4">
+            <motion.section
+                {...sectionReveal}
+                className="py-16 sm:py-24 text-center bg-purple-900/30 border-t border-purple-800 px-4"
+            >
                 <h2 className="text-2xl sm:text-3xl font-bold mb-8">Under the Hood</h2>
-                <div
-                    className="max-w-5xl mx-auto grid md:grid-cols-3 gap-8 sm:gap-10 text-purple-200 text-sm sm:text-base">
-                    <div>
+                <motion.div
+                    {...staggerContainer}
+                    className="max-w-5xl mx-auto grid md:grid-cols-3 gap-8 sm:gap-10 text-purple-200 text-sm sm:text-base"
+                >
+                    <motion.div {...staggerItem}>
                         <h3 className="font-semibold mb-2 text-purple-400">Frontend</h3>
                         <p>React + Tailwind website for match scouting, pit scouting, live match monitoring, and
                             interactive data presentation.</p>
-                    </div>
-                    <div>
+                    </motion.div>
+                    <motion.div {...staggerItem}>
                         <h3 className="font-semibold mb-2 text-purple-400">Backend</h3>
                         <p>FastAPI server integrated with Neon PostgreSQL database for high speed data transfer
                             and data security.</p>
-                    </div>
-                    <div>
+                    </motion.div>
+                    <motion.div {...staggerItem}>
                         <h3 className="font-semibold mb-2 text-purple-400">Analytics</h3>
                         <p>Cutting edge ensemble analytics engine incorporating various algorithms like random
                             forest, featured elo, and others to achieve ~80% theoretical baseline match
                             accuracy.</p>
-                    </div>
-                </div>
-            </section>
+                    </motion.div>
+                </motion.div>
+            </motion.section>
 
             {/* SECTION 5 – Collaboration */}
-            <section className="py-16 sm:py-20 text-center bg-purple-950 border-t border-purple-800 px-4">
+            <motion.section
+                {...sectionReveal}
+                className="py-16 sm:py-20 text-center bg-purple-950 border-t border-purple-800 px-4"
+            >
                 <h2 className="text-2xl sm:text-3xl font-bold mb-6">Partner With Us</h2>
                 <p className="max-w-2xl mx-auto text-purple-300 text-sm sm:text-base">
                     Team Sprocket shares scouted data with alliance partners to enhance strategy and performance
                     across matches. Contact us if you'd like access or integration for your own team.
                 </p>
-            </section>
+            </motion.section>
 
-            <footer
-                className="text-center text-xs sm:text-sm text-purple-400 border-t border-purple-800 py-6 mt-auto shrink-0">
+            <motion.footer
+                initial={{opacity: 0, y: 20}}
+                whileInView={{opacity: 1, y: 0}}
+                viewport={{once: true, amount: 0.1}}
+                transition={{duration: 0.5, ease: "easeOut"}}
+                className="text-center text-xs sm:text-sm text-purple-400 border-t border-purple-800 py-6 mt-auto shrink-0"
+            >
                 © 2025 Mark Wu · Licensed to Team Sprocket
-            </footer>
+            </motion.footer>
 
             <style>
                 {`

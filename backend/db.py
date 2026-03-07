@@ -51,7 +51,9 @@ from collections import defaultdict
 
 import asyncpg
 import json
+import re
 import time
+import unicodedata
 import logging
 from typing import Dict, Any, Optional, Callable, Annotated, Awaitable
 import dotenv
@@ -562,6 +564,44 @@ async def update_match_scouting(
                 raise HTTPException(status_code=409, detail="Target scouter row already exists")
 
             return True
+    finally:
+        await release_db_connection(pool, conn)
+
+
+async def upsert_match_scouting(
+        match: int,
+        m_type: enums.MatchType,
+        team: int | str,
+        alliance: enums.AllianceType,
+        scouter: str,
+        status: enums.StatusType,
+        data: Dict[str, Any],
+):
+    pool, conn = await get_db_connection(DB_NAME)
+    try:
+        await conn.execute("""
+                           INSERT INTO match_scouting (event_key, match, match_type, team,
+                                                       alliance, scouter, status, data, last_modified)
+                           VALUES ((SELECT current_event FROM metadata LIMIT 1),
+                                   $1, $2, $3, $4, $5, $6, $7, $8)
+                           ON CONFLICT (match, match_type, team, scouter, event_key)
+                               DO UPDATE SET data          = EXCLUDED.data,
+                                             status        = EXCLUDED.status,
+                                             alliance      = EXCLUDED.alliance,
+                                             last_modified = EXCLUDED.last_modified
+                           """,
+                           match,
+                           m_type.value,
+                           str(team),
+                           alliance.value,
+                           scouter,
+                           status.value,
+                           data,
+                           datetime.now(timezone.utc),
+                           )
+    except PostgresError as e:
+        logger.error("Upsert match scouting failed: %s", e)
+        raise HTTPException(status_code=500, detail="Failed to upsert match scouting entry")
     finally:
         await release_db_connection(pool, conn)
 
@@ -2446,11 +2486,15 @@ async def get_guest(password: str) -> Optional[dict]:
     """
     pool, conn = await get_db_connection(DB_NAME)
     try:
-        row = await conn.fetchrow(
-            "SELECT password, name, permissions, expire_date FROM guests WHERE password = $1",
-            password
+        rows = await conn.fetch(
+            "SELECT password, name, permissions, expire_date FROM guests"
         )
-        return dict(row) if row else None
+        for row in rows:
+            normalized = unicodedata.normalize('NFKD', row['password'])
+            stored = re.sub(r'[^\x20-\x7E]', '', normalized)
+            if stored == password:
+                return dict(row)
+        return None
     except PostgresError as e:
         logger.error("Failed to fetch guest: %s", e)
         raise HTTPException(status_code=500, detail="Database error retrieving guest")
@@ -2505,6 +2549,10 @@ def require_guest_password() -> Callable[..., Awaitable[dict]]:
     async def dep(x_guest_password: Annotated[str, Header(alias="x-guest-password")]) -> dict:
         if not x_guest_password:
             raise HTTPException(status_code=401, detail="Guest password required")
+
+        # Normalize Unicode homoglyphs to ASCII equivalents, then strip remaining non-ASCII
+        x_guest_password = unicodedata.normalize('NFKD', x_guest_password)
+        x_guest_password = re.sub(r'[^\x20-\x7E]', '', x_guest_password)
 
         guest = await get_guest(x_guest_password)
         if not guest:

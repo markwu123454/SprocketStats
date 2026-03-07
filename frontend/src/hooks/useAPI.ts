@@ -633,7 +633,7 @@ export function useAPI() {
             }
 
             endpoint = "/data/processed/guest"
-            headers["x-guest-password"] = token
+            headers["x-guest-password"] = token.normalize("NFKD").replace(/[^\x20-\x7E]/g, "")
         }
 
         const query: Record<string, string> = {};

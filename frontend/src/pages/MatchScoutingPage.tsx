@@ -277,6 +277,12 @@ function useUnclaimOnExit(
 // ─── Custom hook: single background upload loop ───
 // This is the ONLY place that uploads completed entries to the server.
 // It runs on mount, on a 30s interval, and can be triggered manually.
+const MAX_RETRIES = 10
+
+function getBackoffDelay(retryCount: number): number {
+    return Math.min(30_000 * Math.pow(2, retryCount), 300_000)
+}
+
 function useBackgroundSync(
     isOnline: boolean,
     serverOnline: boolean,
@@ -297,16 +303,47 @@ function useBackgroundSync(
                 .equals('completed')
                 .toArray()
 
+            const now = Date.now()
+
             for (const entry of completed) {
+                // Skip entries still in backoff window
+                const retryCount = entry.retryCount ?? 0
+                const lastRetryAt = entry.lastRetryAt ?? 0
+                if (retryCount > 0 && lastRetryAt + getBackoffDelay(retryCount) > now) {
+                    continue
+                }
+
+                // Cap retries — mark as 'failed' after MAX_RETRIES
+                if (retryCount >= MAX_RETRIES) {
+                    await db.scouting.update(entry.key, {status: 'failed' as const})
+                    continue
+                }
+
+                // Mark as 'syncing' to prevent resume dialog from picking it up
+                await db.scouting.update(entry.key, {status: 'syncing' as const})
+
                 try {
                     const {match, teamNumber, payload} = buildUploadPayload(entry, scouterEmail)
                     const success = await submitData(match, teamNumber, payload)
 
                     if (success) {
                         await db.scouting.delete(entry.key)
+                    } else {
+                        // Revert to completed with incremented retry tracking
+                        await db.scouting.update(entry.key, {
+                            status: 'completed' as const,
+                            retryCount: retryCount + 1,
+                            lastRetryAt: Date.now(),
+                        })
                     }
                 } catch (err) {
                     console.warn("Background upload failed for entry, will retry:", err)
+                    // Revert to completed with incremented retry tracking
+                    await db.scouting.update(entry.key, {
+                        status: 'completed' as const,
+                        retryCount: (entry.retryCount ?? 0) + 1,
+                        lastRetryAt: Date.now(),
+                    })
                 }
             }
         } finally {
