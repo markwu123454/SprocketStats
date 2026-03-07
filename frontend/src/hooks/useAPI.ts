@@ -623,10 +623,22 @@ export function useAPI() {
 
     let endpoint: string;
 
+    if (token) {
         // Guest path — use guest endpoint with token, ignore admin cookie
         endpoint = "/data/processed/guest";
         headers["x-guest-password"] = token;
         headers["Content-Type"] = "application/json";
+    } else {
+        // Admin path — use UUID cookie
+        const adminHeaders = getAuthHeaders();
+        Object.assign(headers, adminHeaders);
+
+        if (!headers["x-uuid"]) {
+            // No admin session and no guest token — can't auth
+            return null;
+        }
+        endpoint = "/data/processed/admin";
+    }
 
     return await apiRequest<Record<string, any>>(endpoint, {
         query,
