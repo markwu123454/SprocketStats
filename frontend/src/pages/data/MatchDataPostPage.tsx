@@ -1,52 +1,12 @@
-import {Link, useNavigate, useParams} from "react-router-dom"
+import {Link, useParams} from "react-router-dom"
 import {useMatchData, usePermissions} from "@/components/wrappers/DataWrapper"
 import React, {useEffect, useState} from "react"
 import DataSearch from "@/components/ui/dataSearch.tsx"
 
-const MATCH_PHASES: { prefix: string; max: number }[] = [
-    { prefix: "qm", max: 64 },
-    { prefix: "sf", max: 6 },
-    { prefix: "f", max: 3 },
-]
-
-function getAdjacentMatchKey(matchKey: string, delta: number): string | null {
-    const m = matchKey.match(/^(.+?)(\d+)$/)
-    if (!m) return null
-    const prefix = m[1]
-    const num = parseInt(m[2], 10)
-
-    const phaseIdx = MATCH_PHASES.findIndex((p) => p.prefix === prefix)
-    if (phaseIdx === -1) {
-        // Unknown phase — fall back to simple increment
-        const next = num + delta
-        return next < 1 ? null : prefix + next
-    }
-
-    const newNum = num + delta
-    if (newNum >= 1 && newNum <= MATCH_PHASES[phaseIdx].max) {
-        return prefix + newNum
-    }
-
-    // Cross phase boundary
-    if (newNum > MATCH_PHASES[phaseIdx].max && phaseIdx < MATCH_PHASES.length - 1) {
-        return MATCH_PHASES[phaseIdx + 1].prefix + "1"
-    }
-    if (newNum < 1 && phaseIdx > 0) {
-        const prevPhase = MATCH_PHASES[phaseIdx - 1]
-        return prevPhase.prefix + prevPhase.max
-    }
-
-    return null
-}
-
 export default function MatchDataPostPage() {
     const {matchKey} = useParams<{ matchKey: string }>()
-    const navigate = useNavigate()
     const permissions = usePermissions()
     const match = useMatchData(matchKey ?? "")
-
-    const prevMatchKey = matchKey ? getAdjacentMatchKey(matchKey, -1) : null
-    const nextMatchKey = matchKey ? getAdjacentMatchKey(matchKey, 1) : null
 
     const [teamNames, setTeamNames] = useState<Record<number, string>>({})
 
@@ -77,12 +37,15 @@ export default function MatchDataPostPage() {
         )
     }
 
-    const sbPred = predData.sb_pred ?? {}
+    const pred = predData.predictions ?? {}
     const red = postData.red
     const blue = postData.blue
     const winner = postData.winner
-    const sbPredError = postData.sb_pred_error
-    const sbResult = postData.sb_result
+    const predError = postData.pred_error
+
+    const matchTime = postData.time
+        ? new Date(postData.time * 1000).toLocaleString()
+        : "—"
 
     return (
         <div className="flex flex-col h-screen bg-white text-zinc-900">
@@ -93,31 +56,16 @@ export default function MatchDataPostPage() {
                     <h1 className="text-lg font-semibold">
                         {matchKey?.toUpperCase() ?? "MATCH"}
                     </h1>
+                    <span className="text-sm text-zinc-500">
+                        {match.comp_level?.toUpperCase()} Match {match.match_number} · {matchTime}
+                    </span>
                     <DataSearch teamNames={teamNames} permissions={permissions}/>
                     <Link
                         to={`/data/match/${matchKey}/pred`}
                         className="px-3 py-1.5 text-xs font-medium rounded-md border border-zinc-300 bg-white text-zinc-700 hover:bg-zinc-100 transition-colors"
                     >
-                        ← Prediction
+                        ← See Prediction
                     </Link>
-                    <div className="flex items-center gap-1">
-                        {prevMatchKey && permissions?.match?.includes(prevMatchKey) && (
-                            <button
-                                onClick={() => navigate(`/data/match/${prevMatchKey}/post`)}
-                                className="px-2 py-1.5 text-xs font-medium rounded-md border border-zinc-300 bg-white text-zinc-700 hover:bg-zinc-100 transition-colors"
-                            >
-                                ← Prev
-                            </button>
-                        )}
-                        {nextMatchKey && permissions?.match?.includes(nextMatchKey) && (
-                            <button
-                                onClick={() => navigate(`/data/match/${nextMatchKey}/post`)}
-                                className="px-2 py-1.5 text-xs font-medium rounded-md border border-zinc-300 bg-white text-zinc-700 hover:bg-zinc-100 transition-colors"
-                            >
-                                Next →
-                            </button>
-                        )}
-                    </div>
                 </div>
 
                 {/* Score header */}
@@ -132,47 +80,46 @@ export default function MatchDataPostPage() {
 
             {/* BODY */}
             <div className="flex flex-1 overflow-hidden">
-                {/* Red panel — TBA teams + per-robot climb data */}
+                {/* Red panel */}
                 <AllianceResultPanel
                     color="red"
                     data={red}
                     teamNames={teamNames}
                     permissions={permissions}
+                    teamDetails={match.alliances?.red?.team_details ?? []}
                 />
 
                 {/* Center comparison */}
                 <div className="flex-[1.5] flex flex-col overflow-auto bg-zinc-50 border-x border-zinc-200">
-                    {/* Statbotics predicted vs TBA actual */}
-                    {sbPred.red_score != null && (
-                        <Section label="Statbotics Predicted vs Actual">
+                    {/* Actual vs predicted */}
+                    {pred.red_score_pred != null && (
+                        <Section label="Predicted vs Actual">
                             <div className="px-6 py-3 space-y-2">
-                                <PredActualRow label="Total Score" redPred={sbPred.red_score} redActual={red.score}
-                                               bluePred={sbPred.blue_score} blueActual={blue.score}/>
-                                <PredActualRow label="Auto Points" redPred={null} redActual={red.auto_points}
-                                               bluePred={null} blueActual={blue.auto_points}/>
-                                {sbPredError && (
+                                <PredActualRow label="Total Score" redPred={pred.red_score_pred} redActual={red.score}
+                                               bluePred={pred.blue_score_pred} blueActual={blue.score}/>
+                                <PredActualRow label="Fuel" redPred={pred.red_fuel_pred} redActual={red.hub.total.count}
+                                               bluePred={pred.blue_fuel_pred} blueActual={blue.hub.total.count}/>
+                                <PredActualRow label="Tower Pts" redPred={pred.red_climb_pred}
+                                               redActual={red.tower_points} bluePred={pred.blue_climb_pred}
+                                               blueActual={blue.tower_points}/>
+                                <PredActualRow label="Auto Fuel" redPred={pred.red_auto_pred}
+                                               redActual={red.hub.auto.count} bluePred={pred.blue_auto_pred}
+                                               blueActual={blue.hub.auto.count}/>
+                                {predError && (
                                     <div
                                         className="flex justify-between text-xs text-zinc-400 pt-1 border-t border-zinc-100">
-                                        <span>SB error: <span
-                                            className={sbPredError.red > 0 ? "text-green-600" : "text-red-500"}>{sbPredError.red > 0 ? "+" : ""}{sbPredError.red}</span></span>
-                                        <span>{sbPredError.pred_winner_correct ? "✓ Correct winner" : "✗ Wrong winner"}</span>
-                                        <span>SB error: <span
-                                            className={sbPredError.blue > 0 ? "text-green-600" : "text-red-500"}>{sbPredError.blue > 0 ? "+" : ""}{sbPredError.blue}</span></span>
-                                    </div>
-                                )}
-                                {/* SB win probability */}
-                                {sbPred.red_win_prob != null && (
-                                    <div className="flex justify-between text-xs text-zinc-500 pt-1 border-t border-zinc-100">
-                                        <span className="text-red-600 font-medium">{sbPred.red_win_prob}% win</span>
-                                        <span className="text-zinc-400">SB Win Probability</span>
-                                        <span className="text-blue-600 font-medium">{sbPred.blue_win_prob}% win</span>
+                                        <span>Pred error: <span
+                                            className={predError.red > 0 ? "text-green-600" : "text-red-500"}>{predError.red > 0 ? "+" : ""}{predError.red}</span></span>
+                                        <span>{predError.pred_winner_correct ? "✓ Correct winner" : "✗ Wrong winner"}</span>
+                                        <span>Pred error: <span
+                                            className={predError.blue > 0 ? "text-green-600" : "text-red-500"}>{predError.blue > 0 ? "+" : ""}{predError.blue}</span></span>
                                     </div>
                                 )}
                             </div>
                         </Section>
                     )}
 
-                    {/* Score breakdown comparison (TBA) */}
+                    {/* Score breakdown comparison */}
                     <Section label="Score Breakdown">
                         <div className="px-6 py-3 space-y-2">
                             <ComparisonBar label="Auto Points" redVal={red.auto_points} blueVal={blue.auto_points}/>
@@ -183,7 +130,7 @@ export default function MatchDataPostPage() {
                         </div>
                     </Section>
 
-                    {/* Hub fuel by phase (TBA) */}
+                    {/* Hub fuel by phase */}
                     <Section label="Fuel by Phase">
                         <div className="px-6 py-3 space-y-2">
                             <ComparisonBar label="Auto" redVal={red.hub.auto.count} blueVal={blue.hub.auto.count}/>
@@ -206,18 +153,18 @@ export default function MatchDataPostPage() {
                         </div>
                     </Section>
 
-                    {/* RP outcomes (TBA actual + SB predicted probs) */}
+                    {/* RP outcomes */}
                     <Section label="Ranking Points">
                         <div className="px-6 py-3 space-y-2">
                             <RPOutcomeRow label="Energized (≥100)" redAchieved={red.energized}
-                                          blueAchieved={blue.energized} redProb={sbPred.red_rp_1}
-                                          blueProb={sbPred.blue_rp_1}/>
+                                          blueAchieved={blue.energized} redProb={pred.red_energized_prob}
+                                          blueProb={pred.blue_energized_prob}/>
                             <RPOutcomeRow label="Supercharged (≥360)" redAchieved={red.supercharged}
-                                          blueAchieved={blue.supercharged} redProb={sbPred.red_rp_2}
-                                          blueProb={sbPred.blue_rp_2}/>
+                                          blueAchieved={blue.supercharged} redProb={pred.red_supercharged_prob}
+                                          blueProb={pred.blue_supercharged_prob}/>
                             <RPOutcomeRow label="Traversal (≥50 tower)" redAchieved={red.traversal}
-                                          blueAchieved={blue.traversal} redProb={sbPred.red_rp_3}
-                                          blueProb={sbPred.blue_rp_3}/>
+                                          blueAchieved={blue.traversal} redProb={pred.red_traversal_prob}
+                                          blueProb={pred.blue_traversal_prob}/>
                             <div className="flex justify-between text-sm font-semibold pt-1 border-t border-zinc-100">
                                 <span className="text-red-600">{red.rp} RP</span>
                                 <span className="text-blue-600">{blue.rp} RP</span>
@@ -225,7 +172,7 @@ export default function MatchDataPostPage() {
                         </div>
                     </Section>
 
-                    {/* Per-robot climb results (TBA) */}
+                    {/* Per-robot climb results */}
                     <Section label="Climb Results">
                         <div className="grid grid-cols-2 gap-4 px-6 py-3">
                             <ClimbResultPanel color="red" climbs={red.climbs} teamNames={teamNames}/>
@@ -233,31 +180,7 @@ export default function MatchDataPostPage() {
                         </div>
                     </Section>
 
-                    {/* Statbotics result data if available */}
-                    {sbResult && (
-                        <Section label="Statbotics Breakdown">
-                            <div className="px-6 py-3 space-y-2">
-                                {sbResult.red_no_foul != null && (
-                                    <ComparisonBar label="Score (no foul)" redVal={sbResult.red_no_foul}
-                                                   blueVal={sbResult.blue_no_foul}/>
-                                )}
-                                {sbResult.red_auto_points != null && (
-                                    <ComparisonBar label="SB Auto" redVal={sbResult.red_auto_points}
-                                                   blueVal={sbResult.blue_auto_points}/>
-                                )}
-                                {sbResult.red_teleop_points != null && (
-                                    <ComparisonBar label="SB Teleop" redVal={sbResult.red_teleop_points}
-                                                   blueVal={sbResult.blue_teleop_points}/>
-                                )}
-                                {sbResult.red_endgame_points != null && (
-                                    <ComparisonBar label="SB Endgame" redVal={sbResult.red_endgame_points}
-                                                   blueVal={sbResult.blue_endgame_points}/>
-                                )}
-                            </div>
-                        </Section>
-                    )}
-
-                    {/* Fouls (TBA) */}
+                    {/* Fouls */}
                     {(red.minor_fouls > 0 || red.major_fouls > 0 || blue.minor_fouls > 0 || blue.major_fouls > 0) && (
                         <Section label="Penalties">
                             <div className="px-6 py-3 space-y-1">
@@ -270,12 +193,13 @@ export default function MatchDataPostPage() {
                     )}
                 </div>
 
-                {/* Blue panel — TBA teams + per-robot climb data */}
+                {/* Blue panel */}
                 <AllianceResultPanel
                     color="blue"
                     data={blue}
                     teamNames={teamNames}
                     permissions={permissions}
+                    teamDetails={match.alliances?.blue?.team_details ?? []}
                 />
             </div>
         </div>
@@ -337,23 +261,22 @@ function ComparisonBar({label, redVal, blueVal}: { label: string; redVal?: numbe
 }
 
 function PredActualRow({label, redPred, redActual, bluePred, blueActual}: {
-    label: string; redPred: number | null; redActual: number; bluePred: number | null; blueActual: number
+    label: string; redPred: number; redActual: number; bluePred: number; blueActual: number
 }) {
-    const hasPred = redPred != null && bluePred != null
-    const redDiff = hasPred ? redActual - redPred! : 0
-    const blueDiff = hasPred ? blueActual - bluePred! : 0
+    const redDiff = redActual - redPred
+    const blueDiff = blueActual - bluePred
     return (
         <div className="flex items-center text-xs">
             <div className="w-24 text-right space-x-1">
-                {hasPred && <span className="text-zinc-400">{Math.round(redPred!)}→</span>}
+                <span className="text-zinc-400">{Math.round(redPred)}→</span>
                 <span className="font-semibold text-red-600">{redActual}</span>
-                {hasPred && <DiffBadge diff={redDiff}/>}
+                <DiffBadge diff={redDiff}/>
             </div>
             <div className="flex-1 text-center text-zinc-400">{label}</div>
             <div className="w-24 text-left space-x-1">
-                {hasPred && <DiffBadge diff={blueDiff}/>}
+                <DiffBadge diff={blueDiff}/>
                 <span className="font-semibold text-blue-600">{blueActual}</span>
-                {hasPred && <span className="text-zinc-400">←{Math.round(bluePred!)}</span>}
+                <span className="text-zinc-400">←{Math.round(bluePred)}</span>
             </div>
         </div>
     )
@@ -426,11 +349,12 @@ function ClimbResultPanel({color, climbs, teamNames}: {
     )
 }
 
-function AllianceResultPanel({color, data, teamNames, permissions}: {
+function AllianceResultPanel({color, data, teamNames, permissions, teamDetails}: {
     color: "red" | "blue"
     data: any
     teamNames: Record<number, string>
     permissions: any
+    teamDetails: any[]
 }) {
     const bg = color === "red" ? "bg-red-50/50" : "bg-blue-50/50"
     const headerColor = color === "red" ? "text-red-700" : "text-blue-700"
@@ -443,6 +367,7 @@ function AllianceResultPanel({color, data, teamNames, permissions}: {
             </div>
             <ul className="flex flex-col flex-1 divide-y divide-zinc-200 overflow-auto">
                 {teams.map((tn, idx) => {
+                    const td = teamDetails.find((d: any) => d.team === tn) ?? {}
                     const climb = data.climbs?.[idx]
                     return (
                         <TeamResultRow
@@ -450,6 +375,7 @@ function AllianceResultPanel({color, data, teamNames, permissions}: {
                             color={color}
                             teamNum={tn}
                             teamName={teamNames[tn]}
+                            detail={td}
                             climb={climb}
                             canLink={permissions?.team?.map(String).includes(String(tn))}
                         />
@@ -460,10 +386,11 @@ function AllianceResultPanel({color, data, teamNames, permissions}: {
     )
 }
 
-function TeamResultRow({color, teamNum, teamName, climb, canLink}: {
+function TeamResultRow({color, teamNum, teamName, detail, climb, canLink}: {
     color: "red" | "blue"
     teamNum: number
     teamName?: string
+    detail: any
     climb: any
     canLink?: boolean
 }) {
@@ -497,15 +424,17 @@ function TeamResultRow({color, teamNum, teamName, climb, canLink}: {
                 </Link>
             ) : header}
 
-            {/* Only TBA climb data — no scouting metrics */}
             <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-[11px] text-zinc-600">
+                <Stat label="Fuel Avg" value={detail.fuel_mean}/>
+                <Stat label="Role" value={detail.role}/>
+                <Stat label="Climb" value={
+                    climb ? `${towerLabel(climb.endgame_tower)} (${climb.endgame_tower_pts}pts)` : "—"
+                }/>
                 <Stat label="Auto Tower" value={
                     climb ? `${towerLabel(climb.auto_tower)} (${climb.auto_tower_pts}pts)` : "—"
                 }/>
-                <Stat label="End Tower" value={
-                    climb ? `${towerLabel(climb.endgame_tower)} (${climb.endgame_tower_pts}pts)` : "—"
-                }/>
-                <Stat label="Tower Pts" value={climb?.total_tower_pts ?? "—"}/>
+                <Stat label="Speed" value={detail.speed}/>
+                <Stat label="Faults" value={detail.fault_rate}/>
             </div>
         </li>
     )

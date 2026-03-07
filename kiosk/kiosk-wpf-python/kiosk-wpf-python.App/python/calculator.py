@@ -765,18 +765,6 @@ def phase1_accumulate_team_stats(
         acc_endgame_climb_level: dict[int, list[int]] = {}
         acc_total_points_est: dict[int, list[float]] = {}
 
-        # -- TBA-based auto point accumulator (alliance auto / 3 per team) --
-        acc_tba_auto_contrib: dict[int, list[float]] = {}
-        played_quals = [m for m in tba_data if m.comp_level == "qm" and m.score_breakdown is not None]
-        for match in played_quals:
-            for color in ("red", "blue"):
-                alliance: MatchAlliance = getattr(match.alliances, color)
-                breakdown: AllianceScoreBreakdown2026 = getattr(match.score_breakdown, color)
-                auto_per_robot = breakdown.totalAutoPoints / 3.0
-                for raw_team_key in alliance.team_keys:
-                    tn = parse_team_key(raw_team_key)
-                    acc_tba_auto_contrib.setdefault(tn, []).append(auto_per_robot)
-
         # -- Fuel output (per-match phase breakdown for frontend) -----------
         phase_fuel_lists: dict[str, dict[str, list[float]]] = {}
         state_time_lists: dict[str, dict[str, list[float]]] = {}
@@ -1081,10 +1069,6 @@ def phase1_accumulate_team_stats(
                 "total_points_stdev": _stdev(acc_total_points_est.get(tn, [])),
                 "bps": bps,
 
-                # TBA-based auto contribution (alliance auto / 3)
-                "tba_auto_contrib_mean": _mean(acc_tba_auto_contrib.get(tn, [])),
-                "tba_auto_contrib_stdev": _stdev(acc_tba_auto_contrib.get(tn, [])),
-
                 # RP from TBA
                 "rp_total": rp_total,
                 "rp_avg": round(rp_total / mp, 2) if mp > 0 else None,
@@ -1387,97 +1371,6 @@ def model_per_period_breakdown(ctx: MatchContext) -> dict:
 
 
 # ---------------------------------------------------------------------------
-# Model: TBA Auto Average
-# ---------------------------------------------------------------------------
-# Estimates each team's auto contribution by averaging the alliance-level
-# totalAutoPoints / 3 from all past TBA qual matches. This is a coarse
-# but data-rich signal: it works even without scouting data, since TBA
-# records every match. Only predicts auto-related domains.
-# ---------------------------------------------------------------------------
-
-def model_tba_auto_average(ctx: MatchContext) -> dict:
-    """Predict auto scores from TBA alliance auto / 3 averages."""
-    has_data = any(
-        ctx.get_profile(tn).get("tba_auto_contrib_mean") is not None
-        for tn in ctx.red_teams + ctx.blue_teams
-    )
-    if not has_data:
-        return {}
-
-    def _team_auto_normal(tn):
-        p = ctx.get_profile(tn)
-        mean = ctx.safe(p.get("tba_auto_contrib_mean"))
-        std = ctx.safe(p.get("tba_auto_contrib_stdev"), 1.0)
-        return (mean, std)
-
-    red_normals = [_team_auto_normal(tn) for tn in ctx.red_teams]
-    blue_normals = [_team_auto_normal(tn) for tn in ctx.blue_teams]
-
-    red_auto = sum(m for m, _ in red_normals)
-    blue_auto = sum(m for m, _ in blue_normals)
-
-    try:
-        auto_win_prob = prob_sum1_greater_sum2(red_normals, blue_normals)
-    except (ValueError, ZeroDivisionError):
-        auto_win_prob = 0.5
-
-    return {
-        "red_auto": round(red_auto, 1),
-        "blue_auto": round(blue_auto, 1),
-        "auto_win_prob": auto_win_prob,
-    }
-
-
-# ---------------------------------------------------------------------------
-# Model: Scouted Auto Points
-# ---------------------------------------------------------------------------
-# Uses per-team scouted auto fuel (scored during auto phase) plus auto
-# climb success rate * 15 pts to predict each team's individual auto
-# contribution. More granular than the TBA model because it tracks
-# actual robot-level actions, not just alliance totals.
-# ---------------------------------------------------------------------------
-
-def model_scouted_auto(ctx: MatchContext) -> dict:
-    """Predict auto scores from scouted per-robot auto fuel + auto climb."""
-    has_data = any(
-        ctx.get_profile(tn).get("matches_scouted", 0) > 0
-        for tn in ctx.red_teams + ctx.blue_teams
-    )
-    if not has_data:
-        return {}
-
-    def _team_auto_normal(tn):
-        p = ctx.get_profile(tn)
-        auto_fuel_mean = ctx.safe(p.get("auto_fuel_mean"))
-        auto_fuel_std = ctx.safe(p.get("auto_fuel_std"), 1.0)
-        # Auto climb contributes 15 pts; weight by success rate
-        auto_climb_rate = ctx.safe(p.get("auto_climb_rate")) / 100.0  # stored as pct
-        auto_climb_mean = auto_climb_rate * 15.0
-        # Std dev of a Bernoulli * 15
-        auto_climb_std = 15.0 * math.sqrt(auto_climb_rate * (1 - auto_climb_rate)) if 0 < auto_climb_rate < 1 else 0.5
-        total_mean = auto_fuel_mean + auto_climb_mean
-        total_std = math.sqrt(auto_fuel_std ** 2 + auto_climb_std ** 2)
-        return (total_mean, total_std)
-
-    red_normals = [_team_auto_normal(tn) for tn in ctx.red_teams]
-    blue_normals = [_team_auto_normal(tn) for tn in ctx.blue_teams]
-
-    red_auto = sum(m for m, _ in red_normals)
-    blue_auto = sum(m for m, _ in blue_normals)
-
-    try:
-        auto_win_prob = prob_sum1_greater_sum2(red_normals, blue_normals)
-    except (ValueError, ZeroDivisionError):
-        auto_win_prob = 0.5
-
-    return {
-        "red_auto": round(red_auto, 1),
-        "blue_auto": round(blue_auto, 1),
-        "auto_win_prob": auto_win_prob,
-    }
-
-
-# ---------------------------------------------------------------------------
 # Model Registry
 # ---------------------------------------------------------------------------
 # prior_weight: relative weight when no empirical data exists yet.
@@ -1499,16 +1392,6 @@ MODEL_REGISTRY = [
     {
         "name": "per_period_breakdown",
         "fn": model_per_period_breakdown,
-        "prior_weight": 1.5,
-    },
-    {
-        "name": "tba_auto_average",
-        "fn": model_tba_auto_average,
-        "prior_weight": 1.0,
-    },
-    {
-        "name": "scouted_auto",
-        "fn": model_scouted_auto,
         "prior_weight": 1.5,
     },
 ]
@@ -1537,7 +1420,7 @@ PROB_DOMAINS = {
 SCORE_DOMAINS = {"red_score", "blue_score", "red_auto", "blue_auto"}
 
 # Minimum completed matches before using empirical weights
-MIN_MATCHES_FOR_EMPIRICAL = 1
+MIN_MATCHES_FOR_EMPIRICAL = 4
 
 
 def _extract_actual(tba_match: Match, canon_key: str) -> Optional[dict]:
@@ -1616,17 +1499,12 @@ def _score_model_on_domain(
 def _compute_ensemble_weights(
     model_errors: dict[str, dict[str, Optional[float]]],
     model_priors: dict[str, float],
-    model_active_domains: Optional[dict[str, set[str]]] = None,
 ) -> dict[str, dict[str, float]]:
     """Compute per-domain weights for each model.
 
     Args:
         model_errors: {model_name: {domain: error_or_None}}
         model_priors: {model_name: prior_weight}
-        model_active_domains: {model_name: set of domains the model has ever
-            produced across ALL matches (not just completed ones)}.  When
-            provided this ensures a model that only has predictions for
-            upcoming/recent matches still receives a prior weight.
 
     Returns:
         {domain: {model_name: normalized_weight}}
@@ -1637,32 +1515,23 @@ def _compute_ensemble_weights(
     for domain in ALL_DOMAINS:
         domain_weights: dict[str, float] = {}
 
-        # Collect which models have predictions for this domain —
-        # check both model_errors (from completed-match scoring) and
-        # model_active_domains (from all matches including upcoming).
-        models_with_domain: list[str] = []
-        seen = set()
-        for name, errors in model_errors.items():
-            if domain in errors:
-                models_with_domain.append(name)
-                seen.add(name)
-        if model_active_domains:
-            for name, domains in model_active_domains.items():
-                if domain in domains and name not in seen:
-                    models_with_domain.append(name)
-
+        # Collect which models have predictions for this domain
+        models_with_domain = [
+            name for name, errors in model_errors.items()
+            if domain in errors
+        ]
         if not models_with_domain:
             continue
 
         # Check if any model has empirical error data for this domain
         has_empirical = any(
-            model_errors.get(name, {}).get(domain) is not None
+            model_errors[name].get(domain) is not None
             for name in models_with_domain
         )
 
         if has_empirical:
             for name in models_with_domain:
-                err = model_errors.get(name, {}).get(domain)
+                err = model_errors[name].get(domain)
                 if err is not None:
                     domain_weights[name] = 1.0 / (err + EPSILON)
                 else:
@@ -1877,14 +1746,6 @@ def phase2_predict_matches(
                 "blue_teams": blue_teams,
             }
 
-        # Build a map of every domain each model has ever produced
-        # (across ALL matches, not just completed ones).  This ensures
-        # models that only fire on upcoming matches still get weights.
-        model_active_domains: dict[str, set[str]] = {}
-        for canon_key, outputs in all_model_outputs.items():
-            for model_name, output in outputs.items():
-                model_active_domains.setdefault(model_name, set()).update(output.keys())
-
         log.stat("Models registered", len(MODEL_REGISTRY))
 
         # ------------------------------------------------------------------
@@ -1938,7 +1799,7 @@ def phase2_predict_matches(
         # Step 3: Compute ensemble weights
         # ------------------------------------------------------------------
         model_priors = {m["name"]: m["prior_weight"] for m in MODEL_REGISTRY}
-        ensemble_weights = _compute_ensemble_weights(model_errors, model_priors, model_active_domains)
+        ensemble_weights = _compute_ensemble_weights(model_errors, model_priors)
 
         log.stat("Completed matches scored", len(completed_keys))
 
@@ -2169,19 +2030,13 @@ def phase3_build_rankings(
 def phase3_build_match_output(
     calc_result: dict,
     tba_data: list[Match],
-    sb_data: list[StatboticsMatch],
     match_predictions: dict[str, dict],
     log: Logger,
 ):
-    """Build the final match pred/post structures. Mutates calc_result["match"].
-
-    Post data is built exclusively from TBA and Statbotics — no scouting data.
-    """
+    """Build the final match pred/post structures. Mutates calc_result["match"]."""
     with log.section("Building match pred/post structure"):
         TOWER_LEVEL_PTS = {"Level1": 10, "Level2": 20, "Level3": 30, "None": 0}
         AUTO_TOWER_LEVEL_PTS = {"Level1": 15, "None": 0}
-
-        sb_match_map: dict[str, StatboticsMatch] = {m.key: m for m in sb_data}
 
         post_count = 0
 
@@ -2208,7 +2063,6 @@ def phase3_build_match_output(
             if has_result:
                 sb = tba_match.score_breakdown
                 alliances_tba = tba_match.alliances
-                sb_match = sb_match_map.get(tba_key)
 
                 result = {}
                 for color in ("red", "blue"):
@@ -2265,42 +2119,23 @@ def phase3_build_match_output(
                 blue_score = result["blue"]["score"]
                 winner = "red" if red_score > blue_score else "blue" if blue_score > red_score else "tie"
 
-                # Pred error computed from Statbotics predictions only (no scouting)
-                sb_pred = pred_data.get("sb_pred") or {}
-                sb_pred_error = None
-                if sb_pred.get("red_score") is not None:
-                    sb_pred_error = {
-                        "red": round(red_score - sb_pred["red_score"], 1),
-                        "blue": round(blue_score - sb_pred["blue_score"], 1),
+                pred_preds = pred_data.get("predictions") or {}
+                pred_error = None
+                if pred_preds.get("red_score_pred") is not None:
+                    pred_error = {
+                        "red": round(red_score - pred_preds["red_score_pred"], 1),
+                        "blue": round(blue_score - pred_preds["blue_score_pred"], 1),
                         "pred_winner_correct": (
-                            (sb_pred["red_win_prob"] > 50 and winner == "red")
-                            or (sb_pred["blue_win_prob"] > 50 and winner == "blue")
+                            (pred_preds["red_win_prob"] > 50 and winner == "red")
+                            or (pred_preds["blue_win_prob"] > 50 and winner == "blue")
                         ),
-                    }
-
-                # Build SB-sourced result data if available
-                sb_result = None
-                if sb_match and sb_match.result:
-                    r = sb_match.result
-                    sb_result = {
-                        "red_score": r.red_score,
-                        "blue_score": r.blue_score,
-                        "red_no_foul": r.red_no_foul,
-                        "blue_no_foul": r.blue_no_foul,
-                        "red_auto_points": r.red_auto_points,
-                        "blue_auto_points": r.blue_auto_points,
-                        "red_teleop_points": r.red_teleop_points,
-                        "blue_teleop_points": r.blue_teleop_points,
-                        "red_endgame_points": r.red_endgame_points,
-                        "blue_endgame_points": r.blue_endgame_points,
                     }
 
                 post_data = {
                     "red": result["red"],
                     "blue": result["blue"],
                     "winner": winner,
-                    "sb_pred_error": sb_pred_error,
-                    "sb_result": sb_result,
+                    "pred_error": pred_error,
                     "time": tba_match.actual_time or tba_match.time,
                 }
                 post_count += 1
@@ -2470,7 +2305,7 @@ def run_calculation(setting):
         calc_result["team_fuel"] = team_stats["team_fuel_output"]
 
         # Match pred/post structures
-        phase3_build_match_output(calc_result, tba_data, sb_data, match_predictions, log)
+        phase3_build_match_output(calc_result, tba_data, match_predictions, log)
 
         # Next match
         phase3_determine_next_match(calc_result, log)
