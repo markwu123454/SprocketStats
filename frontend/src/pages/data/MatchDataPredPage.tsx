@@ -1,12 +1,52 @@
-import {Link, useParams} from "react-router-dom"
+import {Link, useNavigate, useParams} from "react-router-dom"
 import {useMatchData, usePermissions} from "@/components/wrappers/DataWrapper"
 import React, {useEffect, useState} from "react"
 import DataSearch from "@/components/ui/dataSearch.tsx"
 
+const MATCH_PHASES: { prefix: string; max: number }[] = [
+    { prefix: "qm", max: 64 },
+    { prefix: "sf", max: 6 },
+    { prefix: "f", max: 3 },
+]
+
+function getAdjacentMatchKey(matchKey: string, delta: number): string | null {
+    const m = matchKey.match(/^(.+?)(\d+)$/)
+    if (!m) return null
+    const prefix = m[1]
+    const num = parseInt(m[2], 10)
+
+    const phaseIdx = MATCH_PHASES.findIndex((p) => p.prefix === prefix)
+    if (phaseIdx === -1) {
+        // Unknown phase — fall back to simple increment
+        const next = num + delta
+        return next < 1 ? null : prefix + next
+    }
+
+    const newNum = num + delta
+    if (newNum >= 1 && newNum <= MATCH_PHASES[phaseIdx].max) {
+        return prefix + newNum
+    }
+
+    // Cross phase boundary
+    if (newNum > MATCH_PHASES[phaseIdx].max && phaseIdx < MATCH_PHASES.length - 1) {
+        return MATCH_PHASES[phaseIdx + 1].prefix + "1"
+    }
+    if (newNum < 1 && phaseIdx > 0) {
+        const prevPhase = MATCH_PHASES[phaseIdx - 1]
+        return prevPhase.prefix + prevPhase.max
+    }
+
+    return null
+}
+
 export default function MatchDataPredPage() {
     const {matchKey} = useParams<{ matchKey: string }>()
+    const navigate = useNavigate()
     const permissions = usePermissions()
     const match = useMatchData(matchKey ?? "")
+
+    const prevMatchKey = matchKey ? getAdjacentMatchKey(matchKey, -1) : null
+    const nextMatchKey = matchKey ? getAdjacentMatchKey(matchKey, 1) : null
 
     const [teamNames, setTeamNames] = useState<Record<number, string>>({})
 
@@ -50,16 +90,31 @@ export default function MatchDataPredPage() {
                     <h1 className="text-lg font-semibold">
                         {matchKey?.toUpperCase() ?? "MATCH"}
                     </h1>
-                    <span className="text-sm text-zinc-500">
-                        {match.comp_level?.toUpperCase()} {match.set_number > 1 ? `Set ${match.set_number}` : ""} Match {match.match_number}
-                    </span>
                     <DataSearch teamNames={teamNames} permissions={permissions}/>
                     <Link
                         to={`/data/match/${matchKey}/post`}
                         className="px-3 py-1.5 text-xs font-medium rounded-md border border-zinc-300 bg-white text-zinc-700 hover:bg-zinc-100 transition-colors"
                     >
-                        See Results →
+                        Results →
                     </Link>
+                    <div className="flex items-center gap-1">
+                        {prevMatchKey && permissions?.match?.includes(prevMatchKey) && (
+                            <button
+                                onClick={() => navigate(`/data/match/${prevMatchKey}/pred`)}
+                                className="px-2 py-1.5 text-xs font-medium rounded-md border border-zinc-300 bg-white text-zinc-700 hover:bg-zinc-100 transition-colors"
+                            >
+                                ← Prev
+                            </button>
+                        )}
+                        {nextMatchKey && permissions?.match?.includes(nextMatchKey) && (
+                            <button
+                                onClick={() => navigate(`/data/match/${nextMatchKey}/pred`)}
+                                className="px-2 py-1.5 text-xs font-medium rounded-md border border-zinc-300 bg-white text-zinc-700 hover:bg-zinc-100 transition-colors"
+                            >
+                                Next →
+                            </button>
+                        )}
+                    </div>
                 </div>
 
                 {/* Win probability headline */}
@@ -240,17 +295,17 @@ function RPRow({label, redProb, blueProb}: { label: string; redProb?: number; bl
     const b = blueProb ?? 0
     return (
         <div className="flex items-center justify-between text-sm">
-            <ProbBadge value={r} color="red"/>
+            <ProbBadge value={r}/>
             <span className="text-xs text-zinc-500 text-center flex-1">{label}</span>
-            <ProbBadge value={b} color="blue"/>
+            <ProbBadge value={b}/>
         </div>
     )
 }
 
-function ProbBadge({value, color}: { value: number; color: "red" | "blue" }) {
+function ProbBadge({value}: { value: number }) {
     const bg = value >= 75
-        ? (color === "red" ? "bg-red-100 text-red-700" : "bg-blue-100 text-blue-700")
-        : value >= 40
+        ? "bg-green-100 text-green-700"
+        : value >= 50
             ? "bg-yellow-50 text-yellow-700"
             : "bg-zinc-100 text-zinc-400"
     return (

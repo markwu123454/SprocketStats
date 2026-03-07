@@ -407,6 +407,8 @@ def generate_frc_passcode(team_name, team_number, rng=None):
     while len(passcode_chars) > max_len:
         del passcode_chars[rng.randrange(len(passcode_chars))]
 
+    passcode_chars = [c for c in passcode_chars if c.isascii()]
+
     return ''.join(passcode_chars)
 
 
