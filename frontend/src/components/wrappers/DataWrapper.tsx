@@ -79,12 +79,12 @@ export interface AllianceData {
 }
 
 // NEW permissions type
-    export interface GuestPermissions {
-        ranking: boolean
-        alliance: boolean
-        match: string[]
-        team: string[]
-    }
+export interface GuestPermissions {
+    ranking: boolean
+    alliance: boolean
+    match: string[]
+    team: string[]
+}
 
 export interface DataSchema {
     ranking: RankingData

@@ -91,12 +91,14 @@ export default function MatchDataPredPage() {
                         {matchKey?.toUpperCase() ?? "MATCH"}
                     </h1>
                     <DataSearch teamNames={teamNames} permissions={permissions}/>
-                    <Link
-                        to={`/data/match/${matchKey}/post`}
-                        className="px-3 py-1.5 text-xs font-medium rounded-md border border-zinc-300 bg-white text-zinc-700 hover:bg-zinc-100 transition-colors"
-                    >
-                        Results →
-                    </Link>
+                    {match?.post && (
+                        <Link
+                            to={`/data/match/${matchKey}/post`}
+                            className="px-3 py-1.5 text-xs font-medium rounded-md border border-zinc-300 bg-white text-zinc-700 hover:bg-zinc-100 transition-colors"
+                        >
+                            Results →
+                        </Link>
+                    )}
                     <div className="flex items-center gap-1">
                         {prevMatchKey && permissions?.match?.includes(prevMatchKey) && (
                             <button
