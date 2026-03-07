@@ -48,6 +48,9 @@ export default function MatchDataPredPage() {
     const prevMatchKey = matchKey ? getAdjacentMatchKey(matchKey, -1) : null
     const nextMatchKey = matchKey ? getAdjacentMatchKey(matchKey, 1) : null
 
+    const prevMatch = useMatchData(prevMatchKey ?? "")
+    const nextMatch = useMatchData(nextMatchKey ?? "")
+
     const [teamNames, setTeamNames] = useState<Record<number, string>>({})
 
     useEffect(() => {
@@ -100,7 +103,7 @@ export default function MatchDataPredPage() {
                         </Link>
                     )}
                     <div className="flex items-center gap-1">
-                        {prevMatchKey && permissions?.match?.includes(prevMatchKey) && (
+                        {prevMatchKey && permissions?.match?.includes(prevMatchKey) && prevMatch?.pred && (
                             <button
                                 onClick={() => navigate(`/data/match/${prevMatchKey}/pred`)}
                                 className="px-2 py-1.5 text-xs font-medium rounded-md border border-zinc-300 bg-white text-zinc-700 hover:bg-zinc-100 transition-colors"
@@ -108,7 +111,7 @@ export default function MatchDataPredPage() {
                                 ← Prev
                             </button>
                         )}
-                        {nextMatchKey && permissions?.match?.includes(nextMatchKey) && (
+                        {nextMatchKey && permissions?.match?.includes(nextMatchKey) && nextMatch?.pred && (
                             <button
                                 onClick={() => navigate(`/data/match/${nextMatchKey}/pred`)}
                                 className="px-2 py-1.5 text-xs font-medium rounded-md border border-zinc-300 bg-white text-zinc-700 hover:bg-zinc-100 transition-colors"
