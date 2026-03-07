@@ -51,22 +51,32 @@ def main(mode):
     frontend_dir = os.path.join(project_root, "frontend")
     backend_dir = os.path.join(project_root, "backend")
 
-    if mode == "dev":
-        frontend_proc = run_process("FRONTEND_DEV", ["npm", "run", "dev"], frontend_dir)
+    procs = []
 
-        lan_ip = get_lan_ip()
-        print(f"[BACKEND] Starting on http://127.0.0.1:8000 and http://{lan_ip}:8000")
+    if mode in ("dev", "dev-local"):
+        frontend_proc = run_process("FRONTEND_DEV", ["npm", "run", "dev"], frontend_dir)
+        procs.append((frontend_proc, "FRONTEND_DEV"))
+
+        if mode == "dev-local":
+            print("[BACKEND] Starting on http://127.0.0.1:8000 only (local mode)")
+        else:
+            lan_ip = get_lan_ip()
+            print(f"[BACKEND] Starting on http://127.0.0.1:8000 and http://{lan_ip}:8000")
 
         backend_localhost = run_process(
             "BACKEND_LOCAL",
             ["uvicorn", "main:app", "--host", "127.0.0.1", "--port", "8000", "--workers", "1", "--reload"],
             backend_dir
         )
-        backend_lan = run_process(
-            "BACKEND_LAN",
-            ["uvicorn", "main:app", "--host", lan_ip, "--port", "8000", "--workers", "1", "--reload"],
-            backend_dir
-        )
+        procs.append((backend_localhost, "BACKEND_LOCAL"))
+
+        if mode == "dev":
+            backend_lan = run_process(
+                "BACKEND_LAN",
+                ["uvicorn", "main:app", "--host", lan_ip, "--port", "8000", "--workers", "1", "--reload"],
+                backend_dir
+            )
+            procs.append((backend_lan, "BACKEND_LAN"))
 
     elif mode == "prod":
         build_proc = run_process("FRONTEND_BUILD", ["npm", "run", "build"], frontend_dir)
@@ -76,33 +86,30 @@ def main(mode):
             ["npx", "serve", "dist", "-s", "--listen", "4173"],
             frontend_dir
         )
+        procs.append((frontend_proc, "FRONTEND_SERVE"))
 
         backend_localhost = run_process(
             "BACKEND",
             ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"],
             backend_dir
         )
-        backend_lan = None
+        procs.append((backend_localhost, "BACKEND"))
 
     else:
-        print("Usage: python run.py [dev|prod]")
+        print("Usage: python run.py [dev|dev-local|prod]")
         sys.exit(1)
 
     try:
-        frontend_proc.wait()
-        backend_localhost.wait()
-        if backend_lan:
-            backend_lan.wait()
+        for proc, _ in procs:
+            proc.wait()
     except KeyboardInterrupt:
-        terminate_process(frontend_proc, "FRONTEND")
-        terminate_process(backend_localhost, "BACKEND_LOCAL")
-        if backend_lan:
-            terminate_process(backend_lan, "BACKEND_LAN")
+        for proc, name in procs:
+            terminate_process(proc, name)
 
 
 if __name__ == "__main__":
     if len(sys.argv) != 2:
-        print("Usage: python run.py [dev|prod]")
+        print("Usage: python run.py [dev|dev-local|prod]")
         sys.exit(1)
 
     main(sys.argv[1].lower())

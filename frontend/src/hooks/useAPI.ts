@@ -613,39 +613,26 @@ export function useAPI() {
 
     // --- Endpoint: GET /data/processed ---
     const getProcessedData = async (
-        token: string | null,   // guest token
-        event_key?: string
-    ): Promise<Record<string, any> | null> => {
+    token: string | null,
+    event_key?: string
+): Promise<Record<string, any> | null> => {
 
-        // Start with admin headers (from cookies)
-        const headers: HeadersInit = {
-            ...getAuthHeaders(),  // includes x-uuid if present
-        };
+    const headers: HeadersInit = {};
+    const query: Record<string, string> = {};
+    if (event_key) query.event_key = event_key;
 
-        // Decide endpoint based on whether admin UUID exists
-        let endpoint = "/data/processed/admin";
+    let endpoint: string;
 
-        // If NO admin UUID exists, fall back to guest endpoint + token
-        if (!headers["x-uuid"]) {
-            if (!token) {
-                // hard fail instead of making an invalid request
-                return null
-            }
+        // Guest path — use guest endpoint with token, ignore admin cookie
+        endpoint = "/data/processed/guest";
+        headers["x-guest-password"] = token;
+        headers["Content-Type"] = "application/json";
 
-            endpoint = "/data/processed/guest"
-            headers["x-guest-password"] = token
-        }
-
-        const query: Record<string, string> = {};
-        if (event_key) query.event_key = event_key;
-
-        const res = await apiRequest<Record<string, any>>(endpoint, {
-            query,
-            headers,
-        });
-
-        return res ?? null;
-    };
+    return await apiRequest<Record<string, any>>(endpoint, {
+        query,
+        headers,
+    }) ?? null;
+};
 
 
     // --- Endpoint: GET /data/candy ---
