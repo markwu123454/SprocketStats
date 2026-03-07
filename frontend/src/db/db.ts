@@ -5,8 +5,6 @@ import type { ScoutingData, ScoutingStatus } from '@/types'
 export type ScoutingDataWithKey = ScoutingData & {
     key: string
     status: ScoutingStatus
-    retryCount?: number
-    lastRetryAt?: number
 }
 
 function makeScoutingKey(match_type: string, match: number, teamNumber: number): string {
@@ -19,16 +17,9 @@ class ScoutingAppDB extends Dexie {
     constructor() {
         super('ScoutingAppDB')
         this.version(1).stores({
+            // Indexed fields: primary key and searchable fields
+            // Added 'status' to the index so it can be queried
             scouting: '&key,match,teamNumber,match_type,status'
-        })
-        this.version(2).stores({
-            // Added retryCount and lastRetryAt for exponential backoff on sync
-            scouting: '&key,match,teamNumber,match_type,status'
-        }).upgrade(tx => {
-            return tx.table('scouting').toCollection().modify(entry => {
-                entry.retryCount = entry.retryCount ?? 0
-                entry.lastRetryAt = entry.lastRetryAt ?? 0
-            })
         })
     }
 }

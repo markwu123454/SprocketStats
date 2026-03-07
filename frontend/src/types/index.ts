@@ -8,7 +8,7 @@ export type  AllianceType = 'red' | 'blue' | null
 // TODO: maybe merge phase and scouting status?
 export type Phase = 'pre' | 'auto' | 'teleop' | 'post'
 
-export type ScoutingStatus = 'pre' | 'auto' | 'teleop' | 'post' | 'offline' | 'completed' | 'syncing' | 'failed' | 'submitted'
+export type ScoutingStatus = 'pre' | 'auto' | 'teleop' | 'post' | 'offline' | 'completed' | 'submitted'
 
 export type TeamInfo = {
   number: number

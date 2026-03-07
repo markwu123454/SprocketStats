@@ -614,8 +614,7 @@ export function useAPI() {
     // --- Endpoint: GET /data/processed ---
     const getProcessedData = async (
         token: string | null,   // guest token
-        event_key?: string,
-        forceGuest?: boolean
+        event_key?: string
     ): Promise<Record<string, any> | null> => {
 
         // Start with admin headers (from cookies)
@@ -626,15 +625,15 @@ export function useAPI() {
         // Decide endpoint based on whether admin UUID exists
         let endpoint = "/data/processed/admin";
 
-        // If forced to guest mode or NO admin UUID exists, use guest endpoint + token
-        if (forceGuest || !headers["x-uuid"]) {
+        // If NO admin UUID exists, fall back to guest endpoint + token
+        if (!headers["x-uuid"]) {
             if (!token) {
                 // hard fail instead of making an invalid request
                 return null
             }
 
             endpoint = "/data/processed/guest"
-            headers["x-guest-password"] = token.normalize("NFKD").replace(/[^\x20-\x7E]/g, "")
+            headers["x-guest-password"] = token
         }
 
         const query: Record<string, string> = {};

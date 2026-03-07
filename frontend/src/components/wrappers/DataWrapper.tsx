@@ -261,7 +261,7 @@ function DataWrapper() {
 
             // Try to fetch data - getProcessedData will use admin UUID if available,
             // otherwise fall back to guest token
-            const result = await getProcessedData(token || null, undefined, hideLoad)
+            const result = await getProcessedData(token || null)
 
 
             // Check if we got data back

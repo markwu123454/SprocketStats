@@ -64,5 +64,3 @@ yarl==1.22.0
 pywebpush==1.14.0
 async_lru==2.1.0
 gunicorn
-re==2.3.0
-unicodedata==0.0.2

@@ -338,9 +338,20 @@ async def submit_data(
     # Unwrap nested "data" key if present
     scouting_data = full_data.pop("data", full_data)
 
-    await db.upsert_match_scouting(
+    existing = await db.get_match_scouting(
+        match=match, m_type=m_type, team=team, scouter=session.email
+    )
+
+    if not existing:
+        await db.add_match_scouting(
+            match=match, m_type=m_type, team=team,
+            alliance=enums.AllianceType(alliance), scouter=session.email,
+            status=enums.StatusType.POST, data={}
+        )
+
+    await db.update_match_scouting(
         match=match, m_type=m_type, team=team,
-        alliance=enums.AllianceType(alliance), scouter=session.email,
+        scouter=session.email,
         status=enums.StatusType.SUBMITTED,
         data=scouting_data,
     )
