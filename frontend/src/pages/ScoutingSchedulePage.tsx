@@ -5,19 +5,16 @@ import {AgGridReact} from "ag-grid-react";
 import {type ColDef, themeQuartz} from "ag-grid-community";
 
 const scheduleRawData = [
-"1-6,Mark,Tzuyu Wu,Brista Lin,Dylan Okada,Ethan Chang,Henry Yang",
-"7-12,Ashlyn,Jacob Lau,Jadon Feng,Selina Gu,Adam Sun,Luke Yu",
-"13-18,Cindy,Christian Alvarado,Liya Zhu,Maren Lai,Lance Lin,Terrance Ng",
-"19-24,Andrew,James Shu,David Ding,Brian,Tzuyu Wu,Brista Lin",
-"25-30,Mark,Dylan Okada,Ethan Chang,Henry Yang,Jacob Lau,Jadon Feng",
-"31-36,Ashlyn,Selina Gu,Adam Sun,Luke Yu,Christian Alvarado,Liya Zhu",
-"37-42,Cindy,Maren Lai,Lance Lin,Terrance Ng,James Shu,David Ding",
-"43-48,Andrew,Brian,Tzuyu Wu,Brista Lin,Dylan Okada,Ethan Chang",
-"49-55,Andrew,Henry Yang,Jacob Lau,Jadon Feng,Selina Gu,Adam Sun",
-"56-62,Ashlyn,Luke Yu,Christian Alvarado,Liya Zhu,Maren Lai,Lance Lin",
-"63-69,Cindy,Terrance Ng,James Shu,David Ding,Brian,Tzuyu Wu",
-"70-76,Andrew,Brista Lin,Dylan Okada,Ethan Chang,Henry Yang,Jacob Lau",
-"77-82,Mark,Jadon Feng,Selina Gu,Adam Sun,Luke Yu,Christian Alvarado",
+"1-6,Tzuyu Wu,Cindy Lin,Brista Lin,Dylan Okada,Ethan Chang,Liya Zhu",
+"7-12,Jacob Lau,Jadon Feng,Ashlyn Lai,Selina Gu,Adam Sun,Henry Yang",
+"13-19,Christian Alvarado,Luke,Maren Lai,Grace,David Ding,Andrew Lin",
+"LUNCH, 1:12PM-2:21PM",
+"20-24,Tzuyu Wu,Cindy Lin,Brista Lin,Dylan Okada,Ethan Chang,Liya Zhu",
+"25-30,Jacob Lau,Jadon Feng,Ashlyn Lai,Selina Gu,Adam Sun,Henry Yang",
+"31-36,Christian Alvarado,Luke,Maren Lai,Grace,David Ding,Andrew Lin",
+"37-42,Tzuyu Wu,Cindy Lin,Brista Lin,Dylan Okada,Ethan Chang,Liya Zhu",
+"43-49,Jacob Lau,Jadon Feng,Ashlyn Lai,Selina Gu,Adam Sun,Henry Yang",
+"49-55,Christian Alvarado,Luke,Maren Lai,Grace,David Ding,Andrew Lin",
 ];
 
 const rowData = scheduleRawData.map((row) => {
@@ -69,9 +66,6 @@ export default function ScoutingSchedulePage() {
                             animateRows
                         />
                     </div>
-                    <p className="text-center font-black uppercase tracking-wider leading-none text-red-600 text-3xl sm:text-4xl md:text-5xl lg:text-6xl px-2 py-4">
-                        Subject to Change
-                    </p>
                 </div>
             }
         />
