@@ -7,14 +7,13 @@ import {type ColDef, themeQuartz} from "ag-grid-community";
 const scheduleRawData = [
 "1-6,Tzuyu Wu,Cindy Lin,Brista Lin,Dylan Okada,Ethan Chang,Liya Zhu",
 "7-12,Jacob Lau,Jadon Feng,Ashlyn Lai,Selina Gu,Adam Sun,Henry Yang",
-"13-19,Christian Alvarado,Luke,Maren Lai,Grace,David Ding,Andrew Lin",
-"LUNCH, 1:12PM-2:21PM",
-"20-24,Tzuyu Wu,Cindy Lin,Brista Lin,Dylan Okada,Ethan Chang,Liya Zhu",
+"13-18,Christian Alvarado,Luke,Maren Lai,Grace,David Ding,Andrew Lin",
+"19-24,Tzuyu Wu,Cindy Lin,Brista Lin,Dylan Okada,Ethan Chang,Liya Zhu",
 "25-30,Jacob Lau,Jadon Feng,Ashlyn Lai,Selina Gu,Adam Sun,Henry Yang",
 "31-36,Christian Alvarado,Luke,Maren Lai,Grace,David Ding,Andrew Lin",
 "37-42,Tzuyu Wu,Cindy Lin,Brista Lin,Dylan Okada,Ethan Chang,Liya Zhu",
 "43-49,Jacob Lau,Jadon Feng,Ashlyn Lai,Selina Gu,Adam Sun,Henry Yang",
-"49-55,Christian Alvarado,Luke,Maren Lai,Grace,David Ding,Andrew Lin",
+"50-55,Christian Alvarado,Luke,Maren Lai,Grace,David Ding,Andrew Lin",
 ];
 
 const rowData = scheduleRawData.map((row) => {
