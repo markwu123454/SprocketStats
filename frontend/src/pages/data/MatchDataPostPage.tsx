@@ -48,6 +48,9 @@ export default function MatchDataPostPage() {
     const prevMatchKey = matchKey ? getAdjacentMatchKey(matchKey, -1) : null
     const nextMatchKey = matchKey ? getAdjacentMatchKey(matchKey, 1) : null
 
+    const prevMatch = useMatchData(prevMatchKey ?? "")
+    const nextMatch = useMatchData(nextMatchKey ?? "")
+
     const [teamNames, setTeamNames] = useState<Record<number, string>>({})
 
     useEffect(() => {
@@ -69,7 +72,7 @@ export default function MatchDataPostPage() {
 
     const predData = match?.pred
     const postData = match?.post
-    if (!predData || !postData) {
+    if (!postData) {
         return (
             <div className="flex h-screen w-screen items-center justify-center text-gray-500">
                 {matchKey ? "Loading match results…" : "No match specified"}
@@ -77,7 +80,7 @@ export default function MatchDataPostPage() {
         )
     }
 
-    const sbPred = predData.sb_pred ?? {}
+    const sbPred = predData?.sb_pred ?? {}
     const red = postData.red
     const blue = postData.blue
     const winner = postData.winner
@@ -94,14 +97,16 @@ export default function MatchDataPostPage() {
                         {matchKey?.toUpperCase() ?? "MATCH"}
                     </h1>
                     <DataSearch teamNames={teamNames} permissions={permissions}/>
-                    <Link
-                        to={`/data/match/${matchKey}/pred`}
-                        className="px-3 py-1.5 text-xs font-medium rounded-md border border-zinc-300 bg-white text-zinc-700 hover:bg-zinc-100 transition-colors"
-                    >
-                        ← Prediction
-                    </Link>
+                    {predData && (
+                        <Link
+                            to={`/data/match/${matchKey}/pred`}
+                            className="px-3 py-1.5 text-xs font-medium rounded-md border border-zinc-300 bg-white text-zinc-700 hover:bg-zinc-100 transition-colors"
+                        >
+                            ← Prediction
+                        </Link>
+                    )}
                     <div className="flex items-center gap-1">
-                        {prevMatchKey && permissions?.match?.includes(prevMatchKey) && (
+                        {prevMatchKey && permissions?.match?.includes(prevMatchKey) && prevMatch?.post && (
                             <button
                                 onClick={() => navigate(`/data/match/${prevMatchKey}/post`)}
                                 className="px-2 py-1.5 text-xs font-medium rounded-md border border-zinc-300 bg-white text-zinc-700 hover:bg-zinc-100 transition-colors"
@@ -109,7 +114,7 @@ export default function MatchDataPostPage() {
                                 ← Prev
                             </button>
                         )}
-                        {nextMatchKey && permissions?.match?.includes(nextMatchKey) && (
+                        {nextMatchKey && permissions?.match?.includes(nextMatchKey) && nextMatch?.post && (
                             <button
                                 onClick={() => navigate(`/data/match/${nextMatchKey}/post`)}
                                 className="px-2 py-1.5 text-xs font-medium rounded-md border border-zinc-300 bg-white text-zinc-700 hover:bg-zinc-100 transition-colors"
