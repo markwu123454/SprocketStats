@@ -613,38 +613,38 @@ export function useAPI() {
 
     // --- Endpoint: GET /data/processed ---
     const getProcessedData = async (
-    token: string | null,
-    event_key?: string
-): Promise<Record<string, any> | null> => {
+        token: string | null,
+        event_key?: string
+    ): Promise<Record<string, any> | null> => {
 
-    const headers: HeadersInit = {};
-    const query: Record<string, string> = {};
-    if (event_key) query.event_key = event_key;
+        const headers: HeadersInit = {};
+        const query: Record<string, string> = {};
+        if (event_key) query.event_key = event_key;
 
-    let endpoint: string;
+        let endpoint: string;
 
-    if (token) {
-        // Guest path — use guest endpoint with token, ignore admin cookie
-        endpoint = "/data/processed/guest";
-        headers["x-guest-password"] = token;
-        headers["Content-Type"] = "application/json";
-    } else {
-        // Admin path — use UUID cookie
-        const adminHeaders = getAuthHeaders();
-        Object.assign(headers, adminHeaders);
+        if (token) {
+            // Guest path — use guest endpoint with token, ignore admin cookie
+            endpoint = "/data/processed/guest";
+            headers["x-guest-password"] = token;
+            headers["Content-Type"] = "application/json";
+        } else {
+            // Admin path — use UUID cookie
+            const adminHeaders = getAuthHeaders();
+            Object.assign(headers, adminHeaders);
 
-        if (!headers["x-uuid"]) {
-            // No admin session and no guest token — can't auth
-            return null;
+            if (!headers["x-uuid"]) {
+                // No admin session and no guest token — can't auth
+                return null;
+            }
+            endpoint = "/data/processed/admin";
         }
-        endpoint = "/data/processed/admin";
-    }
 
-    return await apiRequest<Record<string, any>>(endpoint, {
-        query,
-        headers,
-    }) ?? null;
-};
+        return await apiRequest<Record<string, any>>(endpoint, {
+            query,
+            headers,
+        }) ?? null;
+    };
 
 
     // --- Endpoint: GET /data/candy ---

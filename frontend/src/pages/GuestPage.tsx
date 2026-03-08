@@ -92,7 +92,7 @@ export default function GuestDataPage() {
         e.preventDefault()
         setLoginFailed(false)
 
-        const token = overrideToken ?? password.trim()
+        const token = (overrideToken ?? password.trim()).replace(/[^\x20-\x7E]/g, "")
         if (!token) {
             return
         }

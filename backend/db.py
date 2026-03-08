@@ -46,6 +46,7 @@ To add a new database function to this module, follow these steps:
    - Call it from a temporary FastAPI route or REPL with a live database connection.
    - Confirm it correctly handles both success and error conditions.
 """
+import re
 import socket
 from collections import defaultdict
 
@@ -2492,32 +2493,73 @@ async def get_all_guests() -> list[Dict[str, Any]]:
         )
     finally:
         await release_db_connection(pool, conn)
-
-
-def require_guest_password() -> Callable[..., Awaitable[dict]]:
-    """
-    FastAPI dependency:
-    - Reads x-guest-password header
-    - Validates password exists in guests table
-    - Returns { name: str, perms: dict }
-    """
-
-    async def dep(x_guest_password: Annotated[str, Header(alias="x-guest-password")]) -> dict:
-        if not x_guest_password:
-            raise HTTPException(status_code=401, detail="Guest password required")
-
-        guest = await get_guest(x_guest_password)
-        if not guest:
-            raise HTTPException(status_code=401, detail="Invalid guest password")
-
-        # If you later add an expiration policy, insert the check here.
-        # Example:
-        # if guest["expires"] <= datetime.now(timezone.utc):
-        #     raise HTTPException(status_code=403, detail="Guest access expired")
-
-        return {
-            "name": guest["name"],
-            "perms": guest["permissions"],  # already JSONB decoded
+def require_guest_password_debug() -> Callable[..., Awaitable[dict]]:
+    async def dep(x_guest_password: Annotated[str, Header(alias="x-guest-password")] = None) -> dict:
+        debug = {
+            "step_1_header_received": x_guest_password is not None,
+            "step_2_header_value": x_guest_password[:20] + "..." if x_guest_password and len(x_guest_password) > 20 else x_guest_password,
+            "step_3_header_length": len(x_guest_password) if x_guest_password else 0,
+            "step_4_header_type": type(x_guest_password).__name__,
         }
+        if not x_guest_password:
+            raise HTTPException(status_code=401, detail={"error": "Guest password required", "debug": debug})
 
+        debug["step_5_before_sanitization"] = x_guest_password
+        debug["step_5_before_sanitization_length"] = len(x_guest_password)
+
+        x_guest_password_sanitized = re.sub(r'[^\x20-\x7e]', '', x_guest_password)
+        debug["step_6_after_sanitization"] = x_guest_password_sanitized
+        debug["step_6_after_sanitization_length"] = len(x_guest_password_sanitized)
+        debug["step_6_chars_removed"] = len(x_guest_password) - len(x_guest_password_sanitized)
+        debug["step_6_different_after_sanitization"] = x_guest_password != x_guest_password_sanitized
+
+        if not x_guest_password_sanitized:
+            raise HTTPException(status_code=401, detail={"error": "Password was empty after sanitization", "debug": debug})
+
+        debug["step_7_attempting_db_lookup"] = True
+        debug["step_7_lookup_with_value"] = x_guest_password_sanitized[:20] + "..." if len(x_guest_password_sanitized) > 20 else x_guest_password_sanitized
+
+        # --- NEW: fetch all guests and log each comparison ---
+        try:
+            all_guests = await get_all_guests()  # replace with your actual bulk-fetch function
+        except Exception as e:
+            raise HTTPException(status_code=500, detail={"error": f"Failed to fetch guest list: {str(e)}", "debug": debug})
+
+        comparison_log = []
+        guest = None
+        for candidate in all_guests:
+            candidate_pw = candidate.get("password", "")
+            match = candidate_pw == x_guest_password_sanitized
+            comparison_log.append({
+                "guest_name": candidate.get("name", "UNKNOWN"),
+                "candidate_pw_preview": candidate_pw[:20] + "..." if len(candidate_pw) > 20 else candidate_pw,
+                "candidate_pw_length": len(candidate_pw),
+                "input_pw_length": len(x_guest_password_sanitized),
+                "lengths_match": len(candidate_pw) == len(x_guest_password_sanitized),
+                "match": match,
+            })
+            if match:
+                guest = candidate
+                break  # remove this line if you want to log ALL comparisons even after a match
+
+        debug["step_7b_comparison_log"] = comparison_log
+        debug["step_7b_total_candidates_checked"] = len(comparison_log)
+        # --- END NEW ---
+
+        debug["step_8_guest_found"] = guest is not None
+        if guest:
+            debug["step_9_guest_name"] = guest.get("name", "UNKNOWN")
+            debug["step_9_guest_has_permissions"] = "permissions" in guest
+            debug["step_9_guest_keys"] = list(guest.keys())
+
+        if not guest:
+            raise HTTPException(
+                status_code=401,
+                detail={"error": "Invalid guest password", "debug": debug, "note": "Password didn't match any guest in database"}
+            )
+
+        debug["step_10_auth_success"] = True
+        debug["step_10_guest_name"] = guest["name"]
+        debug["step_10_has_perms"] = "permissions" in guest
+        return {"name": guest["name"], "perms": guest["permissions"], "_debug": {}}
     return dep

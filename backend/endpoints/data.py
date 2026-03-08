@@ -90,26 +90,25 @@ async def get_data_processed_admin(
 
 
 @router.get("/data/processed/guest")
-async def get_data_processed_guest(
+async def get_data_processed_guest_debug(
         event_key: Optional[str] = None,
-        guest=Depends(db.require_guest_password()),
+        guest=Depends(db.require_guest_password_debug()),
 ):
-    # Load data
+    """Debug endpoint that returns detailed authentication info"""
     result = await db.get_processed_data(event_key)
     if result is None:
         raise HTTPException(
             status_code=404,
             detail=f"No processed data found for event '{event_key or 'current_event'}'",
         )
-
     perms = guest["perms"]
     filtered = filter_processed_data(result, perms)
-
     return {
         "event_key": event_key,
         "raw_data": filtered,
         "guest_name": guest["name"],
         "permissions": perms,
+        "debug": guest.get("_debug", {}),  # Include debug info
     }
 
 
