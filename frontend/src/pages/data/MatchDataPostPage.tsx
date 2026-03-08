@@ -3,40 +3,22 @@ import {useMatchData, usePermissions} from "@/components/wrappers/DataWrapper"
 import React, {useEffect, useState} from "react"
 import DataSearch from "@/components/ui/dataSearch.tsx"
 
-const MATCH_PHASES: { prefix: string; max: number }[] = [
-    { prefix: "qm", max: 500 },
-    { prefix: "sf", max: 6 },
-    { prefix: "f", max: 3 },
-]
+const PHASE_ORDER: Record<string, number> = { qm: 0, sf: 1, f: 2 }
 
-function getAdjacentMatchKey(matchKey: string, delta: number): string | null {
-    const m = matchKey.match(/^(.+?)(\d+)$/)
-    if (!m) return null
-    const prefix = m[1]
-    const num = parseInt(m[2], 10)
+function matchKeySortValue(key: string): number {
+    const m = key.match(/^([a-z]+)(\d+)$/)
+    if (!m) return 999999
+    const phase = PHASE_ORDER[m[1]] ?? 999
+    return phase * 10000 + parseInt(m[2], 10)
+}
 
-    const phaseIdx = MATCH_PHASES.findIndex((p) => p.prefix === prefix)
-    if (phaseIdx === -1) {
-        // Unknown phase — fall back to simple increment
-        const next = num + delta
-        return next < 1 ? null : prefix + next
-    }
-
-    const newNum = num + delta
-    if (newNum >= 1 && newNum <= MATCH_PHASES[phaseIdx].max) {
-        return prefix + newNum
-    }
-
-    // Cross phase boundary
-    if (newNum > MATCH_PHASES[phaseIdx].max && phaseIdx < MATCH_PHASES.length - 1) {
-        return MATCH_PHASES[phaseIdx + 1].prefix + "1"
-    }
-    if (newNum < 1 && phaseIdx > 0) {
-        const prevPhase = MATCH_PHASES[phaseIdx - 1]
-        return prevPhase.prefix + prevPhase.max
-    }
-
-    return null
+function getAdjacentMatchKey(matchKey: string, delta: number, matchKeys: string[]): string | null {
+    const sorted = [...matchKeys].sort((a, b) => matchKeySortValue(a) - matchKeySortValue(b))
+    const idx = sorted.indexOf(matchKey)
+    if (idx === -1) return null
+    const newIdx = idx + delta
+    if (newIdx < 0 || newIdx >= sorted.length) return null
+    return sorted[newIdx]
 }
 
 export default function MatchDataPostPage() {
@@ -45,8 +27,8 @@ export default function MatchDataPostPage() {
     const permissions = usePermissions()
     const match = useMatchData(matchKey ?? "")
 
-    const prevMatchKey = matchKey ? getAdjacentMatchKey(matchKey, -1) : null
-    const nextMatchKey = matchKey ? getAdjacentMatchKey(matchKey, 1) : null
+    const prevMatchKey = matchKey ? getAdjacentMatchKey(matchKey, -1, permissions?.match ?? []) : null
+    const nextMatchKey = matchKey ? getAdjacentMatchKey(matchKey, 1, permissions?.match ?? []) : null
 
     const prevMatch = useMatchData(prevMatchKey ?? "")
     const nextMatch = useMatchData(nextMatchKey ?? "")
