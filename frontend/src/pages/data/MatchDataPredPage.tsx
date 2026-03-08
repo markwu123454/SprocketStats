@@ -4,7 +4,7 @@ import React, {useEffect, useState} from "react"
 import DataSearch from "@/components/ui/dataSearch.tsx"
 
 const MATCH_PHASES: { prefix: string; max: number }[] = [
-    { prefix: "qm", max: 64 },
+    { prefix: "qm", max: 500 },
     { prefix: "sf", max: 6 },
     { prefix: "f", max: 3 },
 ]
