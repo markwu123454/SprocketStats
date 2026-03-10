@@ -61,8 +61,8 @@ def generate_three_shot_heatmaps(
     target_pts, target_w = [], []
 
     for s in shots:
-        x1, y1 = 1.0 - s["x1"], 1.0 - s["y1"]
-        x2, y2 = 1.0 - s["x2"], 1.0 - s["y2"]
+        x1, y1 = s["x1"], s["y1"]
+        x2, y2 = s["x2"], s["y2"]
 
         origin_pts.append((x1, y1))
         origin_attempts.append(s["fuelShot"])

@@ -8,10 +8,8 @@ function clusterShots(shots: TeamShotData[], threshold = 30): ShotCluster[] {
     const clusters: ShotCluster[] = []
 
     for (const shot of shots) {
-        const normX = shot.x1 >= 0.5 ? 1 - shot.x1 : shot.x1
-        const normY = shot.x1 >= 0.5 ? 1 - shot.y1 : shot.y1
-        const cx = normX * 1000
-        const cy = normY * 500
+        const cx = shot.x1 * 1000
+        const cy = shot.y1 * 500
 
         let merged = false
         for (const cluster of clusters) {
@@ -56,7 +54,7 @@ function shotRadius(cluster: ShotCluster): number {
 
 export default function HeatmapBlock({data}: {data: TeamData}) {
     const shots = data.shots ?? []
-    const viewBox = "0 0 350 500"
+    const viewBox = "0 0 1000 500"
 
     if (shots.length === 0) {
         return (
