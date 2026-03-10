@@ -152,6 +152,10 @@ async def init_db():
                                );
                                """)
 
+            await conn.execute("""
+                               ALTER TABLE match_scouting ADD COLUMN IF NOT EXISTS sub_status TEXT;
+                               """)
+
             # Standard index for team lookups
             await conn.execute("""
                                CREATE INDEX IF NOT EXISTS idx_match_scouting_team
@@ -424,14 +428,14 @@ async def switch_match_scouting(
             # Release old
             await conn.execute("""
                 UPDATE match_scouting
-                SET scouter = NULL, status = $1, last_modified = $2
+                SET scouter = NULL, status = $1, last_modified = $2, sub_status = NULL
                 WHERE id = $3
                 """, enums.StatusType.UNCLAIMED.value, now, old["id"])
 
             # Claim new
             await conn.execute("""
                 UPDATE match_scouting
-                SET scouter = $1, status = $2, last_modified = $3
+                SET scouter = $1, status = $2, last_modified = $3, sub_status = NULL
                 WHERE id = $4
                 """, scouter, enums.StatusType.PRE.value, now, new["id"])
 
@@ -517,6 +521,7 @@ async def update_match_scouting(
         status: Optional[enums.StatusType] = None,
         data: Optional[Dict[str, Any]] = None,
         scouter_new: Optional[str] = _sentinel,
+        sub_status: Optional[str] = _sentinel,
 ):
     pool, conn = await get_db_connection(DB_NAME)
     try:
@@ -544,21 +549,48 @@ async def update_match_scouting(
             new_status = status.value if status else row["status"]
             new_scouter = scouter_new if scouter_new is not _sentinel else scouter
 
+            # Determine sub_status: if main status is changing and no explicit
+            # sub_status was provided, clear it to NULL.
+            if sub_status is not _sentinel:
+                new_sub_status = sub_status
+            elif status is not None:
+                new_sub_status = None
+            else:
+                new_sub_status = _sentinel  # leave unchanged
+
             try:
-                await conn.execute("""
-                                   UPDATE match_scouting
-                                   SET data          = $1,
-                                       status        = $2,
-                                       last_modified = $3,
-                                       scouter       = $4
-                                   WHERE id = $5
-                                   """,
-                                   current_data,
-                                   new_status,
-                                   datetime.now(timezone.utc),
-                                   new_scouter,
-                                   row["id"],
-                                   )
+                if new_sub_status is _sentinel:
+                    await conn.execute("""
+                                       UPDATE match_scouting
+                                       SET data          = $1,
+                                           status        = $2,
+                                           last_modified = $3,
+                                           scouter       = $4
+                                       WHERE id = $5
+                                       """,
+                                       current_data,
+                                       new_status,
+                                       datetime.now(timezone.utc),
+                                       new_scouter,
+                                       row["id"],
+                                       )
+                else:
+                    await conn.execute("""
+                                       UPDATE match_scouting
+                                       SET data          = $1,
+                                           status        = $2,
+                                           last_modified = $3,
+                                           scouter       = $4,
+                                           sub_status    = $5
+                                       WHERE id = $6
+                                       """,
+                                       current_data,
+                                       new_status,
+                                       datetime.now(timezone.utc),
+                                       new_scouter,
+                                       new_sub_status,
+                                       row["id"],
+                                       )
             except UniqueViolationError:
                 raise HTTPException(status_code=409, detail="Target scouter row already exists")
 
@@ -615,6 +647,7 @@ async def get_match_scouting(
                 "alliance": r["alliance"],
                 "scouter": r["scouter"],  # None stays None
                 "status": r["status"],
+                "sub_status": r["sub_status"],
                 "data": r["data"],
                 "last_modified": r["last_modified"],
             }

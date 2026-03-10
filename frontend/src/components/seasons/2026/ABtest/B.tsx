@@ -369,11 +369,13 @@ export default function MatchScouting({
                                           setData,
                                           handleSubmit,
                                           setPhase,
+                                          setSubStatus,
                                       }: {
     data: MatchScoutingData
     setData: React.Dispatch<React.SetStateAction<MatchScoutingData>>
     handleSubmit: () => void
     setPhase: (targetPhase: Phase) => Promise<void>
+    setSubStatus?: (subStatus: string) => void
 }) {
     const deviceType = getSettingSync("match_scouting_device_type") ?? "mobile"
     const debug = getSettingSync("debug") === true
@@ -559,6 +561,9 @@ export default function MatchScouting({
             if (lastSubPhaseRef.current !== null) {
                 triggerFlash()
             }
+            if (currentSubPhaseName) {
+                setSubStatus?.(currentSubPhaseName)
+            }
             lastSubPhaseRef.current = currentSubPhaseName
         }
     }, [matchPhase, subPhase])
@@ -570,6 +575,7 @@ export default function MatchScouting({
     useEffect(() => {
         if (timerExpired && !prevTimerExpiredRef.current) {
             triggerFlash()
+            setSubStatus?.("overtime")
         }
         prevTimerExpiredRef.current = timerExpired
     }, [timerExpired, triggerFlash])
@@ -790,6 +796,7 @@ export default function MatchScouting({
             const autoLineX = getAutoLineX()
             const canonical = screenToCanonical(autoLineX, screenPos.y)
             setStartPosition(canonical)
+            setSubStatus?.("starting pos set")
             setDragging(true)
             return
         }
@@ -911,6 +918,7 @@ export default function MatchScouting({
         setMatchStartTime(now)
         lastPhaseRef.current = "auto"
         lastSubPhaseRef.current = "auto"
+        setSubStatus?.("autonomous")
         if (startPosition) {
             setActions([{type: "starting", x: startPosition.x, y: startPosition.y}])
         }
@@ -1678,6 +1686,7 @@ export default function MatchScouting({
                     <button
                         onClick={() => {
                             setManualPost(true)
+                            setSubStatus?.("post match")
                             void setPhase("post")
                         }}
                         className="w-full max-w-[16rem] h-14 rounded-xl text-lg font-bold bg-amber-600 hover:bg-amber-500 text-white transition-colors animate-pulse"

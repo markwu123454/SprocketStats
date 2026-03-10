@@ -115,6 +115,7 @@ async def admin_active_matches(
                     "scouter": scouter_email,
                     "name": await get_name(scouter_email),
                     "phase": entry.get("status") if entry else enums.StatusType.UNCLAIMED.value,
+                    "sub_status": entry.get("sub_status") if entry else None,
                     "assigned_scouter": assigned_email,
                     "assigned_name": await get_name(assigned_email),
                 }

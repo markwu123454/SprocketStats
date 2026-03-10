@@ -1,10 +1,10 @@
 // src/lib/db.ts
 import Dexie, { type Table } from 'dexie'
-import type { ScoutingData, ScoutingStatus } from '@/types'
+import type { ScoutingData, Phase } from '@/types'
 
 export type ScoutingDataWithKey = ScoutingData & {
     key: string
-    status: ScoutingStatus
+    status: Phase
 }
 
 function makeScoutingKey(match_type: string, match: number, teamNumber: number): string {
@@ -26,7 +26,7 @@ class ScoutingAppDB extends Dexie {
 
 export const db = new ScoutingAppDB()
 
-export async function saveScoutingData(data: ScoutingData, status: ScoutingStatus) {
+export async function saveScoutingData(data: ScoutingData, status: Phase) {
     const { match, match_type, teamNumber } = data
     if (
         match == null ||
@@ -90,7 +90,7 @@ export async function updateScoutingStatus(
     match_type: string,
     match: number,
     teamNumber: number,
-    status: ScoutingStatus
+    status: Phase
 ) {
     const key = makeScoutingKey(match_type, match, teamNumber)
     const existing = await db.scouting.get(key)

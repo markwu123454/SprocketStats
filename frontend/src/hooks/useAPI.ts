@@ -259,6 +259,7 @@ export function useAPI() {
                     scouter: string | null;
                     name: string | null;
                     phase: string;
+                    sub_status: string | null;
                     assigned_scouter: string | null;
                     assigned_name: string | null;
                 }>;
@@ -266,6 +267,7 @@ export function useAPI() {
                     scouter: string | null;
                     name: string | null;
                     phase: string;
+                    sub_status: string | null;
                     assigned_scouter: string | null;
                     assigned_name: string | null;
                 }>;
@@ -726,6 +728,27 @@ export function useAPI() {
         return await apiRequest("/admin/get_guests") ?? []
     }
 
+    const scoutingSubStatus = (
+        match: number,
+        team: number,
+        matchType: MatchType,
+        alliance: "red" | "blue",
+        subStatus: string,
+    ) => {
+        const query = new URLSearchParams({
+            action: "set_sub_status",
+            team: String(team),
+            sub_status: subStatus,
+        });
+        fetch(
+            `${BASE_URL}/scouting/${matchType}/${match}/${alliance}?${query.toString()}`,
+            {
+                method: "POST",
+                headers: getAuthHeaders(),
+            }
+        ).catch(() => {});
+    };
+
     const scoutingAction = async (
         match: number,
         team: number | null,
@@ -955,6 +978,7 @@ export function useAPI() {
         getFeatureFlags,
         getAllGuest,
         scoutingAction,
+        scoutingSubStatus,
         getAttendance,
         checkin,
         checkout,

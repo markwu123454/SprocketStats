@@ -13,6 +13,7 @@ async def scouting(
         alliance: enums.AllianceType,
         action: str = Query(...),
         team: int | None = Query(None),
+        sub_status: str | None = Query(None),
         session: enums.SessionInfo = Depends(db.require_permission("match_scouting")),
 ):
     scouter_email = session.email
@@ -163,6 +164,22 @@ async def scouting(
                         result, message = "fail", "Switch failed — target may be claimed."
 
 
+        # ---- SUB-STATUS ----
+        elif action == "set_sub_status":
+            if current_scouter != scouter_email:
+                result = "fail"
+                message = "You do not own this team."
+            else:
+                await db.update_match_scouting(
+                    match=match,
+                    m_type=m_type,
+                    team=team,
+                    scouter=scouter_email,
+                    scouter_new=scouter_email,
+                    sub_status=sub_status,
+                )
+                result = "success"
+
         # ---- PHASE ----
         elif action.startswith("set_"):
             if current_scouter != scouter_email:
@@ -196,6 +213,7 @@ async def scouting(
                         scouter=scouter_email,
                         scouter_new=scouter_email,
                         status=new_status,
+                        sub_status=None,
                         data=None,
                     )
                     result = "success"
@@ -284,6 +302,7 @@ async def scouting(
             "assignedScouterEmail": assigned_email,
             "assignedScouterName": user_map.get(assigned_email),
             "status": r["status"] if r else enums.StatusType.UNCLAIMED.value,
+            "sub_status": r["sub_status"] if r else None,
         })
 
     return {

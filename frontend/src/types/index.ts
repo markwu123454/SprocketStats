@@ -6,9 +6,9 @@ export type MatchType = 'qm' | 'sf' | 'f' | null
 export type  AllianceType = 'red' | 'blue' | null
 
 // TODO: maybe merge phase and scouting status?
-export type Phase = 'pre' | 'auto' | 'teleop' | 'post'
 
-export type ScoutingStatus = 'pre' | 'auto' | 'teleop' | 'post' | 'offline' | 'completed' | 'submitted'
+
+export type Phase = string
 
 export type TeamInfo = {
   number: number

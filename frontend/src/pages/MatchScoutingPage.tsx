@@ -2,7 +2,7 @@ import {useState, useEffect, useRef, useMemo, useCallback} from 'react'
 
 import {useNavigate} from "react-router-dom"
 
-import type {MatchScoutingData, MatchType, ScoutingStatus} from '@/types'
+import type {MatchScoutingData, MatchType, Phase} from '@/types'
 
 import {useAPI} from '@/hooks/useAPI.ts'
 import {useAuth} from '@/hooks/useAuth.ts'
@@ -200,7 +200,7 @@ function useAutosave(
             const {match, match_type, teamNumber} = data;
             if (!match || !match_type || teamNumber == null) return;
 
-            const status = PHASE_ORDER[phaseIndex] as ScoutingStatus;
+            const status = PHASE_ORDER[phaseIndex] as Phase;
             const snapshot = structuredClone ? structuredClone(data) : JSON.parse(JSON.stringify(data));
 
             saveScoutingData(snapshot, status).catch(err => {
@@ -337,7 +337,7 @@ function useBackgroundSync(
 export default function MatchScoutingPage() {
     const navigate = useNavigate()
     const {isOnline, serverOnline} = useClientEnvironment()
-    const {submitData, scoutingAction, unclaimTeamBeacon} = useAPI()
+    const {submitData, scoutingAction, unclaimTeamBeacon, scoutingSubStatus} = useAPI()
     const {name: scouterName, email: scouterEmail} = useAuth()
     const featureFlags = useFeatureFlags()
 
@@ -403,6 +403,13 @@ export default function MatchScoutingPage() {
         setPhaseIndex(0)
         setPostCanSubmit(false)
     }, [scouterEmail])
+
+    // ─── Sub-status reporting ───
+    const setSubStatus = useCallback((subStatus: string) => {
+        const {match, teamNumber, match_type, alliance} = scoutingData
+        if (!match || !teamNumber || !match_type || !alliance) return
+        scoutingSubStatus(match, teamNumber, match_type, alliance, subStatus)
+    }, [scoutingData, scoutingSubStatus])
 
     // ─── Load A/B test variant and debug mode ───
     useEffect(() => {
@@ -700,11 +707,13 @@ export default function MatchScoutingPage() {
                                 setData={setScoutingData}
                                 handleSubmit={handleSubmit}
                                 setPhase={setPhase}
+                                setSubStatus={setSubStatus}
                             />
                         )}
                         {abTestVariant === "b" && phase === 'combined' && (
                             <BVariant key="combined" data={scoutingData} setData={setScoutingData}
-                                      handleSubmit={handleSubmit} setPhase={setPhase}/>
+                                      handleSubmit={handleSubmit} setPhase={setPhase}
+                                      setSubStatus={setSubStatus}/>
                         )}
                         {phase === 'post' && (
                             <PostMatch key="post" data={scoutingData} setData={setScoutingData}

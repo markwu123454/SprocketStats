@@ -19,6 +19,7 @@ type TeamData = {
     assigned_scouter: string | null
     assigned_name: string | null
     phase: string
+    sub_status: string | null
 }
 
 type KickConfirm = {
@@ -334,8 +335,14 @@ function AllianceColumn({
                                 </div>
 
                                 <div className="flex items-center gap-2">
-                                    <span className="text-xs capitalize opacity-80">
-                                        {data.phase}
+                                    <span className={`text-xs capitalize ${
+                                        data.sub_status === "overtime" ? "text-red-400 font-semibold" :
+                                        data.sub_status === "endgame" ? "text-amber-400 font-semibold" :
+                                        "opacity-80"
+                                    }`}>
+                                        {data.sub_status
+                                            ? data.sub_status.replace(/_/g, " ")
+                                            : data.phase}
                                     </span>
 
                                     {data.scouter && (
