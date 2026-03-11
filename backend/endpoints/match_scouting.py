@@ -186,7 +186,7 @@ async def scouting(
                 result = "fail"
                 message = "You do not own this team."
             else:
-                new_status = enums.StatusType(action.replace("set_", "").upper())
+                new_status = enums.StatusType(action.replace("set_", ""))
 
                 order = [
                     enums.StatusType.PRE,

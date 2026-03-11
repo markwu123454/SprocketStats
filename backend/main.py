@@ -9,6 +9,7 @@ from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from starlette.staticfiles import StaticFiles
 
+import db
 import tba_db as tba
 from endpoints import (
     admin,
@@ -29,6 +30,7 @@ async def lifespan(app: FastAPI):
 
     # Initialize the databases
     #await db.init_db()
+    await db.run_migrations()
     await tba.get_db_pool()
 
     yield

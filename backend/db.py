@@ -102,6 +102,7 @@ async def get_db_connection(db: str) -> tuple[asyncpg.Pool, asyncpg.Connection]:
             ssl=ssl.create_default_context(cafile=certifi.where()),
             command_timeout=30,  # kill any query after 30s
             max_inactive_connection_lifetime=300,  # recycle idle connections after 5 min
+            statement_cache_size=0,  # disable prepared-statement cache to avoid stale-plan errors after schema changes
         )
         _pools[db] = pool
 
@@ -384,6 +385,19 @@ async def init_db():
         await release_db_connection(pool, conn)
 
 
+async def run_migrations():
+    """Lightweight migrations that run on every startup, independent of init_db()."""
+    pool, conn = await get_db_connection(DB_NAME)
+    try:
+        await conn.execute("""
+            ALTER TABLE match_scouting ADD COLUMN IF NOT EXISTS sub_status TEXT;
+        """)
+    except Exception as e:
+        logger.warning("Migration warning: %s", e)
+    finally:
+        await release_db_connection(pool, conn)
+
+
 # =================== Match Scouting ===================
 
 async def switch_match_scouting(
@@ -647,7 +661,7 @@ async def get_match_scouting(
                 "alliance": r["alliance"],
                 "scouter": r["scouter"],  # None stays None
                 "status": r["status"],
-                "sub_status": r["sub_status"],
+                "sub_status": dict(r).get("sub_status"),
                 "data": r["data"],
                 "last_modified": r["last_modified"],
             }
