@@ -827,19 +827,32 @@ def phase1_accumulate_team_stats(
             est_points = total_scored + total_climb_pts
 
             # Accumulate into lists
-            acc_total_fuel.setdefault(team_num, []).append(total_scored)
-            acc_auto_fuel.setdefault(team_num, []).append(auto_scored)
-            acc_teleop_fuel.setdefault(team_num, []).append(teleop_scored)
-            acc_active_fuel.setdefault(team_num, []).append(active_fuel)
-            acc_endgame_fuel.setdefault(team_num, []).append(endgame_scored)
-            acc_transition_fuel.setdefault(team_num, []).append(transition_scored)
-            acc_accuracy.setdefault(team_num, []).append(match_accuracy)
-            acc_climb_points.setdefault(team_num, []).append(total_climb_pts)
+            if total_scored > 0:
+                acc_total_fuel.setdefault(team_num, []).append(total_scored)
+            if auto_scored > 0:
+                acc_auto_fuel.setdefault(team_num, []).append(auto_scored)
+            if teleop_scored > 0:
+                acc_teleop_fuel.setdefault(team_num, []).append(teleop_scored)
+            if active_fuel > 0:
+                acc_active_fuel.setdefault(team_num, []).append(active_fuel)
+            if endgame_scored > 0:
+                acc_endgame_fuel.setdefault(team_num, []).append(endgame_scored)
+            if transition_scored > 0:
+                acc_transition_fuel.setdefault(team_num, []).append(transition_scored)
+            
+            if total_shots > 0:
+                acc_accuracy.setdefault(team_num, []).append(match_accuracy)
+            
+            if total_climb_pts > 0:
+                acc_climb_points.setdefault(team_num, []).append(total_climb_pts)
+            
             acc_auto_climb_success.setdefault(team_num, []).append(auto_climb_ok)
             acc_endgame_climb_success.setdefault(team_num, []).append(endgame_climb_ok)
             if endgame_level > 0:
                 acc_endgame_climb_level.setdefault(team_num, []).append(endgame_level)
-            acc_total_points_est.setdefault(team_num, []).append(est_points)
+            
+            if est_points > 0:
+                acc_total_points_est.setdefault(team_num, []).append(est_points)
 
             # Fuel output per match (resolve canon key)
             is_finals = match_code.startswith("f") and not match_code.startswith("sf")

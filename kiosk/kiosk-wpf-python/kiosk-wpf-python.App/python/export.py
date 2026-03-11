@@ -221,13 +221,22 @@ def _aggregate_teams(event_key: str, downloaded_data: DownloadedData, tba_data: 
                         climb_pts += lvl_pts
                         endgame_level = {"L1": 1, "L2": 2, "L3": 3}.get(a.level, 0)
 
-        sc_total_fuel.setdefault(tn, []).append(float(total_scored))
-        sc_auto_fuel.setdefault(tn, []).append(float(auto_scored))
-        sc_teleop_fuel.setdefault(tn, []).append(float(teleop_scored))
-        sc_accuracy.setdefault(tn, []).append(total_scored / total_shots if total_shots > 0 else 0.0)
+        if total_scored > 0:
+            sc_total_fuel.setdefault(tn, []).append(float(total_scored))
+        if auto_scored > 0:
+            sc_auto_fuel.setdefault(tn, []).append(float(auto_scored))
+        if teleop_scored > 0:
+            sc_teleop_fuel.setdefault(tn, []).append(float(teleop_scored))
+        
+        if total_shots > 0:
+            sc_accuracy.setdefault(tn, []).append(total_scored / total_shots)
+        
         sc_auto_climb_ok.setdefault(tn, []).append(auto_climb)
         sc_endgame_climb_ok.setdefault(tn, []).append(endgame_climb)
-        sc_climb_pts.setdefault(tn, []).append(climb_pts)
+        
+        if climb_pts > 0:
+            sc_climb_pts.setdefault(tn, []).append(climb_pts)
+        
         if endgame_level > 0:
             sc_endgame_levels.setdefault(tn, []).append(endgame_level)
 

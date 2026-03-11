@@ -71,7 +71,7 @@ export default function HeatmapBlock({data}: {data: TeamData}) {
             <span className="text-[11px] text-gray-400">
                 {shots.length} shot{shots.length !== 1 ? "s" : ""} · {clusters.length} location{clusters.length !== 1 ? "s" : ""}
             </span>
-            <div className="relative w-full max-w-xs mx-auto">
+            <div className="relative w-full max-w-3xl mx-auto">
                 <svg
                     className="w-full"
                     viewBox={viewBox}
