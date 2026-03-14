@@ -219,6 +219,7 @@ class ScoutingEntryData(BaseModel):
     postmatch: ScoutingPostmatch
     manualTeam: bool
     startPosition: Optional[StartPosition] = None
+    scouter_name: Optional[str] = None
 
 
 class MatchScoutingEntry(BaseModel):
@@ -2700,7 +2701,9 @@ def process_match_entry(data: ScoutingEntryData) -> dict:
             "endgame": {"duration": 0, "level": 3, "attempt": False, "success": False},
         },
         "actions": {},
-        "metadata": {},
+        "metadata": {
+            "scouter_name": data.scouter_name
+        },
         "time_percentages": compute_time_percentages(actions),
     }
 

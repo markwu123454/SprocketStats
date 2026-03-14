@@ -166,6 +166,7 @@ def _aggregate_teams(event_key: str, downloaded_data: DownloadedData, tba_data: 
     scouting = [e for e in downloaded_data.match_scouting if e.event_key == event_key]
 
     sc_total_fuel: dict[int, list] = {}
+    sc_scouters: dict[int, set[str]] = {}
     sc_auto_fuel: dict[int, list] = {}
     sc_teleop_fuel: dict[int, list] = {}
     sc_accuracy: dict[int, list] = {}
@@ -190,6 +191,7 @@ def _aggregate_teams(event_key: str, downloaded_data: DownloadedData, tba_data: 
         pm = entry.data.postmatch
 
         sc_matches[tn] = sc_matches.get(tn, 0) + 1
+        sc_scouters.setdefault(tn, set()).add(entry.data.scouter_name or entry.scouter)
 
         total_scored = 0
         auto_scored = 0
@@ -267,7 +269,9 @@ def _aggregate_teams(event_key: str, downloaded_data: DownloadedData, tba_data: 
         levels = sc_endgame_levels.get(tn, [])
         best_level = max(set(levels), key=levels.count) if levels else None
 
+        scouters = sorted(list(sc_scouters.get(tn, [])))
         row = {
+            "sc_scouters": ", ".join(scouters) if scouters else None,
             # TBA
             "tba_matches_played": mp,
             "tba_rp_total": tba_rp.get(tn, 0),
@@ -354,6 +358,7 @@ COLUMNS = [
     ("SC Speed Avg", "sc_speed_avg", _DEC2_FMT),
     ("SC Fault Rate", "sc_fault_rate", _DEC2_FMT),
     ("SC Primary Role", "sc_primary_role", None),
+    ("SC Scouters", "sc_scouters", None),
 ]
 
 # Add time percentage columns

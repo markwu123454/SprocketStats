@@ -263,6 +263,20 @@ class FeedbackBody(BaseModel):
     team_name: str
     name: Optional[str] = None
 
+@router.get("/misc/scouter_names")
+async def get_scouter_names():
+    raw = await db.get_misc("scouter_names")
+    if not raw:
+        return {"names": []}
+    try:
+        names = json.loads(raw)
+        if not isinstance(names, list):
+            return {"names": []}
+        return {"names": names}
+    except Exception:
+        return {"names": []}
+
+
 @router.post("/data/feedback")
 async def post_candy_feedback(body: FeedbackBody):
     key = "candy_feedback"

@@ -378,7 +378,8 @@ export default function MatchScoutingPage() {
         scoutingData.match_type === null ||
         scoutingData.match === 0 ||
         scoutingData.alliance === null ||
-        scoutingData.teamNumber === null
+        scoutingData.teamNumber === null ||
+        scoutingData.scouter_name === null
 
     // ─── Reset helper ───
     const resetToNew = useCallback(() => {

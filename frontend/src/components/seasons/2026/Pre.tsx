@@ -4,6 +4,7 @@ import {useAPI, getScouterEmail} from "@/hooks/useAPI.ts"
 import {useClientEnvironment} from "@/hooks/useClientEnvironment.ts"
 import type {MatchScoutingData, TeamInfo} from "@/types"
 import {ImageOff} from "lucide-react"
+import NameSearch from "@/components/ui/nameSearch.tsx"
 
 // ─── Utility: derive icon src synchronously from team number ───
 function getTeamIconSrc(teamNumber: string): string | null {
@@ -18,7 +19,7 @@ export default function PrePhase({data, setData}: {
     setData: React.Dispatch<React.SetStateAction<MatchScoutingData>>
 }) {
     // === Hooks / API ===
-    const {scoutingAction, getScouterSchedule} = useAPI()
+    const {scoutingAction, getScouterSchedule, getScouterNames} = useAPI()
     const {isOnline, serverOnline} = useClientEnvironment()
 
     // === Local State ===
@@ -32,6 +33,7 @@ export default function PrePhase({data, setData}: {
     const [teamNames, setTeamNames] = useState<Record<string, string>>({})
     const [schedule, setSchedule] = useState<Awaited<ReturnType<typeof getScouterSchedule>>>([])
     const [iconValid, setIconValid] = useState(false) // tracks whether manual icon loaded successfully
+    const [scouterNames, setScouterNames] = useState<string[]>([])
 
     // === Derived values (single source of truth) ===
     // manualEntry is derived from data.manualTeam — no separate local state
@@ -106,6 +108,21 @@ export default function PrePhase({data, setData}: {
             setData(d => ({...d, teamNumber: null}))
         }
     }, [ready, isOnline, serverOnline, match, teamNumber, match_type, alliance, setData])
+
+    // === Stable ref for getScouterNames ===
+    const getScouterNamesRef = useRef(getScouterNames)
+    getScouterNamesRef.current = getScouterNames
+
+    // === Load scouter names (once, when online) ===
+    useEffect(() => {
+        if (!(isOnline && serverOnline)) return
+        let alive = true
+        void (async () => {
+            const names = await getScouterNamesRef.current()
+            if (alive) setScouterNames(names)
+        })()
+        return () => { alive = false }
+    }, [isOnline, serverOnline])
 
     // === Load team names (once) ===
     useEffect(() => {
@@ -376,6 +393,17 @@ export default function PrePhase({data, setData}: {
         <div className="p-4 w-full h-full flex flex-col justify gap-2 relative">
 
             <div>Pre-Match</div>
+
+            {/* Scouter Name Dropdown */}
+            <div>
+                <label className="block text-lg font-small mb-1">Scouter Name</label>
+                <NameSearch
+                    names={scouterNames}
+                    value={data.scouter_name ?? null}
+                    onChange={(name) => setData(d => ({...d, scouter_name: name}))}
+                    placeholder="Search your name…"
+                />
+            </div>
 
             {/* Match Type Selector */}
             <div>

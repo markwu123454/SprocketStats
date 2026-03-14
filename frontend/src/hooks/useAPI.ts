@@ -316,6 +316,13 @@ export function useAPI() {
     };
 
 
+    // --- Endpoint: GET /misc/scouter_names ---
+    const getScouterNames = async (): Promise<string[]> => {
+        const res = await apiRequest<{ names: string[] }>("/misc/scouter_names");
+        return res?.names ?? [];
+    };
+
+
     // --- Endpoint: POST /scouting/{m_type}/{match}/{team}/submit ---
     const submitData = async (
         match: number,
@@ -337,7 +344,8 @@ export function useAPI() {
     > => {
         try {
             const {match_type, alliance, scouter, data} = fullData;
-            const body = {match_type, alliance, scouter, ...data};
+            const {scouter_name, ...restData} = data as any;
+            const body = {scouter_name, match_type, alliance, scouter, ...restData};
 
             const res = await fetch(`${BASE_URL}/scouting/${match_type}/${match}/${team}/submit`, {
                 method: 'POST',
@@ -991,5 +999,6 @@ export function useAPI() {
         checkSession,
         adminUnclaimTeam,
         postDataFeedback,
+        getScouterNames,
     };
 }

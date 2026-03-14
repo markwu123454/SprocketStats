@@ -992,7 +992,61 @@ export default function MatchScouting({
                         const width = zone.x2 - zone.x1
                         const height = zone.y2 - zone.y1
                         const isActive = currentZone === "shooting"
+                        const isOutpostActive = currentZone === "outpostDump"
+
+                        // Fallback coordinates for Outpost Dump button (bottom-left of shooting zone)
+                        const screenX = left + 0.04
+                        const screenY = top + height - 0.08
+
                         return (
+                            <>
+                            {showClimb && (
+                                <button
+                                    onPointerDown={(e) => {
+                                        // Prevent shooting zone drag from hijacking this button
+                                        e.stopPropagation()
+                                    }}
+                                    onClick={(e) => {
+                                        e.stopPropagation()
+                                        handleZoneClick("climb")
+                                        triggerFlash()
+                                    }}
+                                    className="absolute flex flex-col items-center justify-center rounded-lg transition-all duration-150 active:scale-95"
+                                    style={{
+                                        left: `${(uiFlip ? zone.x2 : zone.x1+0.04) * 100}%`,
+                                        top: "53%",
+                                        transform: "translate(-50%, -50%)",
+                                        width: "7.5%",
+                                        height: "15%",
+                                        background: currentZone === "climb"
+                                            ? "rgba(251, 146, 60, 0.45)"
+                                            : "rgba(39, 39, 42, 0.90)",
+                                        border: `2px solid ${currentZone === "climb" ? "#fb923c" : "rgba(251, 146, 60, 0.6)"}`,
+                                        boxShadow: currentZone === "climb"
+                                            ? "0 0 15px #fb923c66, inset 0 0 16px #fb923c20"
+                                            : "0 0 6px #fb923c22",
+                                        backdropFilter: "blur(4px)",
+                                        zIndex: 30,
+                                    }}
+                                    title="Climb"
+                                >
+                                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none"
+                                         stroke={currentZone === "climb" ? "#fb923c" : "rgba(251, 146, 60, 0.85)"}
+                                         strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                        <path d="M12 17V3"/>
+                                        <path d="M7 8l5-5 5 5"/>
+                                        <path d="M4 21h16"/>
+                                    </svg>
+                                    <span style={{
+                                        color: currentZone === "climb" ? "#fb923c" : "rgba(251, 146, 60, 0.85)",
+                                        fontSize: "0.55rem",
+                                        fontWeight: 800,
+                                        lineHeight: 1,
+                                        marginTop: 2,
+                                        letterSpacing: "0.02em",
+                                    }}>Climb</span>
+                                </button>
+                            )}
                             <button
                                 onPointerDown={(e) => {
                                     // Stop this from bubbling to the parent handlePointerDown
@@ -1023,22 +1077,20 @@ export default function MatchScouting({
                                     top: `${top * 100}%`,
                                     width: `${width * 100}%`,
                                     height: `${height * 100}%`,
+                                    zIndex: 10,
                                 }}
                             />
+                            </>
                         )
                     })()}
 
-                    {/* Field Buttons — Traversal + Intake always visible, Climb during auto/endgame */}
+                    {/* Field Buttons — Traversal + Intake always visible */}
                     {(() => {
                         // Full grid dimensions
                         const _fullW = _FB_BTN_W * 3 + _FB_GAP_X * 2
                         const _fullH = _FB_BTN_H * 2 + _FB_GAP_Y
                         const _halfW = _fullW / 2
                         const _halfGap = _FB_GAP_X
-
-                        // Climb occupies 1/4 of the full height in traversal's column
-                        const _climbH = (_fullH - _FB_GAP_Y) * 0.25
-                        const _traversalH_climb = _fullH - _climbH - _FB_GAP_Y
 
                         type BtnConfig = {
                             key: string
@@ -1050,119 +1102,51 @@ export default function MatchScouting({
                             icon: React.ReactNode
                         }
 
-                        const buttons: BtnConfig[] = showClimb
-                            ? [
-                                {
-                                    key: "traversal",
-                                    rect: {
-                                        x1: _FB_OX,
-                                        y1: _FB_OY,
-                                        x2: _FB_OX + _halfW - _halfGap / 2,
-                                        y2: _FB_OY + _traversalH_climb,
-                                    } as Rect,
-                                    label: "Other",
-                                    borderColor: "#a855f7",
-                                    bgActive: "rgba(168, 85, 247, 0.25)",
-                                    bgIdle: "rgba(39, 39, 42, 0.85)",
-                                    icon: (
-                                        <svg width="28" height="28" viewBox="0 0 24 24" fill="none"
-                                             stroke="currentColor" strokeWidth="2" strokeLinecap="round"
-                                             strokeLinejoin="round">
-                                            <path d="M5 12h14"/>
-                                            <path d="M12 5l7 7-7 7"/>
-                                        </svg>
-                                    ),
-                                },
-                                {
-                                    key: "climb",
-                                    rect: {
-                                        x1: _FB_OX,
-                                        y1: _FB_OY + _traversalH_climb + _FB_GAP_Y,
-                                        x2: _FB_OX + _halfW - _halfGap / 2,
-                                        y2: _FB_OY + _fullH,
-                                    } as Rect,
-                                    label: "Climb",
-                                    borderColor: "#fb923c",
-                                    bgActive: "rgba(251, 146, 60, 0.25)",
-                                    bgIdle: "rgba(39, 39, 42, 0.85)",
-                                    icon: (
-                                        <svg width="28" height="28" viewBox="0 0 24 24" fill="none"
-                                             stroke="currentColor" strokeWidth="2" strokeLinecap="round"
-                                             strokeLinejoin="round">
-                                            <path d="M12 17V3"/>
-                                            <path d="M7 8l5-5 5 5"/>
-                                            <path d="M4 21h16"/>
-                                        </svg>
-                                    ),
-                                },
-                                {
-                                    key: "intake",
-                                    rect: {
-                                        x1: _FB_OX + _halfW + _halfGap / 2,
-                                        y1: _FB_OY,
-                                        x2: _FB_OX + _fullW,
-                                        y2: _FB_OY + _fullH,
-                                    } as Rect,
-                                    label: "Intake",
-                                    borderColor: "#38bdf8",
-                                    bgActive: "rgba(56, 189, 248, 0.25)",
-                                    bgIdle: "rgba(39, 39, 42, 0.85)",
-                                    icon: (
-                                        <svg width="28" height="28" viewBox="0 0 24 24" fill="none"
-                                             stroke="currentColor" strokeWidth="2" strokeLinecap="round"
-                                             strokeLinejoin="round">
-                                            <path d="M12 2v20"/>
-                                            <path d="M17 7l-5-5-5 5"/>
-                                            <rect x="8" y="10" width="8" height="8" rx="1"/>
-                                        </svg>
-                                    ),
-                                },
-                            ]
-                            : [
-                                {
-                                    key: "traversal",
-                                    rect: {
-                                        x1: _FB_OX,
-                                        y1: _FB_OY,
-                                        x2: _FB_OX + _halfW - _halfGap / 2,
-                                        y2: _FB_OY + _fullH,
-                                    } as Rect,
-                                    label: "Other",
-                                    borderColor: "#a855f7",
-                                    bgActive: "rgba(168, 85, 247, 0.25)",
-                                    bgIdle: "rgba(39, 39, 42, 0.85)",
-                                    icon: (
-                                        <svg width="28" height="28" viewBox="0 0 24 24" fill="none"
-                                             stroke="currentColor" strokeWidth="2" strokeLinecap="round"
-                                             strokeLinejoin="round">
-                                            <path d="M5 12h14"/>
-                                            <path d="M12 5l7 7-7 7"/>
-                                        </svg>
-                                    ),
-                                },
-                                {
-                                    key: "intake",
-                                    rect: {
-                                        x1: _FB_OX + _halfW + _halfGap / 2,
-                                        y1: _FB_OY,
-                                        x2: _FB_OX + _fullW,
-                                        y2: _FB_OY + _fullH,
-                                    } as Rect,
-                                    label: "Intake",
-                                    borderColor: "#38bdf8",
-                                    bgActive: "rgba(56, 189, 248, 0.25)",
-                                    bgIdle: "rgba(39, 39, 42, 0.85)",
-                                    icon: (
-                                        <svg width="28" height="28" viewBox="0 0 24 24" fill="none"
-                                             stroke="currentColor" strokeWidth="2" strokeLinecap="round"
-                                             strokeLinejoin="round">
-                                            <path d="M12 2v20"/>
-                                            <path d="M17 7l-5-5-5 5"/>
-                                            <rect x="8" y="10" width="8" height="8" rx="1"/>
-                                        </svg>
-                                    ),
-                                },
-                            ]
+                        const buttons: BtnConfig[] = [
+                            {
+                                key: "traversal",
+                                rect: {
+                                    x1: _FB_OX,
+                                    y1: _FB_OY,
+                                    x2: _FB_OX + _halfW - _halfGap / 2,
+                                    y2: _FB_OY + _fullH,
+                                } as Rect,
+                                label: "Other",
+                                borderColor: "#a855f7",
+                                bgActive: "rgba(168, 85, 247, 0.25)",
+                                bgIdle: "rgba(39, 39, 42, 0.85)",
+                                icon: (
+                                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none"
+                                         stroke="currentColor" strokeWidth="2" strokeLinecap="round"
+                                         strokeLinejoin="round">
+                                        <path d="M5 12h14"/>
+                                        <path d="M12 5l7 7-7 7"/>
+                                    </svg>
+                                ),
+                            },
+                            {
+                                key: "intake",
+                                rect: {
+                                    x1: _FB_OX + _halfW + _halfGap / 2,
+                                    y1: _FB_OY,
+                                    x2: _FB_OX + _fullW,
+                                    y2: _FB_OY + _fullH,
+                                } as Rect,
+                                label: "Intake",
+                                borderColor: "#38bdf8",
+                                bgActive: "rgba(56, 189, 248, 0.25)",
+                                bgIdle: "rgba(39, 39, 42, 0.85)",
+                                icon: (
+                                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none"
+                                         stroke="currentColor" strokeWidth="2" strokeLinecap="round"
+                                         strokeLinejoin="round">
+                                        <path d="M12 2v20"/>
+                                        <path d="M17 7l-5-5-5 5"/>
+                                        <rect x="8" y="10" width="8" height="8" rx="1"/>
+                                    </svg>
+                                ),
+                            },
+                        ]
 
                         return buttons
                     })().map(({key, rect, label, borderColor, bgActive, bgIdle, icon}) => {

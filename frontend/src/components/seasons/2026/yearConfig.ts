@@ -96,6 +96,7 @@ export type MatchScoutingData = {
     teamNumber: number | null
     manualTeam: boolean
     scouter: string | null
+    scouter_name: string | null
 
     // Starting position
     startPosition: { x: number; y: number } | null
@@ -154,6 +155,7 @@ export const createDefaultScoutingData = (): Omit<MatchScoutingData, "scouter"> 
         alliance: null,
         teamNumber: null,
         manualTeam: false,
+        scouter_name: null,
 
         startPosition: null,
         actions: [],
