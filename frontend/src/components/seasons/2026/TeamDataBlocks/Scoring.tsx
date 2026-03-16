@@ -10,6 +10,44 @@ type BreakdownNode = {
     actualValue?: number
     children?: BreakdownNode[]
     sumValue?: number
+    color?: string
+}
+
+const RAINBOW_COLORS = ["#FF0000", "#FF7F00", "#FFFF00", "#00FF00", "#0000FF", "#4B0082", "#9400D3"]
+
+function hexToRgb(hex: string) {
+    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex)
+    return result ? {
+        r: parseInt(result[1], 16),
+        g: parseInt(result[2], 16),
+        b: parseInt(result[3], 16)
+    } : { r: 0, g: 0, b: 0 }
+}
+
+function rgbToHex(r: number, g: number, b: number) {
+    return "#" + ((1 << 24) + (Math.round(r) << 16) + (Math.round(g) << 8) + Math.round(b)).toString(16).slice(1)
+}
+
+function averageColors(colors: string[]) {
+    if (colors.length === 0) return "#000000"
+    const rgbs = colors.map(hexToRgb)
+    const avg = rgbs.reduce((acc, curr) => ({
+        r: acc.r + curr.r,
+        g: acc.g + curr.g,
+        b: acc.b + curr.b
+    }), { r: 0, g: 0, b: 0 })
+    return rgbToHex(avg.r / colors.length, avg.g / colors.length, avg.b / colors.length)
+}
+
+function assignColors(node: BreakdownNode, state: { leafIndex: number }) {
+    if (!node.children || node.children.length === 0) {
+        node.color = RAINBOW_COLORS[state.leafIndex % RAINBOW_COLORS.length]
+        state.leafIndex++
+        return node.color
+    }
+    const childColors = node.children.map(c => assignColors(c, state))
+    node.color = averageColors(childColors)
+    return node.color
 }
 
 const AUTO_PTS: Record<string, number> = { "Level1": 15, "Level2": 30, "Level3": 45, "None": 0 }
@@ -105,9 +143,9 @@ export default function ScoringTrendsBlock({data}: any) {
                     id="id"
                     value="value"
                     cornerRadius={3}
-                    borderWidth={2}
-                    borderColor={{from: "color", modifiers: [["brighter", 0.2]]}}
-                    colors={{scheme: "paired"}}
+                    borderWidth={1}
+                    borderColor="#333333"
+                    colors={(node: any) => node.data.color || "#FF0000"}
                     childColor={{from: "color"}}
                     enableArcLabels
                     arcLabel={(d) => (d.depth <= 3 ? d.data.label : "")}
@@ -168,6 +206,7 @@ export default function ScoringTrendsBlock({data}: any) {
 function buildScoreComposition(root: BreakdownNode): BreakdownNode {
     const clone: BreakdownNode = structuredClone(root)
     annotateTotals(clone)
+    assignColors(clone, { leafIndex: 0 })
     return clone
 }
 
