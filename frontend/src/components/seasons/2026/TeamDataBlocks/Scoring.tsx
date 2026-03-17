@@ -1,7 +1,7 @@
 // src/pages/blocks/ScoringTrendsBlock.tsx
-import {useMemo} from "react"
-import {ResponsiveSunburst} from "@nivo/sunburst"
-import {ResponsiveBar} from "@nivo/bar"
+import { useMemo } from "react"
+import { ResponsiveSunburst } from "@nivo/sunburst"
+import { ResponsiveBar } from "@nivo/bar"
 
 type BreakdownNode = {
     id: string
@@ -10,55 +10,37 @@ type BreakdownNode = {
     actualValue?: number
     children?: BreakdownNode[]
     sumValue?: number
-    color?: string
 }
 
-const RAINBOW_COLORS = ["#FF0000", "#FF7F00", "#FFFF00", "#00FF00", "#0000FF", "#4B0082", "#9400D3"]
+const AUTO_PTS: Record<string, number> = { Level1: 15, Level2: 30, Level3: 45, None: 0 }
+const TELEOP_PTS: Record<string, number> = { Level1: 15, Level2: 15, Level3: 15, None: 0 }
 
-function hexToRgb(hex: string) {
-    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex)
-    return result ? {
-        r: parseInt(result[1], 16),
-        g: parseInt(result[2], 16),
-        b: parseInt(result[3], 16)
-    } : { r: 0, g: 0, b: 0 }
+const SUNBURST_COLORS: Record<string, string> = {
+    total: "#6b7280",
+
+    auto: "#3b82f6",
+    auto_climb: "#60a5fa",
+    auto_scored: "#2563eb",
+
+    teleop: "#f97316",
+    teleop_climb: "#fb923c",
+
+    teleop_scored: "#facc15",
+    teleop_phase1: "#fde047",
+    teleop_phase2: "#fbbf24",
+    teleop_endgame: "#f59e0b",
+    teleop_transition: "#fcd34d",
 }
 
-function rgbToHex(r: number, g: number, b: number) {
-    return "#" + ((1 << 24) + (Math.round(r) << 16) + (Math.round(g) << 8) + Math.round(b)).toString(16).slice(1)
-}
+export default function ScoringTrendsBlock({ data }: any) {
 
-function averageColors(colors: string[]) {
-    if (colors.length === 0) return "#000000"
-    const rgbs = colors.map(hexToRgb)
-    const avg = rgbs.reduce((acc, curr) => ({
-        r: acc.r + curr.r,
-        g: acc.g + curr.g,
-        b: acc.b + curr.b
-    }), { r: 0, g: 0, b: 0 })
-    return rgbToHex(avg.r / colors.length, avg.g / colors.length, avg.b / colors.length)
-}
-
-function assignColors(node: BreakdownNode, state: { leafIndex: number }) {
-    if (!node.children || node.children.length === 0) {
-        node.color = RAINBOW_COLORS[state.leafIndex % RAINBOW_COLORS.length]
-        state.leafIndex++
-        return node.color
-    }
-    const childColors = node.children.map(c => assignColors(c, state))
-    node.color = averageColors(childColors)
-    return node.color
-}
-
-const AUTO_PTS: Record<string, number> = { "Level1": 15, "Level2": 30, "Level3": 45, "None": 0 }
-const TELEOP_PTS: Record<string, number> = { "Level1": 15, "Level2": 15, "Level3": 15, "None": 0 }
-
-export default function ScoringTrendsBlock({data}: any) {
     const customTimeline = useMemo(() => {
         if (!data?.matches || !data?.fuel) return []
+
         return data.matches.map((m: any) => {
             const matchKey = m.match
             const fuelData = data.fuel?.[matchKey] || {}
+
             return {
                 match: matchKey,
                 "Auto Climb": AUTO_PTS[fuelData.autonclimb || "None"] || 0,
@@ -73,8 +55,9 @@ export default function ScoringTrendsBlock({data}: any) {
     }, [data])
 
     const customBreakdown = useMemo(() => {
-        if (!customTimeline || customTimeline.length === 0) {
-            return {id: 'root', label: 'Score', children: []}
+
+        if (!customTimeline.length) {
+            return { id: "total", label: "Total Score", children: [] }
         }
 
         let sumAutoClimb = 0
@@ -85,8 +68,6 @@ export default function ScoringTrendsBlock({data}: any) {
         let sumTeleopTransition = 0
         let sumTeleopClimb = 0
 
-        const count = customTimeline.length
-
         customTimeline.forEach((t: any) => {
             sumAutoClimb += t["Auto Climb"]
             sumAutoScored += t["Auto Scored"]
@@ -96,72 +77,132 @@ export default function ScoringTrendsBlock({data}: any) {
             sumTeleopTransition += t["Teleop Transition"]
             sumTeleopClimb += t["Teleop Climb"]
         })
-        
-        const totalSum = sumAutoClimb + sumAutoScored + sumTeleopPhase1 + sumTeleopPhase2 + sumTeleopEndgame + sumTeleopTransition + sumTeleopClimb
-        const isZero = totalSum === 0
+
+        const count = customTimeline.length
 
         return {
-            id: 'total',
-            label: 'Total Score',
+            id: "total",
+            label: "Total Score",
             children: [
                 {
-                    id: 'auto', label: 'Auto', children: [
-                        {id: 'auto_climb', label: 'Climb', value: isZero ? 1 : Number((sumAutoClimb / count).toFixed(1)), actualValue: Number((sumAutoClimb / count).toFixed(1))},
-                        {id: 'auto_scored', label: 'Scored', value: isZero ? 1 : Number((sumAutoScored / count).toFixed(1)), actualValue: Number((sumAutoScored / count).toFixed(1))}
+                    id: "auto",
+                    label: "Auto",
+                    children: [
+                        {
+                            id: "auto_climb",
+                            label: "Climb",
+                            value: Number((sumAutoClimb / count).toFixed(1)),
+                            actualValue: Number((sumAutoClimb / count).toFixed(1))
+                        },
+                        {
+                            id: "auto_scored",
+                            label: "Scored",
+                            value: Number((sumAutoScored / count).toFixed(1)),
+                            actualValue: Number((sumAutoScored / count).toFixed(1))
+                        }
                     ]
                 },
                 {
-                    id: 'teleop', label: 'Teleop', children: [
-                        {id: 'teleop_climb', label: 'Climb', value: isZero ? 1 : Number((sumTeleopClimb / count).toFixed(1)), actualValue: Number((sumTeleopClimb / count).toFixed(1))},
+                    id: "teleop",
+                    label: "Teleop",
+                    children: [
                         {
-                            id: 'teleop_scored', label: 'Scored', children: [
-                                {id: 'teleop_phase1', label: 'Phase 1', value: isZero ? 1 : Number((sumTeleopPhase1 / count).toFixed(1)), actualValue: Number((sumTeleopPhase1 / count).toFixed(1))},
-                                {id: 'teleop_phase2', label: 'Phase 2', value: isZero ? 1 : Number((sumTeleopPhase2 / count).toFixed(1)), actualValue: Number((sumTeleopPhase2 / count).toFixed(1))},
-                                {id: 'teleop_endgame', label: 'Endgame', value: isZero ? 1 : Number((sumTeleopEndgame / count).toFixed(1)), actualValue: Number((sumTeleopEndgame / count).toFixed(1))},
-                                {id: 'teleop_transition', label: 'Transition', value: isZero ? 1 : Number((sumTeleopTransition / count).toFixed(1)), actualValue: Number((sumTeleopTransition / count).toFixed(1))}
+                            id: "teleop_climb",
+                            label: "Climb",
+                            value: Number((sumTeleopClimb / count).toFixed(1)),
+                            actualValue: Number((sumTeleopClimb / count).toFixed(1))
+                        },
+                        {
+                            id: "teleop_scored",
+                            label: "Scored",
+                            children: [
+                                {
+                                    id: "teleop_phase1",
+                                    label: "Phase 1",
+                                    value: Number((sumTeleopPhase1 / count).toFixed(1)),
+                                    actualValue: Number((sumTeleopPhase1 / count).toFixed(1))
+                                },
+                                {
+                                    id: "teleop_phase2",
+                                    label: "Phase 2",
+                                    value: Number((sumTeleopPhase2 / count).toFixed(1)),
+                                    actualValue: Number((sumTeleopPhase2 / count).toFixed(1))
+                                },
+                                {
+                                    id: "teleop_endgame",
+                                    label: "Endgame",
+                                    value: Number((sumTeleopEndgame / count).toFixed(1)),
+                                    actualValue: Number((sumTeleopEndgame / count).toFixed(1))
+                                },
+                                {
+                                    id: "teleop_transition",
+                                    label: "Transition",
+                                    value: Number((sumTeleopTransition / count).toFixed(1)),
+                                    actualValue: Number((sumTeleopTransition / count).toFixed(1))
+                                }
                             ]
                         }
                     ]
                 }
             ]
         }
+
     }, [customTimeline])
 
-    const scoreComposition = useMemo(() => buildScoreComposition(customBreakdown), [customBreakdown])
-    const keys = useMemo(
-        () => (customTimeline?.length ? Object.keys(customTimeline[0]).filter((k) => k !== "match") : []),
-        [customTimeline]
-    )
+    const scoreComposition = useMemo(() => {
+        if (!customBreakdown?.children) {
+            return { id: "empty", label: "Empty", children: [] }
+        }
+        return buildScoreComposition(customBreakdown)
+    }, [customBreakdown])
+
+    const keys = useMemo(() => (
+        customTimeline.length
+            ? Object.keys(customTimeline[0]).filter((k) => k !== "match")
+            : []
+    ), [customTimeline])
 
     return (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 h-full p-4">
-            {/* Sunburst Chart */}
+
+            {/* Sunburst */}
             <div className="h-full min-h-[400px]">
-                <ResponsiveSunburst
-                    data={scoreComposition}
-                    margin={{top: 10, right: 10, bottom: 10, left: 10}}
-                    id="id"
-                    value="value"
-                    cornerRadius={3}
-                    borderWidth={1}
-                    borderColor="#333333"
-                    colors={(node: any) => node.data.color || "#FF0000"}
-                    childColor={{from: "color"}}
-                    enableArcLabels
-                    arcLabel={(d) => (d.depth <= 3 ? d.data.label : "")}
-                    arcLabelsRadiusOffset={0.65}
-                    arcLabelsSkipAngle={0}
-                    arcLabelsTextColor={{from: "color", modifiers: [["darker", 2]]}}
-                    tooltip={({data, color}) => (
-                        <div
-                            style={{background: color}}
-                            className="px-2 py-1 text-xs text-white rounded"
-                        >
-                            {data.label}: {data.actualValue ?? data.sumValue ?? data.value ?? 0}
-                        </div>
-                    )}
-                    animate={false}
-                />
+                {scoreComposition?.children?.length > 0 && (
+                    <ResponsiveSunburst
+                        data={scoreComposition}
+                        margin={{ top: 10, right: 10, bottom: 10, left: 10 }}
+                        id="id"
+                        value="value"
+
+                        cornerRadius={4}
+
+                        colors={(node) => SUNBURST_COLORS[node.id] || "#9ca3af"}
+
+                        borderWidth={4}
+                        borderColor="#ffffff"
+
+                        enableArcLabels
+                        arcLabel={(d) => (d.depth <= 3 ? d.data.label : "")}
+                        arcLabelsRadiusOffset={0.65}
+                        arcLabelsSkipAngle={0}
+
+                        arcLabelsTextColor={{
+                            from: "color",
+                            modifiers: [["darker", 3]]
+                        }}
+
+                        tooltip={({ data, color }) => (
+                            <div
+                                style={{ background: color }}
+                                className="px-2 py-1 text-xs text-white rounded"
+                            >
+                                {data.label}: {data.actualValue ?? data.sumValue ?? data.value ?? 0}
+                            </div>
+                        )}
+
+                        animate={false}
+                    />
+                )}
             </div>
 
             {/* Bar Chart */}
@@ -170,49 +211,65 @@ export default function ScoringTrendsBlock({data}: any) {
                     data={customTimeline}
                     keys={keys}
                     indexBy="match"
-                    margin={{top: 10, right: 10, bottom: 30, left: 40}}
+                    margin={{ top: 10, right: 10, bottom: 30, left: 40 }}
                     padding={0.3}
                     groupMode="stacked"
-                    colors={{scheme: "set2"}}
+                    colors={{ scheme: "set2" }}
+
                     axisBottom={{
                         tickRotation: -25,
                         tickPadding: 4,
                         legend: "Match",
                         legendOffset: 28,
                     }}
+
                     axisLeft={{
                         legend: "Points",
                         legendOffset: -32,
                         legendPosition: "middle",
                     }}
+
                     labelSkipWidth={16}
                     labelSkipHeight={12}
-                    labelTextColor={{from: "color", modifiers: [["darker", 2]]}}
-                    tooltip={({id, value, color}) => (
+                    labelTextColor={{ from: "color", modifiers: [["darker", 2]] }}
+
+                    tooltip={({ id, value, color }) => (
                         <div
                             className="px-2 py-1 text-xs text-white rounded"
-                            style={{background: color}}
+                            style={{ background: color }}
                         >
                             {id}: {value}
                         </div>
                     )}
+
                     animate={false}
                 />
             </div>
+
         </div>
     )
 }
 
 function buildScoreComposition(root: BreakdownNode): BreakdownNode {
     const clone: BreakdownNode = structuredClone(root)
+
+    if (!clone.children) clone.children = []
+
     annotateTotals(clone)
-    assignColors(clone, { leafIndex: 0 })
+
     return clone
 }
 
 function annotateTotals(node: BreakdownNode): number {
-    if (!node.children || node.children.length === 0) return node.actualValue ?? node.value ?? 0
-    const total = node.children.map(annotateTotals).reduce((a, b) => a + b, 0)
-    node.sumValue = total
-    return Number(total.toFixed(1))
+    if (!node.children || node.children.length === 0) {
+        return node.actualValue ?? node.value ?? 0
+    }
+
+    const total = node.children
+        .map(annotateTotals)
+        .reduce((a, b) => a + b, 0)
+
+    node.sumValue = Number(total.toFixed(1))
+
+    return node.sumValue
 }
