@@ -1,7 +1,7 @@
 // src/pages/blocks/ScoringTrendsBlock.tsx
-import { useMemo } from "react"
-import { ResponsiveSunburst } from "@nivo/sunburst"
-import { ResponsiveBar } from "@nivo/bar"
+import {useMemo} from "react"
+import {ResponsiveSunburst} from "@nivo/sunburst"
+import {ResponsiveBar} from "@nivo/bar"
 
 type BreakdownNode = {
     id: string
@@ -12,27 +12,22 @@ type BreakdownNode = {
     sumValue?: number
 }
 
-const AUTO_PTS: Record<string, number> = { Level1: 15, Level2: 30, Level3: 45, None: 0 }
-const TELEOP_PTS: Record<string, number> = { Level1: 15, Level2: 15, Level3: 15, None: 0 }
+const AUTO_PTS: Record<string, number> = {Level1: 15, Level2: 30, Level3: 45, None: 0}
+const TELEOP_PTS: Record<string, number> = {Level1: 15, Level2: 15, Level3: 15, None: 0}
 
 const SUNBURST_COLORS: Record<string, string> = {
-    total: "#6b7280",
-
-    auto: "#3b82f6",
     auto_climb: "#60a5fa",
     auto_scored: "#2563eb",
 
-    teleop: "#f97316",
     teleop_climb: "#fb923c",
 
-    teleop_scored: "#facc15",
     teleop_phase1: "#fde047",
-    teleop_phase2: "#fbbf24",
+    teleop_phase2: "#facc15",
     teleop_endgame: "#f59e0b",
-    teleop_transition: "#fcd34d",
+    teleop_transition: "#fbbf24",
 }
 
-export default function ScoringTrendsBlock({ data }: any) {
+export default function ScoringTrendsBlock({data}: any) {
 
     const customTimeline = useMemo(() => {
         if (!data?.matches || !data?.fuel) return []
@@ -57,7 +52,7 @@ export default function ScoringTrendsBlock({ data }: any) {
     const customBreakdown = useMemo(() => {
 
         if (!customTimeline.length) {
-            return { id: "total", label: "Total Score", children: [] }
+            return {id: "total", label: "Total Score", children: []}
         }
 
         let sumAutoClimb = 0
@@ -151,7 +146,7 @@ export default function ScoringTrendsBlock({ data }: any) {
 
     const scoreComposition = useMemo(() => {
         if (!customBreakdown?.children) {
-            return { id: "empty", label: "Empty", children: [] }
+            return {id: "empty", label: "Empty", children: []}
         }
         return buildScoreComposition(customBreakdown)
     }, [customBreakdown])
@@ -170,13 +165,17 @@ export default function ScoringTrendsBlock({ data }: any) {
                 {scoreComposition?.children?.length > 0 && (
                     <ResponsiveSunburst
                         data={scoreComposition}
-                        margin={{ top: 10, right: 10, bottom: 10, left: 10 }}
+                        margin={{top: 10, right: 10, bottom: 10, left: 10}}
                         id="id"
                         value="value"
 
                         cornerRadius={4}
 
-                        colors={(node) => SUNBURST_COLORS[node.id] || "#9ca3af"}
+                        colors={{scheme: "set2"}}
+                        childColor={{
+                            from: "color",
+                            modifiers: [["brighter", 0.4]]
+                        }}
 
                         borderWidth={4}
                         borderColor="#ffffff"
@@ -191,9 +190,9 @@ export default function ScoringTrendsBlock({ data }: any) {
                             modifiers: [["darker", 3]]
                         }}
 
-                        tooltip={({ data, color }) => (
+                        tooltip={({data, color}) => (
                             <div
-                                style={{ background: color }}
+                                style={{background: color}}
                                 className="px-2 py-1 text-xs text-white rounded"
                             >
                                 {data.label}: {data.actualValue ?? data.sumValue ?? data.value ?? 0}
@@ -211,10 +210,10 @@ export default function ScoringTrendsBlock({ data }: any) {
                     data={customTimeline}
                     keys={keys}
                     indexBy="match"
-                    margin={{ top: 10, right: 10, bottom: 30, left: 40 }}
+                    margin={{top: 10, right: 10, bottom: 30, left: 40}}
                     padding={0.3}
                     groupMode="stacked"
-                    colors={{ scheme: "set2" }}
+                    colors={{scheme: "set2"}}
 
                     axisBottom={{
                         tickRotation: -25,
@@ -231,12 +230,12 @@ export default function ScoringTrendsBlock({ data }: any) {
 
                     labelSkipWidth={16}
                     labelSkipHeight={12}
-                    labelTextColor={{ from: "color", modifiers: [["darker", 2]] }}
+                    labelTextColor={{from: "color", modifiers: [["darker", 2]]}}
 
-                    tooltip={({ id, value, color }) => (
+                    tooltip={({id, value, color}) => (
                         <div
                             className="px-2 py-1 text-xs text-white rounded"
-                            style={{ background: color }}
+                            style={{background: color}}
                         >
                             {id}: {value}
                         </div>
@@ -257,7 +256,9 @@ function buildScoreComposition(root: BreakdownNode): BreakdownNode {
 
     annotateTotals(clone)
 
-    return clone
+    const cleaned = removeZeroNodes(clone)
+
+    return cleaned || {id: "empty", label: "Empty", children: []}
 }
 
 function annotateTotals(node: BreakdownNode): number {
@@ -273,3 +274,22 @@ function annotateTotals(node: BreakdownNode): number {
 
     return node.sumValue
 }
+
+function removeZeroNodes(node: BreakdownNode): BreakdownNode | null {
+    if (!node.children || node.children.length === 0) {
+        const val = node.actualValue ?? node.value ?? node.sumValue ?? 0
+        return val === 0 ? null : node
+    }
+
+    const filteredChildren = node.children
+        .map(removeZeroNodes)
+        .filter(Boolean) as BreakdownNode[]
+
+    if (filteredChildren.length === 0) return null
+
+    return {
+        ...node,
+        children: filteredChildren
+    }
+}
+
