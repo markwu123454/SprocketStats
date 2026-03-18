@@ -129,7 +129,7 @@
 }
 
 
-:root.theme-light {
+.theme-light {
     --theme-bg: rgb(255 255 255 / 0.70);
     --theme-border: #d4d4d8;
     --theme-text: #18181b;
@@ -144,7 +144,7 @@
     --scrollbar-thumb-hover: #a1a1aa;
 }
 
-:root.theme-dark {
+.theme-dark {
     --theme-bg: rgb(24 24 27 / 0.50);
     --theme-border: #27272a;
     --theme-text: #ffffff;
@@ -159,7 +159,7 @@
     --scrollbar-thumb-hover: #52525b;
 }
 
-:root.theme-2025 {
+.theme-2025 {
     --theme-bg: rgba(11, 35, 79, 0.6);
     --theme-border: #1a4598;
     --theme-text: #ffffff;
@@ -174,7 +174,7 @@
     --scrollbar-thumb-hover: #2563eb;
 }
 
-:root.theme-2026 {
+.theme-2026 {
     --theme-bg: rgba(254, 247, 220, 0.6);
     --theme-border: #e6ddae;
     --theme-text: #3b2d00;
@@ -189,7 +189,7 @@
     --scrollbar-thumb-hover: #d6c98a;
 }
 
-:root.theme-3473 {
+.theme-3473 {
     --theme-bg: rgba(76, 29, 149, 0.6);
     --theme-border: #6d28d9;
     --theme-text: #ffffff;
@@ -205,7 +205,7 @@
     --scrollbar-thumb-hover: #8b5cf6;
 }
 
-:root.theme-968 {
+.theme-968 {
     /* Core surfaces */
     --theme-bg: rgba(153, 27, 27, 0.65);        /* deep red, softened */
     --theme-border: #611515;                   /* darker red for structure */

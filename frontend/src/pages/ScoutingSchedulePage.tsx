@@ -5,10 +5,7 @@ import {AgGridReact} from "ag-grid-react";
 import {type ColDef, themeQuartz} from "ag-grid-community";
 
 const scheduleRawData = [
-"56-62,Tzuyu Wu,Brista Lin,Dylan Okada,Ethan Chang,Henry Yang,Ashlyn Lai",
-"63-70,Jacob Lau,Jadon Feng,Maren Lai,Christian Alvarado,Luke Yu,Cindy Lin",
-"71-77,Grace,Liya Zhu,Selina Gu,David Ding,Adam Sun,Andrew Lin",
-"more!,more!,more!,more!,more!,more!,more!",
+"schedule who???",
 
 ];
 

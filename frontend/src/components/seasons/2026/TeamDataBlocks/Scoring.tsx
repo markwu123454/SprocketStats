@@ -12,8 +12,8 @@ type BreakdownNode = {
     sumValue?: number
 }
 
-const AUTO_PTS: Record<string, number> = {Level1: 15, Level2: 30, Level3: 45, None: 0}
-const TELEOP_PTS: Record<string, number> = {Level1: 15, Level2: 15, Level3: 15, None: 0}
+const AUTO_PTS: Record<string, number> = {Level1: 15, Level2: 0, Level3: 0, None: 0}
+const TELEOP_PTS: Record<string, number> = {Level1: 10, Level2: 20, Level3: 30, None: 0}
 
 const SUNBURST_COLORS: Record<string, string> = {
     auto_climb: "#60a5fa",
@@ -210,7 +210,7 @@ export default function ScoringTrendsBlock({data}: any) {
                     data={customTimeline}
                     keys={keys}
                     indexBy="match"
-                    margin={{top: 10, right: 10, bottom: 30, left: 40}}
+                    margin={{top: 10, right: 135, bottom: 30, left: 40}}
                     padding={0.3}
                     groupMode="stacked"
                     colors={{scheme: "set2"}}
@@ -240,6 +240,21 @@ export default function ScoringTrendsBlock({data}: any) {
                             {id}: {value}
                         </div>
                     )}
+
+                    legends={[{
+                        dataFrom: "keys",
+                        anchor: "top-right",
+                        direction: "column",
+                        justify: false,
+                        translateX: 135,
+                        translateY: 0,
+                        itemsSpacing: 3,
+                        itemWidth: 125,
+                        itemHeight: 18,
+                        itemDirection: "left-to-right",
+                        symbolSize: 12,
+                        symbolShape: "square",
+                    }]}
 
                     animate={false}
                 />

@@ -13,6 +13,7 @@ const CandyDataPage = lazy(() => import("@/pages/CandyDataPage.tsx"))
 const GuestPage = lazy(() => import("@/pages/GuestPage.tsx"))
 const HomePage = lazy(() => import("@/pages/HomePage.tsx"))
 const DeveloperPage = lazy(() => import("@/pages/DeveloperPage.tsx"))
+const Glossary = lazy(() => import("@/pages/Glossary.tsx"))
 const MatchDataPostPage = lazy(() => import("@/pages/data/MatchDataPostPage.tsx"))
 const MatchMonitorPage = lazy(() => import("@/pages/MatchMonitorPage.tsx"))
 const MatchScoutingPage = lazy(() => import("@/pages/MatchScoutingPage.tsx"))
@@ -30,6 +31,7 @@ const AttendancePage = lazy(() => import("@/pages/AttendancePage.tsx"))
 const MeetingSchedulePage = lazy(() => import("@/pages/MeetingSchedulePage.tsx"))
 const PrivacyPolicyPage = lazy(() => import("@/pages/PrivacyPolicyPage.tsx"))
 const ScoutingSchedulePage = lazy(() => import("@/pages/ScoutingSchedulePage.tsx"))
+
 
 // Shared fallback — swap this out for a spinner if you want
 const PageFallback = () => (
@@ -60,6 +62,8 @@ export default function App() {
                             <Route path="/scouting/schedule" element={<ScoutingSchedulePage />} />
 
                             <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
+
+                            <Route path="/glossary" element={<Glossary />} />
 
                             <Route path="/scouting/match" element={
                                 <AuthWrapper permission="match_scouting" device="mobile">
