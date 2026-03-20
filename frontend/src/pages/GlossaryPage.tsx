@@ -72,7 +72,7 @@ export default function GlossaryPage() {
                               <ul className="list-disc pl-5 mt-1 space-y-1">
                                   <li><strong>QM:</strong> Qualification match
                                   </li>
-                                  <li><strong>SF:</strong> Semi-finals(playoff) match
+                                  <li><strong>SF:</strong> Semi-Finals(playoff) match
                                   </li>
                                   <li><strong>F:</strong> Finals match
                                   </li>

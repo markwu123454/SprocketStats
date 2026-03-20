@@ -1,10 +1,28 @@
 import asyncio
 import traceback
+from typing import Literal, Optional
 
 import ttkbootstrap as tb
+from pydantic import BaseModel
 
 
 # TODO: still from reefscape, everything need to change
+
+
+# =========================
+# Action Models (from frontend)
+# =========================
+MatchPhase = Literal["prestart", "auto", "between", "teleop", "post"]
+SubPhaseName = Literal[
+    "auto", "transition", "shift_1", "shift_2", "shift_3", "shift_4", "endgame"
+]
+
+
+class DumpAction(BaseModel):
+    type: Literal["dump"] = "dump"
+    timestamp: int
+    phase: MatchPhase
+    subPhase: Optional[SubPhaseName] = None
 
 # =========================
 # Build Settings Panel

@@ -984,72 +984,9 @@ export default function MatchScouting({
                         const width = zone.x2 - zone.x1
                         const height = zone.y2 - zone.y1
                         const isActive = currentZone === "shooting"
-                        const isOutpostActive = currentZone === "outpostDump"
-
-                        // Fallback coordinates for Outpost Dump button (bottom-left of shooting zone)
-                        const screenX = left + 0.04
-                        const screenY = top + height - 0.08
 
                         return (
                             <>
-                            <button
-                                onPointerDown={(e) => {
-                                    // Prevent shooting zone drag from hijacking this button
-                                    e.stopPropagation()
-                                }}
-                                onClick={(e) => {
-                                    e.stopPropagation()
-                                    const now = Date.now()
-                                    setActions((prev) => [
-                                        ...prev,
-                                        {
-                                            type: "outpostDump" as Actions["type"],
-                                            timestamp: matchStartTime > 0 ? now - matchStartTime : 0,
-                                            phase: matchPhase,
-                                            subPhase: subPhase?.phase ?? null,
-                                        } as Actions,
-                                    ])
-                                    setCurrentZone("outpostDump")
-                                    currentZoneRef.current = "outpostDump"
-                                    triggerFlash()
-                                }}
-                                className="absolute flex flex-col items-center justify-center rounded-lg transition-all duration-150 active:scale-95"
-                                style={{
-                                    left: `${screenX * 100}%`,
-                                    top: `${screenY * 100}%`,
-                                    transform: "translate(-50%, -50%)",
-                                    width: "5.6%",
-                                    height: "11.2%",
-                                    background: isOutpostActive
-                                        ? "rgba(20, 184, 166, 0.45)"
-                                        : "rgba(39, 39, 42, 0.90)",
-                                    border: `2px solid ${isOutpostActive ? "#14b8a6" : "rgba(20, 184, 166, 0.6)"}`,
-                                    boxShadow: isOutpostActive
-                                        ? "0 0 15px #14b8a666, inset 0 0 16px #14b8a620"
-                                        : "0 0 6px #14b8a622",
-                                    backdropFilter: "blur(4px)",
-                                    zIndex: 20,
-                                }}
-                                title="Outpost Dump"
-                            >
-                                {/* Dump icon */}
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
-                                     stroke={isOutpostActive ? "#14b8a6" : "rgba(94,234,212,0.85)"}
-                                     strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                                    <path d="M3 6h18"/>
-                                    <path d="M8 6V4h8v2"/>
-                                    <rect x="5" y="6" width="14" height="14" rx="2"/>
-                                    <path d="M10 11v4M14 11v4"/>
-                                </svg>
-                                <span style={{
-                                    color: isOutpostActive ? "#14b8a6" : "rgba(94,234,212,0.85)",
-                                    fontSize: "0.55rem",
-                                    fontWeight: 700,
-                                    lineHeight: 1,
-                                    marginTop: 2,
-                                    letterSpacing: "0.02em",
-                                }}>DUMP/PUSH</span>
-                            </button>
                             <button
                                 onPointerDown={(e) => {
                                     // Stop this from bubbling to the parent handlePointerDown

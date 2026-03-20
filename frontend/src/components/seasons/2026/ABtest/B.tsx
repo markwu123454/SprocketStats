@@ -452,6 +452,7 @@ export default function MatchScouting({
     // Local UI state (transient, not scouting data)
     const [currentZone, setCurrentZone] = useState<string | null>("traversal")
     const currentZoneRef = useRef<string | null>("traversal")
+    const dumpHoldRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
     // Score slider
     const [shot, setShot] = useState(0)
@@ -1080,6 +1081,76 @@ export default function MatchScouting({
                             )}
                             <button
                                 onPointerDown={(e) => {
+                                    e.stopPropagation()
+                                    const timer = setTimeout(() => {
+                                        const now = Date.now()
+                                        setActions((prev) => [
+                                            ...prev,
+                                            {
+                                                type: "outpostDump" as Actions["type"],
+                                                timestamp: matchStartTime > 0 ? now - matchStartTime : 0,
+                                                phase: matchPhase,
+                                                subPhase: subPhase?.phase ?? null,
+                                            } as Actions,
+                                        ])
+                                        setCurrentZone("outpostDump")
+                                        currentZoneRef.current = "outpostDump"
+                                        triggerFlash()
+                                        dumpHoldRef.current = null
+                                    }, 500)
+                                    dumpHoldRef.current = timer
+                                }}
+                                onPointerUp={() => {
+                                    if (dumpHoldRef.current) {
+                                        clearTimeout(dumpHoldRef.current)
+                                        dumpHoldRef.current = null
+                                    }
+                                }}
+                                onPointerLeave={() => {
+                                    if (dumpHoldRef.current) {
+                                        clearTimeout(dumpHoldRef.current)
+                                        dumpHoldRef.current = null
+                                    }
+                                }}
+                                className="absolute flex flex-col items-center justify-center rounded-lg transition-all duration-150 active:scale-95"
+                                style={{
+                                    left: `${(uiFlip ? zone.x2-0.03 : zone.x1+0.03) * 100}%`,
+                                    top: `${(uiFlip ? zone.y1 + 0.075: zone.y2-0.075) * 100}%`,
+                                    transform: "translate(-50%, -50%)",
+                                    width: "5.6%",
+                                    height: "11.2%",
+                                    background: isOutpostActive
+                                        ? "rgba(20, 184, 166, 0.45)"
+                                        : "rgba(39, 39, 42, 0.90)",
+                                    border: `2px solid ${isOutpostActive ? "#14b8a6" : "rgba(20, 184, 166, 0.6)"}`,
+                                    boxShadow: isOutpostActive
+                                        ? "0 0 15px #14b8a666, inset 0 0 16px #14b8a620"
+                                        : "0 0 6px #14b8a622",
+                                    backdropFilter: "blur(4px)",
+                                    zIndex: 20,
+                                }}
+                                title="Outpost Dump (hold)"
+                            >
+                                {/* Dump icon */}
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+                                     stroke={isOutpostActive ? "#14b8a6" : "rgba(94,234,212,0.85)"}
+                                     strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                    <path d="M3 6h18"/>
+                                    <path d="M8 6V4h8v2"/>
+                                    <rect x="5" y="6" width="14" height="14" rx="2"/>
+                                    <path d="M10 11v4M14 11v4"/>
+                                </svg>
+                                <span style={{
+                                    color: isOutpostActive ? "#14b8a6" : "rgba(94,234,212,0.85)",
+                                    fontSize: "0.55rem",
+                                    fontWeight: 700,
+                                    lineHeight: 1,
+                                    marginTop: 2,
+                                    letterSpacing: "0.02em",
+                                }}>DUMP</span>
+                            </button>
+                            <button
+                                onPointerDown={(e) => {
                                     // Stop this from bubbling to the parent handlePointerDown
                                     // so we don't get double handling. We handle everything here.
                                     e.stopPropagation()
@@ -1575,13 +1646,12 @@ export default function MatchScouting({
                             <div className="absolute left-[30%] right-[30%] h-[4px] bg-zinc-500/50 rounded-full" style={{top: "87.5%"}} />
 
                             <div
-                                className={`absolute left-1 right-1 h-10 rounded-xl transition-colors duration-100 flex items-center justify-center ${sliderActive
-                                    ? sliderY < 0.45
+                                className={`absolute left-1 right-1 h-10 rounded-xl transition-colors duration-100 flex items-center justify-center ${
+                                    sliderY < 0.45
                                         ? "bg-green-500 shadow-lg shadow-green-500/30"
                                         : sliderY > 0.55
                                             ? "bg-red-500 shadow-lg shadow-red-500/30"
-                                            : "bg-zinc-400"
-                                    : "bg-green-600"
+                                            : "bg-green-600"
                                 }`}
                                 style={{
                                     top: `${sliderY * 100}%`,
@@ -1677,13 +1747,12 @@ export default function MatchScouting({
                                 <div className="absolute left-[30%] right-[30%] h-[4px] bg-zinc-500/50 rounded-full" style={{top: "87.5%"}} />
 
                                 <div
-                                    className={`absolute left-1 right-1 h-10 rounded-xl transition-colors duration-100 flex items-center justify-center ${scoredSliderActive
-                                        ? scoredSliderY < 0.45
+                                    className={`absolute left-1 right-1 h-10 rounded-xl transition-colors duration-100 flex items-center justify-center ${
+                                        scoredSliderY < 0.45
                                             ? "bg-red-400 shadow-lg shadow-red-400/30"
                                             : scoredSliderY > 0.55
                                                 ? "bg-green-500 shadow-lg shadow-green-500/30"
-                                                : "bg-zinc-400"
-                                        : "bg-red-600"
+                                                : "bg-red-600"
                                     }`}
                                     style={{
                                         top: `${scoredSliderY * 100}%`,
