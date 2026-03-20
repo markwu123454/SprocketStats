@@ -55,7 +55,8 @@ export default function TeamDataPage() {
     return (
         <div className="min-h-screen w-screen bg-gray-50 flex flex-col">
             {/* Header */}
-            <header className="sticky top-0 z-10 flex-none border-b bg-white/90 backdrop-blur px-4 py-2 flex items-center justify-between h-14">
+            <header
+                className="sticky top-0 z-10 flex-none border-b bg-white/90 backdrop-blur px-4 py-2 flex items-center justify-between h-14">
                 <div className="flex items-center gap-3 min-w-0">
                     <img
                         src={logoPath}
@@ -66,14 +67,15 @@ export default function TeamDataPage() {
                     <div className="truncate font-semibold text-base">
                         #{teamNum} {teamName}
                     </div>
-                    <DataSearch teamNames={teamNames} permissions={permissions} />
+                    <DataSearch teamNames={teamNames} permissions={permissions}/>
+
                 </div>
 
                 <div className="flex items-center gap-6 text-sm text-gray-700">
                     <div className="flex flex-wrap items-center gap-x-6 gap-y-1 text-sm">
-                        <RankLabel label="Auto" value={ranking.auto} />
-                        <RankLabel label="Teleop" value={ranking.teleop} />
-                        <RankLabel label="Endgame" value={ranking.endgame} />
+                        <RankLabel label="Auto" value={ranking.auto}/>
+                        <RankLabel label="Teleop" value={ranking.teleop}/>
+                        <RankLabel label="Endgame" value={ranking.endgame}/>
                         <div className="flex items-center">
                             <span className="text-gray-500">RP: #</span>
                             <span className="font-bold text-gray-900">{ranking.rp ?? '-'}</span>
@@ -89,7 +91,9 @@ export default function TeamDataPage() {
                             <span className="text-gray-500">)</span>
                         </div>
                     </div>
-
+                    <a className="text-blue-600 text-xl underline transform-gpu"
+                       href="/glossary"
+                       data-discover="true">Glossary</a>
                     <div className="flex flex-wrap gap-1">
                         {tags.map((t: string) => (
                             <span
@@ -100,6 +104,7 @@ export default function TeamDataPage() {
                             </span>
                         ))}
                     </div>
+
                 </div>
             </header>
 
@@ -108,19 +113,19 @@ export default function TeamDataPage() {
                 <div className="mx-auto p-4">
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                         <Block title="Metrics Overview">
-                            <MetricsBlock data={data} permissions={permissions} />
+                            <MetricsBlock data={data} permissions={permissions}/>
                         </Block>
                         <Block title="RP Criteria">
-                            <RPCriteriaBlock data={data} permissions={permissions} teamNum={teamNum} />
+                            <RPCriteriaBlock data={data} permissions={permissions} teamNum={teamNum}/>
                         </Block>
                         <Block title="Match History">
-                            <MatchHistoryBlock data={data} permissions={permissions} />
+                            <MatchHistoryBlock data={data} permissions={permissions}/>
                         </Block>
                         <Block title="Scoring & Trends">
-                            <ScoringTrendsBlock data={data} permissions={permissions} />
+                            <ScoringTrendsBlock data={data} permissions={permissions}/>
                         </Block>
                         <Block title="Shot Heatmap" className="">
-                            <HeatmapBlock data={data} />
+                            <HeatmapBlock data={data}/>
                         </Block>
                     </div>
                 </div>
@@ -129,7 +134,11 @@ export default function TeamDataPage() {
     )
 }
 
-function Block({title, children, className = "h-[500px]"}: { title: string; children: React.ReactNode; className?: string }) {
+function Block({title, children, className = "h-[500px]"}: {
+    title: string;
+    children: React.ReactNode;
+    className?: string
+}) {
     return (
         <section className={`rounded-lg border bg-white shadow-sm flex flex-col overflow-hidden ${className}`}>
             <div className="border-b px-4 py-2 text-sm font-semibold text-gray-800 shrink-0">

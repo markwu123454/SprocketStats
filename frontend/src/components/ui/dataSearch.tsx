@@ -120,6 +120,14 @@ export default function DataSearch({
             });
         }
 
+        items.push({
+            id: "page-glossary",
+            type: "page",
+            label: "Glossary",
+            route: "/glossary",
+            keywords: ["glossary", "index", "dictionary", "lexicon", "qm", "f", "sf", "phase", "TBA", "SB", "Statbotics", ],
+        })
+
         return items;
     }, [safeTeamNames, safePermissions]);
 

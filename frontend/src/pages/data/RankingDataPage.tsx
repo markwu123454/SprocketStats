@@ -1,4 +1,4 @@
-import {useEffect, useMemo, useRef, useState} from "react";
+import React, {useEffect, useMemo, useRef, useState} from "react";
 import {
     AgGridReact, type AgGridReact as AgGridReactType
 } from "ag-grid-react";
@@ -396,6 +396,11 @@ export default function RankingData() {
                     teamNames={teamNames}
                     permissions={permissions}
                 />
+                <div className="ml-auto flex items-center">
+                    <a className="text-blue-600 text-xl underline transform-gpu font-normal"
+                       href="/glossary"
+                       data-discover="true">Glossary</a>
+                </div>
             </header>
 
             {/* Content */}

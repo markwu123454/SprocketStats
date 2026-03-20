@@ -1,5 +1,5 @@
 import React, {useEffect, useMemo, useState, useRef} from "react"
-import {useNavigate, useLocation} from "react-router-dom"
+import {useNavigate, useLocation, Link} from "react-router-dom"
 import {ChevronDown} from "lucide-react"
 
 import {useAuthSuccess, useGuestName, usePermissions, useLoading} from "@/components/wrappers/DataWrapper"
@@ -285,6 +285,16 @@ export default function GuestDataPage() {
                             You've been granted guest access as an alliance partner.
                             This portal provides synchronized scouting data to aid strategy planning.
                         </p>
+                        <div className="text-purple-300 mt-3 max-w-2xl text-center text-sm sm:text-base">
+                            We use some of our own terminology that you may not be familiar with.
+                            Refer to the{" "}
+                            <Link
+                                to={`/glossary`}
+                                className="text-purple-300 mt-3 max-w-2xl text-center italic text-sm sm:text-base hover:underline hover:text-purple-450"
+                            >
+                                glossary
+                            </Link> for definitions
+                        </div>
                     </header>
 
                     {/* SECTION 2 – Scrollable Data Grid */}

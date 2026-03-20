@@ -450,8 +450,8 @@ export default function MatchScouting({
         : null
 
     // Local UI state (transient, not scouting data)
-    const [currentZone, setCurrentZone] = useState<string | null>(null)
-    const currentZoneRef = useRef<string | null>(null)
+    const [currentZone, setCurrentZone] = useState<string | null>("traversal")
+    const currentZoneRef = useRef<string | null>("traversal")
 
     // Score slider
     const [shot, setShot] = useState(0)
@@ -920,8 +920,13 @@ export default function MatchScouting({
         lastSubPhaseRef.current = "auto"
         setSubStatus?.("autonomous")
         if (startPosition) {
-            setActions([{type: "starting", x: startPosition.x, y: startPosition.y}])
+            setActions([
+                {type: "starting", x: startPosition.x, y: startPosition.y},
+                {type: "traversal", timestamp: 0, phase: "auto", subPhase: "auto"},
+            ])
         }
+        setCurrentZone("traversal")
+        currentZoneRef.current = "traversal"
     }
 
     // ---------------------------------------------------------------------------
@@ -953,12 +958,38 @@ export default function MatchScouting({
     const showZones = matchPhase === "auto" || matchPhase === "between" || matchPhase === "teleop"
 
     // ---------------------------------------------------------------------------
+    // Revert hold-type zones to traversal when zones disappear (e.g. match ends)
+    // ---------------------------------------------------------------------------
+    const prevShowZonesRef = useRef(showZones)
+    useEffect(() => {
+        if (prevShowZonesRef.current && !showZones) {
+            if (currentZoneRef.current === "intake" || currentZoneRef.current === "passing") {
+                handleZoneClick("traversal")
+            }
+        }
+        prevShowZonesRef.current = showZones
+    }, [showZones, handleZoneClick])
+
+    // ---------------------------------------------------------------------------
     // Whether climb button should be shown (auto or endgame subphase)
     // ---------------------------------------------------------------------------
     const showClimb =
         matchPhase === "auto" ||
         (matchPhase === "teleop" && subPhase?.phase === "endgame") ||
         timerExpired
+
+    // ---------------------------------------------------------------------------
+    // Revert climb to traversal when climb button disappears (e.g. after auto)
+    // ---------------------------------------------------------------------------
+    const prevShowClimbRef = useRef(showClimb)
+    useEffect(() => {
+        if (prevShowClimbRef.current && !showClimb) {
+            if (currentZoneRef.current === "climb") {
+                handleZoneClick("traversal")
+            }
+        }
+        prevShowClimbRef.current = showClimb
+    }, [showClimb, handleZoneClick])
 
     // ---------------------------------------------------------------------------
     // Render: Field
@@ -1013,8 +1044,8 @@ export default function MatchScouting({
                                     }}
                                     className="absolute flex flex-col items-center justify-center rounded-lg transition-all duration-150 active:scale-95"
                                     style={{
-                                        left: `${(uiFlip ? zone.x2 : zone.x1+0.04) * 100}%`,
-                                        top: "53%",
+                                        left: `${(uiFlip ? zone.x2-0.04 : zone.x1+0.04) * 100}%`,
+                                        top: `${(uiFlip ? zone.y1 + 0.45: zone.y2-0.45) * 100}%`,
                                         transform: "translate(-50%, -50%)",
                                         width: "7.5%",
                                         height: "15%",
@@ -1100,27 +1131,28 @@ export default function MatchScouting({
                             bgActive: string
                             bgIdle: string
                             icon: React.ReactNode
+                            holdToActivate: boolean
                         }
 
                         const buttons: BtnConfig[] = [
                             {
-                                key: "traversal",
+                                key: "passing",
                                 rect: {
                                     x1: _FB_OX,
                                     y1: _FB_OY,
                                     x2: _FB_OX + _halfW - _halfGap / 2,
                                     y2: _FB_OY + _fullH,
                                 } as Rect,
-                                label: "Other",
-                                borderColor: "#a855f7",
-                                bgActive: "rgba(168, 85, 247, 0.25)",
+                                label: "Passing",
+                                borderColor: "#f59e0b",
+                                bgActive: "rgba(245, 158, 11, 0.25)",
                                 bgIdle: "rgba(39, 39, 42, 0.85)",
+                                holdToActivate: true,
                                 icon: (
                                     <svg width="28" height="28" viewBox="0 0 24 24" fill="none"
                                          stroke="currentColor" strokeWidth="2" strokeLinecap="round"
                                          strokeLinejoin="round">
-                                        <path d="M5 12h14"/>
-                                        <path d="M12 5l7 7-7 7"/>
+                                        <path d="M7 17l9.2-9.2M17 17V7H7"/>
                                     </svg>
                                 ),
                             },
@@ -1136,6 +1168,7 @@ export default function MatchScouting({
                                 borderColor: "#38bdf8",
                                 bgActive: "rgba(56, 189, 248, 0.25)",
                                 bgIdle: "rgba(39, 39, 42, 0.85)",
+                                holdToActivate: true,
                                 icon: (
                                     <svg width="28" height="28" viewBox="0 0 24 24" fill="none"
                                          stroke="currentColor" strokeWidth="2" strokeLinecap="round"
@@ -1149,38 +1182,55 @@ export default function MatchScouting({
                         ]
 
                         return buttons
-                    })().map(({key, rect, label, borderColor, bgActive, bgIdle, icon}) => {
+                    })().map(({key, rect, label, borderColor, bgActive, bgIdle, icon, holdToActivate}) => {
                         const displayed: Rect = uiFlip ? mirrorRect(rect) : rect
                         const left = displayed.x1
                         const top = displayed.y1
                         const width = displayed.x2 - displayed.x1
                         const height = displayed.y2 - displayed.y1
                         const isActive = currentZone === key
+
+                        const handleDown = (e: React.PointerEvent) => {
+                            e.stopPropagation()
+                            if (holdToActivate) {
+                                ;(e.target as HTMLElement).setPointerCapture?.(e.pointerId)
+                            }
+                            console.log(`[FieldButton] ${label} pressed | zone: ${key} | phase: ${matchPhase} | subPhase: ${subPhase?.phase ?? "none"} | time: ${matchElapsed}ms`)
+                            if (shot !== 0 && !shotPendingReset) {
+                                const now = Date.now()
+                                setActions((prev) => [
+                                    ...prev,
+                                    {
+                                        type: "score",
+                                        x: shootClickPos?.x ?? 0,
+                                        y: shootClickPos?.y ?? 0,
+                                        score: featureFlags.shotMadeSlider ? scored : 0,
+                                        shot: shot,
+                                        timestamp: matchStartTime > 0 ? now - matchStartTime : 0,
+                                        phase: matchPhase,
+                                        subPhase: subPhase?.phase ?? null,
+                                    },
+                                ])
+                                setShotEditHint(true)
+                            }
+                            setShotPendingReset(true)
+                            handleZoneClick(key)
+                        }
+
                         return (
                             <button
                                 key={key}
-                                onClick={() => {
-                                    console.log(`[FieldButton] ${label} clicked | zone: ${key} | phase: ${matchPhase} | subPhase: ${subPhase?.phase ?? "none"} | time: ${matchElapsed}ms`)
-                                    if (shot !== 0 && !shotPendingReset) {
-                                        const now = Date.now()
-                                        setActions((prev) => [
-                                            ...prev,
-                                            {
-                                                type: "score",
-                                                x: shootClickPos?.x ?? 0,
-                                                y: shootClickPos?.y ?? 0,
-                                                score: featureFlags.shotMadeSlider ? scored : 0,
-                                                shot: shot,
-                                                timestamp: matchStartTime > 0 ? now - matchStartTime : 0,
-                                                phase: matchPhase,
-                                                subPhase: subPhase?.phase ?? null,
-                                            },
-                                        ])
-                                        setShotEditHint(true)
-                                    }
-                                    setShotPendingReset(true)
-                                    handleZoneClick(key)
-                                }}
+                                onPointerDown={handleDown}
+                                {...(holdToActivate ? {
+                                    onPointerUp: () => {
+                                        handleZoneClick("traversal")
+                                    },
+                                    onPointerLeave: () => {
+                                        if (currentZoneRef.current === key) {
+                                            handleZoneClick("traversal")
+                                        }
+                                    },
+                                } : {})}
                                 className="absolute rounded-xl transition-all duration-200 flex flex-col items-center justify-center gap-1"
                                 style={{
                                     left: `${left * 100}%`,
