@@ -399,11 +399,12 @@ def compute_time_percentages(actions: list[ScoutingAction]) -> dict[str, float]:
     total_time = sum(durations.values())
 
     if total_time <= 0:
-        return {s: 0.0 for s in _STATE_LABELS}
+        return {}
 
     return {
-        state: round((dur / total_time) * 100, 2)
+        state: pct
         for state, dur in durations.items()
+        if (pct := round((dur / total_time) * 100, 2)) > 0
     }
 
 
@@ -523,6 +524,7 @@ def transform_event_data(raw: dict) -> dict:
             "Win Rate": f"{round(sum(1 for m in qual_matches if m['result'] == 'W') / n * 100)}%",
             "Qual Matches": len(qual_matches),
         }
+        fallback_metrics = {k: v for k, v in fallback_metrics.items() if v != 0 and v != "0%"}
 
         # Merge: fallback first, backend overwrites/extends
         # team_raw keys may be int (from run_calculation) or str (from JSON)
@@ -556,14 +558,15 @@ def transform_event_data(raw: dict) -> dict:
         ]
 
         # --- Score breakdown tree ---
+        breakdown_children = [
+            {"id": "auto", "label": "Auto", "value": float(fallback_metrics.get("Avg Auto", 0))},
+            {"id": "teleop", "label": "Teleop", "value": float(fallback_metrics.get("Avg Teleop", 0))},
+            {"id": "endgame", "label": "Endgame", "value": float(fallback_metrics.get("Avg Endgame", 0))},
+        ]
         breakdown = {
             "id": "total",
             "label": "Total Score",
-            "children": [
-                {"id": "auto", "label": "Auto", "value": float(fallback_metrics.get("Avg Auto", 0))},
-                {"id": "teleop", "label": "Teleop", "value": float(fallback_metrics.get("Avg Teleop", 0))},
-                {"id": "endgame", "label": "Endgame", "value": float(fallback_metrics.get("Avg Endgame", 0))},
-            ],
+            "children": [c for c in breakdown_children if c["value"] > 0],
         }
 
         # --- Ranking (use backend values, fall back to 0) ---
@@ -2176,6 +2179,34 @@ def phase3_build_rankings(
         ranking["rp_pred"] = rp_predictions.get("rp_pred", {})
         ranking["rp_avg_pred"] = rp_predictions.get("rp_avg_pred", {})
 
+        # Convert specific metrics to Standard Competition Rank (1st, 1st, 3rd, 4th)
+        keys_to_rank = ["auto", "teleop", "endgame", "rp", "rp_rank", "rp_pred", "rp_avg", "rp_avg_pred"]
+        for k in keys_to_rank:
+            if k in ranking:
+                metric_dict = ranking[k]
+                # Filter out None values and sort descending
+                sorted_items = sorted(
+                    [(tn, val) for tn, val in metric_dict.items() if val is not None],
+                    key=lambda x: x[1], 
+                    reverse=True
+                )
+                ranks = {}
+                current_rank = 1
+                current_val = None
+                for idx, (tn, val) in enumerate(sorted_items):
+                    if val != current_val:
+                        current_rank = idx + 1
+                        current_val = val
+                    ranks[tn] = current_rank
+                
+                # Backfill any teams that were None with a default max rank
+                max_rank = len(sorted_items) + 1
+                for tn in metric_dict.keys():
+                    if tn not in ranks:
+                        ranks[tn] = max_rank
+                        
+                ranking[k] = ranks
+
         log.stat("Teams ranked", len(all_teams))
         log.stat("Ranking dimensions", len(ranking))
 
@@ -2750,24 +2781,14 @@ def one_var_stats(data: list[float]) -> dict:
     Calculate descriptive statistics for a list of numbers.
     """
     if not data:
-        return {
-            "n": 0,
-            "mean": None,
-            "median": None,
-            "std_dev": None,
-            "min": None,
-            "max": None,
-            "q1": None,
-            "q3": None,
-            "iqr": None
-        }
+        return {}
 
     n = len(data)
 
     q1 = statistics.quantiles(data, n=4)[0] if n >= 4 else None
     q3 = statistics.quantiles(data, n=4)[2] if n >= 4 else None
 
-    return {
+    res = {
         "n": n,
         "mean": statistics.mean(data),
         "median": statistics.median(data),
@@ -2778,6 +2799,7 @@ def one_var_stats(data: list[float]) -> dict:
         "q3": q3,
         "iqr": (q3 - q1) if (q1 is not None and q3 is not None) else None,
     }
+    return {k: v for k, v in res.items() if v is not None and v != 0}
 
 
 def prob_sum1_greater_sum2(

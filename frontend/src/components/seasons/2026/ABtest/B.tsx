@@ -452,7 +452,7 @@ export default function MatchScouting({
     // Local UI state (transient, not scouting data)
     const [currentZone, setCurrentZone] = useState<string | null>("traversal")
     const currentZoneRef = useRef<string | null>("traversal")
-    const dumpHoldRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
 
     // Score slider
     const [shot, setShot] = useState(0)
@@ -1037,11 +1037,35 @@ export default function MatchScouting({
                                     onPointerDown={(e) => {
                                         // Prevent shooting zone drag from hijacking this button
                                         e.stopPropagation()
-                                    }}
-                                    onClick={(e) => {
-                                        e.stopPropagation()
+                                        ;(e.target as HTMLElement).setPointerCapture?.(e.pointerId)
+                                        console.log(`[ClimbButton] pressed | zone: climb | phase: ${matchPhase} | subPhase: ${subPhase?.phase ?? "none"} | time: ${matchElapsed}ms`)
+                                        if (shot !== 0 && !shotPendingReset) {
+                                            const now = Date.now()
+                                            setActions((prev) => [
+                                                ...prev,
+                                                {
+                                                    type: "score",
+                                                    x: shootClickPos?.x ?? 0,
+                                                    y: shootClickPos?.y ?? 0,
+                                                    score: featureFlags.shotMadeSlider ? scored : 0,
+                                                    shot: shot,
+                                                    timestamp: matchStartTime > 0 ? now - matchStartTime : 0,
+                                                    phase: matchPhase,
+                                                    subPhase: subPhase?.phase ?? null,
+                                                },
+                                            ])
+                                            setShotEditHint(true)
+                                        }
+                                        setShotPendingReset(true)
                                         handleZoneClick("climb")
-                                        triggerFlash()
+                                    }}
+                                    onPointerUp={() => {
+                                        handleZoneClick("traversal")
+                                    }}
+                                    onPointerLeave={() => {
+                                        if (currentZoneRef.current === "climb") {
+                                            handleZoneClick("traversal")
+                                        }
                                     }}
                                     className="absolute flex flex-col items-center justify-center rounded-lg transition-all duration-150 active:scale-95"
                                     style={{
@@ -1082,34 +1106,26 @@ export default function MatchScouting({
                             <button
                                 onPointerDown={(e) => {
                                     e.stopPropagation()
-                                    const timer = setTimeout(() => {
-                                        const now = Date.now()
-                                        setActions((prev) => [
-                                            ...prev,
-                                            {
-                                                type: "outpostDump" as Actions["type"],
-                                                timestamp: matchStartTime > 0 ? now - matchStartTime : 0,
-                                                phase: matchPhase,
-                                                subPhase: subPhase?.phase ?? null,
-                                            } as Actions,
-                                        ])
-                                        setCurrentZone("outpostDump")
-                                        currentZoneRef.current = "outpostDump"
-                                        triggerFlash()
-                                        dumpHoldRef.current = null
-                                    }, 500)
-                                    dumpHoldRef.current = timer
+                                    ;(e.target as HTMLElement).setPointerCapture?.(e.pointerId)
+                                    const now = Date.now()
+                                    setActions((prev) => [
+                                        ...prev,
+                                        {
+                                            type: "outpostDump" as Actions["type"],
+                                            timestamp: matchStartTime > 0 ? now - matchStartTime : 0,
+                                            phase: matchPhase,
+                                            subPhase: subPhase?.phase ?? null,
+                                        } as Actions,
+                                    ])
+                                    setCurrentZone("outpostDump")
+                                    currentZoneRef.current = "outpostDump"
                                 }}
                                 onPointerUp={() => {
-                                    if (dumpHoldRef.current) {
-                                        clearTimeout(dumpHoldRef.current)
-                                        dumpHoldRef.current = null
-                                    }
+                                    handleZoneClick("traversal")
                                 }}
                                 onPointerLeave={() => {
-                                    if (dumpHoldRef.current) {
-                                        clearTimeout(dumpHoldRef.current)
-                                        dumpHoldRef.current = null
+                                    if (currentZoneRef.current === "outpostDump") {
+                                        handleZoneClick("traversal")
                                     }
                                 }}
                                 className="absolute flex flex-col items-center justify-center rounded-lg transition-all duration-150 active:scale-95"
@@ -1129,7 +1145,7 @@ export default function MatchScouting({
                                     backdropFilter: "blur(4px)",
                                     zIndex: 20,
                                 }}
-                                title="Outpost Dump (hold)"
+                                title="Outpost Dump"
                             >
                                 {/* Dump icon */}
                                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none"

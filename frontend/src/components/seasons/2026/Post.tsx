@@ -33,9 +33,6 @@ function SectionHeader({children}: { children: React.ReactNode }) {
 // Component
 // ---------------------------------------------------------------------------
 
-// --- Reusable Sub-components (SliderField, ToggleChip, SectionHeader as defined in your snippet) ---
-// ... [Keep your existing SliderField, ToggleChip, and SectionHeader helpers here] ...
-
 export default function PostMatch({data, setData, setCanSubmit}: {
     data: MatchScoutingData
     setData: React.Dispatch<React.SetStateAction<MatchScoutingData>>
@@ -79,15 +76,13 @@ export default function PostMatch({data, setData, setCanSubmit}: {
 
     return (
         <div className="p-6 w-full h-full mx-auto space-y-6">
-            {/*<div className="text-2xl font-bold border-b border-neutral-800 pb-4">Post-Match Scouting</div>*/}
-
             {/* 2x2 Grid Container */}
             <div className="flex flex-col lg:flex-row gap-8 w-full items-start">
                 <div className="flex-2 w-full space-y-6">
 
-                    {/* ---- SECTION 1: PERFORMANCE & ROLE ---- */}
+                    {/* ---- SECTION 1: PERFORMANCE ---- */}
                     <div className="bg-neutral-900/50 px-6 pb-6 rounded-2xl border border-neutral-800 space-y-2">
-                        <SectionHeader>Performance & Role</SectionHeader>
+                        <SectionHeader>Performance</SectionHeader>
                         <RatingSlider
                             title="Offensive Skill"
                             value={pm.skill}
@@ -114,19 +109,62 @@ export default function PostMatch({data, setData, setCanSubmit}: {
                             leftLabel="Slow"
                             rightLabel="Fast"
                         />
-
-                        <div className="flex flex-wrap gap-2 pt-2">
-                            {["Shooter", "Support", "Defense", "Generalist", "Useless"].map((role) => (
-                                <ToggleChip
-                                    key={role}
-                                    label={role}
-                                    active={pm.role === role}
-                                    onToggle={() => update("role", role as any)}
-                                />
-                            ))}
-                        </div>
-
                     </div>
+
+                    {/* ---- SECTION 1B: ROBOT TYPE ---- */}
+                    <div className="bg-neutral-900/50 px-6 pb-6 rounded-2xl border border-neutral-800">
+                        <SectionHeader>Robot Type</SectionHeader>
+
+                        <div className="flex flex-col gap-1">
+                            {Object.entries({
+                                "Shooter": "This robot is good at scoring fuel in the hub",
+                                "Intake": "This robot passes fuel to their alliance or their human players",
+                                "Defense": "This robot spends the majority of it's time on the opposing alliance's side",
+                                "Generalist": "This robot fits two or more of the types above",
+                                "Useless": "This robot actively does not participate in the match",
+                            }).map(([key, description]) => {
+                                const isActive = pm.role === key;
+                                return (
+                                    <div
+                                        key={key}
+                                        onClick={() => update("role", key as any)}
+                                        className={`flex items-center justify-between p-3 rounded-xl border cursor-pointer transition-all group ${isActive
+                                            ? "bg-blue-950/40 border-blue-500 shadow-[inset_0_0_10px_rgba(59,130,246,0.2)]"
+                                            : "bg-neutral-900/40 border-neutral-800/50 hover:bg-neutral-800 hover:border-neutral-600"}`}
+                                    >
+                                        <div className="w-38 shrink-0">
+                                            <span
+                                                className={`flex items-center text-xs font-bold uppercase tracking-wide ${isActive ? 'text-blue-400' : 'text-neutral-300'}`}>
+                                                {key.replace("_", " ")}
+                                            </span>
+                                        </div>
+
+                                        <span
+                                            className={`grow text-sm transition-colors ${isActive ? 'text-blue-200/60' : 'text-neutral-500'}`}>
+                                            {description}
+                                        </span>
+
+                                        <div className="shrink-0 ml-4">
+                                            <div className={`w-6 h-6 rounded-md border-2 flex items-center justify-center transition-all
+                                            ${isActive
+                                                ? "bg-blue-800 border-blue-500 shadow-[0_0_15px_rgba(59,130,246,0.5)]"
+                                                : "border-neutral-700 bg-neutral-950 group-hover:border-neutral-500"}`}
+                                            >
+                                                {isActive && (
+                                                    <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24"
+                                                         stroke="currentColor" strokeWidth={4}>
+                                                        <path strokeLinecap="round" strokeLinejoin="round"
+                                                              d="M5 13l4 4L19 7"/>
+                                                    </svg>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+
                     {/* ---- SECTION 3: FIELD & CLIMB ---- */}
                     <div className="bg-neutral-900/50 px-6 pb-6 rounded-2xl border border-neutral-800 space-y-4">
                         <SectionHeader>Field Positioning</SectionHeader>
@@ -176,7 +214,6 @@ export default function PostMatch({data, setData, setCanSubmit}: {
                             </div>
                         </div>
                     </div>
-
                 </div>
 
                 <div className="flex-3 lg:w-8xl space-y-6">
@@ -196,16 +233,15 @@ export default function PostMatch({data, setData, setCanSubmit}: {
                                 failed_auto: "Robot moved during Auto but missed its targets or crashed into something",
                                 other: "Something went wrong that doesn't fit the categories above"
                             }).map(([key, description]) => {
-                                const isActive = (pm.faults)[key];
+                                const isActive = (pm.faults)[key as keyof typeof pm.faults];
                                 return (
                                     <div
                                         key={key}
-                                        onClick={() => toggleNested("faults", key)}
+                                        onClick={() => toggleNested("faults", key as any)}
                                         className={`flex items-center justify-between p-3 rounded-xl border cursor-pointer transition-all group ${isActive
                                             ? "bg-red-950/40 border-red-500 shadow-[inset_0_0_10px_rgba(220,38,38,0.2)]"
                                             : "bg-neutral-900/40 border-neutral-800/50 hover:bg-neutral-800 hover:border-neutral-600"}`}
                                     >
-                                        {/* Left: Title */}
                                         <div className="w-38 shrink-0">
                                             <span
                                                 className={`flex items-center text-xs font-bold uppercase tracking-wide ${isActive ? 'text-red-400' : 'text-neutral-300'}`}>
@@ -213,13 +249,11 @@ export default function PostMatch({data, setData, setCanSubmit}: {
                                             </span>
                                         </div>
 
-                                        {/* Middle: Observable Consequence */}
                                         <span
                                             className={`grow text-sm transition-colors ${isActive ? 'text-red-200/60' : 'text-neutral-500'}`}>
                                             {description}
                                         </span>
 
-                                        {/* Right: Checkbox */}
                                         <div className="shrink-0 ml-4">
                                             <div className={`w-6 h-6 rounded-md border-2 flex items-center justify-center transition-all
                                             ${isActive
@@ -247,7 +281,6 @@ export default function PostMatch({data, setData, setCanSubmit}: {
                         <div className="flex justify-between items-center mb-2">
                             <SectionHeader>Scouter Notes</SectionHeader>
 
-                            {/* Button styled exactly like Robot Faults */}
                             <button
                                 type="button"
                                 onClick={() => update("messed_up", !pm.messed_up)}
@@ -288,7 +321,6 @@ export default function PostMatch({data, setData, setCanSubmit}: {
                         />
                     </div>
                 </div>
-
             </div>
         </div>
     )

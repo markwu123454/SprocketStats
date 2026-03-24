@@ -1,5 +1,5 @@
 import React, {useState, useEffect} from "react";
-import {ChevronDown, Book, AlertTriangle, Wrench, Monitor, Clock, ArrowLeft} from "lucide-react";
+import {ChevronDown, Book, AlertTriangle, Clock, ArrowLeft, Bot} from "lucide-react";
 import {Link} from "react-router-dom";
 
 function Accordion({title, icon: Icon, children}: { title: string, icon: any, children: React.ReactNode }) {
@@ -12,7 +12,8 @@ function Accordion({title, icon: Icon, children}: { title: string, icon: any, ch
                 onClick={() => setIsOpen(!isOpen)}
                 className="w-full flex items-center justify-between p-4 text-left focus:outline-none hover:bg-white/5 transition-colors group"
             >
-                <div className="flex items-center gap-3 font-semibold text-lg group-hover:translate-x-1 transition-transform">
+                <div
+                    className="flex items-center gap-3 font-semibold text-lg group-hover:translate-x-1 transition-transform">
                     <Icon className="w-5 h-5 opacity-80 group-hover:opacity-100"/>
                     {title}
                 </div>
@@ -105,6 +106,14 @@ export default function GlossaryPage() {
                     <Term term="Failed Auto"
                           definition="Robot has an autonomous mode but it's obvious it isn't working as intended."/>
                     <Term term="Other" definition="Any other fault not categorized above."/>
+                </Accordion>
+
+                <Accordion title="Robot Types" icon={Bot}>
+                    <Term term="Shooter" definition="This robot is good at scoring fuel in the hub"/>
+                    <Term term="Intake" definition="This robot passes fuel to their alliance or their human players"/>
+                    <Term term="Defense" definition="This robot spends the majority of it's time on the opposing alliance's side"/>
+                    <Term term="Generalist" definition="This robot fits two or more of the types above"/>
+                    <Term term="Useless" definition="This robot actively does not participate in the match"/>
                 </Accordion>
             </div>
         </div>

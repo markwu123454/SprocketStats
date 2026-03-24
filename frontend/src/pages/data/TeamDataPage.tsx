@@ -85,9 +85,9 @@ export default function TeamDataPage() {
                         </div>
                         <div className="flex items-center">
                             <span className="text-gray-500">Avg RP:&nbsp;</span>
-                            <span className="font-bold text-gray-900">{ranking.rp_avg?.toFixed(2) ?? '-'}</span>
+                            <span className="font-bold text-gray-900">{ranking.rp_avg?.toFixed(0) ?? '-'}</span>
                             <span className="text-gray-500">(pred:&nbsp;</span>
-                            <span className="font-bold text-gray-900">{ranking.rp_avg_pred?.toFixed(2) ?? '-'}</span>
+                            <span className="font-bold text-gray-900">{ranking.rp_avg_pred?.toFixed(0) ?? '-'}</span>
                             <span className="text-gray-500">)</span>
                         </div>
                     </div>

@@ -75,6 +75,13 @@ export type IntakeAction = {
     subPhase: SubPhaseName | null
 }
 
+export type DumpAction = {
+    type: "dump"
+    timestamp: number
+    phase: MatchPhase
+    subPhase: SubPhaseName | null
+}
+
 export type Actions =
     | StartingAction
     | ScoreAction
@@ -84,6 +91,7 @@ export type Actions =
     | TraversalAction
     | IdleAction
     | IntakeAction
+    | DumpAction
 
 // ---------------------------------------------------------------------------
 // Match Scouting Data Structure
