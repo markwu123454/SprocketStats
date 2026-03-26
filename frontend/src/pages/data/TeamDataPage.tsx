@@ -91,9 +91,6 @@ export default function TeamDataPage() {
                             <span className="text-gray-500">)</span>
                         </div>
                     </div>
-                    <a className="text-blue-600 text-xl underline transform-gpu"
-                       href="/glossary"
-                       data-discover="true">Glossary</a>
                     <div className="flex flex-wrap gap-1">
                         {tags.map((t: string) => (
                             <span

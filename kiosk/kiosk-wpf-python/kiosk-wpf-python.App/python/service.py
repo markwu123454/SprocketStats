@@ -501,15 +501,17 @@ async def initialize_event(event_key, init_passwords=True, init_matches=True):
                 for team_number, info in data.items():
                     await conn.execute(
                         """
-                        INSERT INTO guests (password, name, permissions)
-                        VALUES ($1, $2, $3)
-                        ON CONFLICT (password) DO UPDATE
-                            SET name = EXCLUDED.name,
-                                permissions = EXCLUDED.permissions
+                        INSERT INTO guests (password, name, permissions, event_key)
+                        VALUES ($1, $2, $3, $4)
+                            ON CONFLICT (password) DO UPDATE
+                                                          SET name = EXCLUDED.name,
+                                                          permissions = EXCLUDED.permissions,
+                                                          event_key = EXCLUDED.event_key
                         """,
                         info["password"],
                         info["name"],
                         info["permissions"],
+                        event_key,
                     )
                     guest_count += 1
                 log.stat("Guests upserted", guest_count)

@@ -1032,13 +1032,81 @@ export default function MatchScouting({
 
                         return (
                             <>
-                            {showClimb && (
+                                {showClimb && (
+                                    <button
+                                        onPointerDown={(e) => {
+                                            // Prevent shooting zone drag from hijacking this button
+                                            e.stopPropagation()
+                                            ;(e.target as HTMLElement).setPointerCapture?.(e.pointerId)
+                                            console.log(`[ClimbButton] pressed | zone: climb | phase: ${matchPhase} | subPhase: ${subPhase?.phase ?? "none"} | time: ${matchElapsed}ms`)
+                                            if (shot !== 0 && !shotPendingReset) {
+                                                const now = Date.now()
+                                                setActions((prev) => [
+                                                    ...prev,
+                                                    {
+                                                        type: "score",
+                                                        x: shootClickPos?.x ?? 0,
+                                                        y: shootClickPos?.y ?? 0,
+                                                        score: featureFlags.shotMadeSlider ? scored : 0,
+                                                        shot: shot,
+                                                        timestamp: matchStartTime > 0 ? now - matchStartTime : 0,
+                                                        phase: matchPhase,
+                                                        subPhase: subPhase?.phase ?? null,
+                                                    },
+                                                ])
+                                                setShotEditHint(true)
+                                            }
+                                            setShotPendingReset(true)
+                                            handleZoneClick("climb")
+                                        }}
+                                        onPointerUp={() => {
+                                            handleZoneClick("traversal")
+                                        }}
+                                        onPointerLeave={() => {
+                                            if (currentZoneRef.current === "climb") {
+                                                handleZoneClick("traversal")
+                                            }
+                                        }}
+                                        className="absolute flex flex-col items-center justify-center rounded-lg transition-all duration-150"
+                                        style={{
+                                            left: `${(uiFlip ? zone.x2 - 0.04 : zone.x1 + 0.04) * 100}%`,
+                                            top: `${(uiFlip ? zone.y1 + 0.45 : zone.y2 - 0.45) * 100}%`,
+                                            transform: "translate(-50%, -50%)",
+                                            width: "7.5%",
+                                            height: "15%",
+                                            background: currentZone === "climb"
+                                                ? "rgba(251, 146, 60, 0.45)"
+                                                : "rgba(39, 39, 42, 0.90)",
+                                            border: `2px solid ${currentZone === "climb" ? "#fb923c" : "rgba(251, 146, 60, 0.6)"}`,
+                                            boxShadow: currentZone === "climb"
+                                                ? "0 0 15px #fb923c66, inset 0 0 16px #fb923c20"
+                                                : "0 0 6px #fb923c22",
+                                            backdropFilter: "blur(4px)",
+                                            zIndex: 30,
+                                        }}
+                                        title="Climb"
+                                    >
+                                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none"
+                                             stroke={currentZone === "climb" ? "#fb923c" : "rgba(251, 146, 60, 0.85)"}
+                                             strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                            <path d="M12 17V3"/>
+                                            <path d="M7 8l5-5 5 5"/>
+                                            <path d="M4 21h16"/>
+                                        </svg>
+                                        <span style={{
+                                            color: currentZone === "climb" ? "#fb923c" : "rgba(251, 146, 60, 0.85)",
+                                            fontSize: "0.55rem",
+                                            fontWeight: 800,
+                                            lineHeight: 1,
+                                            marginTop: 2,
+                                            letterSpacing: "0.02em",
+                                        }}>Climb</span>
+                                    </button>
+                                )}
                                 <button
                                     onPointerDown={(e) => {
-                                        // Prevent shooting zone drag from hijacking this button
                                         e.stopPropagation()
                                         ;(e.target as HTMLElement).setPointerCapture?.(e.pointerId)
-                                        console.log(`[ClimbButton] pressed | zone: climb | phase: ${matchPhase} | subPhase: ${subPhase?.phase ?? "none"} | time: ${matchElapsed}ms`)
                                         if (shot !== 0 && !shotPendingReset) {
                                             const now = Date.now()
                                             setActions((prev) => [
@@ -1057,147 +1125,96 @@ export default function MatchScouting({
                                             setShotEditHint(true)
                                         }
                                         setShotPendingReset(true)
-                                        handleZoneClick("climb")
+                                        const now = Date.now()
+                                        setActions((prev) => [
+                                            ...prev,
+                                            {
+                                                type: "outpostDump" as Actions["type"],
+                                                timestamp: matchStartTime > 0 ? now - matchStartTime : 0,
+                                                phase: matchPhase,
+                                                subPhase: subPhase?.phase ?? null,
+                                            } as Actions,
+                                        ])
+                                        handleZoneClick("outpostDump")
                                     }}
                                     onPointerUp={() => {
                                         handleZoneClick("traversal")
                                     }}
                                     onPointerLeave={() => {
-                                        if (currentZoneRef.current === "climb") {
+                                        if (currentZoneRef.current === "outpostDump") {
                                             handleZoneClick("traversal")
                                         }
                                     }}
-                                    className="absolute flex flex-col items-center justify-center rounded-lg transition-all duration-150 active:scale-95"
+                                    className="absolute flex flex-col items-center justify-center rounded-lg transition-all duration-150"
                                     style={{
-                                        left: `${(uiFlip ? zone.x2-0.04 : zone.x1+0.04) * 100}%`,
-                                        top: `${(uiFlip ? zone.y1 + 0.45: zone.y2-0.45) * 100}%`,
+                                        left: `${(uiFlip ? zone.x2 - 0.03 : zone.x1 + 0.03) * 100}%`,
+                                        top: `${(uiFlip ? zone.y1 + 0.075 : zone.y2 - 0.075) * 100}%`,
                                         transform: "translate(-50%, -50%)",
-                                        width: "7.5%",
-                                        height: "15%",
-                                        background: currentZone === "climb"
-                                            ? "rgba(251, 146, 60, 0.45)"
+                                        width: "5.6%",
+                                        height: "11.2%",
+                                        background: isOutpostActive
+                                            ? "rgba(20, 184, 166, 0.45)"
                                             : "rgba(39, 39, 42, 0.90)",
-                                        border: `2px solid ${currentZone === "climb" ? "#fb923c" : "rgba(251, 146, 60, 0.6)"}`,
-                                        boxShadow: currentZone === "climb"
-                                            ? "0 0 15px #fb923c66, inset 0 0 16px #fb923c20"
-                                            : "0 0 6px #fb923c22",
+                                        border: `2px solid ${isOutpostActive ? "#14b8a6" : "rgba(20, 184, 166, 0.6)"}`,
+                                        boxShadow: isOutpostActive
+                                            ? "0 0 15px #14b8a666, inset 0 0 16px #14b8a620"
+                                            : "0 0 6px #14b8a622",
                                         backdropFilter: "blur(4px)",
-                                        zIndex: 30,
+                                        zIndex: 20,
                                     }}
-                                    title="Climb"
+                                    title="Outpost Dump"
                                 >
-                                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none"
-                                         stroke={currentZone === "climb" ? "#fb923c" : "rgba(251, 146, 60, 0.85)"}
+                                    {/* Dump icon */}
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+                                         stroke={isOutpostActive ? "#14b8a6" : "rgba(94,234,212,0.85)"}
                                          strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                                        <path d="M12 17V3"/>
-                                        <path d="M7 8l5-5 5 5"/>
-                                        <path d="M4 21h16"/>
+                                        <path d="M3 6h18"/>
+                                        <path d="M8 6V4h8v2"/>
+                                        <rect x="5" y="6" width="14" height="14" rx="2"/>
+                                        <path d="M10 11v4M14 11v4"/>
                                     </svg>
                                     <span style={{
-                                        color: currentZone === "climb" ? "#fb923c" : "rgba(251, 146, 60, 0.85)",
+                                        color: isOutpostActive ? "#14b8a6" : "rgba(94,234,212,0.85)",
                                         fontSize: "0.55rem",
-                                        fontWeight: 800,
+                                        fontWeight: 700,
                                         lineHeight: 1,
                                         marginTop: 2,
                                         letterSpacing: "0.02em",
-                                    }}>Climb</span>
+                                    }}>DUMP</span>
                                 </button>
-                            )}
-                            <button
-                                onPointerDown={(e) => {
-                                    e.stopPropagation()
-                                    ;(e.target as HTMLElement).setPointerCapture?.(e.pointerId)
-                                    const now = Date.now()
-                                    setActions((prev) => [
-                                        ...prev,
-                                        {
-                                            type: "outpostDump" as Actions["type"],
-                                            timestamp: matchStartTime > 0 ? now - matchStartTime : 0,
-                                            phase: matchPhase,
-                                            subPhase: subPhase?.phase ?? null,
-                                        } as Actions,
-                                    ])
-                                    setCurrentZone("outpostDump")
-                                    currentZoneRef.current = "outpostDump"
-                                }}
-                                onPointerUp={() => {
-                                    handleZoneClick("traversal")
-                                }}
-                                onPointerLeave={() => {
-                                    if (currentZoneRef.current === "outpostDump") {
-                                        handleZoneClick("traversal")
-                                    }
-                                }}
-                                className="absolute flex flex-col items-center justify-center rounded-lg transition-all duration-150 active:scale-95"
-                                style={{
-                                    left: `${(uiFlip ? zone.x2-0.03 : zone.x1+0.03) * 100}%`,
-                                    top: `${(uiFlip ? zone.y1 + 0.075: zone.y2-0.075) * 100}%`,
-                                    transform: "translate(-50%, -50%)",
-                                    width: "5.6%",
-                                    height: "11.2%",
-                                    background: isOutpostActive
-                                        ? "rgba(20, 184, 166, 0.45)"
-                                        : "rgba(39, 39, 42, 0.90)",
-                                    border: `2px solid ${isOutpostActive ? "#14b8a6" : "rgba(20, 184, 166, 0.6)"}`,
-                                    boxShadow: isOutpostActive
-                                        ? "0 0 15px #14b8a666, inset 0 0 16px #14b8a620"
-                                        : "0 0 6px #14b8a622",
-                                    backdropFilter: "blur(4px)",
-                                    zIndex: 20,
-                                }}
-                                title="Outpost Dump"
-                            >
-                                {/* Dump icon */}
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
-                                     stroke={isOutpostActive ? "#14b8a6" : "rgba(94,234,212,0.85)"}
-                                     strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                                    <path d="M3 6h18"/>
-                                    <path d="M8 6V4h8v2"/>
-                                    <rect x="5" y="6" width="14" height="14" rx="2"/>
-                                    <path d="M10 11v4M14 11v4"/>
-                                </svg>
-                                <span style={{
-                                    color: isOutpostActive ? "#14b8a6" : "rgba(94,234,212,0.85)",
-                                    fontSize: "0.55rem",
-                                    fontWeight: 700,
-                                    lineHeight: 1,
-                                    marginTop: 2,
-                                    letterSpacing: "0.02em",
-                                }}>DUMP</span>
-                            </button>
-                            <button
-                                onPointerDown={(e) => {
-                                    // Stop this from bubbling to the parent handlePointerDown
-                                    // so we don't get double handling. We handle everything here.
-                                    e.stopPropagation()
-                                    if (shotPendingReset) {
-                                        setShot(0)
-                                        setScored(0)
-                                        setShotPendingReset(false)
-                                        setShotEditHint(false)
-                                    }
-                                    if (!fieldRef.current) return
-                                    const rect = fieldRef.current.getBoundingClientRect()
-                                    let nx = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width))
-                                    let ny = Math.min(1, Math.max(0, (e.clientY - rect.top) / rect.height))
-                                    if (flip) {
-                                        nx = 1 - nx;
-                                        ny = 1 - ny
-                                    }
-                                    setShootClickPos({x: nx, y: ny})
-                                    handleZoneClick("shooting")
-                                    setDraggingShootRobot(true)
-                                    ;(e.target as HTMLElement).setPointerCapture?.(e.pointerId)
-                                }}
-                                className={`absolute rounded transition-all duration-200 border-2 ${isActive ? "bg-green-500/15 border-green-500" : "bg-transparent border-zinc-500"}`}
-                                style={{
-                                    left: `${left * 100}%`,
-                                    top: `${top * 100}%`,
-                                    width: `${width * 100}%`,
-                                    height: `${height * 100}%`,
-                                    zIndex: 10,
-                                }}
-                            />
+                                <button
+                                    onPointerDown={(e) => {
+                                        // Stop this from bubbling to the parent handlePointerDown
+                                        // so we don't get double handling. We handle everything here.
+                                        e.stopPropagation()
+                                        if (shotPendingReset) {
+                                            setShot(0)
+                                            setScored(0)
+                                            setShotPendingReset(false)
+                                            setShotEditHint(false)
+                                        }
+                                        if (!fieldRef.current) return
+                                        const rect = fieldRef.current.getBoundingClientRect()
+                                        let nx = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width))
+                                        let ny = Math.min(1, Math.max(0, (e.clientY - rect.top) / rect.height))
+                                        if (flip) {
+                                            nx = 1 - nx;
+                                            ny = 1 - ny
+                                        }
+                                        setShootClickPos({x: nx, y: ny})
+                                        handleZoneClick("shooting")
+                                        setDraggingShootRobot(true)
+                                        ;(e.target as HTMLElement).setPointerCapture?.(e.pointerId)
+                                    }}
+                                    className={`absolute rounded transition-all duration-200 border-2 ${isActive ? "bg-green-500/15 border-green-500" : "bg-transparent border-zinc-500"}`}
+                                    style={{
+                                        left: `${left * 100}%`,
+                                        top: `${top * 100}%`,
+                                        width: `${width * 100}%`,
+                                        height: `${height * 100}%`,
+                                        zIndex: 10,
+                                    }}
+                                />
                             </>
                         )
                     })()}
@@ -1207,8 +1224,8 @@ export default function MatchScouting({
                         // Full grid dimensions
                         const _fullW = _FB_BTN_W * 3 + _FB_GAP_X * 2
                         const _fullH = _FB_BTN_H * 2 + _FB_GAP_Y
-                        const _halfW = _fullW / 2
-                        const _halfGap = _FB_GAP_X
+                        const _thirdW = _fullW / 3;
+                        const _thirdGap = _FB_GAP_X / 2;
 
                         type BtnConfig = {
                             key: string
@@ -1223,11 +1240,34 @@ export default function MatchScouting({
 
                         const buttons: BtnConfig[] = [
                             {
-                                key: "passing",
+                                key: "intake",
                                 rect: {
                                     x1: _FB_OX,
                                     y1: _FB_OY,
-                                    x2: _FB_OX + _halfW - _halfGap / 2,
+                                    x2: _FB_OX + _thirdW - _thirdGap / 2,
+                                    y2: _FB_OY + _fullH,
+                                } as Rect,
+                                label: "Intake",
+                                borderColor: "#38bdf8",
+                                bgActive: "rgba(56, 189, 248, 0.25)",
+                                bgIdle: "rgba(39, 39, 42, 0.85)",
+                                holdToActivate: true,
+                                icon: (
+                                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none"
+                                         stroke="currentColor" strokeWidth="2" strokeLinecap="round"
+                                         strokeLinejoin="round">
+                                        <path d="M12 2v20"/>
+                                        <path d="M17 7l-5-5-5 5"/>
+                                        <rect x="8" y="10" width="8" height="8" rx="1"/>
+                                    </svg>
+                                ),
+                            },
+                            {
+                                key: "passing",
+                                rect: {
+                                    x1: _FB_OX + _thirdW + _thirdGap / 2,
+                                    y1: _FB_OY,
+                                    x2: _FB_OX + 2 * _thirdW - _thirdGap / 2,
                                     y2: _FB_OY + _fullH,
                                 } as Rect,
                                 label: "Passing",
@@ -1244,25 +1284,23 @@ export default function MatchScouting({
                                 ),
                             },
                             {
-                                key: "intake",
+                                key: "defense",
                                 rect: {
-                                    x1: _FB_OX + _halfW + _halfGap / 2,
+                                    x1: _FB_OX + 2 * _thirdW + _thirdGap / 2,
                                     y1: _FB_OY,
                                     x2: _FB_OX + _fullW,
                                     y2: _FB_OY + _fullH,
                                 } as Rect,
-                                label: "Intake",
-                                borderColor: "#38bdf8",
-                                bgActive: "rgba(56, 189, 248, 0.25)",
+                                label: "Defense",
+                                borderColor: "#ef4444",
+                                bgActive: "rgba(239, 68, 68, 0.25)",
                                 bgIdle: "rgba(39, 39, 42, 0.85)",
                                 holdToActivate: true,
                                 icon: (
                                     <svg width="28" height="28" viewBox="0 0 24 24" fill="none"
                                          stroke="currentColor" strokeWidth="2" strokeLinecap="round"
                                          strokeLinejoin="round">
-                                        <path d="M12 2v20"/>
-                                        <path d="M17 7l-5-5-5 5"/>
-                                        <rect x="8" y="10" width="8" height="8" rx="1"/>
+                                        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
                                     </svg>
                                 ),
                             },
@@ -1433,8 +1471,8 @@ export default function MatchScouting({
                             />
                             <div
                                 className={`absolute inset-[-12%] rounded-xs border-6 ${effectiveAlliance === "red"
-                                    ? "border-red-700"
-                                    : "border-blue-700"
+                                    ? nonShootingActive ? "border-red-700/40" : "border-red-700"
+                                    : nonShootingActive ? "border-blue-700/40" : "border-blue-700"
                                 }`}
                             />
                         </div>
@@ -1650,16 +1688,22 @@ export default function MatchScouting({
                                 }
                             }}
                         >
-                            <div className="absolute left-[30%] right-[30%] h-[4px] bg-zinc-500/50 rounded-full" style={{top: "12.5%"}} />
-                            <div className="absolute left-[30%] right-[30%] h-[4px] bg-zinc-500/50 rounded-full" style={{top: "25%"}} />
-                            <div className="absolute left-[30%] right-[30%] h-[4px] bg-zinc-500/50 rounded-full" style={{top: "37.5%"}} />
+                            <div className="absolute left-[30%] right-[30%] h-1 bg-zinc-500/50 rounded-full"
+                                 style={{top: "12.5%"}}/>
+                            <div className="absolute left-[30%] right-[30%] h-1 bg-zinc-500/50 rounded-full"
+                                 style={{top: "25%"}}/>
+                            <div className="absolute left-[30%] right-[30%] h-1 bg-zinc-500/50 rounded-full"
+                                 style={{top: "37.5%"}}/>
                             <div
                                 className="absolute left-0 right-0 border-t-2 border-dashed border-green-400/50"
                                 style={{top: "50%"}}
                             />
-                            <div className="absolute left-[30%] right-[30%] h-[4px] bg-zinc-500/50 rounded-full" style={{top: "62.5%"}} />
-                            <div className="absolute left-[30%] right-[30%] h-[4px] bg-zinc-500/50 rounded-full" style={{top: "75%"}} />
-                            <div className="absolute left-[30%] right-[30%] h-[4px] bg-zinc-500/50 rounded-full" style={{top: "87.5%"}} />
+                            <div className="absolute left-[30%] right-[30%] h-1 bg-zinc-500/50 rounded-full"
+                                 style={{top: "62.5%"}}/>
+                            <div className="absolute left-[30%] right-[30%] h-1 bg-zinc-500/50 rounded-full"
+                                 style={{top: "75%"}}/>
+                            <div className="absolute left-[30%] right-[30%] h-1 bg-zinc-500/50 rounded-full"
+                                 style={{top: "87.5%"}}/>
 
                             <div
                                 className={`absolute left-1 right-1 h-10 rounded-xl transition-colors duration-100 flex items-center justify-center ${
@@ -1751,16 +1795,22 @@ export default function MatchScouting({
                                     }
                                 }}
                             >
-                                <div className="absolute left-[30%] right-[30%] h-[4px] bg-zinc-500/50 rounded-full" style={{top: "12.5%"}} />
-                                <div className="absolute left-[30%] right-[30%] h-[4px] bg-zinc-500/50 rounded-full" style={{top: "25%"}} />
-                                <div className="absolute left-[30%] right-[30%] h-[4px] bg-zinc-500/50 rounded-full" style={{top: "37.5%"}} />
+                                <div className="absolute left-[30%] right-[30%] h-1 bg-zinc-500/50 rounded-full"
+                                     style={{top: "12.5%"}}/>
+                                <div className="absolute left-[30%] right-[30%] h-1 bg-zinc-500/50 rounded-full"
+                                     style={{top: "25%"}}/>
+                                <div className="absolute left-[30%] right-[30%] h-1 bg-zinc-500/50 rounded-full"
+                                     style={{top: "37.5%"}}/>
                                 <div
                                     className="absolute left-0 right-0 border-t-2 border-dashed border-red-400/50"
                                     style={{top: "50%"}}
                                 />
-                                <div className="absolute left-[30%] right-[30%] h-[4px] bg-zinc-500/50 rounded-full" style={{top: "62.5%"}} />
-                                <div className="absolute left-[30%] right-[30%] h-[4px] bg-zinc-500/50 rounded-full" style={{top: "75%"}} />
-                                <div className="absolute left-[30%] right-[30%] h-[4px] bg-zinc-500/50 rounded-full" style={{top: "87.5%"}} />
+                                <div className="absolute left-[30%] right-[30%] h-1 bg-zinc-500/50 rounded-full"
+                                     style={{top: "62.5%"}}/>
+                                <div className="absolute left-[30%] right-[30%] h-1 bg-zinc-500/50 rounded-full"
+                                     style={{top: "75%"}}/>
+                                <div className="absolute left-[30%] right-[30%] h-1 bg-zinc-500/50 rounded-full"
+                                     style={{top: "87.5%"}}/>
 
                                 <div
                                     className={`absolute left-1 right-1 h-10 rounded-xl transition-colors duration-100 flex items-center justify-center ${

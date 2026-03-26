@@ -127,11 +127,17 @@ export default function MatchDataPredPage() {
                     {/* Score prediction */}
                     <Section label="Score Prediction">
                         <div className="flex items-center justify-between px-6 py-4">
-                            <ScorePredBlock color="red" score={pred.red_score_pred} fuel={pred.red_fuel_pred}
-                                            climb={pred.red_climb_pred}/>
+                            <ScorePredBlock color="red"
+                                score={pred.red_score_pred}
+                                fuel={(pred.red_auto_fuel_pred ?? 0) + (pred.red_teleop_fuel_pred ?? 0)}
+                                climb={(pred.red_auto_climb_pred ?? 0) + (pred.red_teleop_climb_pred ?? 0)}
+                            />
                             <div className="text-xs text-zinc-400 font-medium">VS</div>
-                            <ScorePredBlock color="blue" score={pred.blue_score_pred} fuel={pred.blue_fuel_pred}
-                                            climb={pred.blue_climb_pred}/>
+                            <ScorePredBlock color="blue"
+                                score={pred.blue_score_pred}
+                                fuel={(pred.blue_auto_fuel_pred ?? 0) + (pred.blue_teleop_fuel_pred ?? 0)}
+                                climb={(pred.blue_auto_climb_pred ?? 0) + (pred.blue_teleop_climb_pred ?? 0)}
+                            />
                         </div>
                         {sbPred && (
                             <div className="px-6 pb-3 text-xs text-zinc-400 border-t border-zinc-100 pt-2">
@@ -178,12 +184,36 @@ export default function MatchDataPredPage() {
                     {/* Head-to-head comparison */}
                     <Section label="Alliance Comparison">
                         <div className="px-6 py-3 space-y-2">
-                            <ComparisonBar label="Total Fuel" redVal={pred.red_fuel_pred}
-                                           blueVal={pred.blue_fuel_pred}/>
-                            <ComparisonBar label="Tower Points" redVal={pred.red_climb_pred}
-                                           blueVal={pred.blue_climb_pred}/>
-                            <ComparisonBar label="Total Score" redVal={pred.red_score_pred}
-                                           blueVal={pred.blue_score_pred}/>
+                            <ComparisonBar label="Auto Fuel" redVal={pred.red_auto_fuel_pred}
+                                           blueVal={pred.blue_auto_fuel_pred}/>
+                            <ComparisonBar label="Auto Climb" redVal={pred.red_auto_climb_pred}
+                                           blueVal={pred.blue_auto_climb_pred}/>
+                            <ComparisonBar label="Teleop Fuel" redVal={pred.red_teleop_fuel_pred}
+                                           blueVal={pred.blue_teleop_fuel_pred}/>
+                            <ComparisonBar label="Teleop Climb" redVal={pred.red_teleop_climb_pred}
+                                           blueVal={pred.blue_teleop_climb_pred}/>
+                            <ComparisonBar label="Minor Fouls" redVal={pred.red_minor_fouls_pred}
+                                           blueVal={pred.blue_minor_fouls_pred}/>
+                            <ComparisonBar label="Major Fouls" redVal={pred.red_major_fouls_pred}
+                                           blueVal={pred.blue_major_fouls_pred}/>
+                            <div className="border-t border-zinc-100 pt-2">
+                                <ComparisonBar label="Total Score" redVal={pred.red_score_pred}
+                                               blueVal={pred.blue_score_pred}/>
+                            </div>
+                        </div>
+                    </Section>
+
+                    {/* Teleop phase breakdown */}
+                    <Section label="Teleop Phase Breakdown">
+                        <div className="px-6 py-3 space-y-2">
+                            <ComparisonBar label="Transition" redVal={pred.red_transition_fuel_pred}
+                                           blueVal={pred.blue_transition_fuel_pred}/>
+                            <ComparisonBar label="Phase 1 (Shifts 1+2)" redVal={pred.red_phase_1_fuel_pred}
+                                           blueVal={pred.blue_phase_1_fuel_pred}/>
+                            <ComparisonBar label="Phase 2 (Shifts 3+4)" redVal={pred.red_phase_2_fuel_pred}
+                                           blueVal={pred.blue_phase_2_fuel_pred}/>
+                            <ComparisonBar label="Endgame" redVal={pred.red_endgame_fuel_pred}
+                                           blueVal={pred.blue_endgame_fuel_pred}/>
                         </div>
                     </Section>
 

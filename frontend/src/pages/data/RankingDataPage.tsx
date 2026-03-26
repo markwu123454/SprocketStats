@@ -169,6 +169,12 @@ export default function RankingData() {
     )
     const yMetricMeta = selectedMetricMeta
 
+    function estimateWidth(text: string, isGroup = false): number {
+        const charWidth = 8;
+        const padding = 40; // sort icon, filter, cell padding
+        return Math.max(70, text.length * charWidth + padding);
+    }
+
     const columnDefs = useMemo(() => {
         if (!rankingData || rankingData.length === 0) return []
         // Build template from union of all row keys so every column appears
@@ -369,6 +375,7 @@ export default function RankingData() {
                 sortable: true,
                 filter: true,
                 resizable: true,
+                width: estimateWidth(key),
                 valueFormatter: (params: any) =>
                     params.value === undefined || params.value === null ? "N/A" : params.value,
                 cellClassRules: {
@@ -396,11 +403,6 @@ export default function RankingData() {
                     teamNames={teamNames}
                     permissions={permissions}
                 />
-                <div className="ml-auto flex items-center">
-                    <a className="text-blue-600 text-xl underline transform-gpu font-normal"
-                       href="/glossary"
-                       data-discover="true">Glossary</a>
-                </div>
             </header>
 
             {/* Content */}
@@ -416,6 +418,9 @@ export default function RankingData() {
                             defaultColDef={defaultColDef}
                             animateRows={true}
                             suppressFieldDotNotation={false}
+                            autoSizeStrategy={{
+                                type: 'fitCellContents',
+                            }}
                             getRowClass={(params) =>
                                 params.data?.team === selectedTeam ? "bg-blue-50" : ""
                             }

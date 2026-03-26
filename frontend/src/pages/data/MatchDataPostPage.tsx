@@ -63,6 +63,7 @@ export default function MatchDataPostPage() {
     }
 
     const sbPred = predData?.sb_pred ?? {}
+    const pred = predData?.predictions ?? {}
     const red = postData.red
     const blue = postData.blue
     const winner = postData.winner
@@ -129,30 +130,46 @@ export default function MatchDataPostPage() {
 
                 {/* Center comparison */}
                 <div className="flex-[1.5] flex flex-col overflow-auto bg-zinc-50 border-x border-zinc-200">
-                    {/* Statbotics predicted vs TBA actual */}
-                    {sbPred.red_score != null && (
-                        <Section label="Statbotics Predicted vs Actual">
+                    {/* Predicted vs TBA actual */}
+                    {pred.red_score_pred != null && (
+                        <Section label="Predicted vs Actual">
                             <div className="px-6 py-3 space-y-2">
-                                <PredActualRow label="Total Score" redPred={sbPred.red_score} redActual={red.score}
-                                               bluePred={sbPred.blue_score} blueActual={blue.score}/>
-                                <PredActualRow label="Auto Points" redPred={null} redActual={red.auto_points}
-                                               bluePred={null} blueActual={blue.auto_points}/>
-                                {sbPredError && (
-                                    <div
-                                        className="flex justify-between text-xs text-zinc-400 pt-1 border-t border-zinc-100">
-                                        <span>SB error: <span
-                                            className={sbPredError.red > 0 ? "text-green-600" : "text-red-500"}>{sbPredError.red > 0 ? "+" : ""}{sbPredError.red}</span></span>
-                                        <span>{sbPredError.pred_winner_correct ? "✓ Correct winner" : "✗ Wrong winner"}</span>
-                                        <span>SB error: <span
-                                            className={sbPredError.blue > 0 ? "text-green-600" : "text-red-500"}>{sbPredError.blue > 0 ? "+" : ""}{sbPredError.blue}</span></span>
-                                    </div>
-                                )}
-                                {/* SB win probability */}
-                                {sbPred.red_win_prob != null && (
+                                <PredActualRow label="Total Score" redPred={pred.red_score_pred} redActual={red.score}
+                                               bluePred={pred.blue_score_pred} blueActual={blue.score}/>
+                                <PredActualRow label="Auto Points" redPred={pred.red_auto_pred} redActual={red.auto_points}
+                                               bluePred={pred.blue_auto_pred} blueActual={blue.auto_points}/>
+                                <PredActualRow label="Auto Fuel" redPred={pred.red_auto_fuel_pred} redActual={red.hub?.auto?.points ?? 0}
+                                               bluePred={pred.blue_auto_fuel_pred} blueActual={blue.hub?.auto?.points ?? 0}/>
+                                <PredActualRow label="Auto Climb" redPred={pred.red_auto_climb_pred} redActual={red.auto_tower_points}
+                                               bluePred={pred.blue_auto_climb_pred} blueActual={blue.auto_tower_points}/>
+                                <PredActualRow label="Teleop Fuel" redPred={pred.red_teleop_fuel_pred} redActual={red.hub?.total?.points != null ? red.hub.total.points - (red.hub?.auto?.points ?? 0) : 0}
+                                               bluePred={pred.blue_teleop_fuel_pred} blueActual={blue.hub?.total?.points != null ? blue.hub.total.points - (blue.hub?.auto?.points ?? 0) : 0}/>
+                                <PredActualRow label="Tower Points" redPred={(pred.red_auto_climb_pred ?? 0) + (pred.red_teleop_climb_pred ?? 0)} redActual={red.tower_points}
+                                               bluePred={(pred.blue_auto_climb_pred ?? 0) + (pred.blue_teleop_climb_pred ?? 0)} blueActual={blue.tower_points}/>
+                                {/* Prediction accuracy */}
+                                {(() => {
+                                    const redDiff = red.score - (pred.red_score_pred ?? 0)
+                                    const blueDiff = blue.score - (pred.blue_score_pred ?? 0)
+                                    const predWinner = (pred.red_win_prob ?? 50) > 50 ? "red" : "blue"
+                                    const predCorrect = predWinner === winner || winner === "tie"
+                                    return (
+                                        <div className="flex justify-between text-xs text-zinc-400 pt-1 border-t border-zinc-100">
+                                            <span>Error: <span className={redDiff > 0 ? "text-green-600" : "text-red-500"}>
+                                                {redDiff > 0 ? "+" : ""}{Math.round(redDiff)}</span>
+                                            </span>
+                                            <span>{predCorrect ? "✓ Correct winner" : "✗ Wrong winner"}</span>
+                                            <span>Error: <span className={blueDiff > 0 ? "text-green-600" : "text-red-500"}>
+                                                {blueDiff > 0 ? "+" : ""}{Math.round(blueDiff)}</span>
+                                            </span>
+                                        </div>
+                                    )
+                                })()}
+                                {/* Win probability */}
+                                {pred.red_win_prob != null && (
                                     <div className="flex justify-between text-xs text-zinc-500 pt-1 border-t border-zinc-100">
-                                        <span className="text-red-600 font-medium">{sbPred.red_win_prob}% win</span>
-                                        <span className="text-zinc-400">SB Win Probability</span>
-                                        <span className="text-blue-600 font-medium">{sbPred.blue_win_prob}% win</span>
+                                        <span className="text-red-600 font-medium">{pred.red_win_prob}% win</span>
+                                        <span className="text-zinc-400">Win Probability</span>
+                                        <span className="text-blue-600 font-medium">{pred.blue_win_prob}% win</span>
                                     </div>
                                 )}
                             </div>
@@ -163,27 +180,26 @@ export default function MatchDataPostPage() {
                     <Section label="Score Breakdown">
                         <div className="px-6 py-3 space-y-2">
                             <ComparisonBar label="Auto Points" redVal={red.auto_points} blueVal={blue.auto_points}/>
+                            <ComparisonBar label="Auto Fuel" redVal={red.hub?.auto?.points ?? 0} blueVal={blue.hub?.auto?.points ?? 0}/>
+                            <ComparisonBar label="Auto Tower" redVal={red.auto_tower_points} blueVal={blue.auto_tower_points}/>
                             <ComparisonBar label="Teleop Points" redVal={red.teleop_points}
                                            blueVal={blue.teleop_points}/>
+                            <ComparisonBar label="Teleop Fuel" redVal={(red.hub?.total?.points ?? 0) - (red.hub?.auto?.points ?? 0)} blueVal={(blue.hub?.total?.points ?? 0) - (blue.hub?.auto?.points ?? 0)}/>
                             <ComparisonBar label="Tower Points" redVal={red.tower_points} blueVal={blue.tower_points}/>
                             <ComparisonBar label="Foul Points" redVal={red.foul_points} blueVal={blue.foul_points}/>
                         </div>
                     </Section>
 
-                    {/* Hub fuel by phase (TBA) */}
+                    {/* Hub fuel by phase (TBA) — combined into phases */}
                     <Section label="Fuel by Phase">
                         <div className="px-6 py-3 space-y-2">
                             <ComparisonBar label="Auto" redVal={red.hub.auto.count} blueVal={blue.hub.auto.count}/>
                             <ComparisonBar label="Transition" redVal={red.hub.transition.count}
                                            blueVal={blue.hub.transition.count}/>
-                            <ComparisonBar label="Shift 1" redVal={red.hub.shift_1.count}
-                                           blueVal={blue.hub.shift_1.count}/>
-                            <ComparisonBar label="Shift 2" redVal={red.hub.shift_2.count}
-                                           blueVal={blue.hub.shift_2.count}/>
-                            <ComparisonBar label="Shift 3" redVal={red.hub.shift_3.count}
-                                           blueVal={blue.hub.shift_3.count}/>
-                            <ComparisonBar label="Shift 4" redVal={red.hub.shift_4.count}
-                                           blueVal={blue.hub.shift_4.count}/>
+                            <ComparisonBar label="Phase 1" redVal={(red.hub.shift_1.count ?? 0) + (red.hub.shift_2.count ?? 0)}
+                                           blueVal={(blue.hub.shift_1.count ?? 0) + (blue.hub.shift_2.count ?? 0)}/>
+                            <ComparisonBar label="Phase 2" redVal={(red.hub.shift_3.count ?? 0) + (red.hub.shift_4.count ?? 0)}
+                                           blueVal={(blue.hub.shift_3.count ?? 0) + (blue.hub.shift_4.count ?? 0)}/>
                             <ComparisonBar label="Endgame" redVal={red.hub.endgame.count}
                                            blueVal={blue.hub.endgame.count}/>
                             <div className="border-t border-zinc-100 pt-2">
@@ -193,18 +209,18 @@ export default function MatchDataPostPage() {
                         </div>
                     </Section>
 
-                    {/* RP outcomes (TBA actual + SB predicted probs) */}
+                    {/* RP outcomes (TBA actual + ensemble predicted probs) */}
                     <Section label="Ranking Points">
                         <div className="px-6 py-3 space-y-2">
                             <RPOutcomeRow label="Energized (≥100)" redAchieved={red.energized}
-                                          blueAchieved={blue.energized} redProb={sbPred.red_rp_1}
-                                          blueProb={sbPred.blue_rp_1}/>
+                                          blueAchieved={blue.energized} redProb={pred.red_energized_prob}
+                                          blueProb={pred.blue_energized_prob}/>
                             <RPOutcomeRow label="Supercharged (≥360)" redAchieved={red.supercharged}
-                                          blueAchieved={blue.supercharged} redProb={sbPred.red_rp_2}
-                                          blueProb={sbPred.blue_rp_2}/>
+                                          blueAchieved={blue.supercharged} redProb={pred.red_supercharged_prob}
+                                          blueProb={pred.blue_supercharged_prob}/>
                             <RPOutcomeRow label="Traversal (≥50 tower)" redAchieved={red.traversal}
-                                          blueAchieved={blue.traversal} redProb={sbPred.red_rp_3}
-                                          blueProb={sbPred.blue_rp_3}/>
+                                          blueAchieved={blue.traversal} redProb={pred.red_traversal_prob}
+                                          blueProb={pred.blue_traversal_prob}/>
                             <div className="flex justify-between text-sm font-semibold pt-1 border-t border-zinc-100">
                                 <span className="text-red-600">{red.rp} RP</span>
                                 <span className="text-blue-600">{blue.rp} RP</span>
@@ -484,7 +500,7 @@ function TeamResultRow({color, teamNum, teamName, climb, canLink}: {
                 </Link>
             ) : header}
 
-            {/* Only TBA climb data — no scouting metrics */}
+            {/* TBA per-robot climb + scouted fuel for this match */}
             <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-[11px] text-zinc-600">
                 <Stat label="Auto Tower" value={
                     climb ? `${towerLabel(climb.auto_tower)} (${climb.auto_tower_pts}pts)` : "—"
@@ -493,6 +509,9 @@ function TeamResultRow({color, teamNum, teamName, climb, canLink}: {
                     climb ? `${towerLabel(climb.endgame_tower)} (${climb.endgame_tower_pts}pts)` : "—"
                 }/>
                 <Stat label="Tower Pts" value={climb?.total_tower_pts ?? "—"}/>
+                <Stat label="Auto Fuel" value={climb?.scouted_auto_fuel}/>
+                <Stat label="Teleop Fuel" value={climb?.scouted_teleop_fuel}/>
+                <Stat label="Total Fuel" value={climb?.scouted_fuel}/>
             </div>
         </li>
     )

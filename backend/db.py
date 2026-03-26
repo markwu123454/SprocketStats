@@ -2519,6 +2519,7 @@ async def get_all_guests() -> list[Dict[str, Any]]:
                                        permissions,
                                        expire_date
                                 FROM guests
+                                WHERE event_key = (SELECT current_event FROM metadata LIMIT 1)
                                 """)
 
         return [
@@ -2540,6 +2541,8 @@ async def get_all_guests() -> list[Dict[str, Any]]:
         )
     finally:
         await release_db_connection(pool, conn)
+
+
 def require_guest_password_debug() -> Callable[..., Awaitable[dict]]:
     async def dep(x_guest_password: Annotated[str, Header(alias="x-guest-password")] = None) -> dict:
         debug = {

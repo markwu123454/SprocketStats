@@ -1,4 +1,4 @@
-import {useState, useEffect, useRef, useMemo, useCallback} from 'react'
+import {useState, useEffect, useRef, useMemo, useCallback, type ComponentType} from 'react'
 
 import {useNavigate} from "react-router-dom"
 
@@ -26,6 +26,69 @@ import AVariant from "@/components/seasons/2026/ABtest/A.tsx"
 import BVariant from "@/components/seasons/2026/ABtest/B.tsx"
 
 type Phase = 'pre' | 'auto' | 'teleop' | 'combined' | 'post'
+
+// ─── Variant props that full-control components receive ───
+export type VariantProps = {
+    data: MatchScoutingData
+    setData: React.Dispatch<React.SetStateAction<MatchScoutingData>>
+    handleSubmit: () => void
+    setPhase: (phase: Phase) => Promise<void>
+    setSubStatus: (subStatus: string) => void
+}
+
+// ─── Variant configuration ───
+// Each variant declares:
+//   phases      — the phase order it uses
+//   component   — the React component rendered for its active phases
+//   activeIn    — which phases this variant's component renders in
+//   fullControl — when true, hides the top bar, bottom bar, and uses
+//                 a minimal container (the variant owns all chrome)
+type VariantConfig = {
+    phases: Phase[]
+    component: ComponentType<VariantProps>
+    activeIn: Phase[]
+    fullControl: boolean
+}
+
+// ════════════════════════════════════════════════════════════════
+// HARDCODE YOUR VARIANT CONTROL HERE
+// ════════════════════════════════════════════════════════════════
+//
+// To give a variant full control (hides top/bottom bars, variant
+// owns all navigation and chrome), set `fullControl: true`.
+//
+// To keep the default shell (top bar, bottom bar, next/back),
+// set `fullControl: false`.
+//
+const VARIANT_CONFIG: Record<string, VariantConfig> = {
+    default: {
+        phases: ['pre', 'auto', 'teleop', 'post'],
+        component: AVariant,
+        activeIn: ['auto', 'teleop'],
+        fullControl: false,       // ← flip this to false to get shell back
+    },
+    a: {
+        phases: ['pre', 'auto', 'teleop', 'post'],
+        component: AVariant,
+        activeIn: ['auto', 'teleop'],
+        fullControl: true,       // ← flip this to false to get shell back
+    },
+    b: {
+        phases: ['pre', 'combined', 'post'],
+        component: BVariant,
+        activeIn: ['combined'],
+        fullControl: true,      // ← flip this to true for full control
+    },
+    // Add more variants here:
+    // c: {
+    //     phases: ['pre', 'auto', 'teleop', 'post'],
+    //     component: CVariant,
+    //     activeIn: ['auto', 'teleop'],
+    //     fullControl: true,
+    // },
+}
+
+const DEFAULT_VARIANT_KEY = 'default'
 
 // ─── Utility: deep-merge saved data with current defaults ───
 function normalizeScoutingData<T extends object>(raw: T, defaults: T): T {
@@ -70,6 +133,16 @@ const exitFullscreenIfNeeded = async () => {
     }
 };
 
+// ─── Helpers ───
+function getVariantConfig(key: string): VariantConfig {
+    return VARIANT_CONFIG[key] ?? VARIANT_CONFIG[DEFAULT_VARIANT_KEY]
+}
+
+/** Does the given variant use a combined phase instead of separate auto/teleop? */
+function variantUsesCombined(key: string): boolean {
+    return getVariantConfig(key).phases.includes('combined')
+}
+
 // ─── Build the upload payload consistently ───
 function buildUploadPayload(entry: ScoutingDataWithKey | MatchScoutingData, fallbackEmail: string) {
     const {match, match_type, teamNumber, alliance, scouter, ...rest} = entry as any
@@ -86,7 +159,7 @@ function buildUploadPayload(entry: ScoutingDataWithKey | MatchScoutingData, fall
 }
 
 // ─── Custom hook: resume dialog logic ───
-function useResumeDialog(scouterEmail: string, abTestVariant: string, PHASE_ORDER: Phase[]) {
+function useResumeDialog(scouterEmail: string, variantKey: string, PHASE_ORDER: Phase[]) {
     const {isOnline, serverOnline} = useClientEnvironment()
     const {scoutingAction} = useAPI()
 
@@ -141,9 +214,9 @@ function useResumeDialog(scouterEmail: string, abTestVariant: string, PHASE_ORDE
                     return;
                 }
 
-                // For variant b, map auto/teleop to combined for server status
+                // For variants with combined phase, map auto/teleop → combined for server status
                 let phaseToUpdate = entry.status as Phase;
-                if (abTestVariant === "b" && (entry.status === "auto" || entry.status === "teleop")) {
+                if (variantUsesCombined(variantKey) && (entry.status === "auto" || entry.status === "teleop")) {
                     phaseToUpdate = "combined";
                 }
 
@@ -158,9 +231,9 @@ function useResumeDialog(scouterEmail: string, abTestVariant: string, PHASE_ORDE
                 scouter: scouterEmail,
             });
 
-            // For variant b, map auto/teleop to combined for phase index lookup
+            // For variants with combined phase, map auto/teleop → combined for phase index
             let targetPhase = entry.status as Phase;
-            if (abTestVariant === "b" && (entry.status === "auto" || entry.status === "teleop")) {
+            if (variantUsesCombined(variantKey) && (entry.status === "auto" || entry.status === "teleop")) {
                 targetPhase = "combined";
             }
 
@@ -170,7 +243,7 @@ function useResumeDialog(scouterEmail: string, abTestVariant: string, PHASE_ORDE
             console.warn("Failed to resume team:", err);
             setResumeLock(prev => ({...prev, [entry.key]: false}));
         }
-    }, [isOnline, serverOnline, scoutingAction, abTestVariant, scouterEmail, PHASE_ORDER, resumeLock])
+    }, [isOnline, serverOnline, scoutingAction, variantKey, scouterEmail, PHASE_ORDER, resumeLock])
 
     const startNew = useCallback(() => {
         setShowResumeDialog(false);
@@ -350,7 +423,7 @@ export default function MatchScoutingPage() {
     const [submitStatus, setSubmitStatus] = useState<'idle' | 'loading' | 'success' | 'local' | 'error' | 'warning'>('idle')
     const [showConfirmDialog, setShowConfirmDialog] = useState(false)
     const [postCanSubmit, setPostCanSubmit] = useState(false)
-    const [abTestVariant, setAbTestVariant] = useState<"default" | "a" | "b">("default")
+    const [variantKey, setVariantKey] = useState<string>(DEFAULT_VARIANT_KEY)
     const [debugMode, setDebugMode] = useState(false)
 
     // ─── Stable refs for use in intervals/event listeners ───
@@ -360,19 +433,17 @@ export default function MatchScoutingPage() {
     const submitStatusRef = useRef(submitStatus)
     submitStatusRef.current = submitStatus
 
-    // ─── Derived ───
-    // "default" (stable) and "a" use separate auto/teleop phases with AVariant.
-    // Only "b" uses the combined phase with BVariant.
-    const PHASE_ORDER: Phase[] = useMemo(() => {
-        return abTestVariant === "b"
-            ? ['pre', 'combined', 'post']
-            : ['pre', 'auto', 'teleop', 'post']
-    }, [abTestVariant])
+    // ─── Derived from variant config ───
+    const config = useMemo(() => getVariantConfig(variantKey), [variantKey])
+
+    const PHASE_ORDER: Phase[] = config.phases
 
     const phase = PHASE_ORDER[phaseIndex]
 
-    // In "a" and "default" variants, AVariant takes full control during auto and teleop phases
-    const variantAFullControl = (abTestVariant === "a" || abTestVariant === "default") && (phase === "auto" || phase === "teleop")
+    // Is the current variant's component active AND does it have full control?
+    const isFullControl = config.fullControl && config.activeIn.includes(phase)
+
+    const VariantComponent = config.component
 
     const baseDisabled =
         scoutingData.match_type === null ||
@@ -412,18 +483,18 @@ export default function MatchScoutingPage() {
         scoutingSubStatus(match, teamNumber, match_type, alliance, subStatus)
     }, [scoutingData, scoutingSubStatus])
 
-    // ─── Load A/B test variant and debug mode ───
+    // ─── Load variant and debug mode ───
     useEffect(() => {
         (async () => {
             const variant = await getSetting("match_ab_test")
-            setAbTestVariant(variant || "default")
+            setVariantKey(variant || DEFAULT_VARIANT_KEY)
             const debug = await getSetting("debug")
             setDebugMode(debug === true || (debug as any) === "true")
         })()
     }, [])
 
     // ─── Resume dialog hook ───
-    const resume = useResumeDialog(scouterEmail!, abTestVariant, PHASE_ORDER)
+    const resume = useResumeDialog(scouterEmail!, variantKey, PHASE_ORDER)
 
     // ─── Background sync hook (single upload loop) ───
     const {triggerSync} = useBackgroundSync(isOnline, serverOnline, submitData, scouterEmail!)
@@ -674,9 +745,8 @@ export default function MatchScoutingPage() {
 
             {/* Main Layout */}
            <div className="w-screen min-h-0 h-screen flex flex-col overflow-hidden bg-zinc-900 text-white select-none overscroll-none scouting-page">
-                {/* Top Bar */}
-                {/* Top Bar — hidden when variant A has full control */}
-                {!variantAFullControl && (
+                {/* Top Bar — hidden when active variant has full control */}
+                {!isFullControl && (
                     <div
                         className="h-12 flex justify-between items-center px-4 bg-zinc-800 text-ml font-semibold shrink-0">
                         <div>{scouterName}</div>
@@ -696,25 +766,20 @@ export default function MatchScoutingPage() {
 
                 {/* Phases */}
                 <div
-                    className={`flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain touch-auto scrollbar-dark ${variantAFullControl ? '' : ''}`}>
-                    <div className={variantAFullControl ? "h-full" : "text-4xl h-full"}>
+                    className={`flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain touch-auto scrollbar-dark`}>
+                    <div className={isFullControl ? "h-full" : "text-4xl h-full"}>
                         {phase === 'pre' && (
                             <PrePhase key="pre" data={scoutingData} setData={setScoutingData}/>
                         )}
-                        {(abTestVariant === "a" || abTestVariant === "default") && (phase === 'auto' || phase === 'teleop') && (
-                            <AVariant
-                                key="combined"
+                        {config.activeIn.includes(phase) && (
+                            <VariantComponent
+                                key="variant"
                                 data={scoutingData}
                                 setData={setScoutingData}
                                 handleSubmit={handleSubmit}
                                 setPhase={setPhase}
                                 setSubStatus={setSubStatus}
                             />
-                        )}
-                        {abTestVariant === "b" && phase === 'combined' && (
-                            <BVariant key="combined" data={scoutingData} setData={setScoutingData}
-                                      handleSubmit={handleSubmit} setPhase={setPhase}
-                                      setSubStatus={setSubStatus}/>
                         )}
                         {phase === 'post' && (
                             <PostMatch key="post" data={scoutingData} setData={setScoutingData}
@@ -740,8 +805,8 @@ export default function MatchScoutingPage() {
                     </div>
                 )}
 
-                {/* Bottom Bar — hidden when variant A has full control */}
-                {!variantAFullControl && (
+                {/* Bottom Bar — hidden when active variant has full control */}
+                {!isFullControl && (
                     <div
                         className="h-16 relative flex justify-between items-center px-4 bg-zinc-800 text-xl font-semibold shrink-0">
                         <Button

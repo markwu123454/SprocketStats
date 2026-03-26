@@ -1,6 +1,5 @@
 import React, {useEffect} from "react"
 import type {MatchScoutingData} from "@/types"
-import {AlertTriangle, Hand} from "lucide-react";
 import RatingSlider from "@/components/ui/ratingSlider"
 
 // ---------------------------------------------------------------------------
@@ -117,11 +116,11 @@ export default function PostMatch({data, setData, setCanSubmit}: {
 
                         <div className="flex flex-col gap-1">
                             {Object.entries({
-                                "Shooter": "This robot is good at scoring fuel in the hub",
-                                "Intake": "This robot passes fuel to their alliance or their human players",
-                                "Defense": "This robot spends the majority of it's time on the opposing alliance's side",
-                                "Generalist": "This robot fits two or more of the types above",
-                                "Useless": "This robot actively does not participate in the match",
+                                "Shooter": "Scores fuel in the hub directly",
+                                "Support": "Assists alliance partners in scoring without scoring directly (e.g. passing fuel to robots or human player, positioning fuel)",
+                                "Defense": "Primarily operates on the opposing alliance's side to disrupt opponents",
+                                "Generalist": "Fulfills two or more of the above roles during the match",
+                                "Useless": "Did not meaningfully contribute to the match"
                             }).map(([key, description]) => {
                                 const isActive = pm.role === key;
                                 return (
@@ -296,7 +295,7 @@ export default function PostMatch({data, setData, setCanSubmit}: {
                                              strokeWidth={3}>
                                             <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"/>
                                         </svg>
-                                        FLAGGED — THANKS FOR YOUR HONESTY
+                                        MATCH FLAGGED
                                     </>
                                 ) : (
                                     <>

@@ -505,8 +505,7 @@ export default function GuestDataPage() {
                     <div>
                         <h3 className="font-semibold mb-2 text-purple-400">Analytics</h3>
                         <p>Cutting edge ensemble analytics engine incorporating various algorithms like random
-                            forest, featured elo, and others to achieve ~80% theoretical baseline match
-                            accuracy.</p>
+                            forest, featured elo, and others to achieve 87% match result prediction accuracy.</p>
                     </div>
                 </div>
             </section>

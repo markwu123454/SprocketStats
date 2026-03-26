@@ -109,6 +109,7 @@ _CLIMB_POS_MAP = {
     "Side Right": "Right Side",
 }
 
+
 class StartingAction(BaseModel):
     type: Literal["starting"]
     x: float
@@ -608,8 +609,6 @@ def transform_event_data(raw: dict) -> dict:
     }
 
 
-
-
 # ===========================================================================
 # Phase 1: Input Processing
 # ===========================================================================
@@ -679,9 +678,9 @@ def phase1_fetch_data(event_key: str, stop_on_warning: bool, log: Logger):
 
 
 def phase1_process_scouting(
-    event_key: str,
-    downloaded_data: DownloadedData,
-    log: Logger,
+        event_key: str,
+        downloaded_data: DownloadedData,
+        log: Logger,
 ) -> dict[str, dict]:
     """Process raw match scouting entries into per-entry stat dicts."""
     with log.section("Processing match scouting entries"):
@@ -737,17 +736,17 @@ def phase1_tally_rp(tba_data: list[Match], log: Logger):
 
 
 def phase1_accumulate_team_stats(
-    processed_match_entries: dict[str, dict],
-    calc_result: dict,
-    tba_data: list[Match],
-    event_key: str,
-    downloaded_data: DownloadedData,
-    rp_tally: dict[int, int],
-    team_matches_played: dict[int, int],
-    team_energized: dict[int, int],
-    team_supercharged: dict[int, int],
-    team_traversal: dict[int, int],
-    log: Logger,
+        processed_match_entries: dict[str, dict],
+        calc_result: dict,
+        tba_data: list[Match],
+        event_key: str,
+        downloaded_data: DownloadedData,
+        rp_tally: dict[int, int],
+        team_matches_played: dict[int, int],
+        team_energized: dict[int, int],
+        team_supercharged: dict[int, int],
+        team_traversal: dict[int, int],
+        log: Logger,
 ) -> dict:
     """Aggregate all per-team statistics from scouting + TBA data.
 
@@ -768,9 +767,15 @@ def phase1_accumulate_team_stats(
         acc_endgame_climb_success: dict[int, list[float]] = {}
         acc_endgame_climb_level: dict[int, list[int]] = {}
         acc_total_points_est: dict[int, list[float]] = {}
+        acc_phase_1_fuel: dict[int, list[float]] = {}
+        acc_phase_2_fuel: dict[int, list[float]] = {}
+        acc_auto_climb_pts: dict[int, list[float]] = {}
+        acc_endgame_climb_pts: dict[int, list[float]] = {}
 
-        # -- TBA-based auto point accumulator (alliance auto / 3 per team) --
+        # -- TBA-based accumulators (keyed by team_num int) -----------------
         acc_tba_auto_contrib: dict[int, list[float]] = {}
+        acc_tba_minor_fouls: dict[int, list[float]] = {}
+        acc_tba_major_fouls: dict[int, list[float]] = {}
         played_quals = [m for m in tba_data if m.comp_level == "qm" and m.score_breakdown is not None]
         for match in played_quals:
             for color in ("red", "blue"):
@@ -780,6 +785,8 @@ def phase1_accumulate_team_stats(
                 for raw_team_key in alliance.team_keys:
                     tn = parse_team_key(raw_team_key)
                     acc_tba_auto_contrib.setdefault(tn, []).append(auto_per_robot)
+                    acc_tba_minor_fouls.setdefault(tn, []).append(float(breakdown.minorFoulCount))
+                    acc_tba_major_fouls.setdefault(tn, []).append(float(breakdown.majorFoulCount))
 
         # -- Fuel output (per-match phase breakdown for frontend) -----------
         phase_fuel_lists: dict[str, dict[str, list[float]]] = {}
@@ -843,20 +850,26 @@ def phase1_accumulate_team_stats(
                 acc_endgame_fuel.setdefault(team_num, []).append(endgame_scored)
             if transition_scored > 0:
                 acc_transition_fuel.setdefault(team_num, []).append(transition_scored)
-            
+
             if total_shots > 0:
                 acc_accuracy.setdefault(team_num, []).append(match_accuracy)
-            
+
             if total_climb_pts > 0:
                 acc_climb_points.setdefault(team_num, []).append(total_climb_pts)
-            
+
             acc_auto_climb_success.setdefault(team_num, []).append(auto_climb_ok)
             acc_endgame_climb_success.setdefault(team_num, []).append(endgame_climb_ok)
             if endgame_level > 0:
                 acc_endgame_climb_level.setdefault(team_num, []).append(endgame_level)
-            
+
             if est_points > 0:
                 acc_total_points_est.setdefault(team_num, []).append(est_points)
+
+            # Phase-level fuel accumulators (always append, even zero)
+            acc_phase_1_fuel.setdefault(team_num, []).append(phase_1_scored)
+            acc_phase_2_fuel.setdefault(team_num, []).append(phase_2_scored)
+            acc_auto_climb_pts.setdefault(team_num, []).append(auto_climb_pts)
+            acc_endgame_climb_pts.setdefault(team_num, []).append(endgame_climb_pts)
 
             # Fuel output per match (resolve canon key)
             is_finals = match_code.startswith("f") and not match_code.startswith("sf")
@@ -935,18 +948,22 @@ def phase1_accumulate_team_stats(
             endgame_levels = acc_endgame_climb_level.get(tn, [])
 
             fuel_mean = statistics.mean(fuel_list) if fuel_list else 0.0
-            fuel_std = statistics.stdev(fuel_list) if len(fuel_list) > 1 else (fuel_mean * 0.3 if fuel_mean > 0 else 1.0)
+            fuel_std = statistics.stdev(fuel_list) if len(fuel_list) > 1 else (
+                fuel_mean * 0.3 if fuel_mean > 0 else 1.0)
             auto_fuel_mean = statistics.mean(auto_fuel_list) if auto_fuel_list else 0.0
-            auto_fuel_std = statistics.stdev(auto_fuel_list) if len(auto_fuel_list) > 1 else (auto_fuel_mean * 0.3 if auto_fuel_mean > 0 else 1.0)
+            auto_fuel_std = statistics.stdev(auto_fuel_list) if len(auto_fuel_list) > 1 else (
+                auto_fuel_mean * 0.3 if auto_fuel_mean > 0 else 1.0)
             climb_pts_mean = statistics.mean(climb_pts_list) if climb_pts_list else 0.0
-            climb_pts_std = statistics.stdev(climb_pts_list) if len(climb_pts_list) > 1 else (climb_pts_mean * 0.3 if climb_pts_mean > 0 else 1.0)
+            climb_pts_std = statistics.stdev(climb_pts_list) if len(climb_pts_list) > 1 else (
+                climb_pts_mean * 0.3 if climb_pts_mean > 0 else 1.0)
 
             auto_climb_rate = (sum(auto_climb_list) / len(auto_climb_list)) if auto_climb_list else 0.0
             endgame_climb_rate = (sum(endgame_climb_list) / len(endgame_climb_list)) if endgame_climb_list else 0.0
             best_level = max(set(endgame_levels), key=endgame_levels.count) if endgame_levels else 0
 
             active_avg = _mean(acc_active_fuel.get(tn, []))
-            bps = round(active_avg / ACTIVE_WINDOW_SECONDS, 3) if (active_avg is not None and ACTIVE_WINDOW_SECONDS > 0) else None
+            bps = round(active_avg / ACTIVE_WINDOW_SECONDS, 3) if (
+                        active_avg is not None and ACTIVE_WINDOW_SECONDS > 0) else None
 
             # Qualitative data from scouting postmatch
             team_entries = [
@@ -1007,7 +1024,8 @@ def phase1_accumulate_team_stats(
             endgame_climb_successes = sum(1 for a in endgame_climbs_all if a.success)
             auto_climb_successes = sum(1 for a in auto_climbs_all if a.success)
             endgame_levels_from_actions = [a.level for a in endgame_climbs_all if a.success]
-            most_common_climb_level = max(set(endgame_levels_from_actions), key=endgame_levels_from_actions.count) if endgame_levels_from_actions else "None"
+            most_common_climb_level = max(set(endgame_levels_from_actions),
+                                          key=endgame_levels_from_actions.count) if endgame_levels_from_actions else "None"
 
             top_faults = sorted(
                 [(f, c) for f, c in fault_counts.items() if c > 0],
@@ -1090,8 +1108,19 @@ def phase1_accumulate_team_stats(
                 "active_fuel_avg": _mean(acc_active_fuel.get(tn, [])),
                 "endgame_fuel_avg": _mean(acc_endgame_fuel.get(tn, [])),
                 "transition_fuel_avg": _mean(acc_transition_fuel.get(tn, [])),
+                "phase_1_fuel_avg": _mean(acc_phase_1_fuel.get(tn, [])),
+                "phase_2_fuel_avg": _mean(acc_phase_2_fuel.get(tn, [])),
+                "teleop_fuel_stdev": _stdev(acc_teleop_fuel.get(tn, [])),
+                "endgame_fuel_stdev": _stdev(acc_endgame_fuel.get(tn, [])),
+                "transition_fuel_stdev": _stdev(acc_transition_fuel.get(tn, [])),
+                "phase_1_fuel_stdev": _stdev(acc_phase_1_fuel.get(tn, [])),
+                "phase_2_fuel_stdev": _stdev(acc_phase_2_fuel.get(tn, [])),
                 "accuracy_avg": _mean(acc_accuracy.get(tn, [])),
                 "climb_points_avg": _mean(acc_climb_points.get(tn, [])),
+                "auto_climb_pts_avg": _mean(acc_auto_climb_pts.get(tn, [])),
+                "auto_climb_pts_stdev": _stdev(acc_auto_climb_pts.get(tn, [])),
+                "endgame_climb_pts_avg": _mean(acc_endgame_climb_pts.get(tn, [])),
+                "endgame_climb_pts_stdev": _stdev(acc_endgame_climb_pts.get(tn, [])),
                 "auto_climb_rate_pct": _rate(acc_auto_climb_success.get(tn, [])),
                 "endgame_climb_rate_pct": _rate(acc_endgame_climb_success.get(tn, [])),
                 "total_points_avg": _mean(acc_total_points_est.get(tn, [])),
@@ -1101,6 +1130,12 @@ def phase1_accumulate_team_stats(
                 # TBA-based auto contribution (alliance auto / 3)
                 "tba_auto_contrib_mean": _mean(acc_tba_auto_contrib.get(tn, [])),
                 "tba_auto_contrib_stdev": _stdev(acc_tba_auto_contrib.get(tn, [])),
+
+                # TBA-based foul averages (alliance-level, per match)
+                "tba_minor_fouls_avg": _mean(acc_tba_minor_fouls.get(tn, [])),
+                "tba_minor_fouls_stdev": _stdev(acc_tba_minor_fouls.get(tn, [])),
+                "tba_major_fouls_avg": _mean(acc_tba_major_fouls.get(tn, [])),
+                "tba_major_fouls_stdev": _stdev(acc_tba_major_fouls.get(tn, [])),
 
                 # RP from TBA
                 "rp_total": rp_total,
@@ -1141,6 +1176,10 @@ def phase1_accumulate_team_stats(
             "endgame_climb_success": acc_endgame_climb_success.get(tn, []),
             "endgame_climb_level": acc_endgame_climb_level.get(tn, []),
             "total_points_est": acc_total_points_est.get(tn, []),
+            "phase_1_fuel": acc_phase_1_fuel.get(tn, []),
+            "phase_2_fuel": acc_phase_2_fuel.get(tn, []),
+            "auto_climb_pts": acc_auto_climb_pts.get(tn, []),
+            "endgame_climb_pts": acc_endgame_climb_pts.get(tn, []),
         }
         for tn in all_team_nums
     }
@@ -1219,12 +1258,12 @@ class MatchContext:
     )
 
     def __init__(self, red_teams, blue_teams, profiles, sb_match, tba_match, canon_key):
-        self.red_teams = red_teams          # list[int]
-        self.blue_teams = blue_teams        # list[int]
-        self.profiles = profiles            # dict[int, dict] — full Phase 1 profiles
-        self.sb_match = sb_match            # StatboticsMatch | None
-        self.tba_match = tba_match          # Match
-        self.canon_key = canon_key          # str, e.g. "qm5"
+        self.red_teams = red_teams  # list[int]
+        self.blue_teams = blue_teams  # list[int]
+        self.profiles = profiles  # dict[int, dict] — full Phase 1 profiles
+        self.sb_match = sb_match  # StatboticsMatch | None
+        self.tba_match = tba_match  # Match
+        self.canon_key = canon_key  # str, e.g. "qm5"
 
     def get_profile(self, tn: int) -> dict:
         return self.profiles.get(tn, {})
@@ -1278,6 +1317,7 @@ def model_statbotics(ctx: MatchContext) -> dict:
 
 def model_whole_match_normals(ctx: MatchContext) -> dict:
     """Sum-of-normals on total match contribution (fuel + climb)."""
+
     def _team_normal(tn):
         p = ctx.get_profile(tn)
         fuel_mean = ctx.safe(p.get("fuel_mean"))
@@ -1285,7 +1325,7 @@ def model_whole_match_normals(ctx: MatchContext) -> dict:
         climb_mean = ctx.safe(p.get("climb_pts_mean"))
         climb_std = ctx.safe(p.get("climb_pts_std"), 1.0)
         total_mean = fuel_mean + climb_mean
-        total_std = math.sqrt(fuel_std**2 + climb_std**2)
+        total_std = math.sqrt(fuel_std ** 2 + climb_std ** 2)
         return (total_mean, total_std)
 
     red_normals = [_team_normal(tn) for tn in ctx.red_teams]
@@ -1335,6 +1375,9 @@ def model_per_period_breakdown(ctx: MatchContext) -> dict:
             for tn in teams
         ]
 
+    def _sum_means(normals):
+        return round(sum(m for m, _ in normals), 1)
+
     # Check if we have any scouting data at all
     has_data = any(
         ctx.get_profile(tn).get("matches_scouted", 0) > 0
@@ -1351,17 +1394,45 @@ def model_per_period_breakdown(ctx: MatchContext) -> dict:
     red_auto = _get_normals(ctx.red_teams, "auto_fuel_mean", "auto_fuel_std")
     blue_auto = _get_normals(ctx.blue_teams, "auto_fuel_mean", "auto_fuel_std")
 
-    # Climb normals
+    # Auto climb normals
+    red_auto_climb = _get_normals(ctx.red_teams, "auto_climb_pts_avg", "auto_climb_pts_stdev")
+    blue_auto_climb = _get_normals(ctx.blue_teams, "auto_climb_pts_avg", "auto_climb_pts_stdev")
+
+    # Teleop fuel normals
+    red_teleop_fuel = _get_normals(ctx.red_teams, "teleop_fuel_avg", "teleop_fuel_stdev")
+    blue_teleop_fuel = _get_normals(ctx.blue_teams, "teleop_fuel_avg", "teleop_fuel_stdev")
+
+    # Endgame climb normals (teleop climb = endgame tower)
+    red_endgame_climb = _get_normals(ctx.red_teams, "endgame_climb_pts_avg", "endgame_climb_pts_stdev")
+    blue_endgame_climb = _get_normals(ctx.blue_teams, "endgame_climb_pts_avg", "endgame_climb_pts_stdev")
+
+    # Transition fuel normals
+    red_transition = _get_normals(ctx.red_teams, "transition_fuel_avg", "transition_fuel_stdev")
+    blue_transition = _get_normals(ctx.blue_teams, "transition_fuel_avg", "transition_fuel_stdev")
+
+    # Phase 1 fuel normals
+    red_phase_1 = _get_normals(ctx.red_teams, "phase_1_fuel_avg", "phase_1_fuel_stdev")
+    blue_phase_1 = _get_normals(ctx.blue_teams, "phase_1_fuel_avg", "phase_1_fuel_stdev")
+
+    # Phase 2 fuel normals
+    red_phase_2 = _get_normals(ctx.red_teams, "phase_2_fuel_avg", "phase_2_fuel_stdev")
+    blue_phase_2 = _get_normals(ctx.blue_teams, "phase_2_fuel_avg", "phase_2_fuel_stdev")
+
+    # Endgame fuel normals
+    red_endgame_fuel = _get_normals(ctx.red_teams, "endgame_fuel_avg", "endgame_fuel_stdev")
+    blue_endgame_fuel = _get_normals(ctx.blue_teams, "endgame_fuel_avg", "endgame_fuel_stdev")
+
+    # Climb normals (total = auto + endgame)
     red_climb = _get_normals(ctx.red_teams, "climb_pts_mean", "climb_pts_std")
     blue_climb = _get_normals(ctx.blue_teams, "climb_pts_mean", "climb_pts_std")
 
     # Total = fuel + climb per team
     red_total = [
-        (f[0] + c[0], math.sqrt(f[1]**2 + c[1]**2))
+        (f[0] + c[0], math.sqrt(f[1] ** 2 + c[1] ** 2))
         for f, c in zip(red_fuel, red_climb)
     ]
     blue_total = [
-        (f[0] + c[0], math.sqrt(f[1]**2 + c[1]**2))
+        (f[0] + c[0], math.sqrt(f[1] ** 2 + c[1] ** 2))
         for f, c in zip(blue_fuel, blue_climb)
     ]
 
@@ -1390,6 +1461,24 @@ def model_per_period_breakdown(ctx: MatchContext) -> dict:
         "auto_win_prob": auto_win_prob,
         "red_auto": round(red_auto_score, 1),
         "blue_auto": round(blue_auto_score, 1),
+
+        # Granular score components
+        "red_auto_fuel": _sum_means(red_auto),
+        "blue_auto_fuel": _sum_means(blue_auto),
+        "red_auto_climb": _sum_means(red_auto_climb),
+        "blue_auto_climb": _sum_means(blue_auto_climb),
+        "red_teleop_fuel": _sum_means(red_teleop_fuel),
+        "blue_teleop_fuel": _sum_means(blue_teleop_fuel),
+        "red_teleop_climb": _sum_means(red_endgame_climb),
+        "blue_teleop_climb": _sum_means(blue_endgame_climb),
+        "red_transition_fuel": _sum_means(red_transition),
+        "blue_transition_fuel": _sum_means(blue_transition),
+        "red_phase_1_fuel": _sum_means(red_phase_1),
+        "blue_phase_1_fuel": _sum_means(blue_phase_1),
+        "red_phase_2_fuel": _sum_means(red_phase_2),
+        "blue_phase_2_fuel": _sum_means(blue_phase_2),
+        "red_endgame_fuel": _sum_means(red_endgame_fuel),
+        "blue_endgame_fuel": _sum_means(blue_endgame_fuel),
 
         # RP probabilities
         "energized_red": _prob_sum_exceeds(red_fuel, 100),
@@ -1495,6 +1584,43 @@ def model_scouted_auto(ctx: MatchContext) -> dict:
 
 
 # ---------------------------------------------------------------------------
+# Model: TBA Foul Averages
+# ---------------------------------------------------------------------------
+# Averages alliance-level minor/major foul counts from TBA quals history.
+# Since fouls are tracked at the alliance level, each team's profile stores
+# the raw alliance foul counts from its matches. We average across the
+# three robots to get a per-alliance prediction.
+# ---------------------------------------------------------------------------
+
+def model_tba_fouls(ctx: MatchContext) -> dict:
+    """Predict alliance fouls from TBA historical averages."""
+    has_data = any(
+        ctx.get_profile(tn).get("tba_minor_fouls_avg") is not None
+        for tn in ctx.red_teams + ctx.blue_teams
+    )
+    if not has_data:
+        return {}
+
+    def _alliance_foul_avg(teams, key):
+        """Average the per-team alliance foul averages, then take the max.
+
+        Each team's foul avg is already the alliance-level count from their
+        matches. Averaging across the 3 team values and keeping the result
+        gives the best estimate for the alliance.
+        """
+        vals = [ctx.safe(ctx.get_profile(tn).get(key)) for tn in teams]
+        non_zero = [v for v in vals if v > 0]
+        return round(statistics.mean(non_zero), 1) if non_zero else 0.0
+
+    return {
+        "red_minor_fouls": _alliance_foul_avg(ctx.red_teams, "tba_minor_fouls_avg"),
+        "blue_minor_fouls": _alliance_foul_avg(ctx.blue_teams, "tba_minor_fouls_avg"),
+        "red_major_fouls": _alliance_foul_avg(ctx.red_teams, "tba_major_fouls_avg"),
+        "blue_major_fouls": _alliance_foul_avg(ctx.blue_teams, "tba_major_fouls_avg"),
+    }
+
+
+# ---------------------------------------------------------------------------
 # Model Registry
 # ---------------------------------------------------------------------------
 # prior_weight: relative weight when no empirical data exists yet.
@@ -1528,8 +1654,12 @@ MODEL_REGISTRY = [
         "fn": model_scouted_auto,
         "prior_weight": 1.5,
     },
+    {
+        "name": "tba_fouls",
+        "fn": model_tba_fouls,
+        "prior_weight": 1.0,
+    },
 ]
-
 
 # ---------------------------------------------------------------------------
 # Ensemble scoring & weighting
@@ -1539,6 +1669,19 @@ MODEL_REGISTRY = [
 ALL_DOMAINS = [
     "win_prob", "red_score", "blue_score",
     "auto_win_prob", "red_auto", "blue_auto",
+    # Granular score components
+    "red_auto_fuel", "blue_auto_fuel",
+    "red_auto_climb", "blue_auto_climb",
+    "red_teleop_fuel", "blue_teleop_fuel",
+    "red_teleop_climb", "blue_teleop_climb",
+    "red_transition_fuel", "blue_transition_fuel",
+    "red_phase_1_fuel", "blue_phase_1_fuel",
+    "red_phase_2_fuel", "blue_phase_2_fuel",
+    "red_endgame_fuel", "blue_endgame_fuel",
+    # Fouls
+    "red_minor_fouls", "blue_minor_fouls",
+    "red_major_fouls", "blue_major_fouls",
+    # RP
     "energized_red", "energized_blue",
     "supercharged_red", "supercharged_blue",
     "traversal_red", "traversal_blue",
@@ -1551,7 +1694,19 @@ PROB_DOMAINS = {
     "supercharged_red", "supercharged_blue",
     "traversal_red", "traversal_blue",
 }
-SCORE_DOMAINS = {"red_score", "blue_score", "red_auto", "blue_auto"}
+SCORE_DOMAINS = {
+    "red_score", "blue_score", "red_auto", "blue_auto",
+    "red_auto_fuel", "blue_auto_fuel",
+    "red_auto_climb", "blue_auto_climb",
+    "red_teleop_fuel", "blue_teleop_fuel",
+    "red_teleop_climb", "blue_teleop_climb",
+    "red_transition_fuel", "blue_transition_fuel",
+    "red_phase_1_fuel", "blue_phase_1_fuel",
+    "red_phase_2_fuel", "blue_phase_2_fuel",
+    "red_endgame_fuel", "blue_endgame_fuel",
+    "red_minor_fouls", "blue_minor_fouls",
+    "red_major_fouls", "blue_major_fouls",
+}
 
 # Minimum completed matches before using empirical weights
 MIN_MATCHES_FOR_EMPIRICAL = 1
@@ -1599,6 +1754,29 @@ def _extract_actual(tba_match: Match, canon_key: str) -> Optional[dict]:
         "auto_win_prob": auto_win_actual,
         "red_auto": float(red_auto),
         "blue_auto": float(blue_auto),
+        # Granular score components
+        "red_auto_fuel": float(red_bd.hubScore.autoPoints),
+        "blue_auto_fuel": float(blue_bd.hubScore.autoPoints),
+        "red_auto_climb": float(red_bd.autoTowerPoints),
+        "blue_auto_climb": float(blue_bd.autoTowerPoints),
+        "red_teleop_fuel": float(red_bd.hubScore.teleopPoints),
+        "blue_teleop_fuel": float(blue_bd.hubScore.teleopPoints),
+        "red_teleop_climb": float(red_bd.endGameTowerPoints),
+        "blue_teleop_climb": float(blue_bd.endGameTowerPoints),
+        "red_transition_fuel": float(red_bd.hubScore.transitionPoints),
+        "blue_transition_fuel": float(blue_bd.hubScore.transitionPoints),
+        "red_phase_1_fuel": float(red_bd.hubScore.shift1Points + red_bd.hubScore.shift2Points),
+        "blue_phase_1_fuel": float(blue_bd.hubScore.shift1Points + blue_bd.hubScore.shift2Points),
+        "red_phase_2_fuel": float(red_bd.hubScore.shift3Points + red_bd.hubScore.shift4Points),
+        "blue_phase_2_fuel": float(blue_bd.hubScore.shift3Points + blue_bd.hubScore.shift4Points),
+        "red_endgame_fuel": float(red_bd.hubScore.endgamePoints),
+        "blue_endgame_fuel": float(blue_bd.hubScore.endgamePoints),
+        # Fouls
+        "red_minor_fouls": float(red_bd.minorFoulCount),
+        "blue_minor_fouls": float(blue_bd.minorFoulCount),
+        "red_major_fouls": float(red_bd.majorFoulCount),
+        "blue_major_fouls": float(blue_bd.majorFoulCount),
+        # RP
         "energized_red": 1.0 if red_bd.energizedAchieved else 0.0,
         "energized_blue": 1.0 if blue_bd.energizedAchieved else 0.0,
         "supercharged_red": 1.0 if red_bd.superchargedAchieved else 0.0,
@@ -1609,9 +1787,9 @@ def _extract_actual(tba_match: Match, canon_key: str) -> Optional[dict]:
 
 
 def _score_model_on_domain(
-    predictions: list[float],
-    actuals: list[float],
-    domain: str,
+        predictions: list[float],
+        actuals: list[float],
+        domain: str,
 ) -> Optional[float]:
     """Compute error for a model on a specific domain. Lower is better.
 
@@ -1631,9 +1809,9 @@ def _score_model_on_domain(
 
 
 def _compute_ensemble_weights(
-    model_errors: dict[str, dict[str, Optional[float]]],
-    model_priors: dict[str, float],
-    model_active_domains: Optional[dict[str, set[str]]] = None,
+        model_errors: dict[str, dict[str, Optional[float]]],
+        model_priors: dict[str, float],
+        model_active_domains: Optional[dict[str, set[str]]] = None,
 ) -> dict[str, dict[str, float]]:
     """Compute per-domain weights for each model.
 
@@ -1703,8 +1881,8 @@ def _compute_ensemble_weights(
 
 
 def _merge_ensemble(
-    per_model_outputs: dict[str, dict],
-    weights: dict[str, dict[str, float]],
+        per_model_outputs: dict[str, dict],
+        weights: dict[str, dict[str, float]],
 ) -> dict:
     """Weighted-average merge of model outputs across all domains.
 
@@ -1827,11 +2005,11 @@ def _build_team_summary(profiles: dict, tn: int) -> dict:
 # ---------------------------------------------------------------------------
 
 def phase2_predict_matches(
-    calc_result: dict,
-    tba_data: list[Match],
-    sb_data: list[StatboticsMatch],
-    team_stats: dict,
-    log: Logger,
+        calc_result: dict,
+        tba_data: list[Match],
+        sb_data: list[StatboticsMatch],
+        team_stats: dict,
+        log: Logger,
 ) -> dict[str, dict]:
     """Run the ensemble prediction system on all matches.
 
@@ -1981,31 +2159,61 @@ def phase2_predict_matches(
             red_climb_recs = _recommend_climb_positions(red_summaries)
             blue_climb_recs = _recommend_climb_positions(blue_summaries)
 
-            # Derive winner from win_prob if available
-            win_prob = ensemble.get("win_prob", 0.5)
-            auto_win_prob = ensemble.get("auto_win_prob", 0.5)
-
             # Format the ensemble output into the predictions dict
             # (same shape the frontend expects)
+            def _e(key, scale=1, default=0):
+                """Extract from ensemble, optionally scale, round to 1dp."""
+                v = ensemble.get(key, default)
+                return round(v * scale, 1) if v is not None else 0.0
+
             predictions = {
-                "red_win_prob": round(win_prob * 100, 1),
-                "blue_win_prob": round((1 - win_prob) * 100, 1),
-                "red_score_pred": round(ensemble.get("red_score", 0), 1),
-                "blue_score_pred": round(ensemble.get("blue_score", 0), 1),
-                "red_fuel_pred": None,   # not directly in ensemble (could add)
-                "blue_fuel_pred": None,
-                "red_climb_pred": None,
-                "blue_climb_pred": None,
-                "red_auto_pred": round(ensemble.get("red_auto", 0), 1),
-                "blue_auto_pred": round(ensemble.get("blue_auto", 0), 1),
-                "red_auto_win_prob": round(auto_win_prob * 100, 1),
-                "blue_auto_win_prob": round((1 - auto_win_prob) * 100, 1),
-                "red_energized_prob": round(ensemble.get("energized_red", 0) * 100, 1),
-                "blue_energized_prob": round(ensemble.get("energized_blue", 0) * 100, 1),
-                "red_supercharged_prob": round(ensemble.get("supercharged_red", 0) * 100, 1),
-                "blue_supercharged_prob": round(ensemble.get("supercharged_blue", 0) * 100, 1),
-                "red_traversal_prob": round(ensemble.get("traversal_red", 0) * 100, 1),
-                "blue_traversal_prob": round(ensemble.get("traversal_blue", 0) * 100, 1),
+                # Win probabilities
+                "red_win_prob": _e("win_prob", 100),
+                "blue_win_prob": round((1 - ensemble.get("win_prob", 0.5)) * 100, 1),
+                "red_auto_win_prob": _e("auto_win_prob", 100),
+                "blue_auto_win_prob": round((1 - ensemble.get("auto_win_prob", 0.5)) * 100, 1),
+
+                # Total score
+                "red_score_pred": _e("red_score"),
+                "blue_score_pred": _e("blue_score"),
+
+                # Auto
+                "red_auto_pred": _e("red_auto"),
+                "blue_auto_pred": _e("blue_auto"),
+                "red_auto_fuel_pred": _e("red_auto_fuel"),
+                "blue_auto_fuel_pred": _e("blue_auto_fuel"),
+                "red_auto_climb_pred": _e("red_auto_climb"),
+                "blue_auto_climb_pred": _e("blue_auto_climb"),
+
+                # Teleop
+                "red_teleop_fuel_pred": _e("red_teleop_fuel"),
+                "blue_teleop_fuel_pred": _e("blue_teleop_fuel"),
+                "red_teleop_climb_pred": _e("red_teleop_climb"),
+                "blue_teleop_climb_pred": _e("blue_teleop_climb"),
+
+                # Teleop sub-phases
+                "red_transition_fuel_pred": _e("red_transition_fuel"),
+                "blue_transition_fuel_pred": _e("blue_transition_fuel"),
+                "red_phase_1_fuel_pred": _e("red_phase_1_fuel"),
+                "blue_phase_1_fuel_pred": _e("blue_phase_1_fuel"),
+                "red_phase_2_fuel_pred": _e("red_phase_2_fuel"),
+                "blue_phase_2_fuel_pred": _e("blue_phase_2_fuel"),
+                "red_endgame_fuel_pred": _e("red_endgame_fuel"),
+                "blue_endgame_fuel_pred": _e("blue_endgame_fuel"),
+
+                # Fouls
+                "red_minor_fouls_pred": _e("red_minor_fouls"),
+                "blue_minor_fouls_pred": _e("blue_minor_fouls"),
+                "red_major_fouls_pred": _e("red_major_fouls"),
+                "blue_major_fouls_pred": _e("blue_major_fouls"),
+
+                # RP probabilities
+                "red_energized_prob": _e("energized_red", 100),
+                "blue_energized_prob": _e("energized_blue", 100),
+                "red_supercharged_prob": _e("supercharged_red", 100),
+                "blue_supercharged_prob": _e("supercharged_blue", 100),
+                "red_traversal_prob": _e("traversal_red", 100),
+                "blue_traversal_prob": _e("traversal_blue", 100),
             }
 
             # Per-model breakdown for debugging / frontend display
@@ -2067,9 +2275,9 @@ def phase2_predict_matches(
 
 
 def phase2_predict_rp(
-    sb_data: list[StatboticsMatch],
-    team_stats: dict,
-    log: Logger,
+        sb_data: list[StatboticsMatch],
+        team_stats: dict,
+        log: Logger,
 ) -> dict:
     """Compute predicted RP totals from Statbotics. Returns rp_pred dicts."""
     with log.section("Computing predicted RP from Statbotics"):
@@ -2102,6 +2310,7 @@ def phase2_predict_rp(
 
     return {"rp_pred": rp_pred, "rp_avg_pred": rp_avg_pred}
 
+
 # ===========================================================================
 # Phase 3: Output Building
 # ===========================================================================
@@ -2110,10 +2319,10 @@ def phase2_predict_rp(
 # ===========================================================================
 
 def phase3_build_rankings(
-    calc_result: dict,
-    team_stats: dict,
-    rp_predictions: dict,
-    log: Logger,
+        calc_result: dict,
+        team_stats: dict,
+        rp_predictions: dict,
+        log: Logger,
 ):
     """Build the ranking dict from team profiles. Mutates calc_result["ranking"]."""
     with log.section("Building team rankings"):
@@ -2187,7 +2396,7 @@ def phase3_build_rankings(
                 # Filter out None values and sort descending
                 sorted_items = sorted(
                     [(tn, val) for tn, val in metric_dict.items() if val is not None],
-                    key=lambda x: x[1], 
+                    key=lambda x: x[1],
                     reverse=True
                 )
                 ranks = {}
@@ -2198,13 +2407,13 @@ def phase3_build_rankings(
                         current_rank = idx + 1
                         current_val = val
                     ranks[tn] = current_rank
-                
+
                 # Backfill any teams that were None with a default max rank
                 max_rank = len(sorted_items) + 1
                 for tn in metric_dict.keys():
                     if tn not in ranks:
                         ranks[tn] = max_rank
-                        
+
                 ranking[k] = ranks
 
         log.stat("Teams ranked", len(all_teams))
@@ -2212,21 +2421,24 @@ def phase3_build_rankings(
 
 
 def phase3_build_match_output(
-    calc_result: dict,
-    tba_data: list[Match],
-    sb_data: list[StatboticsMatch],
-    match_predictions: dict[str, dict],
-    log: Logger,
+        calc_result: dict,
+        tba_data: list[Match],
+        sb_data: list[StatboticsMatch],
+        match_predictions: dict[str, dict],
+        team_stats: dict,
+        log: Logger,
 ):
     """Build the final match pred/post structures. Mutates calc_result["match"].
 
-    Post data is built exclusively from TBA and Statbotics — no scouting data.
+    Post data is built from TBA, Statbotics, and per-robot scouting stats.
     """
     with log.section("Building match pred/post structure"):
         TOWER_LEVEL_PTS = {"Level1": 10, "Level2": 20, "Level3": 30, "None": 0}
         AUTO_TOWER_LEVEL_PTS = {"Level1": 15, "None": 0}
 
         sb_match_map: dict[str, StatboticsMatch] = {m.key: m for m in sb_data}
+        team_fuel_output = team_stats.get("team_fuel_output", {})
+        profiles = team_stats.get("profiles", {})
 
         post_count = 0
 
@@ -2268,13 +2480,36 @@ def phase3_build_match_output(
                         endgame_level = getattr(bd, f"endGameTowerRobot{i}")
                         auto_pts = AUTO_TOWER_LEVEL_PTS.get(auto_level, 0)
                         endgame_pts = TOWER_LEVEL_PTS.get(endgame_level, 0)
+
+                        tn = teams[i - 1] if i - 1 < len(teams) else None
+                        # Look up scouting data for this robot in this match
+                        scouted_fuel = None
+                        scouted_auto_fuel = None
+                        scouted_teleop_fuel = None
+                        if tn is not None:
+                            team_fuel = team_fuel_output.get(str(tn), {})
+                            match_fuel = team_fuel.get(canon_key, {})
+                            if match_fuel:
+                                auto_f = match_fuel.get("auto", {}).get("fuel", 0)
+                                trans_f = match_fuel.get("transition", {}).get("fuel", 0)
+                                p1_f = match_fuel.get("phase_1", {}).get("fuel", 0)
+                                p2_f = match_fuel.get("phase_2", {}).get("fuel", 0)
+                                eg_f = match_fuel.get("endgame", {}).get("fuel", 0)
+                                scouted_auto_fuel = auto_f
+                                scouted_teleop_fuel = trans_f + p1_f + p2_f + eg_f
+                                scouted_fuel = scouted_auto_fuel + scouted_teleop_fuel
+
                         climbs.append({
-                            "team": teams[i - 1] if i - 1 < len(teams) else None,
+                            "team": tn,
                             "auto_tower": auto_level,
                             "auto_tower_pts": auto_pts,
                             "endgame_tower": endgame_level,
                             "endgame_tower_pts": endgame_pts,
                             "total_tower_pts": auto_pts + endgame_pts,
+                            # Scouted per-robot contributions (this match)
+                            "scouted_fuel": scouted_fuel,
+                            "scouted_auto_fuel": scouted_auto_fuel,
+                            "scouted_teleop_fuel": scouted_teleop_fuel,
                         })
 
                     result[color] = {
@@ -2318,8 +2553,8 @@ def phase3_build_match_output(
                         "red": round(red_score - sb_pred["red_score"], 1),
                         "blue": round(blue_score - sb_pred["blue_score"], 1),
                         "pred_winner_correct": (
-                            (sb_pred["red_win_prob"] > 50 and winner == "red")
-                            or (sb_pred["blue_win_prob"] > 50 and winner == "blue")
+                                (sb_pred["red_win_prob"] > 50 and winner == "red")
+                                or (sb_pred["blue_win_prob"] > 50 and winner == "blue")
                         ),
                     }
 
@@ -2450,13 +2685,13 @@ def run_calculation(setting):
             calc_result["tba"] = [m.model_dump() for m in tba_data]
 
             if not initialize_structure(
-                calc_result=calc_result,
-                tba_data=tba_data,
-                sb_data=sb_data,
-                downloaded_data=downloaded_data,
-                event_key=event_key,
-                log=log,
-                stop_on_warning=stop_on_warning,
+                    calc_result=calc_result,
+                    tba_data=tba_data,
+                    sb_data=sb_data,
+                    downloaded_data=downloaded_data,
+                    event_key=event_key,
+                    log=log,
+                    stop_on_warning=stop_on_warning,
             ):
                 log.error("Structure initialization failed")
                 return {"success": False, "error": "Structure initialization failed"}
@@ -2515,7 +2750,7 @@ def run_calculation(setting):
         calc_result["team_fuel"] = team_stats["team_fuel_output"]
 
         # Match pred/post structures
-        phase3_build_match_output(calc_result, tba_data, sb_data, match_predictions, log)
+        phase3_build_match_output(calc_result, tba_data, sb_data, match_predictions, team_stats, log)
 
         # Next match
         phase3_determine_next_match(calc_result, log)
@@ -2567,8 +2802,8 @@ def decode_match_entry(s: str) -> tuple[str, int]:
 
 
 def determine_most_recent_match(
-    match_scouting: list[MatchScoutingEntry],
-    calc_result: dict,
+        match_scouting: list[MatchScoutingEntry],
+        calc_result: dict,
 ) -> Optional[str]:
     """
     Determine the most recent match based on submissions.
@@ -2612,13 +2847,13 @@ def determine_most_recent_match(
 
 
 def initialize_structure(
-    calc_result: dict,
-    tba_data: list[Match],
-    sb_data: list[StatboticsMatch],
-    downloaded_data: DownloadedData,
-    event_key: str,
-    log: Logger,
-    stop_on_warning: bool = False,
+        calc_result: dict,
+        tba_data: list[Match],
+        sb_data: list[StatboticsMatch],
+        downloaded_data: DownloadedData,
+        event_key: str,
+        log: Logger,
+        stop_on_warning: bool = False,
 ) -> bool:
     """
     Initialize empty calculation structures for teams and matches.
@@ -2803,8 +3038,8 @@ def one_var_stats(data: list[float]) -> dict:
 
 
 def prob_sum1_greater_sum2(
-    normals1: list[tuple[float, float]],
-    normals2: list[tuple[float, float]],
+        normals1: list[tuple[float, float]],
+        normals2: list[tuple[float, float]],
 ) -> float:
     """
     Probability that the sum of normals1 is greater than the sum of normals2.
