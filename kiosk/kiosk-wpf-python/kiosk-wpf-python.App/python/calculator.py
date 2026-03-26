@@ -121,6 +121,7 @@ class ScoreAction(BaseModel):
     x: float
     y: float
     score: int
+    shot: int = 0
     timestamp: int
     phase: MatchPhase
     subPhase: Optional[SubPhaseName]
@@ -2977,22 +2978,21 @@ def process_match_entry(data: ScoutingEntryData) -> dict:
 
     for action in actions:
         if isinstance(action, ShootingAction):
-            bucket = subphase_to_bucket.get(action.subPhase)
-            shift = subphase_to_shift.get(action.subPhase)
-            fuel["total"]["shot"] += 1
-            if bucket:
-                fuel[bucket]["shot"] += 1
-            if shift:
-                fuel[shift]["shot"] += 1
+            # ShootingAction is a state transition for time tracking;
+            # actual shot counts come from ScoreAction.shot below.
+            pass
 
         elif isinstance(action, ScoreAction):
             bucket = subphase_to_bucket.get(action.subPhase)
             shift = subphase_to_shift.get(action.subPhase)
             fuel["total"]["scored"] += action.score
+            fuel["total"]["shot"] += action.shot
             if bucket:
                 fuel[bucket]["scored"] += action.score
+                fuel[bucket]["shot"] += action.shot
             if shift:
                 fuel[shift]["scored"] += action.score
+                fuel[shift]["shot"] += action.shot
 
         elif isinstance(action, ClimbAction):
             climb_phase = "auto" if action.phase == "auto" else "endgame"
