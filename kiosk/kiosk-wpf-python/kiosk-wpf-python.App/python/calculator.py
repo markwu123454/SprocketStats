@@ -150,6 +150,13 @@ class IntakeAction(BaseModel):
     subPhase: Optional[SubPhaseName]
 
 
+class DumpAction(BaseModel):
+    type: Literal["outpostDump"]
+    timestamp: int
+    phase: MatchPhase
+    subPhase: Optional[SubPhaseName]
+
+
 class ShootingAction(BaseModel):
     type: Literal["shooting"]
     timestamp: int
@@ -165,6 +172,7 @@ ScoutingAction = Annotated[
         TraversalAction,
         IntakeAction,
         ShootingAction,
+        DumpAction,
     ],
     Field(discriminator="type")
 ]
