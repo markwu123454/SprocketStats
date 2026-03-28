@@ -85,7 +85,9 @@ export default function NameSearch({names, value, onChange, placeholder = "Searc
     /* ---------------- Render ---------------- */
 
     const displayValue = open ? query : (value ?? "");
-
+console.log("names:", names);
+console.log("results:", results);
+console.log("open:", open);
     return (
         <div ref={containerRef} className="relative w-full">
             <input

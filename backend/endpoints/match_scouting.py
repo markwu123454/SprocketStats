@@ -505,3 +505,12 @@ async def update_match_schedule(
     await db.update_matches_bulk(payload.matches)
 
     return {"status": "ok"}
+
+@router.get("/scouting/scouters")
+async def get_scouters(
+):
+    """
+    Get list of scouter names
+    """
+
+    return await db.get_scouter_list()

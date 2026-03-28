@@ -119,6 +119,7 @@ export default function PrePhase({data, setData}: {
         let alive = true
         void (async () => {
             const names = await getScouterNamesRef.current()
+            console.log("fetched names:", names)
             if (alive) setScouterNames(names)
         })()
         return () => { alive = false }

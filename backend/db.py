@@ -1079,6 +1079,19 @@ async def update_matches_bulk(
         await release_db_connection(pool, conn)
 
 
+async def get_scouter_list():
+    """Insert a new pit scouting entry using current_event from metadata."""
+    pool, conn = await get_db_connection(DB_NAME)
+    try:
+        rows = await conn.fetch("""
+                           SELECT name FROM users WHERE approval = 'approved';
+                           """)
+        return [row["name"] for row in rows]
+    finally:
+        await release_db_connection(pool, conn)
+
+
+
 # =================== Pit Scouting ===================
 
 async def add_pit_scouting(

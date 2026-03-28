@@ -318,8 +318,8 @@ export function useAPI() {
 
     // --- Endpoint: GET /misc/scouter_names ---
     const getScouterNames = async (): Promise<string[]> => {
-        const res = await apiRequest<{ names: string[] }>("/misc/scouter_names");
-        return res?.names ?? [];
+        const res = await apiRequest<{ names: string[] }>("/scouting/scouters");
+        return res ?? [];
     };
 
 
@@ -386,6 +386,26 @@ export function useAPI() {
         } catch (err) {
             console.error("claimTeam failed:", err);
             return false;
+        }
+    };
+
+    // --- Endpoint: GET /scouting/scouters ---
+    const getScouters = async (
+    ): Promise<
+        string[]
+    > => {
+        try {
+            const res = await fetch(
+                `${BASE_URL}/scouting/scouters`,
+                {
+                    method: "GET",
+                    headers: getAuthHeaders(),
+                }
+            );
+            return res?.names ?? [];
+        } catch (err) {
+            console.error("get scouter failed:", err);
+            return [];
         }
     };
 
@@ -857,7 +877,7 @@ export function useAPI() {
         })
     }
 
-// --- POST /attendance/checkout ---
+    // --- POST /attendance/checkout ---
     const checkout = async (
         payload?: {
             location: {
@@ -1000,5 +1020,6 @@ export function useAPI() {
         adminUnclaimTeam,
         postDataFeedback,
         getScouterNames,
+        getScouters,
     };
 }
