@@ -67,7 +67,7 @@ export default function MatchDataPredPage() {
     const sbPred = predData.sb_pred
 
     return (
-        <div className="flex flex-col h-screen bg-white text-zinc-900">
+        <div className="flex flex-col min-h-screen lg:h-screen bg-white text-zinc-900">
             {/* HEADER */}
             <div
                 className="flex items-center justify-between border-b border-zinc-200 px-6 py-3 h-16 bg-zinc-50 shrink-0">
@@ -113,7 +113,7 @@ export default function MatchDataPredPage() {
             </div>
 
             {/* BODY */}
-            <div className="flex flex-1 overflow-hidden">
+            <div className="flex flex-col lg:flex-row flex-1 overflow-auto lg:overflow-hidden">
                 {/* Red alliance panel */}
                 <AlliancePanel
                     color="red"
@@ -122,8 +122,17 @@ export default function MatchDataPredPage() {
                     permissions={permissions}
                 />
 
-                {/* Center comparison column */}
-                <div className="flex-[1.5] flex flex-col overflow-auto bg-zinc-50 border-x border-zinc-200">
+                {/* Blue alliance panel — order-2 on mobile (after red), order-last on lg */}
+                <AlliancePanel
+                    color="blue"
+                    alliance={blue}
+                    teamNames={teamNames}
+                    permissions={permissions}
+                    className="order-2 lg:order-last"
+                />
+
+                {/* Center comparison column — order-3 on mobile (after blue), order-2 on lg (middle) */}
+                <div className="order-3 lg:order-2 shrink-0 lg:shrink lg:flex-[1.5] flex flex-col overflow-auto bg-zinc-50 border-y lg:border-y-0 lg:border-x border-zinc-200">
                     {/* Score prediction */}
                     <Section label="Score Prediction">
                         <div className="flex items-center justify-between px-6 py-4">
@@ -225,14 +234,6 @@ export default function MatchDataPredPage() {
                         </div>
                     </Section>
                 </div>
-
-                {/* Blue alliance panel */}
-                <AlliancePanel
-                    color="blue"
-                    alliance={blue}
-                    teamNames={teamNames}
-                    permissions={permissions}
-                />
             </div>
         </div>
     )
@@ -368,22 +369,23 @@ function ClimbRecPanel({color, recs, teamNames}: {
     )
 }
 
-function AlliancePanel({color, alliance, teamNames, permissions}: {
+function AlliancePanel({color, alliance, teamNames, permissions, className = ""}: {
     color: "red" | "blue"
     alliance: any
     teamNames: Record<number, string>
     permissions: any
+    className?: string
 }) {
     const bg = color === "red" ? "bg-red-50/50" : "bg-blue-50/50"
     const headerColor = color === "red" ? "text-red-700" : "text-blue-700"
     const details: any[] = alliance?.team_details ?? []
 
     return (
-        <div className={`w-80 flex flex-col overflow-hidden shrink-0 ${bg}`}>
+        <div className={`w-full lg:w-80 flex flex-col shrink-0 overflow-hidden ${bg} ${className}`}>
             <div className={`px-4 py-2 border-b border-zinc-200 text-sm font-semibold ${headerColor}`}>
                 {color === "red" ? "Red" : "Blue"} Alliance
             </div>
-            <ul className="flex flex-col flex-1 divide-y divide-zinc-200 overflow-auto">
+            <ul className="flex flex-col lg:flex-1 divide-y divide-zinc-200 lg:overflow-auto">
                 {details.map((td: any) => (
                     <TeamRow
                         key={td.team}
