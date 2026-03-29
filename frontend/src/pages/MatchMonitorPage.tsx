@@ -319,21 +319,6 @@ function AllianceColumn({
                                     #{team}
                                 </span>
 
-                                <div className="text-right text-xs">
-                                    {/*<div>*/}
-                                    {/*    Assigned: {data.assigned_name ?? "—"}*/}
-                                    {/*</div>*/}
-                                    <div
-                                        className={
-                                            mismatch
-                                                ? "text-red-500 font-semibold"
-                                                : "opacity-80"
-                                        }
-                                    >
-                                        Scouting: {data.name ?? "—"}
-                                    </div>
-                                </div>
-
                                 <div className="flex items-center gap-2">
                                     <span className={`text-xs capitalize ${
                                         data.sub_status === "overtime" ? "text-red-400 font-semibold" :
