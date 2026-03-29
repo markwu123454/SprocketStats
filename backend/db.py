@@ -1084,7 +1084,7 @@ async def get_scouter_list():
     pool, conn = await get_db_connection(DB_NAME)
     try:
         rows = await conn.fetch("""
-                           SELECT name FROM users WHERE approval = 'approved';
+                           SELECT name FROM users WHERE approval IN ( 'approved', 'autoapproved') ;
                            """)
         return [row["name"] for row in rows]
     finally:
