@@ -71,7 +71,7 @@ export default function MatchDataPostPage() {
     const sbResult = postData.sb_result
 
     return (
-        <div className="flex flex-col h-screen bg-white text-zinc-900">
+        <div className="flex flex-col min-h-screen lg:h-screen bg-white text-zinc-900">
             {/* HEADER */}
             <div
                 className="flex items-center justify-between border-b border-zinc-200 px-6 py-3 h-16 bg-zinc-50 shrink-0">
@@ -119,7 +119,7 @@ export default function MatchDataPostPage() {
             </div>
 
             {/* BODY */}
-            <div className="flex flex-1 overflow-hidden">
+            <div className="flex flex-col lg:flex-row flex-1 overflow-auto lg:overflow-hidden">
                 {/* Red panel — TBA teams + per-robot climb data */}
                 <AllianceResultPanel
                     color="red"
@@ -128,8 +128,17 @@ export default function MatchDataPostPage() {
                     permissions={permissions}
                 />
 
-                {/* Center comparison */}
-                <div className="flex-[1.5] flex flex-col overflow-auto bg-zinc-50 border-x border-zinc-200">
+                {/* Blue panel — order-2 on mobile (after red), order-last on lg */}
+                <AllianceResultPanel
+                    color="blue"
+                    data={blue}
+                    teamNames={teamNames}
+                    permissions={permissions}
+                    className="order-2 lg:order-last"
+                />
+
+                {/* Center comparison — order-3 on mobile (after blue), order-2 on lg (middle) */}
+                <div className="order-3 lg:order-2 shrink-0 lg:shrink lg:flex-[1.5] flex flex-col overflow-auto bg-zinc-50 border-y lg:border-y-0 lg:border-x border-zinc-200">
                     {/* Predicted vs TBA actual */}
                     {pred.red_score_pred != null && (
                         <Section label="Predicted vs Actual">
@@ -272,14 +281,6 @@ export default function MatchDataPostPage() {
                         </Section>
                     )}
                 </div>
-
-                {/* Blue panel — TBA teams + per-robot climb data */}
-                <AllianceResultPanel
-                    color="blue"
-                    data={blue}
-                    teamNames={teamNames}
-                    permissions={permissions}
-                />
             </div>
         </div>
     )
@@ -429,22 +430,23 @@ function ClimbResultPanel({color, climbs, teamNames}: {
     )
 }
 
-function AllianceResultPanel({color, data, teamNames, permissions}: {
+function AllianceResultPanel({color, data, teamNames, permissions, className = ""}: {
     color: "red" | "blue"
     data: any
     teamNames: Record<number, string>
     permissions: any
+    className?: string
 }) {
     const bg = color === "red" ? "bg-red-50/50" : "bg-blue-50/50"
     const headerColor = color === "red" ? "text-red-700" : "text-blue-700"
     const teams: number[] = data.teams ?? []
 
     return (
-        <div className={`w-80 flex flex-col overflow-hidden shrink-0 ${bg}`}>
+        <div className={`w-full lg:w-80 flex flex-col shrink-0 overflow-hidden ${bg} ${className}`}>
             <div className={`px-4 py-2 border-b border-zinc-200 text-sm font-semibold ${headerColor}`}>
                 {color === "red" ? "Red" : "Blue"} Alliance
             </div>
-            <ul className="flex flex-col flex-1 divide-y divide-zinc-200 overflow-auto">
+            <ul className="flex flex-col lg:flex-1 divide-y divide-zinc-200 lg:overflow-auto">
                 {teams.map((tn, idx) => {
                     const climb = data.climbs?.[idx]
                     return (
